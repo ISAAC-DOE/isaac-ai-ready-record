@@ -712,3 +712,61 @@ def validate_record_vocabulary(record):
                     })
 
     return errors
+
+
+def merge_vocabulary_into_schema(schema: dict) -> dict:
+    """
+    Return a deep copy of *schema* with vocabulary ``enum`` constraints
+    injected for every field governed by the live vocabulary.
+
+    Where the base schema already has an ``enum``, it is **replaced** by the
+    vocabulary values so the returned schema is the single source of truth.
+    Fields not covered by the vocabulary are left untouched.
+    """
+    import copy
+
+    vocab = load_vocabulary()
+    if not vocab:
+        return copy.deepcopy(schema)
+
+    merged = copy.deepcopy(schema)
+
+    for _section_name, categories in vocab.items():
+        for cat_key, cat_data in categories.items():
+            if cat_key in _SKIP_CATEGORIES:
+                continue
+
+            allowed = cat_data.get("values", [])
+            if not allowed:
+                continue
+
+            # Walk the JSON Schema tree following the dotted path.
+            # When a schema node is {"type": "array", "items": {...}}
+            # we transparently descend into "items" — mirroring how
+            # _resolve_path walks actual record data through arrays.
+            path_parts = cat_key.split(".")
+            node = merged.get("properties", {})
+            resolved = True
+
+            for i, key in enumerate(path_parts):
+                if key not in node:
+                    resolved = False
+                    break
+
+                if i == len(path_parts) - 1:
+                    # Leaf — inject the enum
+                    node[key]["enum"] = allowed
+                else:
+                    # Intermediate — descend
+                    sub = node[key]
+                    # Traverse into array items transparently
+                    if sub.get("type") == "array" and "items" in sub:
+                        sub = sub["items"]
+                    node = sub.get("properties", {})
+
+            if not resolved:
+                # Path not found in schema — vocabulary covers an
+                # extension field not (yet) in the base schema; skip.
+                continue
+
+    return merged

@@ -1,21 +1,64 @@
-# Python
+# ===== Python =====
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+*.egg
 *.egg-info/
 dist/
 build/
+eggs/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Virtual environment
+# Virtual environments
+.venv/
 venv/
+ENV/
 
-# Environment variables
+# Type checkers / linters
+.mypy_cache/
+.pytype/
+.ruff_cache/
+.pytest_cache/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Packaging
+*.whl
+*.tar.gz
+
+# ===== Environment =====
 .env
+.env.*
+!.env.example
 
-# macOS
+# ===== OS =====
 .DS_Store
+Thumbs.db
+Desktop.ini
 
-# IDE
+# ===== IDE / Editor =====
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+\#*\#
+.project
+.settings/
+
+# ===== Docker =====
+docker-compose.override.yml
+
+# ===== Misc =====
+*.log
+*.bak
+*.tmp
