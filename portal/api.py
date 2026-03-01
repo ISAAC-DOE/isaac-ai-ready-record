@@ -244,6 +244,21 @@ def health():
     return jsonify({"status": "healthy", "service": "isaac-portal-api"})
 
 
+# --- Combined schema (base + vocabulary enums) ----------------------------
+
+@app.route("/portal/api/schema", methods=["GET"])
+def get_schema():
+    """
+    Return the ISAAC record JSON Schema with vocabulary enum
+    constraints merged in.
+
+    This is a public endpoint (no auth required) so that clients
+    can fetch the authoritative schema and validate locally.
+    """
+    merged = ontology.merge_vocabulary_into_schema(ISAAC_SCHEMA)
+    return jsonify(merged), 200
+
+
 # --- Validate (dry-run, no DB write) --------------------------------------
 
 @app.route("/portal/api/validate", methods=["POST"])
