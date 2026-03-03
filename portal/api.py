@@ -259,6 +259,32 @@ def get_schema():
     return jsonify(merged), 200
 
 
+# --- Ontology / vocabulary -------------------------------------------------
+
+@app.route("/portal/api/ontology", methods=["GET"])
+def get_ontology():
+    """
+    Return the live ontology/vocabulary as a JSON dict.
+
+    Structure: { section: { category_key: { description, values } } }
+
+    Optional query param:
+      ?section=Sample   — return only the named section.
+    """
+    vocab = ontology.load_vocabulary()
+
+    section = request.args.get("section")
+    if section:
+        if section not in vocab:
+            return jsonify({
+                "error": f"Unknown section: {section}",
+                "available_sections": list(vocab.keys()),
+            }), 404
+        return jsonify({section: vocab[section]}), 200
+
+    return jsonify(vocab), 200
+
+
 # --- Validate (dry-run, no DB write) --------------------------------------
 
 @app.route("/portal/api/validate", methods=["POST"])
