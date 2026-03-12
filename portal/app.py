@@ -1074,8 +1074,8 @@ elif page == "API Documentation":
     "record_id": "01JFH3Q8Z1Q9F0XG3V7N4K2M8C",
     "record_type": "evidence",
     "record_domain": "characterization",
+    "source_type": "facility",
     "timestamps": { "created_utc": "2025-12-14T20:15:00Z" },
-    "acquisition_source": { "source_type": "facility" },
     "sample": {
       "material": { "name": "Copper(II) Oxide", "formula": "CuO2", "provenance": "commercial" },
       "sample_form": "pellet"

@@ -150,7 +150,7 @@ def render_form():
 
         extra_record_info = render_extra_vocab_fields(
             "Record Info",
-            ["record_type", "record_domain", "acquisition_source.source_type"],
+            ["record_type", "record_domain", "source_type"],
             "ri"
         )
 
@@ -174,50 +174,13 @@ def render_form():
             acquired_end_time = st.time_input("Acquisition End Time", value=None)
 
         # =====================================================================
-        # SECTION 3: Acquisition Source
+        # SECTION 3: Source Type
         # =====================================================================
-        st.subheader("3. Acquisition Source *")
+        st.subheader("3. Source Type *")
+        st.caption("Origin of the data acquisition (facility details go in System block)")
 
-        source_type_options = [""] + get_vocab_values("Record Info", "acquisition_source.source_type")
+        source_type_options = [""] + get_vocab_values("Record Info", "source_type")
         source_type = st.selectbox("Source Type *", source_type_options)
-
-        # Conditional fields based on source type
-        facility_name = ""
-        facility_id = ""
-        lab_name = ""
-        lab_institution = ""
-        comp_platform = ""
-        comp_software = ""
-        lit_doi = ""
-        lit_citation = ""
-
-        if source_type == "facility":
-            col1, col2 = st.columns(2)
-            with col1:
-                facility_name = st.text_input("Facility Name", placeholder="e.g., SLAC National Accelerator Laboratory")
-            with col2:
-                facility_id = st.text_input("Facility ID", placeholder="Facility identifier")
-
-        elif source_type == "laboratory":
-            col1, col2 = st.columns(2)
-            with col1:
-                lab_name = st.text_input("Laboratory Name", placeholder="e.g., Materials Science Lab")
-            with col2:
-                lab_institution = st.text_input("Institution", placeholder="Parent institution")
-
-        elif source_type == "computation":
-            col1, col2 = st.columns(2)
-            with col1:
-                comp_platform = st.text_input("Platform", placeholder="e.g., NERSC Perlmutter")
-            with col2:
-                comp_software = st.text_input("Software", placeholder="e.g., VASP 6.4.1")
-
-        elif source_type == "literature":
-            col1, col2 = st.columns(2)
-            with col1:
-                lit_doi = st.text_input("DOI", placeholder="e.g., 10.1234/example.2024")
-            with col2:
-                lit_citation = st.text_input("Citation", placeholder="Full citation text")
 
         # =====================================================================
         # SECTION 4: Sample (Optional)
@@ -468,14 +431,6 @@ def render_form():
             acquired_end_date=acquired_end_date,
             acquired_end_time=acquired_end_time,
             source_type=source_type,
-            facility_name=facility_name,
-            facility_id=facility_id,
-            lab_name=lab_name,
-            lab_institution=lab_institution,
-            comp_platform=comp_platform,
-            comp_software=comp_software,
-            lit_doi=lit_doi,
-            lit_citation=lit_citation,
             material_name=material_name,
             material_formula=material_formula,
             material_provenance=material_provenance,
@@ -606,8 +561,11 @@ def build_record(**kwargs) -> dict:
         "record_type": kwargs['record_type'],
         "record_domain": kwargs['record_domain'],
         "timestamps": {},
-        "acquisition_source": {}
     }
+
+    # Source Type
+    if kwargs['source_type']:
+        record['source_type'] = kwargs['source_type']
 
     # Timestamps
     if kwargs['created_date'] and kwargs['created_time']:
@@ -621,42 +579,6 @@ def build_record(**kwargs) -> dict:
     if kwargs['acquired_end_date'] and kwargs['acquired_end_time']:
         dt = datetime.combine(kwargs['acquired_end_date'], kwargs['acquired_end_time'])
         record['timestamps']['acquired_end_utc'] = dt.isoformat() + "Z"
-
-    # Acquisition Source
-    if kwargs['source_type']:
-        record['acquisition_source']['source_type'] = kwargs['source_type']
-
-        if kwargs['source_type'] == 'facility':
-            if kwargs['facility_name'] or kwargs['facility_id']:
-                record['acquisition_source']['facility'] = {}
-                if kwargs['facility_name']:
-                    record['acquisition_source']['facility']['name'] = kwargs['facility_name']
-                if kwargs['facility_id']:
-                    record['acquisition_source']['facility']['id'] = kwargs['facility_id']
-
-        elif kwargs['source_type'] == 'laboratory':
-            if kwargs['lab_name'] or kwargs['lab_institution']:
-                record['acquisition_source']['laboratory'] = {}
-                if kwargs['lab_name']:
-                    record['acquisition_source']['laboratory']['name'] = kwargs['lab_name']
-                if kwargs['lab_institution']:
-                    record['acquisition_source']['laboratory']['institution'] = kwargs['lab_institution']
-
-        elif kwargs['source_type'] == 'computation':
-            if kwargs['comp_platform'] or kwargs['comp_software']:
-                record['acquisition_source']['computation'] = {}
-                if kwargs['comp_platform']:
-                    record['acquisition_source']['computation']['platform'] = kwargs['comp_platform']
-                if kwargs['comp_software']:
-                    record['acquisition_source']['computation']['software'] = kwargs['comp_software']
-
-        elif kwargs['source_type'] == 'literature':
-            if kwargs['lit_doi'] or kwargs['lit_citation']:
-                record['acquisition_source']['literature'] = {}
-                if kwargs['lit_doi']:
-                    record['acquisition_source']['literature']['doi'] = kwargs['lit_doi']
-                if kwargs['lit_citation']:
-                    record['acquisition_source']['literature']['citation'] = kwargs['lit_citation']
 
     # Sample
     sample = {}
@@ -858,7 +780,7 @@ def validate_record(record: dict) -> list:
     if not record.get('timestamps', {}).get('created_utc'):
         errors.append("Created timestamp is required")
 
-    if not record.get('acquisition_source', {}).get('source_type'):
-        errors.append("Acquisition Source Type is required")
+    if not record.get('source_type'):
+        errors.append("Source Type is required")
 
     return errors

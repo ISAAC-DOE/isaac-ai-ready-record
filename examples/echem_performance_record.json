@@ -1,190 +1,184 @@
 {
-    "isaac_record_version": "1.0",
-    "record_id": "01JFH4X9Y2R8G1YH4W8O5L3N9D",
-    "record_type": "evidence",
-    "record_domain": "performance",
-    "timestamps": {
-        "acquired_start_utc": "2025-12-15T09:00:00Z",
-        "acquired_end_utc": "2025-12-15T10:30:00Z",
-        "created_utc": "2025-12-15T11:45:00Z"
+  "isaac_record_version": "1.0",
+  "record_id": "01JFH4X9Y2R8G1YH4W8O5L3N9D",
+  "record_type": "evidence",
+  "record_domain": "performance",
+  "source_type": "laboratory",
+  "timestamps": {
+    "acquired_start_utc": "2025-12-15T09:00:00Z",
+    "acquired_end_utc": "2025-12-15T10:30:00Z",
+    "created_utc": "2025-12-15T11:45:00Z"
+  },
+  "sample": {
+    "material": {
+      "name": "Pt/C",
+      "formula": "Pt/C",
+      "provenance": "commercial",
+      "notes": "40% Pt on Carbon. Catalyst layer supported on RDE disk."
     },
-    "acquisition_source": {
-        "source_type": "laboratory",
-        "laboratory": {
-            "name": "SSRL Electrochemistry Lab",
-            "instrument_id": "BioLogic-VMP3-Chan1"
-        }
-    },
-    "sample": {
-        "material": {
-            "name": "Pt/C",
-            "formula": "Pt/C",
-            "provenance": "commercial",
-            "notes": "40% Pt on Carbon. Catalyst layer supported on RDE disk."
-        },
-        "sample_form": "film",
-        "composition": {
-            "loading_mg_pt_cm2": 0.4
-        }
-    },
-    "device": {
-        "device_id": "Dev-2025-PtC-005",
-        "electrode_type": "RDE",
-        "geometric_area": {
-            "value": 1.0,
-            "unit": "cm2"
-        },
-        "catalyst_loading": {
-            "value": 0.4,
-            "unit": "mg_Pt/cm2"
-        },
-        "notes": "Commercial 40% Pt/C on carbon paper."
-    },
-    "context": {
-        "environment": "in_situ",
-        "electrolyte": {
-            "name": "HClO4",
-            "concentration_M": 0.1
-        },
-        "temperature_K": 298.15,
-        "gas_feed": "O2",
-        "cell_type": "three-electrode glass cell",
-        "rotation_speed_rpm": 1600
-    },
-    "system": {
-        "domain": "experimental",
-        "facility": {
-            "facility_name": "SSRL",
-            "organization": "SLAC",
-            "laboratory": "Echem_Lab"
-        },
-        "instrument": {
-            "instrument_type": "potentiostat",
-            "instrument_name": "BioLogic_VMP3",
-            "vendor_or_project": "BioLogic"
-        },
-        "configuration": {
-            "channel_id": "1",
-            "booster_amps": 0,
-            "electrode_configuration": "RDE_AFE",
-            "reference_electrode": "RHE_hydroflex"
-        }
-    },
-    "measurement": {
-        "processing": {
-            "type": "iR_corrected_averaged_steady_state",
-            "recipe_link": {
-                "rel": "processing_recipe",
-                "target": "workflow://echem_orr_processing/v1.2"
-            }
-        },
-        "series": [
-            {
-                "series_id": "lsv_trace",
-                "independent_variables": [
-                    {
-                        "name": "potential",
-                        "unit": "V_RHE",
-                        "values": [
-                            0.9,
-                            0.8,
-                            0.7,
-                            0.6,
-                            0.5,
-                            0.4,
-                            0.3
-                        ]
-                    }
-                ],
-                "channels": [
-                    {
-                        "name": "current_density",
-                        "unit": "mA_cm2",
-                        "role": "measured_response",
-                        "values": [
-                            -0.1,
-                            -0.5,
-                            -1.2,
-                            -2.5,
-                            -4.8,
-                            -5.5,
-                            -5.8
-                        ]
-                    }
-                ]
-            }
-        ],
-        "qc": {
-            "status": "valid",
-            "evidence": "Clean mass transport limited region observed."
-        }
-    },
-    "assets": [
-        {
-            "asset_id": "raw_biologic_log",
-            "content_role": "raw_data_pointer",
-            "uri": "lab-storage://echem/2025/dec/15/Dev-005_ORR_run.mpr",
-            "media_type": "application/octet-stream",
-            "sha256": "i3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b123",
-            "notes": "Binary BioLogic instrument file."
-        },
-        {
-            "asset_id": "reduced_polarization_table",
-            "content_role": "reduction_product",
-            "uri": "lab-storage://echem/2025/dec/15/Dev-005_ORR_reduced.csv",
-            "media_type": "text/csv",
-            "sha256": "j3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b234",
-            "notes": "Full resolution steady-state polarization table."
-        },
-        {
-            "asset_id": "echem_processing_script",
-            "content_role": "processing_recipe",
-            "uri": "workflow://echem_orr_processing/v1.2",
-            "media_type": "text/x-python",
-            "sha256": "k3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b345",
-            "notes": "Python script for iR correction and steady-state averaging."
-        }
-    ],
-    "links": [],
-    "descriptors": {
-        "policy": {
-            "requires_at_least_one": true
-        },
-        "outputs": [
-            {
-                "label": "kinetic_analysis_v1",
-                "generated_utc": "2025-12-15T12:00:00Z",
-                "generated_by": {
-                    "agent": "orbit_analysis_suite",
-                    "version": "1.2"
-                },
-                "descriptors": [
-                    {
-                        "name": "tafel_slope",
-                        "kind": "absolute",
-                        "source": "auto",
-                        "value": 62.0,
-                        "unit": "mV/dec",
-                        "uncertainty": {
-                            "sigma": 2.5,
-                            "unit": "mV/dec"
-                        },
-                        "definition": "Linear fit to low-current density region (0.1-10 mA/cm2)."
-                    },
-                    {
-                        "name": "mass_activity_0_9V",
-                        "kind": "absolute",
-                        "source": "auto",
-                        "value": 0.12,
-                        "unit": "A/mg_Pt",
-                        "uncertainty": {
-                            "sigma": 0.01,
-                            "unit": "A/mg_Pt"
-                        },
-                        "definition": "Calculated at 0.9V vs RHE."
-                    }
-                ]
-            }
-        ]
+    "sample_form": "film",
+    "composition": {
+      "loading_mg_pt_cm2": 0.4
     }
+  },
+  "device": {
+    "device_id": "Dev-2025-PtC-005",
+    "electrode_type": "RDE",
+    "geometric_area": {
+      "value": 1.0,
+      "unit": "cm2"
+    },
+    "catalyst_loading": {
+      "value": 0.4,
+      "unit": "mg_Pt/cm2"
+    },
+    "notes": "Commercial 40% Pt/C on carbon paper."
+  },
+  "context": {
+    "environment": "in_situ",
+    "electrolyte": {
+      "name": "HClO4",
+      "concentration_M": 0.1
+    },
+    "temperature_K": 298.15,
+    "gas_feed": "O2",
+    "cell_type": "three-electrode glass cell",
+    "rotation_speed_rpm": 1600
+  },
+  "system": {
+    "domain": "experimental",
+    "facility": {
+      "facility_name": "SSRL",
+      "organization": "SLAC",
+      "laboratory": "Echem_Lab"
+    },
+    "instrument": {
+      "instrument_type": "potentiostat",
+      "instrument_name": "BioLogic_VMP3",
+      "vendor_or_project": "BioLogic"
+    },
+    "configuration": {
+      "channel_id": "1",
+      "booster_amps": 0,
+      "electrode_configuration": "RDE_AFE",
+      "reference_electrode": "RHE_hydroflex"
+    }
+  },
+  "measurement": {
+    "processing": {
+      "type": "iR_corrected_averaged_steady_state",
+      "recipe_link": {
+        "rel": "processing_recipe",
+        "target": "workflow://echem_orr_processing/v1.2"
+      }
+    },
+    "series": [
+      {
+        "series_id": "lsv_trace",
+        "independent_variables": [
+          {
+            "name": "potential",
+            "unit": "V_RHE",
+            "values": [
+              0.9,
+              0.8,
+              0.7,
+              0.6,
+              0.5,
+              0.4,
+              0.3
+            ]
+          }
+        ],
+        "channels": [
+          {
+            "name": "current_density",
+            "unit": "mA_cm2",
+            "role": "measured_response",
+            "values": [
+              -0.1,
+              -0.5,
+              -1.2,
+              -2.5,
+              -4.8,
+              -5.5,
+              -5.8
+            ]
+          }
+        ]
+      }
+    ],
+    "qc": {
+      "status": "valid",
+      "evidence": "Clean mass transport limited region observed."
+    }
+  },
+  "assets": [
+    {
+      "asset_id": "raw_biologic_log",
+      "content_role": "raw_data_pointer",
+      "uri": "lab-storage://echem/2025/dec/15/Dev-005_ORR_run.mpr",
+      "media_type": "application/octet-stream",
+      "sha256": "i3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b123",
+      "notes": "Binary BioLogic instrument file."
+    },
+    {
+      "asset_id": "reduced_polarization_table",
+      "content_role": "reduction_product",
+      "uri": "lab-storage://echem/2025/dec/15/Dev-005_ORR_reduced.csv",
+      "media_type": "text/csv",
+      "sha256": "j3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b234",
+      "notes": "Full resolution steady-state polarization table."
+    },
+    {
+      "asset_id": "echem_processing_script",
+      "content_role": "processing_recipe",
+      "uri": "workflow://echem_orr_processing/v1.2",
+      "media_type": "text/x-python",
+      "sha256": "k3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b345",
+      "notes": "Python script for iR correction and steady-state averaging."
+    }
+  ],
+  "links": [],
+  "descriptors": {
+    "policy": {
+      "requires_at_least_one": true
+    },
+    "outputs": [
+      {
+        "label": "kinetic_analysis_v1",
+        "generated_utc": "2025-12-15T12:00:00Z",
+        "generated_by": {
+          "agent": "orbit_analysis_suite",
+          "version": "1.2"
+        },
+        "descriptors": [
+          {
+            "name": "tafel_slope",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 62.0,
+            "unit": "mV/dec",
+            "uncertainty": {
+              "sigma": 2.5,
+              "unit": "mV/dec"
+            },
+            "definition": "Linear fit to low-current density region (0.1-10 mA/cm2)."
+          },
+          {
+            "name": "mass_activity_0_9V",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 0.12,
+            "unit": "A/mg_Pt",
+            "uncertainty": {
+              "sigma": 0.01,
+              "unit": "A/mg_Pt"
+            },
+            "definition": "Calculated at 0.9V vs RHE."
+          }
+        ]
+      }
+    ]
+  }
 }

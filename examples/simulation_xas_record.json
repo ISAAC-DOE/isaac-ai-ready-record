@@ -1,205 +1,198 @@
 {
-    "isaac_record_version": "1.0",
-    "record_id": "01JFH8SIMXAS00000000000001",
-    "record_type": "evidence",
-    "record_domain": "simulation",
-    "timestamps": {
-        "acquired_start_utc": "2025-12-18T02:10:00Z",
-        "acquired_end_utc": "2025-12-18T06:55:00Z",
-        "created_utc": "2025-12-18T07:10:00Z"
+  "isaac_record_version": "1.0",
+  "record_id": "01JFH8SIMXAS00000000000001",
+  "record_type": "evidence",
+  "record_domain": "simulation",
+  "source_type": "computation",
+  "timestamps": {
+    "acquired_start_utc": "2025-12-18T02:10:00Z",
+    "acquired_end_utc": "2025-12-18T06:55:00Z",
+    "created_utc": "2025-12-18T07:10:00Z"
+  },
+  "sample": {
+    "material": {
+      "name": "Cu(111) slab model with CO",
+      "formula": "Cu",
+      "provenance": "theoretical",
+      "notes": "4-layer Cu(111) slab, CO at atop site."
     },
-    "acquisition_source": {
-        "source_type": "computation",
-        "computation": {
-            "site": "NERSC",
-            "allocation": "mXXXX",
-            "machine": "perlmutter"
-        }
+    "sample_form": "slab_model"
+  },
+  "context": {
+    "environment": "in_silico",
+    "temperature_K": 0,
+    "notes": "Static 0 K electronic structure."
+  },
+  "system": {
+    "domain": "computational",
+    "facility": {
+      "facility_name": "NERSC",
+      "organization": "LBNL",
+      "cluster": "Perlmutter"
     },
-    "sample": {
-        "material": {
-            "name": "Cu(111) slab model with CO",
-            "formula": "Cu",
-            "provenance": "theoretical",
-            "notes": "4-layer Cu(111) slab, CO at atop site."
-        },
-        "sample_form": "slab_model"
+    "instrument": {
+      "instrument_type": "simulation_engine",
+      "instrument_name": "VASP_Standard",
+      "vendor_or_project": "VASP"
     },
-    "context": {
-        "environment": "in_silico",
-        "temperature_K": 0,
-        "notes": "Static 0 K electronic structure."
+    "configuration": {
+      "code_version": "6.3.2",
+      "compute_architecture": "GPU"
     },
-    "system": {
-        "domain": "computational",
-        "facility": {
-            "facility_name": "NERSC",
-            "organization": "LBNL",
-            "cluster": "Perlmutter"
-        },
-        "instrument": {
-            "instrument_type": "simulation_engine",
-            "instrument_name": "VASP_Standard",
-            "vendor_or_project": "VASP"
-        },
-        "configuration": {
-            "code_version": "6.3.2",
-            "compute_architecture": "GPU"
-        },
-        "simulation": {
-            "method": "DFT"
-        }
-    },
-    "computation": {
-        "method": {
-            "family": "DFT",
-            "functional_class": "GGA",
-            "functional_name": "PBE",
-            "core_hole_treatment": "final_state_rule",
-            "notes": "Specific functional settings."
-        }
-    },
-    "measurement": {
-        "processing": {
-            "type": "simulated_spectrum_broadened",
-            "recipe_link": {
-                "rel": "processing_recipe",
-                "target": "repo://isaac-workflows/qe_xspectra/cu111_co/v1.0"
-            }
-        },
-        "series": [
-            {
-                "series_id": "computed_k_edge",
-                "independent_variables": [
-                    {
-                        "name": "energy",
-                        "unit": "eV",
-                        "values": [
-                            8970,
-                            8975,
-                            8980,
-                            8985,
-                            8990,
-                            8995,
-                            9000
-                        ]
-                    }
-                ],
-                "channels": [
-                    {
-                        "name": "absorption_cross_section",
-                        "unit": "cm2_atom",
-                        "role": "simulated_observable",
-                        "values": [
-                            0.00,
-                            0.02,
-                            0.38,
-                            1.35,
-                            1.05,
-                            0.99,
-                            1.01
-                        ]
-                    }
-                ]
-            }
-        ],
-        "qc": {
-            "status": "valid"
-        }
-    },
-    "assets": [
-        {
-            "asset_id": "structure_relaxed",
-            "content_role": "input_structure",
-            "uri": "nersc://isaac/simxas/cu111_co/relaxed_structure.xyz",
-            "media_type": "chemical/x-xyz",
-            "sha256": "55f563605c31278152283734135544710156784381389",
-            "notes": "Relaxed geometry used for XAS simulation. Contains full atomic coordinates."
-        },
-        {
-            "asset_id": "qe_inputs",
-            "content_role": "processing_recipe",
-            "uri": "repo://isaac-workflows/qe_xspectra/cu111_co/v1.0",
-            "media_type": "text/plain",
-            "sha256": "66f563605c31278152283734135544710156784381389",
-            "notes": "QE/XSpectra input decks and run script."
-        },
-        {
-            "asset_id": "xas_fullres",
-            "content_role": "reduction_product",
-            "uri": "nersc://isaac/simxas/cu111_co/results/cu_kedge_simulated_fullres.xdi",
-            "media_type": "text/plain",
-            "sha256": "77f563605c31278152283734135544710156784381389",
-            "notes": "Full-resolution simulated spectrum (energy grid + mu)."
-        },
-        {
-            "asset_id": "raw_qe_outputs",
-            "content_role": "raw_data_pointer",
-            "uri": "nersc://isaac/simxas/cu111_co/raw/job_outputs.tar.gz",
-            "media_type": "application/gzip",
-            "sha256": "88f563605c31278152283734135544710156784381389",
-            "notes": "Full code outputs: SCF, XSpectra, logs, checkpoints."
-        }
-    ],
-    "links": [
-        {
-            "rel": "intended_comparison_target",
-            "target": "01JFH7K2W6P1D9A3R4ZQ2M8T5V",
-            "basis": "same_absorber_edge",
-            "notes": "Compare simulated Cu K-edge spectrum against operando HERFD-XANES measurement record."
-        }
-    ],
-    "descriptors": {
-        "policy": {
-            "requires_at_least_one": true
-        },
-        "outputs": [
-            {
-                "label": "auto_features_v1",
-                "generated_utc": "2025-12-18T07:12:00Z",
-                "generated_by": {
-                    "agent": "isaac_simxas_descriptor_agent",
-                    "version": "0.1"
-                },
-                "descriptors": [
-                    {
-                        "name": "xanes.edge_position",
-                        "kind": "absolute",
-                        "source": "auto",
-                        "value": 8986.3,
-                        "unit": "eV",
-                        "definition": "First-derivative maximum after broadening.",
-                        "uncertainty": {
-                            "sigma": 0.4,
-                            "unit": "eV"
-                        }
-                    },
-                    {
-                        "name": "xanes.white_line_intensity",
-                        "kind": "absolute",
-                        "source": "auto",
-                        "value": 1.20,
-                        "unit": "arb",
-                        "definition": "Peak intensity.",
-                        "uncertainty": {
-                            "sigma": 0.05,
-                            "unit": "arb"
-                        }
-                    },
-                    {
-                        "name": "descriptors.theoretical_metric",
-                        "kind": "absolute",
-                        "source": "auto",
-                        "value": -1.45,
-                        "unit": "eV",
-                        "definition": "CO adsorption energy on Atop site.",
-                        "uncertainty": {
-                            "sigma": 0.05,
-                            "unit": "eV"
-                        }
-                    }
-                ]
-            }
-        ]
+    "simulation": {
+      "method": "DFT"
     }
+  },
+  "computation": {
+    "method": {
+      "family": "DFT",
+      "functional_class": "GGA",
+      "functional_name": "PBE",
+      "core_hole_treatment": "final_state_rule",
+      "notes": "Specific functional settings."
+    }
+  },
+  "measurement": {
+    "processing": {
+      "type": "simulated_spectrum_broadened",
+      "recipe_link": {
+        "rel": "processing_recipe",
+        "target": "repo://isaac-workflows/qe_xspectra/cu111_co/v1.0"
+      }
+    },
+    "series": [
+      {
+        "series_id": "computed_k_edge",
+        "independent_variables": [
+          {
+            "name": "energy",
+            "unit": "eV",
+            "values": [
+              8970,
+              8975,
+              8980,
+              8985,
+              8990,
+              8995,
+              9000
+            ]
+          }
+        ],
+        "channels": [
+          {
+            "name": "absorption_cross_section",
+            "unit": "cm2_atom",
+            "role": "simulated_observable",
+            "values": [
+              0.0,
+              0.02,
+              0.38,
+              1.35,
+              1.05,
+              0.99,
+              1.01
+            ]
+          }
+        ]
+      }
+    ],
+    "qc": {
+      "status": "valid"
+    }
+  },
+  "assets": [
+    {
+      "asset_id": "structure_relaxed",
+      "content_role": "input_structure",
+      "uri": "nersc://isaac/simxas/cu111_co/relaxed_structure.xyz",
+      "media_type": "chemical/x-xyz",
+      "sha256": "55f563605c31278152283734135544710156784381389",
+      "notes": "Relaxed geometry used for XAS simulation. Contains full atomic coordinates."
+    },
+    {
+      "asset_id": "qe_inputs",
+      "content_role": "processing_recipe",
+      "uri": "repo://isaac-workflows/qe_xspectra/cu111_co/v1.0",
+      "media_type": "text/plain",
+      "sha256": "66f563605c31278152283734135544710156784381389",
+      "notes": "QE/XSpectra input decks and run script."
+    },
+    {
+      "asset_id": "xas_fullres",
+      "content_role": "reduction_product",
+      "uri": "nersc://isaac/simxas/cu111_co/results/cu_kedge_simulated_fullres.xdi",
+      "media_type": "text/plain",
+      "sha256": "77f563605c31278152283734135544710156784381389",
+      "notes": "Full-resolution simulated spectrum (energy grid + mu)."
+    },
+    {
+      "asset_id": "raw_qe_outputs",
+      "content_role": "raw_data_pointer",
+      "uri": "nersc://isaac/simxas/cu111_co/raw/job_outputs.tar.gz",
+      "media_type": "application/gzip",
+      "sha256": "88f563605c31278152283734135544710156784381389",
+      "notes": "Full code outputs: SCF, XSpectra, logs, checkpoints."
+    }
+  ],
+  "links": [
+    {
+      "rel": "intended_comparison_target",
+      "target": "01JFH7K2W6P1D9A3R4ZQ2M8T5V",
+      "basis": "same_absorber_edge",
+      "notes": "Compare simulated Cu K-edge spectrum against operando HERFD-XANES measurement record."
+    }
+  ],
+  "descriptors": {
+    "policy": {
+      "requires_at_least_one": true
+    },
+    "outputs": [
+      {
+        "label": "auto_features_v1",
+        "generated_utc": "2025-12-18T07:12:00Z",
+        "generated_by": {
+          "agent": "isaac_simxas_descriptor_agent",
+          "version": "0.1"
+        },
+        "descriptors": [
+          {
+            "name": "xanes.edge_position",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 8986.3,
+            "unit": "eV",
+            "definition": "First-derivative maximum after broadening.",
+            "uncertainty": {
+              "sigma": 0.4,
+              "unit": "eV"
+            }
+          },
+          {
+            "name": "xanes.white_line_intensity",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 1.2,
+            "unit": "arb",
+            "definition": "Peak intensity.",
+            "uncertainty": {
+              "sigma": 0.05,
+              "unit": "arb"
+            }
+          },
+          {
+            "name": "descriptors.theoretical_metric",
+            "kind": "absolute",
+            "source": "auto",
+            "value": -1.45,
+            "unit": "eV",
+            "definition": "CO adsorption energy on Atop site.",
+            "uncertainty": {
+              "sigma": 0.05,
+              "unit": "eV"
+            }
+          }
+        ]
+      }
+    ]
+  }
 }

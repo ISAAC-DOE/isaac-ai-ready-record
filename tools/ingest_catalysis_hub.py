@@ -281,8 +281,8 @@ def convert_reaction(reaction: dict, publication: dict, now_utc: str) -> dict:
         "record_id": record_id,
         "record_type": "evidence",
         "record_domain": "simulation",
+        "source_type": "database",
         "timestamps": {"created_utc": now_utc},
-        "acquisition_source": {"source_type": "database"},
         "sample": {
             "material": {
                 "name": material_name,

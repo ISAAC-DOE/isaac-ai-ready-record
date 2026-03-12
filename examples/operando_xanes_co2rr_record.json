@@ -1,253 +1,248 @@
 {
-    "isaac_record_version": "1.0",
-    "record_id": "01JFH7K2W6P1D9A3R4ZQ2M8T5V",
-    "record_type": "evidence",
-    "record_domain": "characterization",
-    "timestamps": {
-        "acquired_start_utc": "2025-11-21T19:05:00Z",
-        "acquired_end_utc": "2025-11-21T19:45:00Z",
-        "created_utc": "2025-11-24T18:10:00Z"
+  "isaac_record_version": "1.0",
+  "record_id": "01JFH7K2W6P1D9A3R4ZQ2M8T5V",
+  "record_type": "evidence",
+  "record_domain": "characterization",
+  "source_type": "facility",
+  "timestamps": {
+    "acquired_start_utc": "2025-11-21T19:05:00Z",
+    "acquired_end_utc": "2025-11-21T19:45:00Z",
+    "created_utc": "2025-11-24T18:10:00Z"
+  },
+  "sample": {
+    "material": {
+      "name": "Cu nanoparticles",
+      "formula": "Cu",
+      "provenance": "synthesized",
+      "notes": "Colloidal Cu nanoparticles deposited on GDE. Catalyst layer."
     },
-    "acquisition_source": {
-        "source_type": "facility",
-        "facility": {
-            "site": "SSRL",
-            "beamline": "15-2",
-            "endstation": "HiQ"
-        }
+    "sample_form": "film",
+    "composition": {
+      "catalyst_loading_mg_cm2": 1.0,
+      "ionomer_fraction_wt_percent": 15.0
     },
-    "sample": {
-        "material": {
-            "name": "Cu nanoparticles",
-            "formula": "Cu",
-            "provenance": "synthesized",
-            "notes": "Colloidal Cu nanoparticles deposited on GDE. Catalyst layer."
-        },
-        "sample_form": "film",
-        "composition": {
-            "catalyst_loading_mg_cm2": 1.0,
-            "ionomer_fraction_wt_percent": 15.0
-        },
-        "geometry": {
-            "electrode_geometric_area_cm2": 1.0
-        }
-    },
-    "system": {
-        "domain": "experimental",
-        "facility": {
-            "facility_name": "SSRL",
-            "organization": "SLAC",
-            "beamline": "15-2"
-        },
-        "instrument": {
-            "instrument_type": "beamline_endstation",
-            "instrument_name": "HiQ_Station",
-            "vendor_or_project": "Custom"
-        },
-        "configuration": {
-            "monochromator_crystal": "Si(311)",
-            "detector_model": "XES_Spectrometer",
-            "spectrometer_geometry": "Von_Hamos",
-            "beam_attenuator": "Al_filter"
-        }
-    },
-    "context": {
-        "environment": "operando",
-        "temperature_K": 298,
-        "electrochemistry": {
-            "reaction": "CO2RR",
-            "cell_type": "flow_cell",
-            "electrolyte": {
-                "composition": "1.0 M KHCO3",
-                "pH": 8.3
-            },
-            "potential_control": {
-                "setpoint_V": -1.0,
-                "scale": "RHE",
-                "mode": "potentiostatic"
-            },
-            "mass_transport": {
-                "mode": "gas_feed_to_flow_field",
-                "reactant": "CO2",
-                "flow_sccm": 20
-            }
-        }
-    },
-    "measurement": {
-        "processing": {
-            "type": "time_averaged_over_hold",
-            "recipe_link": {
-                "rel": "processing_recipe",
-                "target": "workflow://operando_xas_processing/v1.0"
-            }
-        },
-        "series": [
-            {
-                "series_id": "merged_spectrum",
-                "independent_variables": [
-                    {
-                        "name": "incident_energy",
-                        "unit": "eV",
-                        "values": [
-                            8970,
-                            8975,
-                            8980,
-                            8985,
-                            8990,
-                            8995,
-                            9000
-                        ]
-                    }
-                ],
-                "channels": [
-                    {
-                        "name": "absorption",
-                        "unit": "mu_normalized",
-                        "role": "primary_signal",
-                        "values": [
-                            0.05,
-                            0.08,
-                            0.45,
-                            1.25,
-                            0.95,
-                            0.98,
-                            1.02
-                        ]
-                    },
-                    {
-                        "name": "fluorescence_yield_raw",
-                        "unit": "counts",
-                        "role": "auxiliary_signal",
-                        "values": [
-                            12000,
-                            13000,
-                            45000,
-                            150000,
-                            130000,
-                            135000,
-                            138000
-                        ]
-                    }
-                ]
-            }
-        ],
-        "qc": {
-            "status": "compromised",
-            "evidence": "Observed time-dependent evolution (loss of intensity) across scan series.",
-            "notes": "Scans 11-12 excluded from average."
-        }
-    },
-    "assets": [
-        {
-            "asset_id": "raw_scans_archive",
-            "content_role": "raw_data_pointer",
-            "uri": "ssrl-archive://BL15-2/2025_run_HiQ/raw_scans.h5",
-            "media_type": "application/x-hdf5",
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "notes": "Full raw scan set including monitor channels."
-        },
-        {
-            "asset_id": "merged_spectrum_fullres",
-            "content_role": "reduction_product",
-            "uri": "ssrl-archive://BL15-2/2025_run_HiQ/reduced/Cu_NP_operando_merged.xdi",
-            "media_type": "text/plain",
-            "sha256": "25f563605c31278152283734135544710156784381389",
-            "notes": "Full resolution merged spectrum in XDI format."
-        },
-        {
-            "asset_id": "processing_notebook",
-            "content_role": "processing_recipe",
-            "uri": "workflow://operando_xas_processing/v1.0",
-            "media_type": "application/x-ipynb+json",
-            "sha256": "a3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852a111",
-            "notes": "Jupyter notebook used for time-alignment, averaging, and normalization."
-        }
-    ],
-    "links": [
-        {
-            "rel": "same_sample_as",
-            "target": "01JFH5Z0A3S9H2ZI5X9P6M4O0E",
-            "basis": "shared_material_batch",
-            "notes": "Performance testing on identical GDE batch."
-        },
-        {
-            "rel": "intended_comparison_target",
-            "target": "01JFH3Q8Z1Q9F0XG3V7N4K2M8C",
-            "basis": "shared_reference_state",
-            "notes": "Ex-situ CuO2 standard used for calibration."
-        },
-        {
-            "rel": "intended_comparison_target",
-            "target": "01JFH8SIMXAS00000000000001",
-            "basis": "same_absorber_edge",
-            "notes": "Comparison to simulated Cu K-edge reference."
-        }
-    ],
-    "descriptors": {
-        "policy": {
-            "requires_at_least_one": true
-        },
-        "outputs": [
-            {
-                "label": "automated_analysis_v1",
-                "generated_utc": "2025-11-24T18:12:00Z",
-                "generated_by": {
-                    "agent": "isaac_xas_descriptor_agent",
-                    "version": "1.0"
-                },
-                "descriptors": [
-                    {
-                        "name": "xanes.edge_position",
-                        "kind": "absolute",
-                        "source": "auto",
-                        "value": 8980.4,
-                        "unit": "eV",
-                        "definition": "Edge position from first-derivative maximum after Cu-foil calibration.",
-                        "uncertainty": {
-                            "sigma": 0.10,
-                            "unit": "eV"
-                        }
-                    },
-                    {
-                        "name": "xanes.white_line_intensity",
-                        "kind": "absolute",
-                        "source": "auto",
-                        "value": 1.12,
-                        "unit": "arb",
-                        "definition": "Peak intensity in 8982–8995 eV window after normalization.",
-                        "uncertainty": {
-                            "sigma": 0.03,
-                            "unit": "arb"
-                        }
-                    },
-                    {
-                        "name": "xanes.white_line_intensity.delta",
-                        "kind": "differential",
-                        "source": "auto",
-                        "relative_to": {
-                            "record_id": "01JFH7K0N8R9S2C3V6T1M0Q4P7",
-                            "operation": "subtract"
-                        },
-                        "value": -0.08,
-                        "unit": "arb",
-                        "definition": "Change in white-line peak intensity relative to baseline operando record.",
-                        "uncertainty": {
-                            "sigma": 0.02,
-                            "unit": "arb"
-                        }
-                    },
-                    {
-                        "name": "chemistry.oxidation_state.proxy",
-                        "kind": "categorical",
-                        "source": "manual",
-                        "value": "Cu(0)-like",
-                        "definition": "Classification vs internal reference library.",
-                        "uncertainty": {
-                            "confidence": 0.86
-                        }
-                    }
-                ]
-            }
-        ]
+    "geometry": {
+      "electrode_geometric_area_cm2": 1.0
     }
+  },
+  "system": {
+    "domain": "experimental",
+    "facility": {
+      "facility_name": "SSRL",
+      "organization": "SLAC",
+      "beamline": "15-2",
+      "site": "SSRL",
+      "endstation": "HiQ"
+    },
+    "instrument": {
+      "instrument_type": "beamline_endstation",
+      "instrument_name": "HiQ_Station",
+      "vendor_or_project": "Custom"
+    },
+    "configuration": {
+      "monochromator_crystal": "Si(311)",
+      "detector_model": "XES_Spectrometer",
+      "spectrometer_geometry": "Von_Hamos",
+      "beam_attenuator": "Al_filter"
+    }
+  },
+  "context": {
+    "environment": "operando",
+    "temperature_K": 298,
+    "electrochemistry": {
+      "reaction": "CO2RR",
+      "cell_type": "flow_cell",
+      "electrolyte": {
+        "composition": "1.0 M KHCO3",
+        "pH": 8.3
+      },
+      "potential_control": {
+        "setpoint_V": -1.0,
+        "scale": "RHE",
+        "mode": "potentiostatic"
+      },
+      "mass_transport": {
+        "mode": "gas_feed_to_flow_field",
+        "reactant": "CO2",
+        "flow_sccm": 20
+      }
+    }
+  },
+  "measurement": {
+    "processing": {
+      "type": "time_averaged_over_hold",
+      "recipe_link": {
+        "rel": "processing_recipe",
+        "target": "workflow://operando_xas_processing/v1.0"
+      }
+    },
+    "series": [
+      {
+        "series_id": "merged_spectrum",
+        "independent_variables": [
+          {
+            "name": "incident_energy",
+            "unit": "eV",
+            "values": [
+              8970,
+              8975,
+              8980,
+              8985,
+              8990,
+              8995,
+              9000
+            ]
+          }
+        ],
+        "channels": [
+          {
+            "name": "absorption",
+            "unit": "mu_normalized",
+            "role": "primary_signal",
+            "values": [
+              0.05,
+              0.08,
+              0.45,
+              1.25,
+              0.95,
+              0.98,
+              1.02
+            ]
+          },
+          {
+            "name": "fluorescence_yield_raw",
+            "unit": "counts",
+            "role": "auxiliary_signal",
+            "values": [
+              12000,
+              13000,
+              45000,
+              150000,
+              130000,
+              135000,
+              138000
+            ]
+          }
+        ]
+      }
+    ],
+    "qc": {
+      "status": "compromised",
+      "evidence": "Observed time-dependent evolution (loss of intensity) across scan series.",
+      "notes": "Scans 11-12 excluded from average."
+    }
+  },
+  "assets": [
+    {
+      "asset_id": "raw_scans_archive",
+      "content_role": "raw_data_pointer",
+      "uri": "ssrl-archive://BL15-2/2025_run_HiQ/raw_scans.h5",
+      "media_type": "application/x-hdf5",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "notes": "Full raw scan set including monitor channels."
+    },
+    {
+      "asset_id": "merged_spectrum_fullres",
+      "content_role": "reduction_product",
+      "uri": "ssrl-archive://BL15-2/2025_run_HiQ/reduced/Cu_NP_operando_merged.xdi",
+      "media_type": "text/plain",
+      "sha256": "25f563605c31278152283734135544710156784381389",
+      "notes": "Full resolution merged spectrum in XDI format."
+    },
+    {
+      "asset_id": "processing_notebook",
+      "content_role": "processing_recipe",
+      "uri": "workflow://operando_xas_processing/v1.0",
+      "media_type": "application/x-ipynb+json",
+      "sha256": "a3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852a111",
+      "notes": "Jupyter notebook used for time-alignment, averaging, and normalization."
+    }
+  ],
+  "links": [
+    {
+      "rel": "same_sample_as",
+      "target": "01JFH5Z0A3S9H2ZI5X9P6M4O0E",
+      "basis": "shared_material_batch",
+      "notes": "Performance testing on identical GDE batch."
+    },
+    {
+      "rel": "intended_comparison_target",
+      "target": "01JFH3Q8Z1Q9F0XG3V7N4K2M8C",
+      "basis": "shared_reference_state",
+      "notes": "Ex-situ CuO2 standard used for calibration."
+    },
+    {
+      "rel": "intended_comparison_target",
+      "target": "01JFH8SIMXAS00000000000001",
+      "basis": "same_absorber_edge",
+      "notes": "Comparison to simulated Cu K-edge reference."
+    }
+  ],
+  "descriptors": {
+    "policy": {
+      "requires_at_least_one": true
+    },
+    "outputs": [
+      {
+        "label": "automated_analysis_v1",
+        "generated_utc": "2025-11-24T18:12:00Z",
+        "generated_by": {
+          "agent": "isaac_xas_descriptor_agent",
+          "version": "1.0"
+        },
+        "descriptors": [
+          {
+            "name": "xanes.edge_position",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 8980.4,
+            "unit": "eV",
+            "definition": "Edge position from first-derivative maximum after Cu-foil calibration.",
+            "uncertainty": {
+              "sigma": 0.1,
+              "unit": "eV"
+            }
+          },
+          {
+            "name": "xanes.white_line_intensity",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 1.12,
+            "unit": "arb",
+            "definition": "Peak intensity in 8982\u20138995 eV window after normalization.",
+            "uncertainty": {
+              "sigma": 0.03,
+              "unit": "arb"
+            }
+          },
+          {
+            "name": "xanes.white_line_intensity.delta",
+            "kind": "differential",
+            "source": "auto",
+            "relative_to": {
+              "record_id": "01JFH7K0N8R9S2C3V6T1M0Q4P7",
+              "operation": "subtract"
+            },
+            "value": -0.08,
+            "unit": "arb",
+            "definition": "Change in white-line peak intensity relative to baseline operando record.",
+            "uncertainty": {
+              "sigma": 0.02,
+              "unit": "arb"
+            }
+          },
+          {
+            "name": "chemistry.oxidation_state.proxy",
+            "kind": "categorical",
+            "source": "manual",
+            "value": "Cu(0)-like",
+            "definition": "Classification vs internal reference library.",
+            "uncertainty": {
+              "confidence": 0.86
+            }
+          }
+        ]
+      }
+    ]
+  }
 }

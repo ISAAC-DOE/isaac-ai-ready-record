@@ -3,11 +3,9 @@
   "record_id": "01D2Z6B3Y1K8M4P7Q2R5T9V0WX",
   "record_type": "evidence",
   "record_domain": "simulation",
+  "source_type": "database",
   "timestamps": {
     "created_utc": "2026-02-26T20:00:00Z"
-  },
-  "acquisition_source": {
-    "source_type": "database"
   },
   "sample": {
     "material": {

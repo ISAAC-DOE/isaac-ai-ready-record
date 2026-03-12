@@ -3,18 +3,11 @@
   "record_id": "01JFH3Q8Z1Q9F0XG3V7N4K2M8C",
   "record_type": "evidence",
   "record_domain": "characterization",
+  "source_type": "facility",
   "timestamps": {
     "acquired_start_utc": "2025-12-10T18:30:00Z",
     "acquired_end_utc": "2025-12-10T18:45:00Z",
     "created_utc": "2025-12-14T20:15:00Z"
-  },
-  "acquisition_source": {
-    "source_type": "facility",
-    "facility": {
-      "site": "SSRL",
-      "beamline": "15-2",
-      "endstation": "XES"
-    }
   },
   "sample": {
     "material": {
@@ -37,7 +30,9 @@
     "facility": {
       "facility_name": "SSRL",
       "organization": "SLAC",
-      "beamline": "15-2"
+      "beamline": "15-2",
+      "site": "SSRL",
+      "endstation": "XES"
     },
     "instrument": {
       "instrument_type": "beamline_endstation",
@@ -93,7 +88,7 @@
               0.15,
               0.85,
               1.45,
-              1.10,
+              1.1,
               1.05
             ]
           },

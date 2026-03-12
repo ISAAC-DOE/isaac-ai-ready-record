@@ -8,8 +8,8 @@
     "record_id",
     "record_type",
     "record_domain",
-    "timestamps",
-    "acquisition_source"
+    "source_type",
+    "timestamps"
   ],
   "allOf": [
     {
@@ -57,6 +57,17 @@
       ],
       "description": "Scientific domain of the record content."
     },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "facility",
+        "laboratory",
+        "computation",
+        "literature",
+        "database"
+      ],
+      "description": "Origin of the data acquisition."
+    },
     "timestamps": {
       "type": "object",
       "required": [
@@ -74,36 +85,6 @@
         "acquired_end_utc": {
           "type": "string",
           "format": "date-time"
-        }
-      }
-    },
-    "acquisition_source": {
-      "type": "object",
-      "required": [
-        "source_type"
-      ],
-      "properties": {
-        "source_type": {
-          "type": "string",
-          "enum": [
-            "facility",
-            "laboratory",
-            "computation",
-            "literature",
-            "database"
-          ]
-        },
-        "facility": {
-          "type": "object"
-        },
-        "laboratory": {
-          "type": "object"
-        },
-        "computation": {
-          "type": "object"
-        },
-        "literature": {
-          "type": "object"
         }
       }
     },

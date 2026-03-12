@@ -18,8 +18,8 @@
                 "derived"
             ]
         },
-        "acquisition_source.source_type": {
-            "description": "Origin of the data.",
+        "source_type": {
+            "description": "Origin of the data acquisition.",
             "values": [
                 "facility",
                 "laboratory",

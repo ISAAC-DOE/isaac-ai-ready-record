@@ -45,9 +45,8 @@ CREATE INDEX idx_records_data_gin ON records USING GIN (data);
 
 Each record's `data` column is a JSON object with these top-level keys:
 - `isaac_record_version` (string "1.0")
-- `record_id`, `record_type`, `record_domain`
+- `record_id`, `record_type`, `record_domain`, `source_type`
 - `timestamps` → `{created_utc, acquired_start_utc, acquired_end_utc}`
-- `acquisition_source` → `{source_type, facility{}, laboratory{}, computation{}, literature{}}`
 - `sample` → `{material: {name, formula, provenance}, sample_form, composition{}, geometry{}}`
 - `system` → `{domain, facility{}, instrument{}, configuration{}, simulation{method}}`
 - `context` → `{environment, temperature_K, ...}`

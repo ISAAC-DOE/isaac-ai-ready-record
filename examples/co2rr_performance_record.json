@@ -1,279 +1,273 @@
 {
-    "isaac_record_version": "1.0",
-    "record_id": "01JFH5Z0A3S9H2ZI5X9P6M4O0E",
-    "record_type": "evidence",
-    "record_domain": "performance",
-    "timestamps": {
-        "acquired_start_utc": "2025-12-16T14:00:00Z",
-        "acquired_end_utc": "2025-12-16T16:00:00Z",
-        "created_utc": "2025-12-16T17:30:00Z"
+  "isaac_record_version": "1.0",
+  "record_id": "01JFH5Z0A3S9H2ZI5X9P6M4O0E",
+  "record_type": "evidence",
+  "record_domain": "performance",
+  "source_type": "laboratory",
+  "timestamps": {
+    "acquired_start_utc": "2025-12-16T14:00:00Z",
+    "acquired_end_utc": "2025-12-16T16:00:00Z",
+    "created_utc": "2025-12-16T17:30:00Z"
+  },
+  "sample": {
+    "material": {
+      "name": "Cu nanoparticles",
+      "formula": "Cu",
+      "provenance": "synthesized",
+      "notes": "7nm nanoparticles. Catalyst layer spray-coated on GDE."
     },
-    "acquisition_source": {
-        "source_type": "laboratory",
-        "laboratory": {
-            "name": "LBNL MSD Flow Cell Lab",
-            "instrument_id": "Station-2-Biologic-GC"
-        }
+    "sample_form": "film",
+    "notes": "Spray-coated on GDE"
+  },
+  "device": {
+    "device_id": "GDE-CuNP-2025-042",
+    "electrode_type": "GDE",
+    "catalyst_identity": "Cu nanoparticles (7nm)",
+    "geometric_area": {
+      "value": 1.0,
+      "unit": "cm2"
     },
-    "sample": {
-        "material": {
-            "name": "Cu nanoparticles",
-            "formula": "Cu",
-            "provenance": "synthesized",
-            "notes": "7nm nanoparticles. Catalyst layer spray-coated on GDE."
-        },
-        "sample_form": "film",
-        "notes": "Spray-coated on GDE"
+    "catalyst_loading": {
+      "value": 1.5,
+      "unit": "mg_Cu/cm2"
     },
-    "device": {
-        "device_id": "GDE-CuNP-2025-042",
-        "electrode_type": "GDE",
-        "catalyst_identity": "Cu nanoparticles (7nm)",
-        "geometric_area": {
-            "value": 1.0,
-            "unit": "cm2"
-        },
-        "catalyst_loading": {
-            "value": 1.5,
-            "unit": "mg_Cu/cm2"
-        },
-        "notes": "Gas diffusion electrode with spray-coated Cu nanoparticles on PTFE-treated carbon paper."
+    "notes": "Gas diffusion electrode with spray-coated Cu nanoparticles on PTFE-treated carbon paper."
+  },
+  "context": {
+    "environment": "in_situ",
+    "electrolyte": {
+      "name": "HClO4",
+      "concentration_M": 1.0
     },
-    "context": {
-        "environment": "in_situ",
-        "electrolyte": {
-            "name": "HClO4",
-            "concentration_M": 1.0
-        },
-        "temperature_K": 298.15,
-        "cell_type": "microfluidic flow cell",
-        "gas_feed": {
-            "gas": "CO2",
-            "flow_rate_sccm": 20.0
-        },
-        "potential_control": {
-            "setpoint_V": -1.0,
-            "scale": "RHE",
-            "compensation": "85% automatic"
-        }
+    "temperature_K": 298.15,
+    "cell_type": "microfluidic flow cell",
+    "gas_feed": {
+      "gas": "CO2",
+      "flow_rate_sccm": 20.0
     },
-    "system": {
-        "domain": "experimental",
-        "facility": {
-            "facility_name": "LBNL_MSD",
-            "organization": "LBNL",
-            "laboratory": "Flow_Cell_Lab"
-        },
-        "instrument": {
-            "instrument_type": "potentiostat_gc",
-            "instrument_name": "Station-2_Biologic_VMP3",
-            "vendor_or_project": "BioLogic"
-        },
-        "configuration": {
-            "gc_column_type": "PLOT_Q",
-            "cell_geometry": "1cm2_exposed",
-            "reference_electrode": "Ag/AgCl_leak_free"
-        }
-    },
-    "measurement": {
-        "processing": {
-            "type": "GC_integrated_composition_analysis",
-            "recipe_link": {
-                "rel": "processing_recipe",
-                "target": "workflow://co2rr_fe_calculator/v3.0"
-            }
-        },
-        "series": [
-            {
-                "series_id": "chronoamperometry_trace",
-                "independent_variables": [
-                    {
-                        "name": "time",
-                        "unit": "s",
-                        "values": [
-                            0,
-                            600,
-                            1200,
-                            1800,
-                            2400,
-                            3000,
-                            3600
-                        ]
-                    }
-                ],
-                "channels": [
-                    {
-                        "name": "current_density",
-                        "unit": "mA_cm2",
-                        "role": "measured_response",
-                        "values": [
-                            -150.1,
-                            -150.3,
-                            -150.8,
-                            -150.5,
-                            -150.2,
-                            -150.5,
-                            -150.4
-                        ]
-                    },
-                    {
-                        "name": "potential_readback",
-                        "unit": "V_RHE",
-                        "role": "control_readback",
-                        "values": [
-                            -1.0,
-                            -1.0,
-                            -1.0,
-                            -1.0,
-                            -1.0,
-                            -1.0,
-                            -1.0
-                        ]
-                    }
-                ]
-            },
-            {
-                "series_id": "gas_chromatography_samples",
-                "independent_variables": [
-                    {
-                        "name": "injection_time",
-                        "unit": "s",
-                        "values": [
-                            900,
-                            1800,
-                            2700,
-                            3600
-                        ]
-                    }
-                ],
-                "channels": [
-                    {
-                        "name": "co_concentration",
-                        "unit": "ppm",
-                        "role": "measured_response",
-                        "values": [
-                            450,
-                            455,
-                            448,
-                            452
-                        ]
-                    },
-                    {
-                        "name": "ethylene_concentration",
-                        "unit": "ppm",
-                        "role": "measured_response",
-                        "values": [
-                            1200,
-                            1250,
-                            1240,
-                            1260
-                        ]
-                    }
-                ]
-            }
-        ],
-        "qc": {
-            "status": "valid",
-            "evidence": "Stable current within 5% over hold duration."
-        }
-    },
-    "assets": [
-        {
-            "asset_id": "raw_echem_gc_log",
-            "content_role": "raw_data_pointer",
-            "uri": "facility-archive://LBNL/2025/projects/CO2RR/run_042/raw_data.zip",
-            "media_type": "application/zip",
-            "sha256": "f3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b123",
-            "notes": "Contains potentiostat logs (.mpt) and GC chromatography reports (.xls)."
-        },
-        {
-            "asset_id": "reduced_performance_summary",
-            "content_role": "reduction_product",
-            "uri": "facility-archive://LBNL/2025/projects/CO2RR/run_042/performance_summary.json",
-            "media_type": "application/json",
-            "sha256": "g3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b234",
-            "notes": "Aggregated inputs and calculated FE values."
-        },
-        {
-            "asset_id": "fe_calculation_script",
-            "content_role": "processing_recipe",
-            "uri": "workflow://co2rr_fe_calculator/v3.0",
-            "media_type": "text/x-python",
-            "sha256": "h3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b345",
-            "notes": "Standard GC-to-FE conversion script."
-        }
-    ],
-    "links": [
-        {
-            "rel": "same_sample_as",
-            "target": "01JFH7K2W6P1D9A3R4ZQ2M8T5V",
-            "basis": "shared_material_batch",
-            "notes": "Characterization performed on identical GDE batch."
-        }
-    ],
-    "descriptors": {
-        "policy": {
-            "requires_at_least_one": true
-        },
-        "outputs": [
-            {
-                "label": "steady_state_metrics",
-                "generated_utc": "2025-12-16T18:00:00Z",
-                "generated_by": {
-                    "agent": "flow_cell_analyzer",
-                    "version": "1.0"
-                },
-                "descriptors": [
-                    {
-                        "name": "steady_state_current_density_at_setpoint",
-                        "kind": "absolute",
-                        "source": "auto",
-                        "value": -150.5,
-                        "unit": "mA/cm2",
-                        "uncertainty": {
-                            "sigma": 2.1,
-                            "unit": "mA/cm2"
-                        },
-                        "definition": "Mean total current density measured during the last 10 minutes of the hold."
-                    },
-                    {
-                        "name": "faradaic_efficiency.CO",
-                        "kind": "absolute",
-                        "source": "auto",
-                        "value": 0.152,
-                        "unit": "fraction",
-                        "uncertainty": {
-                            "sigma": 0.005,
-                            "unit": "fraction"
-                        },
-                        "definition": "Faradaic efficiency for Carbon Monoxide production."
-                    },
-                    {
-                        "name": "faradaic_efficiency.C2H4",
-                        "kind": "absolute",
-                        "source": "auto",
-                        "value": 0.428,
-                        "unit": "fraction",
-                        "uncertainty": {
-                            "sigma": 0.012,
-                            "unit": "fraction"
-                        },
-                        "definition": "Faradaic efficiency for Ethylene production."
-                    },
-                    {
-                        "name": "faradaic_efficiency.EtOH",
-                        "kind": "absolute",
-                        "source": "auto",
-                        "value": 0.181,
-                        "unit": "fraction",
-                        "uncertainty": {
-                            "sigma": 0.010,
-                            "unit": "fraction"
-                        },
-                        "definition": "Faradaic efficiency for Ethanol production."
-                    }
-                ]
-            }
-        ]
+    "potential_control": {
+      "setpoint_V": -1.0,
+      "scale": "RHE",
+      "compensation": "85% automatic"
     }
+  },
+  "system": {
+    "domain": "experimental",
+    "facility": {
+      "facility_name": "LBNL_MSD",
+      "organization": "LBNL",
+      "laboratory": "Flow_Cell_Lab"
+    },
+    "instrument": {
+      "instrument_type": "potentiostat_gc",
+      "instrument_name": "Station-2_Biologic_VMP3",
+      "vendor_or_project": "BioLogic"
+    },
+    "configuration": {
+      "gc_column_type": "PLOT_Q",
+      "cell_geometry": "1cm2_exposed",
+      "reference_electrode": "Ag/AgCl_leak_free"
+    }
+  },
+  "measurement": {
+    "processing": {
+      "type": "GC_integrated_composition_analysis",
+      "recipe_link": {
+        "rel": "processing_recipe",
+        "target": "workflow://co2rr_fe_calculator/v3.0"
+      }
+    },
+    "series": [
+      {
+        "series_id": "chronoamperometry_trace",
+        "independent_variables": [
+          {
+            "name": "time",
+            "unit": "s",
+            "values": [
+              0,
+              600,
+              1200,
+              1800,
+              2400,
+              3000,
+              3600
+            ]
+          }
+        ],
+        "channels": [
+          {
+            "name": "current_density",
+            "unit": "mA_cm2",
+            "role": "measured_response",
+            "values": [
+              -150.1,
+              -150.3,
+              -150.8,
+              -150.5,
+              -150.2,
+              -150.5,
+              -150.4
+            ]
+          },
+          {
+            "name": "potential_readback",
+            "unit": "V_RHE",
+            "role": "control_readback",
+            "values": [
+              -1.0,
+              -1.0,
+              -1.0,
+              -1.0,
+              -1.0,
+              -1.0,
+              -1.0
+            ]
+          }
+        ]
+      },
+      {
+        "series_id": "gas_chromatography_samples",
+        "independent_variables": [
+          {
+            "name": "injection_time",
+            "unit": "s",
+            "values": [
+              900,
+              1800,
+              2700,
+              3600
+            ]
+          }
+        ],
+        "channels": [
+          {
+            "name": "co_concentration",
+            "unit": "ppm",
+            "role": "measured_response",
+            "values": [
+              450,
+              455,
+              448,
+              452
+            ]
+          },
+          {
+            "name": "ethylene_concentration",
+            "unit": "ppm",
+            "role": "measured_response",
+            "values": [
+              1200,
+              1250,
+              1240,
+              1260
+            ]
+          }
+        ]
+      }
+    ],
+    "qc": {
+      "status": "valid",
+      "evidence": "Stable current within 5% over hold duration."
+    }
+  },
+  "assets": [
+    {
+      "asset_id": "raw_echem_gc_log",
+      "content_role": "raw_data_pointer",
+      "uri": "facility-archive://LBNL/2025/projects/CO2RR/run_042/raw_data.zip",
+      "media_type": "application/zip",
+      "sha256": "f3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b123",
+      "notes": "Contains potentiostat logs (.mpt) and GC chromatography reports (.xls)."
+    },
+    {
+      "asset_id": "reduced_performance_summary",
+      "content_role": "reduction_product",
+      "uri": "facility-archive://LBNL/2025/projects/CO2RR/run_042/performance_summary.json",
+      "media_type": "application/json",
+      "sha256": "g3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b234",
+      "notes": "Aggregated inputs and calculated FE values."
+    },
+    {
+      "asset_id": "fe_calculation_script",
+      "content_role": "processing_recipe",
+      "uri": "workflow://co2rr_fe_calculator/v3.0",
+      "media_type": "text/x-python",
+      "sha256": "h3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b345",
+      "notes": "Standard GC-to-FE conversion script."
+    }
+  ],
+  "links": [
+    {
+      "rel": "same_sample_as",
+      "target": "01JFH7K2W6P1D9A3R4ZQ2M8T5V",
+      "basis": "shared_material_batch",
+      "notes": "Characterization performed on identical GDE batch."
+    }
+  ],
+  "descriptors": {
+    "policy": {
+      "requires_at_least_one": true
+    },
+    "outputs": [
+      {
+        "label": "steady_state_metrics",
+        "generated_utc": "2025-12-16T18:00:00Z",
+        "generated_by": {
+          "agent": "flow_cell_analyzer",
+          "version": "1.0"
+        },
+        "descriptors": [
+          {
+            "name": "steady_state_current_density_at_setpoint",
+            "kind": "absolute",
+            "source": "auto",
+            "value": -150.5,
+            "unit": "mA/cm2",
+            "uncertainty": {
+              "sigma": 2.1,
+              "unit": "mA/cm2"
+            },
+            "definition": "Mean total current density measured during the last 10 minutes of the hold."
+          },
+          {
+            "name": "faradaic_efficiency.CO",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 0.152,
+            "unit": "fraction",
+            "uncertainty": {
+              "sigma": 0.005,
+              "unit": "fraction"
+            },
+            "definition": "Faradaic efficiency for Carbon Monoxide production."
+          },
+          {
+            "name": "faradaic_efficiency.C2H4",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 0.428,
+            "unit": "fraction",
+            "uncertainty": {
+              "sigma": 0.012,
+              "unit": "fraction"
+            },
+            "definition": "Faradaic efficiency for Ethylene production."
+          },
+          {
+            "name": "faradaic_efficiency.EtOH",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 0.181,
+            "unit": "fraction",
+            "uncertainty": {
+              "sigma": 0.01,
+              "unit": "fraction"
+            },
+            "definition": "Faradaic efficiency for Ethanol production."
+          }
+        ]
+      }
+    ]
+  }
 }
