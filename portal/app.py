@@ -169,12 +169,20 @@ def render_mermaid(code, height=600):
     """
     components.html(html_code, height=height, scrolling=True)
 
+SECTION_ORDER = [
+    "Record Info", "Sample", "Context", "System",
+    "Measurement", "Assets", "Links", "Descriptors",
+]
+
 def generate_mermaid_code(active_section=None, active_category=None):
     """
     Generates Mermaid JS syntax for the ontology tree.
     Includes click events to open Wiki pages in new tab.
     """
-    sections = ontology.get_sections()
+    all_sections = ontology.get_sections()
+    # Canonical order first, then any extras not in the predefined list
+    sections = [s for s in SECTION_ORDER if s in all_sections]
+    sections += [s for s in all_sections if s not in SECTION_ORDER]
 
     # Theme settings
     color_root = "#f9f9f9"
@@ -347,7 +355,9 @@ elif page == "Ontology Editor":
     st.header("Living Ontology")
     st.info("Browse the ISAAC vocabulary below. Use the Propose form to suggest changes.")
 
-    sections = ontology.get_sections()
+    all_sections = ontology.get_sections()
+    sections = [s for s in SECTION_ORDER if s in all_sections]
+    sections += [s for s in all_sections if s not in SECTION_ORDER]
 
     col_nav, col_map = st.columns([1, 1.5])
 
