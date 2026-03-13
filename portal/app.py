@@ -729,21 +729,14 @@ elif page == "Record Validator":
 
                     # Offer save-to-database button
                     if st.button("Save to Database", key="save_json_btn"):
-                        try:
-                            url = f"{api_url}/portal/api/records"
-                            resp = requests.post(url, json=record_data, timeout=30)
-                            resp_data = resp.json()
-                            if resp.status_code == 201 and resp_data.get("success"):
-                                st.success(f"Record saved! ID: `{resp_data['record_id']}`")
-                            else:
-                                errs = resp_data.get("errors", [])
-                                st.error(f"Save failed: {resp_data.get('reason', 'unknown')}")
-                                for e in errs:
-                                    st.write(f"- {e.get('path', '?')}: {e.get('message', '')}")
-                        except requests.ConnectionError:
-                            st.error(f"Connection refused — is the API running at {api_url}?")
-                        except Exception as exc:
-                            st.error(f"Error saving record: {exc}")
+                        if database.test_db_connection():
+                            try:
+                                saved_id = database.save_record(record_data)
+                                st.success(f"Record saved! ID: `{saved_id}`")
+                            except Exception as exc:
+                                st.error(f"Failed to save record: {exc}")
+                        else:
+                            st.error("Database not connected. Cannot save record.")
 
         except json.JSONDecodeError as exc:
             st.error(f"Invalid JSON: {exc}")
