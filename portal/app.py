@@ -673,10 +673,20 @@ elif page == "Record Validator":
     st.header("Record Validator")
     st.info("Upload an ISAAC JSON record to validate against the schema **and** the living vocabulary.")
 
-    # API URL configuration
-    api_url = os.environ.get("ISAAC_API_URL", "http://localhost:8502")
+    # Persist validation results across reruns so the Save button works
+    if "validator_result" not in st.session_state:
+        st.session_state.validator_result = None
+    if "validator_record" not in st.session_state:
+        st.session_state.validator_record = None
 
     json_file = st.file_uploader("Upload JSON", type=["json"])
+
+    # Clear validation results when file is removed or a different file is uploaded
+    current_name = json_file.name if json_file else None
+    if current_name != st.session_state.get("validator_filename"):
+        st.session_state.validator_result = None
+        st.session_state.validator_record = None
+        st.session_state.validator_filename = current_name
 
     if json_file:
         try:
@@ -704,7 +714,19 @@ elif page == "Record Validator":
                 # Vocabulary validation
                 vocab_errors = ontology.validate_record_vocabulary(record_data)
 
-                # --- Display results ---
+                # Store results in session state
+                st.session_state.validator_result = {
+                    "schema_errors": schema_errors,
+                    "vocab_errors": vocab_errors,
+                }
+                st.session_state.validator_record = record_data
+
+            # Display results from session state (persists across reruns)
+            result = st.session_state.validator_result
+            if result is not None:
+                schema_errors = result["schema_errors"]
+                vocab_errors = result["vocab_errors"]
+
                 col_schema, col_vocab = st.columns(2)
 
                 with col_schema:
@@ -724,14 +746,12 @@ elif page == "Record Validator":
                             st.write(f"- **{e['path']}**: {e['message']}")
 
                 if not schema_errors and not vocab_errors:
-                    st.balloons()
                     st.success("This record is fully compliant with the ISAAC schema and vocabulary!")
 
-                    # Offer save-to-database button
                     if st.button("Save to Database", key="save_json_btn"):
                         if database.test_db_connection():
                             try:
-                                saved_id = database.save_record(record_data)
+                                saved_id = database.save_record(st.session_state.validator_record)
                                 st.success(f"Record saved! ID: `{saved_id}`")
                             except Exception as exc:
                                 st.error(f"Failed to save record: {exc}")
