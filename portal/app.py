@@ -110,13 +110,13 @@ page = st.session_state.current_page
 # --- CONFIG: Display Names ---
 DISPLAY_MAP = {
     "Record Info": "1. Record Info",
-    "Sample": "2. Subject (Sample)",
-    "Context": "3. Conditions (Context)",
-    "System": "4. Setup (System)",
+    "Sample": "2. Sample",
+    "Context": "3. Context",
+    "System": "4. System",
     "Measurement": "5. Measurement",
-    "Assets": "6. Assets (Files)",
-    "Links": "7. Links (Lineage)",
-    "Descriptors": "8. Results (Descriptors)"
+    "Assets": "6. Assets",
+    "Links": "7. Links",
+    "Descriptors": "8. Descriptors"
 }
 
 def get_display_name(key):
