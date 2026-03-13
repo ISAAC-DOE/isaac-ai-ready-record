@@ -134,7 +134,7 @@
     },
     {
       "asset_id": "processing_notebook",
-      "content_role": "processing_recipe",
+      "content_role": "processing_script",
       "uri": "workflow://xanes_reduction/v2",
       "media_type": "application/x-ipynb+json",
       "sha256": "c3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b345",

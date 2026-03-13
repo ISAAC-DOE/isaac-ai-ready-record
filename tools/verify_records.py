@@ -52,12 +52,15 @@ def check_vocabulary_compliance(data, vocabulary, record_id="Unknown"):
                 if role:
                     check_enum(f"measurement.series[{i}].channels[{j}].role", role, "measurement.series.channels.role")
 
-    # 4. Links Relations
+    # 4. Links Relations and Basis
     if 'links' in data:
         for i, link in enumerate(data['links']):
             rel = link.get('rel')
             if rel:
                 check_enum(f"links[{i}].rel", rel, "links.rel")
+            basis = link.get('basis')
+            if basis:
+                check_enum(f"links[{i}].basis", basis, "links.basis")
 
     # 5. Asset Roles
     if 'assets' in data:

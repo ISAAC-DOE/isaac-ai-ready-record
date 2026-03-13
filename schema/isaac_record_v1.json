@@ -64,7 +64,8 @@
         "laboratory",
         "computation",
         "literature",
-        "database"
+        "database",
+        "industrial"
       ],
       "description": "Origin of the data acquisition."
     },
@@ -314,7 +315,8 @@
         "type": "object",
         "required": [
           "rel",
-          "target"
+          "target",
+          "basis"
         ],
         "properties": {
           "rel": {
@@ -335,7 +337,20 @@
             "pattern": "^[0-9A-Z]{26}$"
           },
           "basis": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "same_absorber_edge",
+              "matched_operating_conditions",
+              "shared_reference_state",
+              "same_workflow_version",
+              "identical_geometry",
+              "analysis_pipeline_output",
+              "replicate_preparation",
+              "same_sample_id",
+              "shared_analysis_method",
+              "shared_material_batch",
+              "unspecified"
+            ]
           },
           "notes": {
             "type": "string"
@@ -360,10 +375,15 @@
           "content_role": {
             "type": "string",
             "enum": [
+              "raw_data",
               "raw_data_pointer",
               "reduction_product",
-              "processing_recipe",
               "input_structure",
+              "workflow_recipe",
+              "processing_script",
+              "calibration_reference",
+              "auxiliary_reference",
+              "documentation",
               "metadata_snapshot",
               "supplementary_image",
               "other"
@@ -432,11 +452,17 @@
                         "differential",
                         "categorical",
                         "similarity",
-                        "model"
+                        "model",
+                        "theoretical_metric"
                       ]
                     },
                     "source": {
-                      "type": "string"
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "manual",
+                        "imported"
+                      ]
                     },
                     "value": {},
                     "unit": {

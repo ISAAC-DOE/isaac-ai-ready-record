@@ -259,7 +259,7 @@ def convert_reaction(reaction: dict, publication: dict, now_utc: str) -> dict:
         descriptors_list.append({
             "name": "reaction_energy",
             "kind": "absolute",
-            "source": "catalysis_hub",
+            "source": "imported",
             "value": reaction["reactionEnergy"],
             "unit": "eV",
             "definition": f"DFT reaction energy for: {equation}",
@@ -269,7 +269,7 @@ def convert_reaction(reaction: dict, publication: dict, now_utc: str) -> dict:
         descriptors_list.append({
             "name": "activation_energy",
             "kind": "absolute",
-            "source": "catalysis_hub",
+            "source": "imported",
             "value": reaction["activationEnergy"],
             "unit": "eV",
             "definition": f"DFT activation energy for: {equation}",

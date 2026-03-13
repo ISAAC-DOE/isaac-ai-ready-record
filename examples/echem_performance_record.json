@@ -133,7 +133,7 @@
     },
     {
       "asset_id": "echem_processing_script",
-      "content_role": "processing_recipe",
+      "content_role": "processing_script",
       "uri": "workflow://echem_orr_processing/v1.2",
       "media_type": "text/x-python",
       "sha256": "k3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b345",

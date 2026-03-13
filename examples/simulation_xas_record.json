@@ -109,7 +109,7 @@
     },
     {
       "asset_id": "qe_inputs",
-      "content_role": "processing_recipe",
+      "content_role": "workflow_recipe",
       "uri": "repo://isaac-workflows/qe_xspectra/cu111_co/v1.0",
       "media_type": "text/plain",
       "sha256": "66f563605c31278152283734135544710156784381389",
@@ -178,12 +178,12 @@
             }
           },
           {
-            "name": "descriptors.theoretical_metric",
-            "kind": "absolute",
+            "name": "adsorption_energy.CO",
+            "kind": "theoretical_metric",
             "source": "auto",
             "value": -1.45,
             "unit": "eV",
-            "definition": "CO adsorption energy on Atop site.",
+            "definition": "DFT adsorption energy for CO on Cu(111) atop site.",
             "uncertainty": {
               "sigma": 0.05,
               "unit": "eV"
