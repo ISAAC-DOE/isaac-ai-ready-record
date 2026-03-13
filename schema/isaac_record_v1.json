@@ -168,7 +168,13 @@
             "classical_MD",
             "kinetic_monte_carlo",
             "microkinetic_modeling",
-            "machine_learning_potential"
+            "machine_learning_potential",
+            "GC",
+            "HPLC",
+            "ICP_MS",
+            "ICP_OES",
+            "NMR",
+            "mass_spectrometry"
           ],
           "description": "Primary technique or computational method used to produce this record."
         },
