@@ -226,6 +226,10 @@ def render_form():
             domain_options = [""] + get_vocab_values("System", "system.domain")
             system_domain = st.selectbox("Domain", domain_options)
 
+            technique_options = [""] + get_vocab_values("System", "system.technique")
+            system_technique = st.selectbox("Technique *", technique_options,
+                help="Primary technique or computational method")
+
             col1, col2 = st.columns(2)
             with col1:
                 instrument_type_options = [""] + get_vocab_values("System", "system.instrument.instrument_type")
@@ -233,13 +237,6 @@ def render_form():
                 instrument_name = st.text_input("Instrument Name", placeholder="e.g., XRD Diffractometer")
             with col2:
                 instrument_id = st.text_input("Instrument ID", placeholder="Unique identifier")
-
-            # Simulation details (if computational)
-            if system_domain == "computational":
-                sim_method_options = [""] + get_vocab_values("System", "system.simulation.method")
-                sim_method = st.selectbox("Simulation Method", sim_method_options)
-            else:
-                sim_method = ""
 
             configuration_json = st.text_area(
                 "Configuration (flat key-value JSON)",
@@ -250,7 +247,7 @@ def render_form():
 
             extra_system = render_extra_vocab_fields(
                 "System",
-                ["system.domain", "system.instrument.instrument_type", "system.simulation.method"],
+                ["system.domain", "system.technique", "system.instrument.instrument_type"],
                 "sys"
             )
 
@@ -441,7 +438,7 @@ def render_form():
             instrument_type=instrument_type,
             instrument_name=instrument_name,
             instrument_id=instrument_id,
-            sim_method=sim_method if system_domain == "computational" else "",
+            system_technique=system_technique,
             configuration_json=configuration_json,
             environment=environment,
             temperature_k=temperature_k,
@@ -615,8 +612,8 @@ def build_record(**kwargs) -> dict:
             system['instrument']['instrument_name'] = kwargs['instrument_name']
         if kwargs['instrument_id']:
             system['instrument']['instrument_id'] = kwargs['instrument_id']
-    if kwargs['sim_method']:
-        system['simulation'] = {'method': kwargs['sim_method']}
+    if kwargs['system_technique']:
+        system['technique'] = kwargs['system_technique']
     if kwargs['configuration_json']:
         config = parse_json_safe(kwargs['configuration_json'])
         if config:

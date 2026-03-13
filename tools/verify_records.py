@@ -38,11 +38,11 @@ def check_vocabulary_compliance(data, vocabulary, record_id="Unknown"):
         if inst_type:
             check_enum("system.instrument.instrument_type", inst_type, "system.instrument.instrument_type")
 
-    # 2. System Simulation Method (New)
-    if 'system' in data and 'simulation' in data['system']:
-        sim_method = data['system']['simulation'].get('method')
-        if sim_method:
-             check_enum("system.simulation.method", sim_method, "system.simulation.method")
+    # 2. System Technique
+    if 'system' in data:
+        technique = data['system'].get('technique')
+        if technique:
+            check_enum("system.technique", technique, "system.technique")
 
     # 3. Measurement Roles
     if 'measurement' in data and 'series' in data['measurement']:

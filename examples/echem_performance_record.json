@@ -47,6 +47,7 @@
   },
   "system": {
     "domain": "experimental",
+    "technique": "linear_sweep_voltammetry",
     "facility": {
       "facility_name": "SSRL",
       "organization": "SLAC",

@@ -48,7 +48,7 @@ Each record's `data` column is a JSON object with these top-level keys:
 - `record_id`, `record_type`, `record_domain`, `source_type`
 - `timestamps` → `{created_utc, acquired_start_utc, acquired_end_utc}`
 - `sample` → `{material: {name, formula, provenance}, sample_form, composition{}, geometry{}}`
-- `system` → `{domain, facility{}, instrument{}, configuration{}, simulation{method}}`
+- `system` → `{domain, technique, facility{}, instrument{}, configuration{}}`
 - `context` → `{environment, temperature_K, ...}`
 - `measurement` → `{series[{series_id, independent_variables[], channels[{name, unit, role, values[]}]}], qc{status}}`
 - `links` (array) → `[{rel, target, basis, notes}]`

@@ -27,6 +27,7 @@
   },
   "system": {
     "domain": "experimental",
+    "technique": "HERFD-XAS",
     "facility": {
       "facility_name": "SSRL",
       "organization": "SLAC",

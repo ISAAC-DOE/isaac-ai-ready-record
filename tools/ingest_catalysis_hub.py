@@ -299,6 +299,7 @@ def convert_reaction(reaction: dict, publication: dict, now_utc: str) -> dict:
         },
         "system": {
             "domain": "computational",
+            "technique": "DFT",
             "instrument": {
                 "instrument_type": "simulation_engine",
                 "instrument_name": reaction.get("dftCode", "unknown"),
@@ -311,7 +312,6 @@ def convert_reaction(reaction: dict, publication: dict, now_utc: str) -> dict:
                 "surface_composition": surface,
                 "adsorption_site": site,
             },
-            "simulation": {"method": "DFT"},
         },
         "computation": {
             "method": {

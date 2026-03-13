@@ -25,6 +25,7 @@
   },
   "system": {
     "domain": "computational",
+    "technique": "DFT",
     "instrument": {
       "instrument_type": "simulation_engine",
       "instrument_name": "VASP",
@@ -36,9 +37,6 @@
       "facet": "100",
       "surface_composition": "Cu",
       "adsorption_site": "ontop"
-    },
-    "simulation": {
-      "method": "DFT"
     }
   },
   "computation": {

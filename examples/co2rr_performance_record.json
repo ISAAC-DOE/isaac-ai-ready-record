@@ -53,6 +53,7 @@
   },
   "system": {
     "domain": "experimental",
+    "technique": "chronoamperometry",
     "facility": {
       "facility_name": "LBNL_MSD",
       "organization": "LBNL",

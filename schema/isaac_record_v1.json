@@ -128,7 +128,7 @@
       "type": "object",
       "required": [
         "domain",
-        "configuration"
+        "technique"
       ],
       "properties": {
         "domain": {
@@ -137,6 +137,40 @@
             "experimental",
             "computational"
           ]
+        },
+        "technique": {
+          "type": "string",
+          "enum": [
+            "XAS",
+            "HERFD-XAS",
+            "XES",
+            "RIXS",
+            "XPS",
+            "XRF",
+            "XRD",
+            "SAXS",
+            "WAXS",
+            "PDF",
+            "neutron_reflectometry",
+            "neutron_diffraction",
+            "SANS",
+            "cyclic_voltammetry",
+            "chronoamperometry",
+            "chronopotentiometry",
+            "EIS",
+            "linear_sweep_voltammetry",
+            "TEM",
+            "SEM",
+            "AFM",
+            "STM",
+            "DFT",
+            "ab_initio_MD",
+            "classical_MD",
+            "kinetic_monte_carlo",
+            "microkinetic_modeling",
+            "machine_learning_potential"
+          ],
+          "description": "Primary technique or computational method used to produce this record."
         },
         "facility": {
           "type": "object"
@@ -154,25 +188,6 @@
             ]
           },
           "description": "Flat object of categorical settings. No nested objects allowed."
-        },
-        "simulation": {
-          "type": "object",
-          "required": [
-            "method"
-          ],
-          "properties": {
-            "method": {
-              "type": "string",
-              "enum": [
-                "DFT",
-                "ab_initio_MD",
-                "classical_MD",
-                "kinetic_monte_carlo",
-                "microkinetic_modeling",
-                "machine_learning_potential"
-              ]
-            }
-          }
         }
       }
     },

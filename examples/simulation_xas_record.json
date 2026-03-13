@@ -25,6 +25,7 @@
   },
   "system": {
     "domain": "computational",
+    "technique": "DFT",
     "facility": {
       "facility_name": "NERSC",
       "organization": "LBNL",
@@ -38,9 +39,6 @@
     "configuration": {
       "code_version": "6.3.2",
       "compute_architecture": "GPU"
-    },
-    "simulation": {
-      "method": "DFT"
     }
   },
   "computation": {

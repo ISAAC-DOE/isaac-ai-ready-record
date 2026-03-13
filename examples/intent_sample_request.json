@@ -23,6 +23,7 @@
   },
   "system": {
     "domain": "experimental",
+    "technique": "DFT",
     "configuration": {
       "notes": "Requesting a beamline capability, not a specific instrument."
     }

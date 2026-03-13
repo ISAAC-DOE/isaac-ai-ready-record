@@ -161,6 +161,39 @@
                 "computational"
             ]
         },
+        "system.technique": {
+            "description": "Primary technique or computational method used to produce this record.",
+            "values": [
+                "XAS",
+                "HERFD-XAS",
+                "XES",
+                "RIXS",
+                "XPS",
+                "XRF",
+                "XRD",
+                "SAXS",
+                "WAXS",
+                "PDF",
+                "neutron_reflectometry",
+                "neutron_diffraction",
+                "SANS",
+                "cyclic_voltammetry",
+                "chronoamperometry",
+                "chronopotentiometry",
+                "EIS",
+                "linear_sweep_voltammetry",
+                "TEM",
+                "SEM",
+                "AFM",
+                "STM",
+                "DFT",
+                "ab_initio_MD",
+                "classical_MD",
+                "kinetic_monte_carlo",
+                "microkinetic_modeling",
+                "machine_learning_potential"
+            ]
+        },
         "system.instrument.instrument_type": {
             "description": "Primary platform type.",
             "values": [
@@ -171,17 +204,6 @@
                 "supercomputer_partition",
                 "simulation_engine",
                 "potentiostat"
-            ]
-        },
-        "system.simulation.method": {
-            "description": "[In Silico] Computational methodology.",
-            "values": [
-                "DFT",
-                "ab_initio_MD",
-                "classical_MD",
-                "kinetic_monte_carlo",
-                "microkinetic_modeling",
-                "machine_learning_potential"
             ]
         }
     },
