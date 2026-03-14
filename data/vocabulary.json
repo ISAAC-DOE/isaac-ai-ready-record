@@ -198,7 +198,8 @@
                 "ICP_MS",
                 "ICP_OES",
                 "NMR",
-                "mass_spectrometry"
+                "mass_spectrometry",
+                "FTIR"
             ]
         },
         "system.instrument.instrument_type": {

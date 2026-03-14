@@ -175,7 +175,8 @@
             "ICP_MS",
             "ICP_OES",
             "NMR",
-            "mass_spectrometry"
+            "mass_spectrometry",
+            "FTIR"
           ],
           "description": "Primary technique or computational method used to produce this record."
         },
