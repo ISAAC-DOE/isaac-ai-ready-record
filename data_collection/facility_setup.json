@@ -1,0 +1,93 @@
+{
+  "_instructions": "Fill this ONCE per experimental setup. Only update when equipment or protocol changes.",
+  "_filled_by": "",
+  "_date_filled": "",
+
+  "facility": {
+    "facility_name": "Molecular Foundry",
+    "organization": "LBNL",
+    "laboratory": "",
+    "room": ""
+  },
+
+  "experimenter": {
+    "name": "Haoyi Li",
+    "email": "",
+    "orcid": ""
+  },
+
+  "pi": {
+    "name": "",
+    "email": "",
+    "orcid": ""
+  },
+
+  "instruments": {
+    "potentiostat": {
+      "vendor": "BioLogic",
+      "model": "",
+      "notes": ""
+    },
+    "gas_chromatograph": {
+      "vendor": "",
+      "model": "",
+      "column_type": "",
+      "carrier_gas": "",
+      "calibration_method": "",
+      "notes": ""
+    },
+    "nmr": {
+      "vendor": "",
+      "model": "",
+      "field_strength_MHz": null,
+      "solvent": "",
+      "notes": "For liquid product quantification (HCOO-, ethanol, acetate)"
+    }
+  },
+
+  "cell_setup": {
+    "cell_type": "flow_cell",
+    "membrane": "Selemion AEM",
+    "counter_electrode": "CFP",
+    "reference_electrode": "Ag/AgCl",
+    "catholyte": "CO2-saturated 0.1 M KHCO3",
+    "anolyte": "0.1 M KHCO3",
+    "electrolyte_flow_rate_mL_min": 10.0,
+    "CO2_flow_rate_sccm": 5.0,
+    "iR_compensation_pct": 85,
+    "temperature_C": 25
+  },
+
+  "protocol": {
+    "sequence": "OCV -> PEIS -> CV -> MIR -> CA -> GC + 1H-NMR",
+    "CA_hold_time_min": 80,
+    "GC_injections_per_condition": 5,
+    "GC_injection_interval_min": null,
+    "pre_conditioning_notes": ""
+  },
+
+  "electrode_fabrication": {
+    "substrate": "",
+    "Cu_deposition_method": "",
+    "Au_deposition_method": "",
+    "Cu_film_thickness_nm": null,
+    "Au_film_thickness_nm": null,
+    "adhesion_layer": "",
+    "patterning_method": "lithography",
+    "notes": ""
+  },
+
+  "products_detected": {
+    "gas_products_GC": ["H2", "CO", "CH4", "C2H4"],
+    "liquid_products_NMR": ["HCOO-"],
+    "_question": "Are ethanol, acetate, propanol also measured even if zero? List all products your GC/NMR can detect."
+  },
+
+  "data_storage": {
+    "raw_potentiostat_files_location": "",
+    "raw_GC_files_location": "",
+    "raw_NMR_files_location": "",
+    "file_naming_convention": "",
+    "notes": ""
+  }
+}

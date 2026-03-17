@@ -1,0 +1,5342 @@
+[
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCX77KFD51PT9SHZW44D",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Au film electrode",
+        "formula": "Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 0.0,
+        "Au_pct": 100.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 0.0,
+        "Au_stripe_width_um": 100.0,
+        "period_um": null,
+        "Cu_area_fraction_pct": 0.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Au film electrode"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.1,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                96.29
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                4.31
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.9629,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.048145,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0431,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCX8XX5V7TTKMH6BCF48",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (20% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 20.0,
+        "Au_pct": 80.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 20.0,
+        "Au_stripe_width_um": 80.0,
+        "period_um": 100.0,
+        "Cu_area_fraction_pct": 20.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (20% Cu)"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.1,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                87.92
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                6.2
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.18
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                1.04
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                5.28
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.8792,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.04396,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.062,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0018,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0104,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0528,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCX97MPSC8TMGAEGGYJK",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (50% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 50.0,
+        "Au_pct": 50.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 20.0,
+        "Au_stripe_width_um": 20.0,
+        "period_um": 40.0,
+        "Cu_area_fraction_pct": 50.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (50% Cu)"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.1,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                88.03
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                8.44
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.14
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.93
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                3.62
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.8803,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.044015,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0844,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0014,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0093,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0362,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCX9869KJ8R7D90NY8QN",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (50% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 50.0,
+        "Au_pct": 50.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 20.0,
+        "Au_stripe_width_um": 20.0,
+        "period_um": 40.0,
+        "Cu_area_fraction_pct": 50.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (50% Cu)",
+      "notes": "repeat measurement"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.1,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                85.36
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                10.64
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.43
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                1.07
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                4.13
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.8536,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.04268,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1064,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.00532,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0043,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0107,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0413,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXA902TN55R3NV2NRG6",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (80% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 80.0,
+        "Au_pct": 20.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 80.0,
+        "Au_stripe_width_um": 20.0,
+        "period_um": 100.0,
+        "Cu_area_fraction_pct": 80.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (80% Cu)"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.1,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                75.71
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                5.16
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.43
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                6.79
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                12.65
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.7571,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.037855,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0516,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0043,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0679,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1265,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.006325,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXAFPK4KZDKE9E12SW5",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (80% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 80.0,
+        "Au_pct": 20.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 80.0,
+        "Au_stripe_width_um": 20.0,
+        "period_um": 100.0,
+        "Cu_area_fraction_pct": 80.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (80% Cu)",
+      "notes": "repeat measurement"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.1,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                73.85
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                4.26
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.28
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                8.83
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                13.41
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.7385,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.036925,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0426,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0028,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0883,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1341,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.006705,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXBK9Y0RVYMN8491R0T",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu film electrode",
+        "formula": "Cu",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 100.0,
+        "Au_pct": 0.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 100.0,
+        "Au_stripe_width_um": 0.0,
+        "period_um": null,
+        "Cu_area_fraction_pct": 100.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu film electrode"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.1,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                96.92
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                2.12
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.4
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.2
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.34
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.9692,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.04846,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0212,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.004,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.002,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0034,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXB8YB8V33SKW5KH8TV",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Au film electrode",
+        "formula": "Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 0.0,
+        "Au_pct": 100.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 0.0,
+        "Au_stripe_width_um": 100.0,
+        "period_um": null,
+        "Cu_area_fraction_pct": 0.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Au film electrode"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.2,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                87.15
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                13.21
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.8715,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.043575,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1321,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.006605,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXCYAXWEFYKNDZS9MC2",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (20% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 20.0,
+        "Au_pct": 80.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 20.0,
+        "Au_stripe_width_um": 80.0,
+        "period_um": 100.0,
+        "Cu_area_fraction_pct": 20.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (20% Cu)"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.2,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                84.33
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                8.75
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                4.07
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                1.84
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                2.19
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.8433,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.042165,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0875,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0407,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0184,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0219,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXCM5NFAPGCD5WRVH3A",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (50% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 50.0,
+        "Au_pct": 50.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 20.0,
+        "Au_stripe_width_um": 20.0,
+        "period_um": 40.0,
+        "Cu_area_fraction_pct": 50.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (50% Cu)"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.2,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                82.66
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                11.37
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.11
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                3.48
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                2.25
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.8266,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.04133,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1137,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005685,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0011,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0348,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0225,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXDGPD8F6TG573829CJ",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (50% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 50.0,
+        "Au_pct": 50.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 20.0,
+        "Au_stripe_width_um": 20.0,
+        "period_um": 40.0,
+        "Cu_area_fraction_pct": 50.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (50% Cu)",
+      "notes": "repeat measurement"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.2,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                79.53
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                12.22
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.38
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                3.55
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                3.38
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.7953,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.039765,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1222,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.00611,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0038,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0355,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0338,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXD1FVYFYQA97BFKJWY",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (80% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 80.0,
+        "Au_pct": 20.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 80.0,
+        "Au_stripe_width_um": 20.0,
+        "period_um": 100.0,
+        "Cu_area_fraction_pct": 80.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (80% Cu)"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.2,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                70.92
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                3.24
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                3.9
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                14.58
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                8.83
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.7092,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.03546,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0324,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.039,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1458,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.00729,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0883,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXEMMXCJ92KF65WBZVJ",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (80% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 80.0,
+        "Au_pct": 20.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 80.0,
+        "Au_stripe_width_um": 20.0,
+        "period_um": 100.0,
+        "Cu_area_fraction_pct": 80.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (80% Cu)",
+      "notes": "repeat measurement"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.2,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                68.1
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                2.96
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                3.67
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                17.85
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                8.15
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.681,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.03405,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0296,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0367,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1785,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.008925,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0815,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXED7CZ4TD61MGQX0YJ",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu film electrode",
+        "formula": "Cu",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 100.0,
+        "Au_pct": 0.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 100.0,
+        "Au_stripe_width_um": 0.0,
+        "period_um": null,
+        "Cu_area_fraction_pct": 100.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu film electrode"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.2,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                86.04
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                7.66
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                2.2
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.79
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                3.49
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.8604,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.04302,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0766,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.022,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0079,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0349,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXFSB975KB3CM59WS04",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Au film electrode",
+        "formula": "Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 0.0,
+        "Au_pct": 100.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 0.0,
+        "Au_stripe_width_um": 100.0,
+        "period_um": null,
+        "Cu_area_fraction_pct": 0.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Au film electrode"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.3,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                79.7
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                19.6
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.797,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.03985,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.196,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.0098,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXFPM9C75ZAKWP07B1Y",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (20% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 20.0,
+        "Au_pct": 80.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 20.0,
+        "Au_stripe_width_um": 80.0,
+        "period_um": 100.0,
+        "Cu_area_fraction_pct": 20.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (20% Cu)"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.3,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                80.87
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                11.32
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                4.33
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                1.9
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                1.04
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.8087,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.040435,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1132,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.00566,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0433,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.019,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0104,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXGPADA85ATEKCXKGXR",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (50% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 50.0,
+        "Au_pct": 50.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 20.0,
+        "Au_stripe_width_um": 20.0,
+        "period_um": 40.0,
+        "Cu_area_fraction_pct": 50.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (50% Cu)"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.3,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                78.35
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                11.74
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.64
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                6.54
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                2.81
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.7835,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.039175,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1174,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.00587,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0064,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0654,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0281,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXGQ2JSYP5VJTEXGF5E",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (50% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 50.0,
+        "Au_pct": 50.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 20.0,
+        "Au_stripe_width_um": 20.0,
+        "period_um": 40.0,
+        "Cu_area_fraction_pct": 50.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (50% Cu)",
+      "notes": "repeat measurement"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.3,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                76.32
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                14.33
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0.75
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                7.73
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                2.6
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.7632,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.03816,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1433,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.007165,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0075,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0773,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.026,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXGJDM0W9NQZN9TY336",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (80% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 80.0,
+        "Au_pct": 20.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 80.0,
+        "Au_stripe_width_um": 20.0,
+        "period_um": 100.0,
+        "Cu_area_fraction_pct": 80.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (80% Cu)"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.3,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                61.06
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                2.64
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                11.62
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                22.5
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                2.01
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.6106,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.03053,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0264,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1162,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.00581,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.225,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.01125,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0201,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXH4H66QMH4CQNQRETH",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu|Au striped electrode (80% Cu)",
+        "formula": "Cu-Au",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 80.0,
+        "Au_pct": 20.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 80.0,
+        "Au_stripe_width_um": 20.0,
+        "period_um": 100.0,
+        "Cu_area_fraction_pct": 80.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu|Au striped electrode (80% Cu)",
+      "notes": "repeat measurement"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.3,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                57.19
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                2.38
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                10.06
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                25.41
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                4.49
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.5719,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.028595,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0238,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1006,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.00503,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.2541,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.012705,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0449,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "isaac_record_version": "1.0",
+    "record_id": "01KKYTCCXHRZ416S2225DV2C1Y",
+    "record_type": "evidence",
+    "record_domain": "performance",
+    "source_type": "laboratory",
+    "timestamps": {
+      "created_utc": "2026-03-17T21:14:13Z"
+    },
+    "sample": {
+      "material": {
+        "name": "Cu film electrode",
+        "formula": "Cu",
+        "provenance": "synthesized"
+      },
+      "sample_form": "film",
+      "composition": {
+        "Cu_pct": 100.0,
+        "Au_pct": 0.0
+      },
+      "geometry": {
+        "Cu_stripe_width_um": 100.0,
+        "Au_stripe_width_um": 0.0,
+        "period_um": null,
+        "Cu_area_fraction_pct": 100.0,
+        "patterning_method": "lithography"
+      }
+    },
+    "device": {
+      "electrode_type": "patterned_film",
+      "catalyst_identity": "Cu film electrode"
+    },
+    "context": {
+      "environment": "in_situ",
+      "temperature_K": 298.15,
+      "electrochemistry": {
+        "reaction": "CO2RR",
+        "cell_type": "flow_cell",
+        "electrolyte": {
+          "name": "CO2-saturated 0.1 M KHCO3",
+          "concentration_M": 0.1
+        },
+        "potential_control": {
+          "setpoint_V": -1.3,
+          "scale": "RHE",
+          "mode": "potentiostatic",
+          "compensation": "85% iR"
+        },
+        "mass_transport": {
+          "mode": "flow",
+          "reactant": "CO2",
+          "flow_sccm": 5.0
+        }
+      }
+    },
+    "system": {
+      "domain": "experimental",
+      "technique": "chronoamperometry",
+      "facility": {
+        "facility_name": "Molecular Foundry",
+        "organization": "LBNL"
+      },
+      "instrument": {
+        "instrument_type": "potentiostat",
+        "vendor_or_project": "BioLogic"
+      },
+      "configuration": {
+        "reference_electrode": "Ag/AgCl",
+        "membrane": "Selemion AEM",
+        "counter_electrode": "CFP",
+        "anolyte": "0.1 M KHCO3",
+        "electrolyte_flow_rate_mL_min": 10.0,
+        "CA_hold_time_min": 80,
+        "GC_injections_per_condition": 5,
+        "experimenter": "Haoyi Li"
+      }
+    },
+    "measurement": {
+      "series": [
+        {
+          "series_id": "gc_averaged_faradaic_efficiency",
+          "independent_variables": [
+            {
+              "name": "measurement_index",
+              "unit": "dimensionless",
+              "values": [
+                0
+              ]
+            }
+          ],
+          "channels": [
+            {
+              "name": "faradaic_efficiency_H2",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                73.01
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                15.52
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_CH4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                8.93
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H4",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                1.06
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_HCOO",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                1.57
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_C2H5OH",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            },
+            {
+              "name": "faradaic_efficiency_acetate",
+              "unit": "percent",
+              "role": "measured_response",
+              "values": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "qc": {
+        "status": "valid",
+        "evidence": "Average of 5 GC injections over 80 min CA hold."
+      }
+    },
+    "descriptors": {
+      "outputs": [
+        {
+          "label": "co2rr_faradaic_efficiency",
+          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_by": {
+            "agent": "isaac_co2rr_ingest",
+            "version": "1.0"
+          },
+          "descriptors": [
+            {
+              "name": "faradaic_efficiency.H2",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.7301,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.036505,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Hydrogen production."
+            },
+            {
+              "name": "faradaic_efficiency.CO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.1552,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.00776,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Carbon Monoxide production."
+            },
+            {
+              "name": "faradaic_efficiency.CH4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0893,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Methane production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H4",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0106,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethylene production."
+            },
+            {
+              "name": "faradaic_efficiency.HCOO",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0157,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Formate production."
+            },
+            {
+              "name": "faradaic_efficiency.C2H5OH",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Ethanol production."
+            },
+            {
+              "name": "faradaic_efficiency.acetate",
+              "kind": "absolute",
+              "source": "auto",
+              "value": 0.0,
+              "unit": "fraction",
+              "uncertainty": {
+                "sigma": 0.005,
+                "unit": "fraction"
+              },
+              "definition": "Faradaic efficiency for Acetate production."
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
