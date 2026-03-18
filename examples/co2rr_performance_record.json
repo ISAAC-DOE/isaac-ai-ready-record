@@ -14,15 +14,14 @@
       "name": "Cu nanoparticles",
       "formula": "Cu",
       "provenance": "synthesized",
-      "notes": "7nm nanoparticles. Catalyst layer spray-coated on GDE."
+      "notes": "7 nm nanoparticles. Catalyst layer spray-coated on GDE."
     },
-    "sample_form": "film",
-    "notes": "Spray-coated on GDE"
+    "sample_form": "film"
   },
   "device": {
     "device_id": "GDE-CuNP-2025-042",
     "electrode_type": "GDE",
-    "catalyst_identity": "Cu nanoparticles (7nm)",
+    "catalyst_identity": "Cu nanoparticles (7 nm)",
     "geometric_area": {
       "value": 1.0,
       "unit": "cm2"
@@ -35,20 +34,28 @@
   },
   "context": {
     "environment": "in_situ",
-    "electrolyte": {
-      "name": "HClO4",
-      "concentration_M": 1.0
-    },
     "temperature_K": 298.15,
-    "cell_type": "microfluidic flow cell",
-    "gas_feed": {
-      "gas": "CO2",
-      "flow_rate_sccm": 20.0
+    "electrochemistry": {
+      "reaction": "CO2RR",
+      "cell_type": "flow_cell",
+      "control_mode": "potentiostatic",
+      "potential_setpoint_V": -1.0,
+      "potential_scale": "RHE",
+      "ir_compensation": {
+        "method": "automatic",
+        "percent": 85
+      },
+      "electrolyte": {
+        "name": "HClO4",
+        "concentration_M": 1.0
+      },
+      "pH": 1.0,
+      "pH_basis": "nominal"
     },
-    "potential_control": {
-      "setpoint_V": -1.0,
-      "scale": "RHE",
-      "compensation": "85% automatic"
+    "transport": {
+      "feed": "CO2",
+      "flow_mode": "gas_diffusion",
+      "flow_rate_sccm": 20.0
     }
   },
   "system": {
@@ -60,19 +67,19 @@
       "laboratory": "Flow_Cell_Lab"
     },
     "instrument": {
-      "instrument_type": "potentiostat_gc",
+      "instrument_type": "potentiostat",
       "instrument_name": "Station-2_Biologic_VMP3",
       "vendor_or_project": "BioLogic"
     },
     "configuration": {
+      "reference_electrode": "Ag/AgCl_leak_free",
       "gc_column_type": "PLOT_Q",
-      "cell_geometry": "1cm2_exposed",
-      "reference_electrode": "Ag/AgCl_leak_free"
+      "cell_geometry": "1cm2_exposed"
     }
   },
   "measurement": {
     "processing": {
-      "type": "GC_integrated_composition_analysis",
+      "type": "gc_fe_analysis",
       "recipe_link": {
         "rel": "processing_recipe",
         "target": "workflow://co2rr_fe_calculator/v3.0"
@@ -85,15 +92,7 @@
           {
             "name": "time",
             "unit": "s",
-            "values": [
-              0,
-              600,
-              1200,
-              1800,
-              2400,
-              3000,
-              3600
-            ]
+            "values": [0, 600, 1200, 1800, 2400, 3000, 3600]
           }
         ],
         "channels": [
@@ -101,29 +100,13 @@
             "name": "current_density",
             "unit": "mA_cm2",
             "role": "measured_response",
-            "values": [
-              -150.1,
-              -150.3,
-              -150.8,
-              -150.5,
-              -150.2,
-              -150.5,
-              -150.4
-            ]
+            "values": [-150.1, -150.3, -150.8, -150.5, -150.2, -150.5, -150.4]
           },
           {
             "name": "potential_readback",
             "unit": "V_RHE",
             "role": "control_readback",
-            "values": [
-              -1.0,
-              -1.0,
-              -1.0,
-              -1.0,
-              -1.0,
-              -1.0,
-              -1.0
-            ]
+            "values": [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
           }
         ]
       },
@@ -133,12 +116,7 @@
           {
             "name": "injection_time",
             "unit": "s",
-            "values": [
-              900,
-              1800,
-              2700,
-              3600
-            ]
+            "values": [900, 1800, 2700, 3600]
           }
         ],
         "channels": [
@@ -146,23 +124,13 @@
             "name": "co_concentration",
             "unit": "ppm",
             "role": "measured_response",
-            "values": [
-              450,
-              455,
-              448,
-              452
-            ]
+            "values": [450, 455, 448, 452]
           },
           {
             "name": "ethylene_concentration",
             "unit": "ppm",
             "role": "measured_response",
-            "values": [
-              1200,
-              1250,
-              1240,
-              1260
-            ]
+            "values": [1200, 1250, 1240, 1260]
           }
         ]
       }
@@ -220,7 +188,7 @@
         },
         "descriptors": [
           {
-            "name": "steady_state_current_density_at_setpoint",
+            "name": "steady_state_current_density",
             "kind": "absolute",
             "source": "auto",
             "value": -150.5,
@@ -241,7 +209,7 @@
               "sigma": 0.005,
               "unit": "fraction"
             },
-            "definition": "Faradaic efficiency for Carbon Monoxide production."
+            "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
           },
           {
             "name": "faradaic_efficiency.C2H4",
@@ -253,10 +221,10 @@
               "sigma": 0.012,
               "unit": "fraction"
             },
-            "definition": "Faradaic efficiency for Ethylene production."
+            "definition": "Faradaic efficiency for Ethylene (C2H4) production."
           },
           {
-            "name": "faradaic_efficiency.EtOH",
+            "name": "faradaic_efficiency.C2H5OH",
             "kind": "absolute",
             "source": "auto",
             "value": 0.181,
@@ -265,7 +233,7 @@
               "sigma": 0.01,
               "unit": "fraction"
             },
-            "definition": "Faradaic efficiency for Ethanol production."
+            "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
           }
         ]
       }

@@ -48,10 +48,11 @@
             ]
         },
         "sample.material.provenance": {
-            "description": "Origin of the material intent.",
+            "description": "Origin of the material.",
             "values": [
                 "commercial",
                 "synthesized",
+                "fabricated",
                 "theoretical",
                 "literature",
                 "natural"
@@ -68,6 +69,23 @@
             ]
         }
     },
+    "Device": {
+        "device.electrode_type": {
+            "description": "Type of electrode used in the device.",
+            "values": [
+                "GDE",
+                "thin_film",
+                "patterned_film",
+                "nanoparticle",
+                "foil",
+                "mesh",
+                "RDE",
+                "RRDE",
+                "pellet",
+                "single_crystal"
+            ]
+        }
+    },
     "Context": {
         "context.environment": {
             "description": "The surrounding condition.",
@@ -76,6 +94,19 @@
                 "in_situ",
                 "ex_situ",
                 "in_silico"
+            ]
+        },
+        "context.electrochemistry.reaction": {
+            "description": "Target chemical reaction.",
+            "values": [
+                "CO2RR",
+                "CORR",
+                "OER",
+                "HER",
+                "ORR",
+                "NRR",
+                "None",
+                "Pt_oxidation"
             ]
         },
         "context.electrochemistry.control_mode": {
@@ -98,6 +129,20 @@
                 "V_vs_Ref"
             ]
         },
+        "context.electrochemistry.cell_type": {
+            "description": "The specific hardware rig body.",
+            "values": [
+                "flow_cell",
+                "microfluidic_flow_cell",
+                "h_cell",
+                "beaker_cell",
+                "gde_cell",
+                "mea_cell",
+                "zero_gap_cell",
+                "coin_cell",
+                "three_electrode"
+            ]
+        },
         "context.electrochemistry.pH_basis": {
             "description": "Basis for the pH value.",
             "values": [
@@ -106,26 +151,14 @@
                 "buffered_assumed"
             ]
         },
-        "context.electrochemistry.reaction": {
-            "description": "Target chemical reaction.",
+        "context.electrochemistry.ir_compensation.method": {
+            "description": "Method used for iR compensation.",
             "values": [
-                "CO2RR",
-                "OER",
-                "HER",
-                "ORR",
-                "None",
-                "Pt Oxidation"
-            ]
-        },
-        "context.electrochemistry.cell_type": {
-            "description": "[Extension] The specific hardware rig body.",
-            "values": [
-                "flow_cell",
-                "h_cell",
-                "beaker_cell",
-                "gde_cell",
-                "coin_cell",
-                "three_electrode"
+                "none",
+                "automatic",
+                "manual",
+                "post_hoc",
+                "EIS_based"
             ]
         },
         "context.transport.flow_mode": {
@@ -216,6 +249,28 @@
                 "mass_spectrometer",
                 "nmr_spectrometer"
             ]
+        },
+        "system.configuration": {
+            "description": "Allowed flat keys for system configuration. Values must be string, number, or boolean (no nesting).",
+            "values": [
+                "detector_model",
+                "monochromator_crystal",
+                "spectrometer_geometry",
+                "compute_architecture",
+                "code_version",
+                "container_image",
+                "channel_id",
+                "electrode_configuration",
+                "reference_electrode",
+                "counter_electrode",
+                "membrane",
+                "gc_column_type",
+                "gc_model",
+                "cell_geometry",
+                "anolyte",
+                "product_detection_gas",
+                "product_detection_liquid"
+            ]
         }
     },
     "Measurement": {
@@ -229,6 +284,27 @@
                 "auxiliary_signal",
                 "control_readback",
                 "quality_monitor"
+            ]
+        },
+        "measurement.processing.type": {
+            "description": "Type of data processing applied.",
+            "values": [
+                "background_corrected",
+                "averaged",
+                "calibrated",
+                "gc_fe_analysis",
+                "hplc_fe_analysis",
+                "gc_hplc_fe_analysis",
+                "nmr_fe_analysis",
+                "icpms_quantification"
+            ]
+        },
+        "measurement.qc.status": {
+            "description": "Quality control status of the measurement.",
+            "values": [
+                "valid",
+                "compromised",
+                "failed"
             ]
         }
     },
@@ -300,6 +376,23 @@
                 "auto",
                 "manual",
                 "imported"
+            ]
+        },
+        "descriptors.faradaic_efficiency_products": {
+            "description": "Canonical product keys for faradaic_efficiency.{product} descriptors. Use molecular formula for unambiguous species. The descriptor name MUST follow the pattern faradaic_efficiency.{KEY} where KEY is from this list.",
+            "values": [
+                "H2",
+                "CO",
+                "CH4",
+                "HCOO",
+                "C2H4",
+                "C2H6",
+                "CH3COO",
+                "C2H5OH",
+                "C3H7OH",
+                "CH3OH",
+                "total_C1",
+                "total_C2plus"
             ]
         },
         "descriptors.theoretical_metric": {

@@ -140,21 +140,22 @@ def build_record(row, setup):
             "electrochemistry": {
                 "reaction": "CO2RR",
                 "cell_type": cell.get("cell_type", "flow_cell"),
+                "control_mode": "potentiostatic",
+                "potential_setpoint_V": potential,
+                "potential_scale": "RHE",
+                "ir_compensation": {
+                    "method": "automatic",
+                    "percent": cell.get("iR_compensation_pct", 85),
+                },
                 "electrolyte": {
                     "name": cell.get("catholyte", "0.1 M KHCO3"),
                     "concentration_M": 0.1,
                 },
-                "potential_control": {
-                    "setpoint_V": potential,
-                    "scale": "RHE",
-                    "mode": "potentiostatic",
-                    "compensation": f"{cell.get('iR_compensation_pct', 85)}% iR",
-                },
-                "mass_transport": {
-                    "mode": "flow",
-                    "reactant": "CO2",
-                    "flow_sccm": cell.get("CO2_flow_rate_sccm", 5.0),
-                },
+            },
+            "transport": {
+                "feed": "CO2",
+                "flow_mode": "gas_diffusion",
+                "flow_rate_sccm": cell.get("CO2_flow_rate_sccm", 5.0),
             },
         },
         "system": {
@@ -179,6 +180,9 @@ def build_record(row, setup):
             },
         },
         "measurement": {
+            "processing": {
+                "type": "gc_fe_analysis",
+            },
             "series": [
                 {
                     "series_id": "gc_averaged_faradaic_efficiency",
@@ -191,19 +195,19 @@ def build_record(row, setup):
                     ],
                     "channels": [
                         {"name": "faradaic_efficiency_H2", "unit": "percent",
-                         "role": "measured_response", "values": [products["H2"]]},
+                         "role": "derived_signal", "values": [products["H2"]]},
                         {"name": "faradaic_efficiency_CO", "unit": "percent",
-                         "role": "measured_response", "values": [products["CO"]]},
+                         "role": "derived_signal", "values": [products["CO"]]},
                         {"name": "faradaic_efficiency_CH4", "unit": "percent",
-                         "role": "measured_response", "values": [products["CH4"]]},
+                         "role": "derived_signal", "values": [products["CH4"]]},
                         {"name": "faradaic_efficiency_C2H4", "unit": "percent",
-                         "role": "measured_response", "values": [products["C2H4"]]},
+                         "role": "derived_signal", "values": [products["C2H4"]]},
                         {"name": "faradaic_efficiency_HCOO", "unit": "percent",
-                         "role": "measured_response", "values": [products["HCOO"]]},
+                         "role": "derived_signal", "values": [products["HCOO"]]},
                         {"name": "faradaic_efficiency_C2H5OH", "unit": "percent",
-                         "role": "measured_response", "values": [products["C2H5OH"]]},
-                        {"name": "faradaic_efficiency_acetate", "unit": "percent",
-                         "role": "measured_response", "values": [products["acetate"]]},
+                         "role": "derived_signal", "values": [products["C2H5OH"]]},
+                        {"name": "faradaic_efficiency_CH3COO", "unit": "percent",
+                         "role": "derived_signal", "values": [products["acetate"]]},
                     ],
                 }
             ],
@@ -279,17 +283,17 @@ def build_record(row, setup):
         "C2H4": "faradaic_efficiency.C2H4",
         "HCOO": "faradaic_efficiency.HCOO",
         "C2H5OH": "faradaic_efficiency.C2H5OH",
-        "acetate": "faradaic_efficiency.acetate",
+        "acetate": "faradaic_efficiency.CH3COO",
     }
 
     product_labels = {
-        "H2": "Hydrogen",
-        "CO": "Carbon Monoxide",
-        "CH4": "Methane",
-        "C2H4": "Ethylene",
-        "HCOO": "Formate",
-        "C2H5OH": "Ethanol",
-        "acetate": "Acetate",
+        "H2": "Hydrogen (H2)",
+        "CO": "Carbon Monoxide (CO)",
+        "CH4": "Methane (CH4)",
+        "C2H4": "Ethylene (C2H4)",
+        "HCOO": "Formate (HCOO-)",
+        "C2H5OH": "Ethanol (C2H5OH)",
+        "acetate": "Acetate (CH3COO-)",
     }
 
     descriptors_list = record["descriptors"]["outputs"][0]["descriptors"]

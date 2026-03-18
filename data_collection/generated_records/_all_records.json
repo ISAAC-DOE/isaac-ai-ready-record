@@ -1,12 +1,12 @@
 [
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCX77KFD51PT9SHZW44D",
+    "record_id": "01KM1B1WZE45SS04YQ22VA292Q",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -37,21 +37,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.1,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.1,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -77,6 +78,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -93,7 +97,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 96.29
               ]
@@ -101,7 +105,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 4.31
               ]
@@ -109,7 +113,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.0
               ]
@@ -117,7 +121,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.0
               ]
@@ -125,7 +129,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.0
               ]
@@ -133,15 +137,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -158,7 +162,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -174,7 +178,7 @@
                 "sigma": 0.048145,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -186,7 +190,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -198,7 +202,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -210,7 +214,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -222,7 +226,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -234,10 +238,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -246,7 +250,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -255,12 +259,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCX8XX5V7TTKMH6BCF48",
+    "record_id": "01KM1B1WZFHMNRJAPFJW9WYMG8",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -291,21 +295,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.1,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.1,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -331,6 +336,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -347,7 +355,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 87.92
               ]
@@ -355,7 +363,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 6.2
               ]
@@ -363,7 +371,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.18
               ]
@@ -371,7 +379,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 1.04
               ]
@@ -379,7 +387,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 5.28
               ]
@@ -387,15 +395,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -412,7 +420,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -428,7 +436,7 @@
                 "sigma": 0.04396,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -440,7 +448,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -452,7 +460,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -464,7 +472,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -476,7 +484,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -488,10 +496,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -500,7 +508,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -509,12 +517,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCX97MPSC8TMGAEGGYJK",
+    "record_id": "01KM1B1WZGXMCJS9DEJJZYFXWC",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -545,21 +553,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.1,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.1,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -585,6 +594,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -601,7 +613,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 88.03
               ]
@@ -609,7 +621,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 8.44
               ]
@@ -617,7 +629,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.14
               ]
@@ -625,7 +637,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.93
               ]
@@ -633,7 +645,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 3.62
               ]
@@ -641,15 +653,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -666,7 +678,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -682,7 +694,7 @@
                 "sigma": 0.044015,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -694,7 +706,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -706,7 +718,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -718,7 +730,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -730,7 +742,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -742,10 +754,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -754,7 +766,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -763,12 +775,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCX9869KJ8R7D90NY8QN",
+    "record_id": "01KM1B1WZGSTCV674PHQXTV8SZ",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -800,21 +812,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.1,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.1,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -840,6 +853,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -856,7 +872,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 85.36
               ]
@@ -864,7 +880,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 10.64
               ]
@@ -872,7 +888,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.43
               ]
@@ -880,7 +896,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 1.07
               ]
@@ -888,7 +904,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 4.13
               ]
@@ -896,15 +912,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -921,7 +937,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -937,7 +953,7 @@
                 "sigma": 0.04268,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -949,7 +965,7 @@
                 "sigma": 0.00532,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -961,7 +977,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -973,7 +989,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -985,7 +1001,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -997,10 +1013,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -1009,7 +1025,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -1018,12 +1034,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXA902TN55R3NV2NRG6",
+    "record_id": "01KM1B1WZH5M0PWS2D5ZARRVH2",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -1054,21 +1070,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.1,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.1,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -1094,6 +1111,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -1110,7 +1130,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 75.71
               ]
@@ -1118,7 +1138,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 5.16
               ]
@@ -1126,7 +1146,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.43
               ]
@@ -1134,7 +1154,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 6.79
               ]
@@ -1142,7 +1162,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 12.65
               ]
@@ -1150,15 +1170,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -1175,7 +1195,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -1191,7 +1211,7 @@
                 "sigma": 0.037855,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -1203,7 +1223,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -1215,7 +1235,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -1227,7 +1247,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -1239,7 +1259,7 @@
                 "sigma": 0.006325,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -1251,10 +1271,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -1263,7 +1283,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -1272,12 +1292,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXAFPK4KZDKE9E12SW5",
+    "record_id": "01KM1B1WZHBWQX0BXR4718406T",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -1309,21 +1329,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.1,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.1,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -1349,6 +1370,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -1365,7 +1389,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 73.85
               ]
@@ -1373,7 +1397,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 4.26
               ]
@@ -1381,7 +1405,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.28
               ]
@@ -1389,7 +1413,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 8.83
               ]
@@ -1397,7 +1421,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 13.41
               ]
@@ -1405,15 +1429,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -1430,7 +1454,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -1446,7 +1470,7 @@
                 "sigma": 0.036925,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -1458,7 +1482,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -1470,7 +1494,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -1482,7 +1506,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -1494,7 +1518,7 @@
                 "sigma": 0.006705,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -1506,10 +1530,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -1518,7 +1542,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -1527,12 +1551,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXBK9Y0RVYMN8491R0T",
+    "record_id": "01KM1B1WZHM6J00K96XK40667B",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -1563,21 +1587,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.1,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.1,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -1603,6 +1628,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -1619,7 +1647,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 96.92
               ]
@@ -1627,7 +1655,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 2.12
               ]
@@ -1635,7 +1663,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.4
               ]
@@ -1643,7 +1671,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.2
               ]
@@ -1651,7 +1679,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.34
               ]
@@ -1659,15 +1687,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -1684,7 +1712,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -1700,7 +1728,7 @@
                 "sigma": 0.04846,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -1712,7 +1740,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -1724,7 +1752,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -1736,7 +1764,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -1748,7 +1776,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -1760,10 +1788,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -1772,7 +1800,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -1781,12 +1809,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXB8YB8V33SKW5KH8TV",
+    "record_id": "01KM1B1WZJ0SWKY1J461QNDECT",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -1817,21 +1845,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.2,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.2,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -1857,6 +1886,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -1873,7 +1905,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 87.15
               ]
@@ -1881,7 +1913,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 13.21
               ]
@@ -1889,7 +1921,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.0
               ]
@@ -1897,7 +1929,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.0
               ]
@@ -1905,7 +1937,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.0
               ]
@@ -1913,15 +1945,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -1938,7 +1970,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -1954,7 +1986,7 @@
                 "sigma": 0.043575,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -1966,7 +1998,7 @@
                 "sigma": 0.006605,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -1978,7 +2010,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -1990,7 +2022,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -2002,7 +2034,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -2014,10 +2046,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -2026,7 +2058,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -2035,12 +2067,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXCYAXWEFYKNDZS9MC2",
+    "record_id": "01KM1B1WZJ7BRTY39CPDCKHAGW",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -2071,21 +2103,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.2,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.2,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -2111,6 +2144,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -2127,7 +2163,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 84.33
               ]
@@ -2135,7 +2171,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 8.75
               ]
@@ -2143,7 +2179,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 4.07
               ]
@@ -2151,7 +2187,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 1.84
               ]
@@ -2159,7 +2195,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 2.19
               ]
@@ -2167,15 +2203,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -2192,7 +2228,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -2208,7 +2244,7 @@
                 "sigma": 0.042165,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -2220,7 +2256,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -2232,7 +2268,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -2244,7 +2280,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -2256,7 +2292,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -2268,10 +2304,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -2280,7 +2316,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -2289,12 +2325,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXCM5NFAPGCD5WRVH3A",
+    "record_id": "01KM1B1WZK5CNGAP05K7G91HE1",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -2325,21 +2361,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.2,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.2,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -2365,6 +2402,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -2381,7 +2421,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 82.66
               ]
@@ -2389,7 +2429,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 11.37
               ]
@@ -2397,7 +2437,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.11
               ]
@@ -2405,7 +2445,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 3.48
               ]
@@ -2413,7 +2453,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 2.25
               ]
@@ -2421,15 +2461,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -2446,7 +2486,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -2462,7 +2502,7 @@
                 "sigma": 0.04133,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -2474,7 +2514,7 @@
                 "sigma": 0.005685,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -2486,7 +2526,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -2498,7 +2538,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -2510,7 +2550,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -2522,10 +2562,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -2534,7 +2574,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -2543,12 +2583,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXDGPD8F6TG573829CJ",
+    "record_id": "01KM1B1WZK34DFW17K3HC4W1J7",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -2580,21 +2620,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.2,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.2,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -2620,6 +2661,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -2636,7 +2680,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 79.53
               ]
@@ -2644,7 +2688,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 12.22
               ]
@@ -2652,7 +2696,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.38
               ]
@@ -2660,7 +2704,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 3.55
               ]
@@ -2668,7 +2712,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 3.38
               ]
@@ -2676,15 +2720,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -2701,7 +2745,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -2717,7 +2761,7 @@
                 "sigma": 0.039765,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -2729,7 +2773,7 @@
                 "sigma": 0.00611,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -2741,7 +2785,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -2753,7 +2797,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -2765,7 +2809,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -2777,10 +2821,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -2789,7 +2833,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -2798,12 +2842,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXD1FVYFYQA97BFKJWY",
+    "record_id": "01KM1B1WZMR8DVVCQGRSZHQB83",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -2834,21 +2878,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.2,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.2,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -2874,6 +2919,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -2890,7 +2938,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 70.92
               ]
@@ -2898,7 +2946,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 3.24
               ]
@@ -2906,7 +2954,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 3.9
               ]
@@ -2914,7 +2962,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 14.58
               ]
@@ -2922,7 +2970,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 8.83
               ]
@@ -2930,15 +2978,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -2955,7 +3003,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -2971,7 +3019,7 @@
                 "sigma": 0.03546,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -2983,7 +3031,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -2995,7 +3043,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -3007,7 +3055,7 @@
                 "sigma": 0.00729,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -3019,7 +3067,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -3031,10 +3079,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -3043,7 +3091,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -3052,12 +3100,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXEMMXCJ92KF65WBZVJ",
+    "record_id": "01KM1B1WZM34E00XM1AFHAJE57",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -3089,21 +3137,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.2,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.2,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -3129,6 +3178,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -3145,7 +3197,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 68.1
               ]
@@ -3153,7 +3205,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 2.96
               ]
@@ -3161,7 +3213,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 3.67
               ]
@@ -3169,7 +3221,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 17.85
               ]
@@ -3177,7 +3229,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 8.15
               ]
@@ -3185,15 +3237,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -3210,7 +3262,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -3226,7 +3278,7 @@
                 "sigma": 0.03405,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -3238,7 +3290,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -3250,7 +3302,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -3262,7 +3314,7 @@
                 "sigma": 0.008925,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -3274,7 +3326,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -3286,10 +3338,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -3298,7 +3350,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -3307,12 +3359,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXED7CZ4TD61MGQX0YJ",
+    "record_id": "01KM1B1WZNJ19Z1SGRX8DHDDDT",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -3343,21 +3395,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.2,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.2,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -3383,6 +3436,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -3399,7 +3455,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 86.04
               ]
@@ -3407,7 +3463,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 7.66
               ]
@@ -3415,7 +3471,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 2.2
               ]
@@ -3423,7 +3479,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.79
               ]
@@ -3431,7 +3487,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 3.49
               ]
@@ -3439,15 +3495,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -3464,7 +3520,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -3480,7 +3536,7 @@
                 "sigma": 0.04302,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -3492,7 +3548,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -3504,7 +3560,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -3516,7 +3572,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -3528,7 +3584,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -3540,10 +3596,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -3552,7 +3608,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -3561,12 +3617,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXFSB975KB3CM59WS04",
+    "record_id": "01KM1B1WZNAT4HRD50KWERP0TR",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -3597,21 +3653,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.3,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.3,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -3637,6 +3694,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -3653,7 +3713,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 79.7
               ]
@@ -3661,7 +3721,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 19.6
               ]
@@ -3669,7 +3729,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.0
               ]
@@ -3677,7 +3737,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.0
               ]
@@ -3685,7 +3745,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.0
               ]
@@ -3693,15 +3753,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -3718,7 +3778,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -3734,7 +3794,7 @@
                 "sigma": 0.03985,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -3746,7 +3806,7 @@
                 "sigma": 0.0098,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -3758,7 +3818,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -3770,7 +3830,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -3782,7 +3842,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -3794,10 +3854,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -3806,7 +3866,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -3815,12 +3875,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXFPM9C75ZAKWP07B1Y",
+    "record_id": "01KM1B1WZNB2P0XF00Z1H023QV",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -3851,21 +3911,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.3,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.3,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -3891,6 +3952,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -3907,7 +3971,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 80.87
               ]
@@ -3915,7 +3979,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 11.32
               ]
@@ -3923,7 +3987,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 4.33
               ]
@@ -3931,7 +3995,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 1.9
               ]
@@ -3939,7 +4003,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 1.04
               ]
@@ -3947,15 +4011,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -3972,7 +4036,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -3988,7 +4052,7 @@
                 "sigma": 0.040435,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -4000,7 +4064,7 @@
                 "sigma": 0.00566,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -4012,7 +4076,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -4024,7 +4088,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -4036,7 +4100,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -4048,10 +4112,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -4060,7 +4124,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -4069,12 +4133,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXGPADA85ATEKCXKGXR",
+    "record_id": "01KM1B1WZPCA1CT5Y62G8FQZQ0",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -4105,21 +4169,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.3,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.3,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -4145,6 +4210,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -4161,7 +4229,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 78.35
               ]
@@ -4169,7 +4237,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 11.74
               ]
@@ -4177,7 +4245,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.64
               ]
@@ -4185,7 +4253,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 6.54
               ]
@@ -4193,7 +4261,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 2.81
               ]
@@ -4201,15 +4269,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -4226,7 +4294,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -4242,7 +4310,7 @@
                 "sigma": 0.039175,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -4254,7 +4322,7 @@
                 "sigma": 0.00587,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -4266,7 +4334,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -4278,7 +4346,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -4290,7 +4358,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -4302,10 +4370,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -4314,7 +4382,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -4323,12 +4391,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXGQ2JSYP5VJTEXGF5E",
+    "record_id": "01KM1B1WZP64F2DPAXPWCWG18W",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -4360,21 +4428,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.3,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.3,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -4400,6 +4469,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -4416,7 +4488,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 76.32
               ]
@@ -4424,7 +4496,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 14.33
               ]
@@ -4432,7 +4504,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0.75
               ]
@@ -4440,7 +4512,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 7.73
               ]
@@ -4448,7 +4520,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 2.6
               ]
@@ -4456,15 +4528,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -4481,7 +4553,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -4497,7 +4569,7 @@
                 "sigma": 0.03816,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -4509,7 +4581,7 @@
                 "sigma": 0.007165,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -4521,7 +4593,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -4533,7 +4605,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -4545,7 +4617,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -4557,10 +4629,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -4569,7 +4641,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -4578,12 +4650,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXGJDM0W9NQZN9TY336",
+    "record_id": "01KM1B1WZQ3Z985K54PZYJF2VG",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -4614,21 +4686,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.3,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.3,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -4654,6 +4727,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -4670,7 +4746,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 61.06
               ]
@@ -4678,7 +4754,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 2.64
               ]
@@ -4686,7 +4762,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 11.62
               ]
@@ -4694,7 +4770,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 22.5
               ]
@@ -4702,7 +4778,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 2.01
               ]
@@ -4710,15 +4786,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -4735,7 +4811,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -4751,7 +4827,7 @@
                 "sigma": 0.03053,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -4763,7 +4839,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -4775,7 +4851,7 @@
                 "sigma": 0.00581,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -4787,7 +4863,7 @@
                 "sigma": 0.01125,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -4799,7 +4875,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -4811,10 +4887,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -4823,7 +4899,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -4832,12 +4908,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXH4H66QMH4CQNQRETH",
+    "record_id": "01KM1B1WZQ6XPVGTEG1229E7XE",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -4869,21 +4945,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.3,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.3,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -4909,6 +4986,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -4925,7 +5005,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 57.19
               ]
@@ -4933,7 +5013,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 2.38
               ]
@@ -4941,7 +5021,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 10.06
               ]
@@ -4949,7 +5029,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 25.41
               ]
@@ -4957,7 +5037,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 4.49
               ]
@@ -4965,15 +5045,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -4990,7 +5070,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -5006,7 +5086,7 @@
                 "sigma": 0.028595,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -5018,7 +5098,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -5030,7 +5110,7 @@
                 "sigma": 0.00503,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -5042,7 +5122,7 @@
                 "sigma": 0.012705,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -5054,7 +5134,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -5066,10 +5146,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -5078,7 +5158,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
@@ -5087,12 +5167,12 @@
   },
   {
     "isaac_record_version": "1.0",
-    "record_id": "01KKYTCCXHRZ416S2225DV2C1Y",
+    "record_id": "01KM1B1WZQRKRXT4NAHRD8NAXB",
     "record_type": "evidence",
     "record_domain": "performance",
     "source_type": "laboratory",
     "timestamps": {
-      "created_utc": "2026-03-17T21:14:13Z"
+      "created_utc": "2026-03-18T20:44:04Z"
     },
     "sample": {
       "material": {
@@ -5123,21 +5203,22 @@
       "electrochemistry": {
         "reaction": "CO2RR",
         "cell_type": "flow_cell",
+        "control_mode": "potentiostatic",
+        "potential_setpoint_V": -1.3,
+        "potential_scale": "RHE",
+        "ir_compensation": {
+          "method": "automatic",
+          "percent": 85
+        },
         "electrolyte": {
           "name": "CO2-saturated 0.1 M KHCO3",
           "concentration_M": 0.1
-        },
-        "potential_control": {
-          "setpoint_V": -1.3,
-          "scale": "RHE",
-          "mode": "potentiostatic",
-          "compensation": "85% iR"
-        },
-        "mass_transport": {
-          "mode": "flow",
-          "reactant": "CO2",
-          "flow_sccm": 5.0
         }
+      },
+      "transport": {
+        "feed": "CO2",
+        "flow_mode": "gas_diffusion",
+        "flow_rate_sccm": 5.0
       }
     },
     "system": {
@@ -5163,6 +5244,9 @@
       }
     },
     "measurement": {
+      "processing": {
+        "type": "gc_fe_analysis"
+      },
       "series": [
         {
           "series_id": "gc_averaged_faradaic_efficiency",
@@ -5179,7 +5263,7 @@
             {
               "name": "faradaic_efficiency_H2",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 73.01
               ]
@@ -5187,7 +5271,7 @@
             {
               "name": "faradaic_efficiency_CO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 15.52
               ]
@@ -5195,7 +5279,7 @@
             {
               "name": "faradaic_efficiency_CH4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 8.93
               ]
@@ -5203,7 +5287,7 @@
             {
               "name": "faradaic_efficiency_C2H4",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 1.06
               ]
@@ -5211,7 +5295,7 @@
             {
               "name": "faradaic_efficiency_HCOO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 1.57
               ]
@@ -5219,15 +5303,15 @@
             {
               "name": "faradaic_efficiency_C2H5OH",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
             },
             {
-              "name": "faradaic_efficiency_acetate",
+              "name": "faradaic_efficiency_CH3COO",
               "unit": "percent",
-              "role": "measured_response",
+              "role": "derived_signal",
               "values": [
                 0
               ]
@@ -5244,7 +5328,7 @@
       "outputs": [
         {
           "label": "co2rr_faradaic_efficiency",
-          "generated_utc": "2026-03-17T21:14:13Z",
+          "generated_utc": "2026-03-18T20:44:04Z",
           "generated_by": {
             "agent": "isaac_co2rr_ingest",
             "version": "1.0"
@@ -5260,7 +5344,7 @@
                 "sigma": 0.036505,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Hydrogen production."
+              "definition": "Faradaic efficiency for Hydrogen (H2) production."
             },
             {
               "name": "faradaic_efficiency.CO",
@@ -5272,7 +5356,7 @@
                 "sigma": 0.00776,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Carbon Monoxide production."
+              "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
             },
             {
               "name": "faradaic_efficiency.CH4",
@@ -5284,7 +5368,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Methane production."
+              "definition": "Faradaic efficiency for Methane (CH4) production."
             },
             {
               "name": "faradaic_efficiency.C2H4",
@@ -5296,7 +5380,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethylene production."
+              "definition": "Faradaic efficiency for Ethylene (C2H4) production."
             },
             {
               "name": "faradaic_efficiency.HCOO",
@@ -5308,7 +5392,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Formate production."
+              "definition": "Faradaic efficiency for Formate (HCOO-) production."
             },
             {
               "name": "faradaic_efficiency.C2H5OH",
@@ -5320,10 +5404,10 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Ethanol production."
+              "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
             },
             {
-              "name": "faradaic_efficiency.acetate",
+              "name": "faradaic_efficiency.CH3COO",
               "kind": "absolute",
               "source": "auto",
               "value": 0.0,
@@ -5332,7 +5416,7 @@
                 "sigma": 0.005,
                 "unit": "fraction"
               },
-              "definition": "Faradaic efficiency for Acetate production."
+              "definition": "Faradaic efficiency for Acetate (CH3COO-) production."
             }
           ]
         }
