@@ -1,11 +1,11 @@
 {
   "isaac_record_version": "1.0",
-  "record_id": "01KM1B1WZE45SS04YQ22VA292Q",
+  "record_id": "01KM1CXK7M6PDPWQ2CDXD459N7",
   "record_type": "evidence",
   "record_domain": "performance",
   "source_type": "laboratory",
   "timestamps": {
-    "created_utc": "2026-03-18T20:44:04Z"
+    "created_utc": "2026-03-18T21:16:40Z"
   },
   "sample": {
     "material": {
@@ -80,78 +80,7 @@
     "processing": {
       "type": "gc_fe_analysis"
     },
-    "series": [
-      {
-        "series_id": "gc_averaged_faradaic_efficiency",
-        "independent_variables": [
-          {
-            "name": "measurement_index",
-            "unit": "dimensionless",
-            "values": [
-              0
-            ]
-          }
-        ],
-        "channels": [
-          {
-            "name": "faradaic_efficiency_H2",
-            "unit": "percent",
-            "role": "derived_signal",
-            "values": [
-              96.29
-            ]
-          },
-          {
-            "name": "faradaic_efficiency_CO",
-            "unit": "percent",
-            "role": "derived_signal",
-            "values": [
-              4.31
-            ]
-          },
-          {
-            "name": "faradaic_efficiency_CH4",
-            "unit": "percent",
-            "role": "derived_signal",
-            "values": [
-              0.0
-            ]
-          },
-          {
-            "name": "faradaic_efficiency_C2H4",
-            "unit": "percent",
-            "role": "derived_signal",
-            "values": [
-              0.0
-            ]
-          },
-          {
-            "name": "faradaic_efficiency_HCOO",
-            "unit": "percent",
-            "role": "derived_signal",
-            "values": [
-              0.0
-            ]
-          },
-          {
-            "name": "faradaic_efficiency_C2H5OH",
-            "unit": "percent",
-            "role": "derived_signal",
-            "values": [
-              0
-            ]
-          },
-          {
-            "name": "faradaic_efficiency_CH3COO",
-            "unit": "percent",
-            "role": "derived_signal",
-            "values": [
-              0
-            ]
-          }
-        ]
-      }
-    ],
+    "series": [],
     "qc": {
       "status": "valid",
       "evidence": "Average of 5 GC injections over 80 min CA hold."
@@ -161,7 +90,7 @@
     "outputs": [
       {
         "label": "co2rr_faradaic_efficiency",
-        "generated_utc": "2026-03-18T20:44:04Z",
+        "generated_utc": "2026-03-18T21:16:40Z",
         "generated_by": {
           "agent": "isaac_co2rr_ingest",
           "version": "1.0"

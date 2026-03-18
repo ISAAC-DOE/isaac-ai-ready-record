@@ -183,34 +183,7 @@ def build_record(row, setup):
             "processing": {
                 "type": "gc_fe_analysis",
             },
-            "series": [
-                {
-                    "series_id": "gc_averaged_faradaic_efficiency",
-                    "independent_variables": [
-                        {
-                            "name": "measurement_index",
-                            "unit": "dimensionless",
-                            "values": [0],
-                        }
-                    ],
-                    "channels": [
-                        {"name": "faradaic_efficiency_H2", "unit": "percent",
-                         "role": "derived_signal", "values": [products["H2"]]},
-                        {"name": "faradaic_efficiency_CO", "unit": "percent",
-                         "role": "derived_signal", "values": [products["CO"]]},
-                        {"name": "faradaic_efficiency_CH4", "unit": "percent",
-                         "role": "derived_signal", "values": [products["CH4"]]},
-                        {"name": "faradaic_efficiency_C2H4", "unit": "percent",
-                         "role": "derived_signal", "values": [products["C2H4"]]},
-                        {"name": "faradaic_efficiency_HCOO", "unit": "percent",
-                         "role": "derived_signal", "values": [products["HCOO"]]},
-                        {"name": "faradaic_efficiency_C2H5OH", "unit": "percent",
-                         "role": "derived_signal", "values": [products["C2H5OH"]]},
-                        {"name": "faradaic_efficiency_CH3COO", "unit": "percent",
-                         "role": "derived_signal", "values": [products["acetate"]]},
-                    ],
-                }
-            ],
+            "series": [],
             "qc": {
                 "status": "valid",
                 "evidence": f"Average of {proto.get('GC_injections_per_condition', 5)} GC injections over {proto.get('CA_hold_time_min', 80)} min CA hold.",
