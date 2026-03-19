@@ -207,6 +207,15 @@ def _validate_record(data: dict) -> list:
     return errors
 
 
+def _validate_semantic_integrity(data: dict) -> list:
+    """Delegate to ontology.validate_semantic_integrity."""
+    try:
+        return ontology.validate_semantic_integrity(data)
+    except Exception as exc:
+        logger.warning("Semantic integrity validation failed (degraded): %s", exc)
+        return []
+
+
 def _validate_vocabulary(data: dict) -> list:
     """
     Validate a record dict against the live ontology vocabulary.
@@ -291,16 +300,20 @@ def validate():
 
     schema_errors = _validate_record(data)
     vocab_errors = _validate_vocabulary(data)
-    all_errors = schema_errors + vocab_errors
+    semantic_errors = _validate_semantic_integrity(data)
+    all_errors = schema_errors + vocab_errors + semantic_errors
     schema_valid = len(schema_errors) == 0
     vocab_valid = len(vocab_errors) == 0
+    semantic_valid = len(semantic_errors) == 0
 
     return jsonify({
-        "valid": schema_valid and vocab_valid,
+        "valid": schema_valid and vocab_valid and semantic_valid,
         "schema_valid": schema_valid,
         "vocabulary_valid": vocab_valid,
+        "semantic_valid": semantic_valid,
         "schema_errors": schema_errors,
         "vocabulary_errors": vocab_errors,
+        "semantic_errors": semantic_errors,
         "errors": all_errors,
     }), 200
 
@@ -322,16 +335,18 @@ def create_record():
             "message": "Request body is not valid JSON",
         }), 400
 
-    # Schema validation
+    # Schema + vocabulary + semantic validation
     schema_errors = _validate_record(data)
     vocab_errors = _validate_vocabulary(data)
-    errors = schema_errors + vocab_errors
+    semantic_errors = _validate_semantic_integrity(data)
+    errors = schema_errors + vocab_errors + semantic_errors
     if errors:
         return jsonify({
             "success": False,
             "reason": "validation_failed",
             "schema_errors": schema_errors,
             "vocabulary_errors": vocab_errors,
+            "semantic_errors": semantic_errors,
             "errors": errors,
         }), 400
 

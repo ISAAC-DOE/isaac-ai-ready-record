@@ -714,6 +714,60 @@ def validate_record_vocabulary(record):
     return errors
 
 
+def validate_semantic_integrity(data: dict) -> list:
+    """
+    Validate hard semantic rules that JSON Schema alone cannot enforce.
+
+    Rules:
+    1. Evidence records must contain at least one descriptor with a non-null
+       value. A record with all-null descriptor values is a template/facility
+       description, not scientific evidence.
+    2. generated_utc in descriptor outputs must not contain placeholder text.
+
+    Returns a list of error dicts ``[{"path": ..., "message": ...}]``.
+    """
+    errors = []
+    record_type = data.get("record_type")
+
+    if record_type == "evidence":
+        outputs = data.get("descriptors", {}).get("outputs", [])
+        has_real_value = False
+        for output in outputs:
+            gen_utc = output.get("generated_utc", "")
+            if gen_utc and ("PLACEHOLDER" in gen_utc.upper()
+                           or "TBD" in gen_utc.upper()):
+                errors.append({
+                    "path": (
+                        f"descriptors/outputs/"
+                        f"{output.get('label', '?')}/generated_utc"
+                    ),
+                    "message": (
+                        f"Placeholder timestamp '{gen_utc}' is not allowed. "
+                        f"Use a real ISO 8601 timestamp."
+                    ),
+                })
+            for desc in output.get("descriptors", []):
+                if desc.get("value") is not None:
+                    has_real_value = True
+                    break
+            if has_real_value:
+                break
+
+        if not has_real_value:
+            errors.append({
+                "path": "descriptors",
+                "message": (
+                    "Evidence record rejected: every descriptor has a null "
+                    "value. An evidence record must assert at least one "
+                    "scientific claim (a descriptor with a non-null value). "
+                    "Facility templates, setup descriptions, and blank forms "
+                    "are not valid evidence records."
+                ),
+            })
+
+    return errors
+
+
 def merge_vocabulary_into_schema(schema: dict) -> dict:
     """
     Return a deep copy of *schema* with vocabulary ``enum`` constraints

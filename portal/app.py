@@ -714,10 +714,14 @@ elif page == "Record Validator":
                 # Vocabulary validation
                 vocab_errors = ontology.validate_record_vocabulary(record_data)
 
+                # Semantic integrity validation
+                semantic_errors = ontology.validate_semantic_integrity(record_data)
+
                 # Store results in session state
                 st.session_state.validator_result = {
                     "schema_errors": schema_errors,
                     "vocab_errors": vocab_errors,
+                    "semantic_errors": semantic_errors,
                 }
                 st.session_state.validator_record = record_data
 
@@ -726,8 +730,9 @@ elif page == "Record Validator":
             if result is not None:
                 schema_errors = result["schema_errors"]
                 vocab_errors = result["vocab_errors"]
+                semantic_errors = result.get("semantic_errors", [])
 
-                col_schema, col_vocab = st.columns(2)
+                col_schema, col_vocab, col_semantic = st.columns(3)
 
                 with col_schema:
                     if not schema_errors:
@@ -745,7 +750,15 @@ elif page == "Record Validator":
                         for e in vocab_errors:
                             st.write(f"- **{e['path']}**: {e['message']}")
 
-                if not schema_errors and not vocab_errors:
+                with col_semantic:
+                    if not semantic_errors:
+                        st.success("Integrity: PASS")
+                    else:
+                        st.error(f"Integrity: {len(semantic_errors)} error(s)")
+                        for e in semantic_errors:
+                            st.write(f"- **{e['path']}**: {e['message']}")
+
+                if not schema_errors and not vocab_errors and not semantic_errors:
                     st.success("This record is fully compliant with the ISAAC schema and vocabulary!")
 
                     if st.button("Save to Database", key="save_json_btn"):

@@ -144,6 +144,23 @@ def validate_isaac_records():
                     if isinstance(v, (dict, list)):
                         raise ValidationError(f"System configuration must be flat. Key '{k}' contains nested {type(v)}")
 
+            # 4. Semantic Integrity (Evidence records must have real values)
+            if data.get('record_type') == 'evidence':
+                outputs = data.get('descriptors', {}).get('outputs', [])
+                has_real_value = False
+                for output in outputs:
+                    for desc in output.get('descriptors', []):
+                        if desc.get('value') is not None:
+                            has_real_value = True
+                            break
+                    if has_real_value:
+                        break
+                if not has_real_value:
+                    raise ValidationError(
+                        "Evidence record has no descriptors with non-null values. "
+                        "A record must assert at least one scientific claim."
+                    )
+
             print(f"✅ PASS: {filename}")
             
         except ValidationError as e:

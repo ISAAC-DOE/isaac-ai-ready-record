@@ -426,7 +426,9 @@
                 "type": "string"
               },
               "generated_utc": {
-                "type": "string"
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp of when the descriptors were generated. Placeholder strings are not allowed."
               },
               "generated_by": {
                 "type": "object"
@@ -465,7 +467,10 @@
                         "imported"
                       ]
                     },
-                    "value": {},
+                    "value": {
+                      "not": { "type": "null" },
+                      "description": "The asserted value. Must not be null — a descriptor without a value is not a scientific claim."
+                    },
                     "unit": {
                       "type": "string"
                     },
