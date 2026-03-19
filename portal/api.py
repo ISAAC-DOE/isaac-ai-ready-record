@@ -55,6 +55,7 @@ AUTHENTIK_INTERNAL_URL = os.environ.get(
     "http://authentik-server.authentik.svc.cluster.local:9000",
 )
 ALLOWED_GROUPS = {"admin", "researcher"}
+ADMIN_GROUPS = {"admin"}
 
 # In-memory token cache: token -> {"user": str, "groups": list, "expires": float}
 _token_cache: dict = {}
@@ -183,6 +184,35 @@ def _require_auth(fn):
             return jsonify({
                 "error": "insufficient_permissions",
                 "message": "Your account is not in an authorized group. Contact an administrator.",
+            }), 403
+        request.auth_info = auth_info
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def _require_admin(fn):
+    """Decorator that enforces admin-group membership."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        auth_info = _get_auth_info()
+        _log_request(auth_info)
+        if auth_info is None:
+            return jsonify({
+                "error": "authentication_required",
+                "message": "Provide a valid Bearer token in the Authorization header.",
+            }), 401
+        if auth_info.get("forbidden"):
+            return jsonify({
+                "error": "insufficient_permissions",
+                "message": "Your account is not in an authorized group.",
+            }), 403
+        # Check admin group
+        token = request.headers.get("Authorization", "")[7:]
+        token_info = _validate_bearer_token(token)
+        if not token_info or not any(g in ADMIN_GROUPS for g in token_info["groups"]):
+            return jsonify({
+                "error": "admin_required",
+                "message": "This action requires admin privileges.",
             }), 403
         request.auth_info = auth_info
         return fn(*args, **kwargs)
@@ -413,6 +443,28 @@ def get_record(record_id):
         return jsonify({"error": "Record not found"}), 404
 
     return jsonify(record), 200
+
+
+# --- Delete record (admin only) -------------------------------------------
+
+@app.route("/portal/api/records/<record_id>", methods=["DELETE"])
+@_require_admin
+def delete_record(record_id):
+    """
+    Delete a record by its ULID. Requires admin privileges.
+    """
+
+    try:
+        deleted = database.delete_record(record_id)
+    except Exception as exc:
+        logger.exception("Database error deleting record %s", record_id)
+        return jsonify({"error": str(exc)}), 500
+
+    if not deleted:
+        return jsonify({"error": "Record not found"}), 404
+
+    logger.info("Record %s deleted by %s", record_id, request.auth_info.get("user"))
+    return jsonify({"success": True, "record_id": record_id, "deleted": True}), 200
 
 
 # ===========================================================================
