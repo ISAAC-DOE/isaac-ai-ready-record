@@ -31,6 +31,7 @@ branding.render_header()
 # Initialize database tables on startup (if configured)
 if database.is_db_configured():
     database.init_tables()
+    ontology.sync_file_to_db()
 
 # Check database status
 db_connected = database.test_db_connection()

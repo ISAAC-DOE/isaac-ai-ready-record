@@ -57,6 +57,14 @@ AUTHENTIK_INTERNAL_URL = os.environ.get(
 ALLOWED_GROUPS = {"admin", "researcher"}
 ADMIN_GROUPS = {"admin"}
 
+# ---------------------------------------------------------------------------
+# Startup: ensure DB tables exist and vocabulary cache is current
+# ---------------------------------------------------------------------------
+if database.is_db_configured():
+    database.init_tables()
+    _ok, _msg = ontology.sync_file_to_db()
+    logger.info("Vocabulary sync on import: %s — %s", _ok, _msg)
+
 # In-memory token cache: token -> {"user": str, "groups": list, "expires": float}
 _token_cache: dict = {}
 _TOKEN_CACHE_TTL = 300  # 5 minutes
@@ -472,11 +480,7 @@ def delete_record(record_id):
 # ===========================================================================
 
 if __name__ == "__main__":
-    # Initialize database tables (same as the Streamlit app does on startup)
-    if database.is_db_configured():
-        logger.info("Initializing database tables...")
-        database.init_tables()
-    else:
+    if not database.is_db_configured():
         logger.warning(
             "Database not configured (PGHOST not set). "
             "Running without persistence -- DB endpoints will fail."
