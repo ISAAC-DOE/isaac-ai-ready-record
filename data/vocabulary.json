@@ -41,6 +41,8 @@
                 "liquid",
                 "gas",
                 "single_crystal",
+                "nanoparticle",
+                "membrane_electrode_assembly",
                 "slab_model",
                 "cluster_model",
                 "unit_cell",
@@ -67,11 +69,9 @@
                 "materials_project",
                 "internal"
             ]
-        }
-    },
-    "Device": {
-        "device.electrode_type": {
-            "description": "Type of electrode used in the device.",
+        },
+        "sample.electrode_type": {
+            "description": "Type of electrode or substrate configuration. Captures the functional form of the electrode assembly, distinct from the sample_form which describes the material form.",
             "values": [
                 "GDE",
                 "thin_film",
@@ -82,7 +82,9 @@
                 "RDE",
                 "RRDE",
                 "pellet",
-                "single_crystal"
+                "single_crystal",
+                "MEA",
+                "flow_field_plate"
             ]
         }
     },
@@ -97,7 +99,7 @@
             ]
         },
         "context.electrochemistry.reaction": {
-            "description": "Target chemical reaction.",
+            "description": "Target electrochemical reaction.",
             "values": [
                 "CO2RR",
                 "CORR",
@@ -105,8 +107,13 @@
                 "HER",
                 "ORR",
                 "NRR",
-                "None",
-                "Pt_oxidation"
+                "N2RR",
+                "AOR",
+                "FOR",
+                "water_splitting",
+                "surface_oxidation",
+                "stripping_voltammetry",
+                "None"
             ]
         },
         "context.electrochemistry.control_mode": {
@@ -114,6 +121,7 @@
             "values": [
                 "potentiostatic",
                 "galvanostatic",
+                "potentiodynamic",
                 "open_circuit",
                 "mixed"
             ]
@@ -126,6 +134,7 @@
                 "Ag/AgCl",
                 "SCE",
                 "Hg/HgO",
+                "Hg/HgSO4",
                 "V_vs_Ref"
             ]
         },
@@ -232,7 +241,9 @@
                 "ICP_OES",
                 "NMR",
                 "mass_spectrometry",
-                "FTIR"
+                "FTIR",
+                "Raman",
+                "UV_Vis"
             ]
         },
         "system.instrument.instrument_type": {
@@ -269,7 +280,9 @@
                 "cell_geometry",
                 "anolyte",
                 "product_detection_gas",
-                "product_detection_liquid"
+                "product_detection_liquid",
+                "scan_rate_mV_s",
+                "beam_attenuator"
             ]
         }
     },
@@ -286,20 +299,23 @@
                 "quality_monitor"
             ]
         },
-        "measurement.processing.type": {
-            "description": "Type of data processing applied.",
+        "measurement.processing.steps": {
+            "description": "Atomic processing steps applied to transform raw data into the reported payload. Use a list of steps instead of compound strings.",
             "values": [
-                "background_corrected",
-                "averaged",
-                "calibrated",
-                "gc_fe_analysis",
-                "hplc_fe_analysis",
-                "gc_hplc_fe_analysis",
-                "nmr_fe_analysis",
+                "background_correction",
+                "averaging",
+                "normalization",
+                "calibration",
+                "iR_correction",
+                "steady_state_extraction",
+                "gc_analysis",
+                "hplc_analysis",
+                "nmr_analysis",
                 "icpms_quantification",
-                "averaged_normalized_spectrum",
-                "averaged_background_subtracted_normalized_spectrum",
-                "time_averaged_over_hold"
+                "fe_calculation",
+                "spectrum_merging",
+                "energy_alignment",
+                "broadening"
             ]
         },
         "measurement.qc.status": {
@@ -398,6 +414,29 @@
                 "total_C2plus"
             ]
         },
+        "descriptors.electrochemical_performance": {
+            "description": "Canonical descriptor names for electrochemical performance metrics. Descriptor names SHOULD use these keys for cross-record queryability.",
+            "values": [
+                "steady_state_current_density",
+                "onset_potential",
+                "half_wave_potential",
+                "limiting_current_density",
+                "tafel_slope",
+                "exchange_current_density",
+                "mass_activity",
+                "specific_activity",
+                "ecsa",
+                "roughness_factor",
+                "electron_transfer_number",
+                "overpotential",
+                "cell_voltage",
+                "energy_efficiency",
+                "turnover_frequency",
+                "stability_retention_percent",
+                "total_faradaic_efficiency",
+                "partial_current_density"
+            ]
+        },
         "descriptors.theoretical_metric": {
             "description": "[In Silico] Key theoretical outcomes.",
             "values": [
@@ -407,6 +446,70 @@
                 "projected_density_of_states",
                 "band_gap",
                 "surface_energy"
+            ]
+        }
+    },
+    "Units": {
+        "units.electrochemistry": {
+            "description": "Canonical unit strings for electrochemistry. Use these exact strings in measurement.series and descriptors to ensure cross-record consistency.",
+            "values": [
+                "mA/cm2",
+                "A/cm2",
+                "A/mg",
+                "A/mg_Pt",
+                "mA/mg",
+                "V",
+                "V_RHE",
+                "V_SHE",
+                "mV/dec",
+                "mV",
+                "fraction",
+                "percent",
+                "Hz",
+                "ohm",
+                "ohm_cm2",
+                "mF/cm2",
+                "cm2",
+                "rpm",
+                "s",
+                "min",
+                "h",
+                "mol/s",
+                "mol/s/cm2",
+                "1/s",
+                "sccm",
+                "mL/min"
+            ]
+        },
+        "units.spectroscopy": {
+            "description": "Canonical unit strings for spectroscopy measurements.",
+            "values": [
+                "eV",
+                "keV",
+                "nm",
+                "cm-1",
+                "angstrom",
+                "arb",
+                "mu_normalized",
+                "counts",
+                "counts/s"
+            ]
+        },
+        "units.general": {
+            "description": "Canonical unit strings for general physical quantities.",
+            "values": [
+                "K",
+                "Pa",
+                "atm",
+                "bar",
+                "ppm",
+                "ppb",
+                "mg/cm2",
+                "wt_percent",
+                "mol/L",
+                "mm",
+                "um",
+                "nm_length"
             ]
         }
     }

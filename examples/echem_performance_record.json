@@ -18,23 +18,41 @@
       "notes": "40% Pt on Carbon. Commercial catalyst layer on RDE disk (carbon paper)."
     },
     "sample_form": "film",
+    "electrode_type": "RDE",
     "composition": {
       "loading_mg_pt_cm2": 0.4
     },
     "geometry": {
-      "geometric_area_cm2": 1.0
+      "geometric_area_cm2": 0.196
     }
   },
   "context": {
     "environment": "in_situ",
-    "electrolyte": {
-      "name": "HClO4",
-      "concentration_M": 0.1
-    },
     "temperature_K": 298.15,
-    "gas_feed": "O2",
-    "cell_type": "three-electrode glass cell",
-    "rotation_speed_rpm": 1600
+    "electrochemistry": {
+      "reaction": "ORR",
+      "cell_type": "three_electrode",
+      "control_mode": "potentiodynamic",
+      "potential_scale": "RHE",
+      "electrolyte": {
+        "name": "HClO4",
+        "concentration_M": 0.1
+      },
+      "pH": 1.0,
+      "pH_basis": "nominal",
+      "ir_compensation": {
+        "method": "post_hoc",
+        "percent": 100
+      }
+    },
+    "transport": {
+      "flow_mode": "rotating_disk",
+      "rotation_speed_rpm": 1600,
+      "feed": {
+        "phase": "gas",
+        "composition": "O2"
+      }
+    }
   },
   "system": {
     "domain": "experimental",
@@ -51,14 +69,15 @@
     },
     "configuration": {
       "channel_id": "1",
-      "booster_amps": 0,
       "electrode_configuration": "RDE_AFE",
-      "reference_electrode": "RHE_hydroflex"
+      "reference_electrode": "RHE_hydroflex",
+      "counter_electrode": "Pt_wire",
+      "scan_rate_mV_s": 10
     }
   },
   "measurement": {
     "processing": {
-      "type": "iR_corrected_averaged_steady_state",
+      "steps": ["iR_correction", "averaging", "steady_state_extraction"],
       "recipe_link": {
         "rel": "processing_recipe",
         "target": "workflow://echem_orr_processing/v1.2"
@@ -71,38 +90,22 @@
           {
             "name": "potential",
             "unit": "V_RHE",
-            "values": [
-              0.9,
-              0.8,
-              0.7,
-              0.6,
-              0.5,
-              0.4,
-              0.3
-            ]
+            "values": [0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.5, 0.4, 0.3]
           }
         ],
         "channels": [
           {
             "name": "current_density",
-            "unit": "mA_cm2",
+            "unit": "mA/cm2",
             "role": "measured_response",
-            "values": [
-              -0.1,
-              -0.5,
-              -1.2,
-              -2.5,
-              -4.8,
-              -5.5,
-              -5.8
-            ]
+            "values": [-0.02, -0.1, -0.3, -0.8, -1.5, -2.8, -4.2, -5.0, -5.6, -5.75, -5.8]
           }
         ]
       }
     ],
     "qc": {
       "status": "valid",
-      "evidence": "Clean mass transport limited region observed."
+      "evidence": "Clean mass transport limited region observed. Stable limiting current."
     }
   },
   "assets": [
@@ -143,28 +146,76 @@
         },
         "descriptors": [
           {
+            "name": "half_wave_potential",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 0.84,
+            "unit": "V_RHE",
+            "definition": "Potential at half the limiting current density.",
+            "uncertainty": {
+              "sigma": 0.005,
+              "unit": "V"
+            }
+          },
+          {
+            "name": "onset_potential",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 0.95,
+            "unit": "V_RHE",
+            "definition": "Potential at which current density exceeds 0.1 mA/cm2.",
+            "uncertainty": {
+              "sigma": 0.01,
+              "unit": "V"
+            }
+          },
+          {
+            "name": "limiting_current_density",
+            "kind": "absolute",
+            "source": "auto",
+            "value": -5.8,
+            "unit": "mA/cm2",
+            "definition": "Plateau current density in the mass-transport limited region (0.2-0.4 V RHE).",
+            "uncertainty": {
+              "sigma": 0.1,
+              "unit": "mA/cm2"
+            }
+          },
+          {
             "name": "tafel_slope",
             "kind": "absolute",
             "source": "auto",
             "value": 62.0,
             "unit": "mV/dec",
+            "definition": "Linear fit to kinetic region (0.85-0.95 V RHE, iR-corrected).",
             "uncertainty": {
               "sigma": 2.5,
               "unit": "mV/dec"
-            },
-            "definition": "Linear fit to low-current density region (0.1-10 mA/cm2)."
+            }
           },
           {
-            "name": "mass_activity_0_9V",
+            "name": "mass_activity",
             "kind": "absolute",
             "source": "auto",
             "value": 0.12,
             "unit": "A/mg_Pt",
+            "definition": "Kinetic current density at 0.9 V RHE normalized by Pt mass loading.",
             "uncertainty": {
               "sigma": 0.01,
               "unit": "A/mg_Pt"
-            },
-            "definition": "Calculated at 0.9V vs RHE."
+            }
+          },
+          {
+            "name": "electron_transfer_number",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 3.95,
+            "unit": "dimensionless",
+            "definition": "Average electron transfer number from Koutecky-Levich analysis at 0.5 V RHE.",
+            "uncertainty": {
+              "sigma": 0.05,
+              "unit": "dimensionless"
+            }
           }
         ]
       }

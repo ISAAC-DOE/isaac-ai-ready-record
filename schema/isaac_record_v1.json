@@ -117,6 +117,10 @@
         "sample_form": {
           "type": "string"
         },
+        "electrode_type": {
+          "type": "string",
+          "description": "Type of electrode or substrate configuration (e.g., GDE, RDE, RRDE, foil, MEA)."
+        },
         "composition": {
           "type": "object"
         },
@@ -176,7 +180,9 @@
             "ICP_OES",
             "NMR",
             "mass_spectrometry",
-            "FTIR"
+            "FTIR",
+            "Raman",
+            "UV_Vis"
           ],
           "description": "Primary technique or computational method used to produce this record."
         },

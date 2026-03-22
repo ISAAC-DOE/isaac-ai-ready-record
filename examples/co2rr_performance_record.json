@@ -18,6 +18,7 @@
       "notes": "7 nm Cu nanoparticles spray-coated on gas diffusion electrode (PTFE-treated carbon paper)."
     },
     "sample_form": "film",
+    "electrode_type": "GDE",
     "composition": {
       "catalyst_loading_mg_cm2": 1.5
     },
@@ -39,16 +40,20 @@
         "percent": 85
       },
       "electrolyte": {
-        "name": "HClO4",
+        "name": "KHCO3",
         "concentration_M": 1.0
       },
-      "pH": 1.0,
+      "pH": 6.8,
       "pH_basis": "nominal"
     },
     "transport": {
-      "feed": "CO2",
       "flow_mode": "gas_diffusion",
-      "flow_rate_sccm": 20.0
+      "feed": {
+        "phase": "gas",
+        "composition": "CO2",
+        "flow_rate": 20.0,
+        "flow_rate_unit": "sccm"
+      }
     }
   },
   "system": {
@@ -66,13 +71,17 @@
     },
     "configuration": {
       "reference_electrode": "Ag/AgCl_leak_free",
+      "counter_electrode": "Pt_mesh",
+      "membrane": "Nafion_117",
       "gc_column_type": "PLOT_Q",
-      "cell_geometry": "1cm2_exposed"
+      "gc_model": "SRI_8610C",
+      "product_detection_gas": "GC",
+      "product_detection_liquid": "NMR"
     }
   },
   "measurement": {
     "processing": {
-      "type": "gc_fe_analysis",
+      "steps": ["gc_analysis", "fe_calculation", "steady_state_extraction"],
       "recipe_link": {
         "rel": "processing_recipe",
         "target": "workflow://co2rr_fe_calculator/v3.0"
@@ -91,7 +100,7 @@
         "channels": [
           {
             "name": "current_density",
-            "unit": "mA_cm2",
+            "unit": "mA/cm2",
             "role": "measured_response",
             "values": [-150.1, -150.3, -150.8, -150.5, -150.2, -150.5, -150.4]
           },
@@ -124,13 +133,19 @@
             "unit": "ppm",
             "role": "measured_response",
             "values": [1200, 1250, 1240, 1260]
+          },
+          {
+            "name": "hydrogen_concentration",
+            "unit": "ppm",
+            "role": "measured_response",
+            "values": [800, 810, 795, 805]
           }
         ]
       }
     ],
     "qc": {
       "status": "valid",
-      "evidence": "Stable current within 5% over hold duration."
+      "evidence": "Stable current within 5% over hold duration. GC injections show consistent product concentrations."
     }
   },
   "assets": [
@@ -183,11 +198,23 @@
             "source": "auto",
             "value": -150.5,
             "unit": "mA/cm2",
+            "definition": "Mean total current density during last 10 minutes of potentiostatic hold.",
             "uncertainty": {
               "sigma": 2.1,
               "unit": "mA/cm2"
-            },
-            "definition": "Mean total current density measured during the last 10 minutes of the hold."
+            }
+          },
+          {
+            "name": "faradaic_efficiency.H2",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 0.105,
+            "unit": "fraction",
+            "definition": "Faradaic efficiency for Hydrogen (H2) evolution.",
+            "uncertainty": {
+              "sigma": 0.008,
+              "unit": "fraction"
+            }
           },
           {
             "name": "faradaic_efficiency.CO",
@@ -195,11 +222,11 @@
             "source": "auto",
             "value": 0.152,
             "unit": "fraction",
+            "definition": "Faradaic efficiency for Carbon Monoxide (CO) production.",
             "uncertainty": {
               "sigma": 0.005,
               "unit": "fraction"
-            },
-            "definition": "Faradaic efficiency for Carbon Monoxide (CO) production."
+            }
           },
           {
             "name": "faradaic_efficiency.C2H4",
@@ -207,11 +234,11 @@
             "source": "auto",
             "value": 0.428,
             "unit": "fraction",
+            "definition": "Faradaic efficiency for Ethylene (C2H4) production.",
             "uncertainty": {
               "sigma": 0.012,
               "unit": "fraction"
-            },
-            "definition": "Faradaic efficiency for Ethylene (C2H4) production."
+            }
           },
           {
             "name": "faradaic_efficiency.C2H5OH",
@@ -219,11 +246,47 @@
             "source": "auto",
             "value": 0.181,
             "unit": "fraction",
+            "definition": "Faradaic efficiency for Ethanol (C2H5OH) production.",
             "uncertainty": {
               "sigma": 0.01,
               "unit": "fraction"
-            },
-            "definition": "Faradaic efficiency for Ethanol (C2H5OH) production."
+            }
+          },
+          {
+            "name": "total_faradaic_efficiency",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 0.866,
+            "unit": "fraction",
+            "definition": "Sum of all measured product Faradaic efficiencies (H2 + CO + C2H4 + C2H5OH).",
+            "uncertainty": {
+              "sigma": 0.02,
+              "unit": "fraction"
+            }
+          },
+          {
+            "name": "partial_current_density.C2H4",
+            "kind": "absolute",
+            "source": "auto",
+            "value": -64.4,
+            "unit": "mA/cm2",
+            "definition": "Product-specific current density for C2H4 (FE_C2H4 * total current density).",
+            "uncertainty": {
+              "sigma": 2.5,
+              "unit": "mA/cm2"
+            }
+          },
+          {
+            "name": "partial_current_density.CO",
+            "kind": "absolute",
+            "source": "auto",
+            "value": -22.9,
+            "unit": "mA/cm2",
+            "definition": "Product-specific current density for CO (FE_CO * total current density).",
+            "uncertainty": {
+              "sigma": 1.2,
+              "unit": "mA/cm2"
+            }
           }
         ]
       }
