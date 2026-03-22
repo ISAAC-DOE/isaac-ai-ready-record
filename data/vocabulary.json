@@ -296,7 +296,10 @@
                 "hplc_fe_analysis",
                 "gc_hplc_fe_analysis",
                 "nmr_fe_analysis",
-                "icpms_quantification"
+                "icpms_quantification",
+                "averaged_normalized_spectrum",
+                "averaged_background_subtracted_normalized_spectrum",
+                "time_averaged_over_hold"
             ]
         },
         "measurement.qc.status": {
