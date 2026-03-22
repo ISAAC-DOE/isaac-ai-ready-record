@@ -141,9 +141,6 @@
     }
   ],
   "descriptors": {
-    "policy": {
-      "requires_at_least_one": true
-    },
     "outputs": [
       {
         "label": "auto_features_v1",

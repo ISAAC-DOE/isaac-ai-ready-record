@@ -11,26 +11,19 @@
   },
   "sample": {
     "material": {
-      "name": "Cu nanoparticles",
+      "name": "Cu nanoparticles on GDE",
       "formula": "Cu",
       "provenance": "synthesized",
-      "notes": "7 nm nanoparticles. Catalyst layer spray-coated on GDE."
+      "identifiers": [{"scheme": "internal", "value": "GDE-CuNP-2025-042"}],
+      "notes": "7 nm Cu nanoparticles spray-coated on gas diffusion electrode (PTFE-treated carbon paper)."
     },
-    "sample_form": "film"
-  },
-  "device": {
-    "device_id": "GDE-CuNP-2025-042",
-    "electrode_type": "GDE",
-    "catalyst_identity": "Cu nanoparticles (7 nm)",
-    "geometric_area": {
-      "value": 1.0,
-      "unit": "cm2"
+    "sample_form": "film",
+    "composition": {
+      "catalyst_loading_mg_cm2": 1.5
     },
-    "catalyst_loading": {
-      "value": 1.5,
-      "unit": "mg_Cu/cm2"
-    },
-    "notes": "Gas diffusion electrode with spray-coated Cu nanoparticles on PTFE-treated carbon paper."
+    "geometry": {
+      "geometric_area_cm2": 1.0
+    }
   },
   "context": {
     "environment": "in_situ",
@@ -175,9 +168,6 @@
     }
   ],
   "descriptors": {
-    "policy": {
-      "requires_at_least_one": true
-    },
     "outputs": [
       {
         "label": "steady_state_metrics",

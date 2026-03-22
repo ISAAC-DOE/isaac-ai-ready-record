@@ -143,9 +143,6 @@
   ],
   "links": [],
   "descriptors": {
-    "policy": {
-      "requires_at_least_one": true
-    },
     "outputs": [
       {
         "label": "manual_review_2025-12-14",

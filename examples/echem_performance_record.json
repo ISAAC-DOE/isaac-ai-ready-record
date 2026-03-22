@@ -11,28 +11,19 @@
   },
   "sample": {
     "material": {
-      "name": "Pt/C",
+      "name": "Pt/C on RDE",
       "formula": "Pt/C",
       "provenance": "commercial",
-      "notes": "40% Pt on Carbon. Catalyst layer supported on RDE disk."
+      "identifiers": [{"scheme": "internal", "value": "Dev-2025-PtC-005"}],
+      "notes": "40% Pt on Carbon. Commercial catalyst layer on RDE disk (carbon paper)."
     },
     "sample_form": "film",
     "composition": {
       "loading_mg_pt_cm2": 0.4
+    },
+    "geometry": {
+      "geometric_area_cm2": 1.0
     }
-  },
-  "device": {
-    "device_id": "Dev-2025-PtC-005",
-    "electrode_type": "RDE",
-    "geometric_area": {
-      "value": 1.0,
-      "unit": "cm2"
-    },
-    "catalyst_loading": {
-      "value": 0.4,
-      "unit": "mg_Pt/cm2"
-    },
-    "notes": "Commercial 40% Pt/C on carbon paper."
   },
   "context": {
     "environment": "in_situ",
@@ -142,9 +133,6 @@
   ],
   "links": [],
   "descriptors": {
-    "policy": {
-      "requires_at_least_one": true
-    },
     "outputs": [
       {
         "label": "kinetic_analysis_v1",

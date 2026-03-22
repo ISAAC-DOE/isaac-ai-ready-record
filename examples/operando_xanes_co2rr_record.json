@@ -180,9 +180,6 @@
     }
   ],
   "descriptors": {
-    "policy": {
-      "requires_at_least_one": true
-    },
     "outputs": [
       {
         "label": "automated_analysis_v1",

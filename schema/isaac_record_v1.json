@@ -408,9 +408,6 @@
         "outputs"
       ],
       "properties": {
-        "policy": {
-          "type": "object"
-        },
         "outputs": {
           "type": "array",
           "items": {
@@ -484,9 +481,6 @@
           }
         }
       }
-    },
-    "device": {
-      "type": "object"
     },
     "computation": {
       "type": "object"
