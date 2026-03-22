@@ -86,6 +86,25 @@
                 "MEA",
                 "flow_field_plate"
             ]
+        },
+        "sample.geometry": {
+            "description": "Canonical keys for the sample.geometry free-form object. Use these exact key names to ensure cross-record queryability.",
+            "values": [
+                "geometric_area_cm2",
+                "thickness_um",
+                "particle_size_nominal_nm",
+                "loading_mg_cm2"
+            ]
+        },
+        "sample.composition": {
+            "description": "Canonical keys for the sample.composition free-form object. Domain-specific keys are allowed but these standard keys should be used when applicable.",
+            "values": [
+                "catalyst_loading_mg_cm2",
+                "Cu_pct",
+                "Au_pct",
+                "Ag_pct",
+                "Pt_pct"
+            ]
         }
     },
     "Context": {
