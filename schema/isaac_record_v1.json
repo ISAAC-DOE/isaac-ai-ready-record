@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "ISAAC AI-Ready Scientific Record v1.0",
+  "title": "ISAAC AI-Ready Scientific Record v1.05",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -30,7 +30,7 @@
   "properties": {
     "isaac_record_version": {
       "type": "string",
-      "const": "1.0"
+      "const": "1.05"
     },
     "record_id": {
       "type": "string",

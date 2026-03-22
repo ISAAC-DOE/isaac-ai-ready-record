@@ -277,7 +277,7 @@ def convert_reaction(reaction: dict, publication: dict, now_utc: str) -> dict:
         })
 
     record = {
-        "isaac_record_version": "1.0",
+        "isaac_record_version": "1.05",
         "record_id": record_id,
         "record_type": "evidence",
         "record_domain": "simulation",

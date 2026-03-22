@@ -1106,7 +1106,7 @@ elif page == "API Documentation":
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer <token>" \\
   -d '{
-    "isaac_record_version": "1.0",
+    "isaac_record_version": "1.05",
     "record_id": "01JFH3Q8Z1Q9F0XG3V7N4K2M8C",
     "record_type": "evidence",
     "record_domain": "characterization",
@@ -1222,7 +1222,7 @@ if records:
     )
 
     st.divider()
-    st.markdown(f"**Schema version: ISAAC AI-Ready Record v1.0**")
+    st.markdown(f"**Schema version: ISAAC AI-Ready Record v1.05**")
 
 
 # =============================================================================
@@ -1239,7 +1239,7 @@ elif page == "About":
     - **API Keys**: Generate and manage API keys for programmatic access
     - **API Documentation**: REST API reference for programmatic access
     """)
-    st.markdown("**Schema version: ISAAC AI-Ready Record v1.0**")
+    st.markdown("**Schema version: ISAAC AI-Ready Record v1.05**")
 
 # =============================================================================
 # FOOTER: Partner & DOE logos on every page

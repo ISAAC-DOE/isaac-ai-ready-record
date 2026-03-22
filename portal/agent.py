@@ -44,7 +44,7 @@ CREATE INDEX idx_records_data_gin ON records USING GIN (data);
 ## JSONB structure inside `data`
 
 Each record's `data` column is a JSON object with these top-level keys:
-- `isaac_record_version` (string "1.0")
+- `isaac_record_version` (string "1.05")
 - `record_id`, `record_type`, `record_domain`, `source_type`
 - `timestamps` → `{created_utc, acquired_start_utc, acquired_end_utc}`
 - `sample` → `{material: {name, formula, provenance}, sample_form, composition{}, geometry{}}`

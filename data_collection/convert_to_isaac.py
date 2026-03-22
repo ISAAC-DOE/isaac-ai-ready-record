@@ -112,7 +112,7 @@ def build_record(row, setup):
 
     # --- Build record ---
     record = {
-        "isaac_record_version": "1.0",
+        "isaac_record_version": "1.05",
         "record_id": record_id,
         "record_type": "evidence",
         "record_domain": "performance",

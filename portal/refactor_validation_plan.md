@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS schema_fields (
     section       VARCHAR(100),                  -- UI grouping ("Context", "Sample", …)
     format        VARCHAR(50),                   -- optional JSON Schema "format" (e.g. "date-time")
     pattern       VARCHAR(255),                  -- optional regex pattern (e.g. "^[0-9A-Z]{26}$")
-    const_value   JSONB,                         -- optional fixed value (e.g. "1.0" for isaac_record_version)
+    const_value   JSONB,                         -- optional fixed value (e.g. "1.05" for isaac_record_version)
     array_item_type VARCHAR(30),                 -- for arrays: type of items
     additional_properties BOOLEAN DEFAULT TRUE,  -- for objects
     parent_path   TEXT,                          -- NULL for top-level; "sample.material" for "sample.material.name"

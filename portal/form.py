@@ -553,7 +553,7 @@ def build_record(**kwargs) -> dict:
     """Build an ISAAC record from form inputs"""
 
     record = {
-        "isaac_record_version": "1.0",
+        "isaac_record_version": "1.05",
         "record_id": kwargs['record_id'],
         "record_type": kwargs['record_type'],
         "record_domain": kwargs['record_domain'],
