@@ -127,12 +127,9 @@ def build_record(row, setup):
                 "provenance": "synthesized",
             },
             "sample_form": "film",
+            "electrode_type": "patterned_film",
             "composition": {},
             "geometry": {},
-        },
-        "device": {
-            "electrode_type": "patterned_film",
-            "catalyst_identity": mat_name,
         },
         "context": {
             "environment": "in_situ",
@@ -153,9 +150,13 @@ def build_record(row, setup):
                 },
             },
             "transport": {
-                "feed": "CO2",
                 "flow_mode": "gas_diffusion",
-                "flow_rate_sccm": cell.get("CO2_flow_rate_sccm", 5.0),
+                "feed": {
+                    "phase": "gas",
+                    "composition": "CO2",
+                    "flow_rate": cell.get("CO2_flow_rate_sccm", 5.0),
+                    "flow_rate_unit": "sccm",
+                },
             },
         },
         "system": {
@@ -226,11 +227,15 @@ def build_record(row, setup):
 
     record["sample"]["composition"] = {"Cu_pct": cu_pct, "Au_pct": 100 - cu_pct}
 
-    # Device details
+    # Device identifiers → sample.material.identifiers
     if electrode_id:
-        record["device"]["device_id"] = electrode_id
+        record["sample"]["material"].setdefault("identifiers", []).append(
+            {"scheme": "internal", "value": electrode_id}
+        )
     if run_id:
-        record["device"]["run_id"] = run_id
+        record["sample"]["material"].setdefault("identifiers", []).append(
+            {"scheme": "internal", "value": f"run:{run_id}"}
+        )
 
     # Instrument model if known
     pot_model = instr.get("potentiostat", {}).get("model", "")
@@ -309,7 +314,7 @@ def build_record(row, setup):
             notes = f"Repeat measurement. {notes}"
 
     if notes:
-        record["device"]["notes"] = notes
+        record["sample"]["material"]["notes"] = notes
 
     return record
 

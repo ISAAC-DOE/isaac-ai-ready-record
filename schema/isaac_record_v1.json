@@ -213,13 +213,102 @@
       ],
       "properties": {
         "environment": {
-          "type": "string"
+          "type": "string",
+          "enum": ["operando", "in_situ", "ex_situ", "in_silico"]
         },
         "temperature_K": {
           "type": "number"
+        },
+        "electrochemistry": {
+          "type": "object",
+          "properties": {
+            "reaction": {
+              "type": "string",
+              "enum": ["CO2RR", "CORR", "OER", "HER", "ORR", "NRR", "N2RR", "AOR", "FOR", "water_splitting", "surface_oxidation", "stripping_voltammetry", "None"]
+            },
+            "cell_type": {
+              "type": "string",
+              "enum": ["flow_cell", "microfluidic_flow_cell", "h_cell", "beaker_cell", "gde_cell", "mea_cell", "zero_gap_cell", "coin_cell", "three_electrode"]
+            },
+            "control_mode": {
+              "type": "string",
+              "enum": ["potentiostatic", "galvanostatic", "potentiodynamic", "open_circuit", "mixed"]
+            },
+            "potential_setpoint_V": { "type": "number" },
+            "current_setpoint_mA_cm2": { "type": "number" },
+            "potential_scale": {
+              "type": "string",
+              "enum": ["RHE", "SHE", "Ag/AgCl", "SCE", "Hg/HgO", "Hg/HgSO4", "V_vs_Ref"]
+            },
+            "scan_rate_mV_s": { "type": "number" },
+            "ir_compensation": {
+              "type": "object",
+              "properties": {
+                "method": {
+                  "type": "string",
+                  "enum": ["none", "automatic", "manual", "post_hoc", "EIS_based"]
+                },
+                "percent": { "type": "number" }
+              }
+            },
+            "electrolyte": {
+              "type": "object",
+              "required": ["name", "concentration_M"],
+              "properties": {
+                "name": { "type": "string" },
+                "concentration_M": { "type": "number" }
+              }
+            },
+            "pH": { "type": "number" },
+            "pH_basis": {
+              "type": "string",
+              "enum": ["measured", "nominal", "buffered_assumed"]
+            }
+          }
+        },
+        "transport": {
+          "type": "object",
+          "properties": {
+            "flow_mode": {
+              "type": "string",
+              "enum": ["stagnant", "flowing_liquid", "bubbling_gas", "gas_diffusion", "rotating_disk"]
+            },
+            "rotation_speed_rpm": { "type": "number" },
+            "feed": {
+              "type": "object",
+              "required": ["phase", "composition"],
+              "properties": {
+                "phase": {
+                  "type": "string",
+                  "enum": ["gas", "liquid"]
+                },
+                "composition": { "type": "string" },
+                "flow_rate": { "type": "number" },
+                "flow_rate_unit": { "type": "string" },
+                "partial_pressures": { "type": "object" }
+              },
+              "description": "Feed must be an object with phase and composition. Do not use a bare string."
+            }
+          }
+        },
+        "thermodynamics": {
+          "type": "object",
+          "properties": {
+            "pressure_Pa": { "type": "number" },
+            "atmosphere": { "type": "string" }
+          }
+        },
+        "simulation_assumptions": {
+          "type": "object",
+          "properties": {
+            "solvation_model": {
+              "type": "string",
+              "enum": ["none", "implicit", "explicit"]
+            }
+          }
         }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "measurement": {
       "type": "object",

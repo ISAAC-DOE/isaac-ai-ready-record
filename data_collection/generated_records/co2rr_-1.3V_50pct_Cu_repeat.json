@@ -1,19 +1,21 @@
 {
   "isaac_record_version": "1.05",
-  "record_id": "01KM1CXK7VC04Y6ZWY9QXFD5B6",
+  "record_id": "01KMBNM63TCKBB857YFED3ASF9",
   "record_type": "evidence",
   "record_domain": "performance",
   "source_type": "laboratory",
   "timestamps": {
-    "created_utc": "2026-03-18T21:16:40Z"
+    "created_utc": "2026-03-22T21:01:13Z"
   },
   "sample": {
     "material": {
       "name": "Cu|Au striped electrode (50% Cu)",
       "formula": "Cu-Au",
-      "provenance": "synthesized"
+      "provenance": "synthesized",
+      "notes": "repeat measurement"
     },
     "sample_form": "film",
+    "electrode_type": "patterned_film",
     "composition": {
       "Cu_pct": 50.0,
       "Au_pct": 50.0
@@ -25,11 +27,6 @@
       "Cu_area_fraction_pct": 50.0,
       "patterning_method": "lithography"
     }
-  },
-  "device": {
-    "electrode_type": "patterned_film",
-    "catalyst_identity": "Cu|Au striped electrode (50% Cu)",
-    "notes": "repeat measurement"
   },
   "context": {
     "environment": "in_situ",
@@ -50,9 +47,13 @@
       }
     },
     "transport": {
-      "feed": "CO2",
       "flow_mode": "gas_diffusion",
-      "flow_rate_sccm": 5.0
+      "feed": {
+        "phase": "gas",
+        "composition": "CO2",
+        "flow_rate": 5.0,
+        "flow_rate_unit": "sccm"
+      }
     }
   },
   "system": {
@@ -91,7 +92,7 @@
     "outputs": [
       {
         "label": "co2rr_faradaic_efficiency",
-        "generated_utc": "2026-03-18T21:16:40Z",
+        "generated_utc": "2026-03-22T21:01:13Z",
         "generated_by": {
           "agent": "isaac_co2rr_ingest",
           "version": "1.0"
