@@ -437,6 +437,7 @@
             "enum": [
               "same_absorber_edge",
               "matched_operating_conditions",
+              "matched_computational_method",
               "shared_reference_state",
               "same_workflow_version",
               "identical_geometry",
@@ -578,7 +579,146 @@
       }
     },
     "computation": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "object",
+          "description": "Declared theory level: method family, functional, code details.",
+          "properties": {
+            "family": {
+              "type": "string",
+              "enum": ["DFT", "DFT_U", "hybrid_DFT", "AIMD", "classical_MD", "CHE", "microkinetic", "machine_learning", "semi_empirical"],
+              "description": "Method family."
+            },
+            "functional_class": {
+              "type": "string",
+              "enum": ["LDA", "GGA", "meta_GGA", "hybrid", "double_hybrid", "RPA"],
+              "description": "Density functional class."
+            },
+            "functional_name": {
+              "type": "string",
+              "description": "Specific functional (e.g., PBE, RPBE, BEEF-vdW, HSE06)."
+            },
+            "basis_type": {
+              "type": "string",
+              "enum": ["planewave", "LCAO", "real_space", "mixed"],
+              "description": "Basis set type."
+            },
+            "pseudopotential": {
+              "type": "string",
+              "description": "Pseudopotential type (e.g., PAW, ultrasoft, norm_conserving, GBRV, SG15)."
+            },
+            "cutoff_eV": {
+              "type": "number",
+              "description": "Planewave kinetic energy cutoff in eV."
+            },
+            "spin_treatment": {
+              "type": "string",
+              "enum": ["none", "collinear", "noncollinear", "SOC"],
+              "description": "Spin polarization treatment."
+            },
+            "dispersion": {
+              "type": "string",
+              "enum": ["none", "D2", "D3", "D3BJ", "TS", "MBD", "dDsC", "vdW_DF", "vdW_DF2", "rVV10"],
+              "description": "Dispersion correction method."
+            },
+            "relativistic": {
+              "type": "string",
+              "enum": ["none", "scalar", "full"],
+              "description": "Relativistic treatment."
+            },
+            "convergence": {
+              "type": "object",
+              "properties": {
+                "energy_eV": { "type": "number" },
+                "force_eV_per_A": { "type": "number" },
+                "stress_kbar": { "type": "number" }
+              }
+            },
+            "kpoints": {
+              "type": "string",
+              "description": "Brillouin zone sampling (e.g., '3x3x1 Monkhorst-Pack', 'Gamma-only')."
+            },
+            "smearing": {
+              "type": "object",
+              "properties": {
+                "method": {
+                  "type": "string",
+                  "enum": ["Gaussian", "Methfessel-Paxton", "Fermi-Dirac", "tetrahedron", "cold"],
+                  "description": "Electronic smearing method."
+                },
+                "width_eV": { "type": "number" }
+              }
+            }
+          }
+        },
+        "slab_model": {
+          "type": "object",
+          "description": "Surface slab model parameters. Only relevant when sample.sample_form = 'slab_model'.",
+          "properties": {
+            "surface_facet": { "type": "string", "description": "e.g., '111', '100', '110', '211'" },
+            "supercell": { "type": "string", "description": "e.g., '4x4', '4x3', '3x3'" },
+            "layers": { "type": "integer" },
+            "fixed_layers": { "type": "string", "description": "e.g., 'bottom 2'" },
+            "vacuum_A": { "type": "number" },
+            "lattice_constant_A": { "type": "number" },
+            "dipole_correction": { "type": "boolean" }
+          }
+        },
+        "potential_method": {
+          "type": "object",
+          "description": "How the electrochemical potential is treated in the simulation.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["vacuum", "CHE", "implicit_solvent_PZC", "fixed_NELECT", "grand_canonical", "constant_potential", "joint_DFT"],
+              "description": "Electrochemical potential treatment."
+            },
+            "target_potential_V_SHE": { "type": "number" },
+            "SHE_work_function_eV": { "type": "number", "description": "Assumed SHE work function (typically 4.4-4.8 eV)." },
+            "solvent_model": { "type": "string", "description": "Implicit solvent implementation (e.g., VASPsol, GLSSA13, CANDLE)." },
+            "dielectric_constant": { "type": "number" }
+          }
+        },
+        "output_quantity": {
+          "type": "object",
+          "description": "Specifies what quantity is computed and which corrections are applied. CRITICAL for valid comparison between records.",
+          "properties": {
+            "quantity": {
+              "type": "string",
+              "enum": ["E_DFT", "E_DFT_plus_ZPE", "delta_E", "delta_G_CHE", "delta_G_grand_canonical", "activation_energy_raw", "activation_energy_ZPE", "activation_free_energy"],
+              "description": "The thermodynamic quantity reported in descriptors."
+            },
+            "corrections_applied": {
+              "type": "object",
+              "description": "Boolean flags for each correction included in the reported quantity.",
+              "properties": {
+                "zero_point_energy": { "type": "boolean" },
+                "entropy": { "type": "boolean" },
+                "thermal": { "type": "boolean" },
+                "solvation": { "type": "boolean" },
+                "dispersion": { "type": "boolean" },
+                "grand_canonical": { "type": "boolean" },
+                "PCET": { "type": "boolean" }
+              }
+            }
+          }
+        },
+        "transition_state": {
+          "type": "object",
+          "description": "Transition state search parameters. Only for barrier calculations.",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": ["NEB", "CI-NEB", "dimer", "string", "IRC", "growing_string"],
+              "description": "TS search method."
+            },
+            "images": { "type": "integer", "description": "Number of NEB images." },
+            "reaction": { "type": "string", "description": "e.g., 'CO* + CO* → OCCO*'" },
+            "n_electrons_transferred": { "type": "integer", "description": "Electrons transferred in this step (0 for chemical, 1 for PCET)." }
+          }
+        }
+      }
     },
     "literature": {
       "type": "object"

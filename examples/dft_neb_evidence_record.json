@@ -1,0 +1,150 @@
+{
+  "isaac_record_version": "1.05",
+  "record_id": "01JRGDFTEVID00OCCONEB00001",
+  "record_type": "evidence",
+  "record_domain": "simulation",
+  "source_type": "computation",
+  "timestamps": {
+    "created_utc": "2026-04-03T18:00:00Z",
+    "acquired_start_utc": "2026-04-03T11:00:00Z",
+    "acquired_end_utc": "2026-04-03T17:30:00Z"
+  },
+  "sample": {
+    "material": {
+      "name": "Cu-Ag(111) bilayer junction slab model",
+      "formula": "CuAg",
+      "provenance": "theoretical"
+    },
+    "sample_form": "slab_model"
+  },
+  "system": {
+    "domain": "computational",
+    "technique": "DFT",
+    "instrument": {
+      "instrument_type": "simulation_engine",
+      "instrument_name": "VASP_Standard",
+      "vendor_or_project": "VASP"
+    },
+    "configuration": {
+      "code_version": "6.4.1",
+      "compute_architecture": "GPU"
+    }
+  },
+  "context": {
+    "environment": "in_silico",
+    "temperature_K": 0,
+    "electrochemistry": {
+      "reaction": "CORR",
+      "potential_setpoint_V": -1.6,
+      "potential_scale": "SHE"
+    },
+    "simulation_assumptions": {
+      "solvation_model": "implicit"
+    }
+  },
+  "computation": {
+    "method": {
+      "family": "DFT",
+      "functional_class": "GGA",
+      "functional_name": "PBE",
+      "basis_type": "planewave",
+      "pseudopotential": "PAW",
+      "cutoff_eV": 400,
+      "spin_treatment": "collinear",
+      "dispersion": "D3",
+      "kpoints": "1x1x1 Gamma-centered",
+      "smearing": {
+        "method": "Methfessel-Paxton",
+        "width_eV": 0.2
+      },
+      "convergence": {
+        "energy_eV": 1e-5,
+        "force_eV_per_A": 0.03
+      }
+    },
+    "slab_model": {
+      "surface_facet": "111",
+      "supercell": "4x3",
+      "layers": 4,
+      "fixed_layers": "bottom 2",
+      "vacuum_A": 15.0,
+      "lattice_constant_A": 4.085,
+      "dipole_correction": true
+    },
+    "potential_method": {
+      "type": "grand_canonical",
+      "target_potential_V_SHE": -1.6,
+      "SHE_work_function_eV": 4.6,
+      "solvent_model": "VASPsol",
+      "dielectric_constant": 78.4
+    },
+    "output_quantity": {
+      "quantity": "activation_energy_raw",
+      "corrections_applied": {
+        "zero_point_energy": false,
+        "entropy": false,
+        "thermal": false,
+        "solvation": true,
+        "dispersion": true,
+        "grand_canonical": false,
+        "PCET": false
+      }
+    },
+    "transition_state": {
+      "method": "CI-NEB",
+      "images": 5,
+      "reaction": "CO* + CO* → OCCO*",
+      "n_electrons_transferred": 0
+    }
+  },
+  "assets": [
+    {
+      "asset_id": "xu_reference",
+      "content_role": "auxiliary_reference",
+      "uri": "https://doi.org/10.1002/advs.202520469",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "media_type": "text/html"
+    },
+    {
+      "asset_id": "vasp_incar",
+      "content_role": "workflow_recipe",
+      "uri": "repo://isaac-workflows/vasp_neb/cuag111_occo/INCAR",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "media_type": "text/plain"
+    }
+  ],
+  "links": [
+    {
+      "rel": "derived_from",
+      "target": "01JRGDFTINTENT0OCCONEB0001",
+      "basis": "matched_computational_method",
+      "notes": "Evidence record produced by executing the CI-NEB calculation specified in the intent record."
+    }
+  ],
+  "descriptors": {
+    "outputs": [
+      {
+        "label": "neb_barrier_v1",
+        "generated_utc": "2026-04-03T17:45:00Z",
+        "generated_by": {
+          "agent": "vasp_neb_parser",
+          "version": "1.0"
+        },
+        "descriptors": [
+          {
+            "name": "activation_barrier.OCCO_coupling",
+            "kind": "theoretical_metric",
+            "source": "auto",
+            "value": 1.219,
+            "unit": "eV",
+            "definition": "delta_E_DFT raw electronic energy barrier from CI-NEB. Does NOT include ZPE, entropy, or grand canonical corrections.",
+            "uncertainty": {
+              "sigma": 0.15,
+              "unit": "eV"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
