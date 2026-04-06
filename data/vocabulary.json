@@ -392,6 +392,7 @@
                 "same_sample_id",
                 "shared_analysis_method",
                 "shared_material_batch",
+                "matched_computational_method",
                 "unspecified"
             ]
         }
@@ -457,14 +458,114 @@
             ]
         },
         "descriptors.theoretical_metric": {
-            "description": "[In Silico] Key theoretical outcomes.",
+            "description": "[In Silico] Key theoretical outcomes. Use dot-notation for specificity (e.g., adsorption_energy.CO, activation_barrier.OCCO_coupling, d_band_center.Cu_surface).",
             "values": [
                 "adsorption_energy",
                 "pourbaix_stability",
                 "activation_barrier",
                 "projected_density_of_states",
                 "band_gap",
-                "surface_energy"
+                "surface_energy",
+                "d_band_center",
+                "total_energy",
+                "bond_length",
+                "reaction_energy"
+            ]
+        }
+    },
+    "Computation": {
+        "computation.method.family": {
+            "description": "Method family for computational records.",
+            "values": [
+                "DFT",
+                "DFT_U",
+                "hybrid_DFT",
+                "AIMD",
+                "classical_MD",
+                "CHE",
+                "microkinetic",
+                "machine_learning",
+                "semi_empirical"
+            ]
+        },
+        "computation.method.functional_class": {
+            "description": "Density functional class.",
+            "values": [
+                "LDA",
+                "GGA",
+                "meta_GGA",
+                "hybrid",
+                "double_hybrid",
+                "RPA"
+            ]
+        },
+        "computation.method.basis_type": {
+            "description": "Basis set type.",
+            "values": [
+                "planewave",
+                "LCAO",
+                "real_space",
+                "mixed"
+            ]
+        },
+        "computation.method.spin_treatment": {
+            "description": "Spin polarization treatment.",
+            "values": [
+                "none",
+                "collinear",
+                "noncollinear",
+                "SOC"
+            ]
+        },
+        "computation.method.dispersion": {
+            "description": "Van der Waals dispersion correction.",
+            "values": [
+                "none",
+                "D2",
+                "D3",
+                "D3BJ",
+                "TS",
+                "MBD",
+                "dDsC",
+                "vdW_DF",
+                "vdW_DF2",
+                "rVV10"
+            ]
+        },
+        "computation.potential_method.type": {
+            "description": "Electrochemical potential treatment in the simulation. Critical for valid comparison between records.",
+            "values": [
+                "vacuum",
+                "CHE",
+                "implicit_solvent_PZC",
+                "fixed_NELECT",
+                "grand_canonical",
+                "constant_potential",
+                "joint_DFT"
+            ]
+        },
+        "computation.output_quantity.quantity": {
+            "description": "The thermodynamic quantity reported in descriptors. Records with different output quantities MUST NOT be compared without correction.",
+            "values": [
+                "E_DFT",
+                "E_DFT_plus_ZPE",
+                "delta_E",
+                "delta_G_CHE",
+                "delta_G_grand_canonical",
+                "activation_energy_raw",
+                "activation_energy_ZPE",
+                "activation_free_energy"
+            ]
+        },
+        "computation.transition_state.method": {
+            "description": "Transition state search method.",
+            "values": [
+                "NEB",
+                "CI-NEB",
+                "dimer",
+                "string",
+                "IRC",
+                "growing_string"
             ]
         }
     },
