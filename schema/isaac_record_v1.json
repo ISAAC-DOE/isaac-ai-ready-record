@@ -25,6 +25,116 @@
           "descriptors"
         ]
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "record_domain": {
+            "const": "performance"
+          },
+          "context": {
+            "type": "object",
+            "required": [
+              "electrochemistry"
+            ]
+          }
+        },
+        "required": [
+          "record_domain",
+          "context"
+        ]
+      },
+      "then": {
+        "properties": {
+          "context": {
+            "properties": {
+              "electrochemistry": {
+                "required": [
+                  "control_mode"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "context": {
+            "properties": {
+              "electrochemistry": {
+                "properties": {
+                  "control_mode": {
+                    "const": "galvanostatic"
+                  }
+                },
+                "required": [
+                  "control_mode"
+                ]
+              }
+            },
+            "required": [
+              "electrochemistry"
+            ]
+          }
+        },
+        "required": [
+          "context"
+        ]
+      },
+      "then": {
+        "properties": {
+          "context": {
+            "properties": {
+              "electrochemistry": {
+                "required": [
+                  "current_setpoint_mA_cm2"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "context": {
+            "properties": {
+              "electrochemistry": {
+                "properties": {
+                  "control_mode": {
+                    "const": "potentiostatic"
+                  }
+                },
+                "required": [
+                  "control_mode"
+                ]
+              }
+            },
+            "required": [
+              "electrochemistry"
+            ]
+          }
+        },
+        "required": [
+          "context"
+        ]
+      },
+      "then": {
+        "properties": {
+          "context": {
+            "properties": {
+              "electrochemistry": {
+                "required": [
+                  "potential_setpoint_V"
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "properties": {
@@ -214,7 +324,12 @@
       "properties": {
         "environment": {
           "type": "string",
-          "enum": ["operando", "in_situ", "ex_situ", "in_silico"]
+          "enum": [
+            "operando",
+            "in_situ",
+            "ex_situ",
+            "in_silico"
+          ]
         },
         "temperature_K": {
           "type": "number"
@@ -224,45 +339,110 @@
           "properties": {
             "reaction": {
               "type": "string",
-              "enum": ["CO2RR", "CORR", "OER", "HER", "ORR", "NRR", "N2RR", "AOR", "FOR", "water_splitting", "surface_oxidation", "stripping_voltammetry", "None"]
+              "enum": [
+                "CO2RR",
+                "CORR",
+                "OER",
+                "HER",
+                "ORR",
+                "NRR",
+                "N2RR",
+                "AOR",
+                "FOR",
+                "water_splitting",
+                "surface_oxidation",
+                "stripping_voltammetry",
+                "None"
+              ]
             },
             "cell_type": {
               "type": "string",
-              "enum": ["flow_cell", "microfluidic_flow_cell", "h_cell", "beaker_cell", "gde_cell", "mea_cell", "zero_gap_cell", "coin_cell", "three_electrode"]
+              "enum": [
+                "flow_cell",
+                "microfluidic_flow_cell",
+                "h_cell",
+                "beaker_cell",
+                "gde_cell",
+                "mea_cell",
+                "zero_gap_cell",
+                "coin_cell",
+                "three_electrode"
+              ]
             },
             "control_mode": {
               "type": "string",
-              "enum": ["potentiostatic", "galvanostatic", "potentiodynamic", "open_circuit", "mixed"]
+              "enum": [
+                "potentiostatic",
+                "galvanostatic",
+                "potentiodynamic",
+                "open_circuit",
+                "mixed"
+              ]
             },
-            "potential_setpoint_V": { "type": "number" },
-            "current_setpoint_mA_cm2": { "type": "number" },
+            "potential_setpoint_V": {
+              "type": "number"
+            },
+            "current_setpoint_mA_cm2": {
+              "type": "number"
+            },
             "potential_scale": {
               "type": "string",
-              "enum": ["RHE", "SHE", "Ag/AgCl", "SCE", "Hg/HgO", "Hg/HgSO4", "V_vs_Ref"]
+              "enum": [
+                "RHE",
+                "SHE",
+                "Ag/AgCl",
+                "SCE",
+                "Hg/HgO",
+                "Hg/HgSO4",
+                "V_vs_Ref"
+              ]
             },
-            "scan_rate_mV_s": { "type": "number" },
+            "scan_rate_mV_s": {
+              "type": "number"
+            },
             "ir_compensation": {
               "type": "object",
               "properties": {
                 "method": {
                   "type": "string",
-                  "enum": ["none", "automatic", "manual", "post_hoc", "EIS_based"]
+                  "enum": [
+                    "none",
+                    "automatic",
+                    "manual",
+                    "post_hoc",
+                    "EIS_based"
+                  ]
                 },
-                "percent": { "type": "number" }
+                "percent": {
+                  "type": "number"
+                }
               }
             },
             "electrolyte": {
               "type": "object",
-              "required": ["name", "concentration_M"],
+              "required": [
+                "name",
+                "concentration_M"
+              ],
               "properties": {
-                "name": { "type": "string" },
-                "concentration_M": { "type": "number" }
+                "name": {
+                  "type": "string"
+                },
+                "concentration_M": {
+                  "type": "number"
+                }
               }
             },
-            "pH": { "type": "number" },
+            "pH": {
+              "type": "number"
+            },
             "pH_basis": {
               "type": "string",
-              "enum": ["measured", "nominal", "buffered_assumed"]
+              "enum": [
+                "measured",
+                "nominal",
+                "buffered_assumed"
+              ]
             }
           }
         },
@@ -271,21 +451,43 @@
           "properties": {
             "flow_mode": {
               "type": "string",
-              "enum": ["stagnant", "flowing_liquid", "bubbling_gas", "gas_diffusion", "rotating_disk"]
+              "enum": [
+                "stagnant",
+                "flowing_liquid",
+                "bubbling_gas",
+                "gas_diffusion",
+                "rotating_disk"
+              ]
             },
-            "rotation_speed_rpm": { "type": "number" },
+            "rotation_speed_rpm": {
+              "type": "number"
+            },
             "feed": {
               "type": "object",
-              "required": ["phase", "composition"],
+              "required": [
+                "phase",
+                "composition"
+              ],
               "properties": {
                 "phase": {
                   "type": "string",
-                  "enum": ["gas", "liquid"]
+                  "enum": [
+                    "gas",
+                    "liquid"
+                  ]
                 },
-                "composition": { "type": "string" },
-                "flow_rate": { "type": "number" },
-                "flow_rate_unit": { "type": "string" },
-                "partial_pressures": { "type": "object" }
+                "composition": {
+                  "type": "string"
+                },
+                "flow_rate": {
+                  "type": "number"
+                },
+                "flow_rate_unit": {
+                  "type": "string"
+                },
+                "partial_pressures": {
+                  "type": "object"
+                }
               },
               "description": "Feed must be an object with phase and composition. Do not use a bare string."
             }
@@ -294,8 +496,12 @@
         "thermodynamics": {
           "type": "object",
           "properties": {
-            "pressure_Pa": { "type": "number" },
-            "atmosphere": { "type": "string" }
+            "pressure_Pa": {
+              "type": "number"
+            },
+            "atmosphere": {
+              "type": "string"
+            }
           }
         },
         "simulation_assumptions": {
@@ -303,7 +509,11 @@
           "properties": {
             "solvation_model": {
               "type": "string",
-              "enum": ["none", "implicit", "explicit"]
+              "enum": [
+                "none",
+                "implicit",
+                "explicit"
+              ]
             }
           }
         }
@@ -539,7 +749,9 @@
                   ],
                   "properties": {
                     "name": {
-                      "type": "string"
+                      "type": "string",
+                      "pattern": "^(?!(.*_magnitude($|\\..*))|(.*_ratio\\..*)|(.*_normalized.*)|(^current_fraction\\..*)|(.*\\.partial_sum_.*)$)[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)*$",
+                      "description": "Descriptor name. Standard form: <class> or <class>.<product> or <class>.<product>.<context>. Rejects known anti-patterns: '_magnitude' suffix (use negative values in canonical name), '_ratio'/'_normalized' (derive downstream), 'current_fraction.*' (mechanism-attribution derivative), '*.partial_sum_*'. See Controlled-Vocabulary wiki for canonical class list."
                     },
                     "kind": {
                       "type": "string",
@@ -561,16 +773,69 @@
                       ]
                     },
                     "value": {
-                      "not": { "type": "null" },
-                      "description": "The asserted value. Must not be null — a descriptor without a value is not a scientific claim."
+                      "not": {
+                        "type": "null"
+                      },
+                      "description": "The asserted value. Must not be null \u2014 a descriptor without a value is not a scientific claim."
                     },
                     "unit": {
                       "type": "string"
                     },
                     "uncertainty": {
                       "type": "object"
+                    },
+                    "at": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "description": "Operating point within a series. Sample identity, operating potential, electrolyte, and cell type all live in their canonical slots \u2014 never as 'at' keys.",
+                      "properties": {
+                        "temperature_K": {
+                          "type": "number"
+                        },
+                        "time_s": {
+                          "type": "number"
+                        },
+                        "pressure_bar": {
+                          "type": "number"
+                        },
+                        "feed_CO_partial_pressure_bar": {
+                          "type": "number"
+                        },
+                        "CO_partial_pressure_bar": {
+                          "type": "number"
+                        },
+                        "glyoxal_concentration_mM": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "definition": {
+                      "type": "string"
+                    },
+                    "relative_to": {
+                      "description": "For differential descriptors, the reference state this is measured against. Either a string label ('IrO2', 'pure_Cu') or a structured object referencing another ISAAC record.",
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "operation": {
+                              "type": "string"
+                            },
+                            "record_id": {
+                              "type": "string"
+                            },
+                            "reference_label": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      ]
                     }
-                  }
+                  },
+                  "additionalProperties": false
                 }
               }
             }
@@ -587,12 +852,29 @@
           "properties": {
             "family": {
               "type": "string",
-              "enum": ["DFT", "DFT_U", "hybrid_DFT", "AIMD", "classical_MD", "CHE", "microkinetic", "machine_learning", "semi_empirical"],
+              "enum": [
+                "DFT",
+                "DFT_U",
+                "hybrid_DFT",
+                "AIMD",
+                "classical_MD",
+                "CHE",
+                "microkinetic",
+                "machine_learning",
+                "semi_empirical"
+              ],
               "description": "Method family."
             },
             "functional_class": {
               "type": "string",
-              "enum": ["LDA", "GGA", "meta_GGA", "hybrid", "double_hybrid", "RPA"],
+              "enum": [
+                "LDA",
+                "GGA",
+                "meta_GGA",
+                "hybrid",
+                "double_hybrid",
+                "RPA"
+              ],
               "description": "Density functional class."
             },
             "functional_name": {
@@ -601,7 +883,12 @@
             },
             "basis_type": {
               "type": "string",
-              "enum": ["planewave", "LCAO", "real_space", "mixed"],
+              "enum": [
+                "planewave",
+                "LCAO",
+                "real_space",
+                "mixed"
+              ],
               "description": "Basis set type."
             },
             "pseudopotential": {
@@ -614,25 +901,51 @@
             },
             "spin_treatment": {
               "type": "string",
-              "enum": ["none", "collinear", "noncollinear", "SOC"],
+              "enum": [
+                "none",
+                "collinear",
+                "noncollinear",
+                "SOC"
+              ],
               "description": "Spin polarization treatment."
             },
             "dispersion": {
               "type": "string",
-              "enum": ["none", "D2", "D3", "D3BJ", "TS", "MBD", "dDsC", "vdW_DF", "vdW_DF2", "rVV10"],
+              "enum": [
+                "none",
+                "D2",
+                "D3",
+                "D3BJ",
+                "TS",
+                "MBD",
+                "dDsC",
+                "vdW_DF",
+                "vdW_DF2",
+                "rVV10"
+              ],
               "description": "Dispersion correction method."
             },
             "relativistic": {
               "type": "string",
-              "enum": ["none", "scalar", "full"],
+              "enum": [
+                "none",
+                "scalar",
+                "full"
+              ],
               "description": "Relativistic treatment."
             },
             "convergence": {
               "type": "object",
               "properties": {
-                "energy_eV": { "type": "number" },
-                "force_eV_per_A": { "type": "number" },
-                "stress_kbar": { "type": "number" }
+                "energy_eV": {
+                  "type": "number"
+                },
+                "force_eV_per_A": {
+                  "type": "number"
+                },
+                "stress_kbar": {
+                  "type": "number"
+                }
               }
             },
             "kpoints": {
@@ -644,10 +957,18 @@
               "properties": {
                 "method": {
                   "type": "string",
-                  "enum": ["Gaussian", "Methfessel-Paxton", "Fermi-Dirac", "tetrahedron", "cold"],
+                  "enum": [
+                    "Gaussian",
+                    "Methfessel-Paxton",
+                    "Fermi-Dirac",
+                    "tetrahedron",
+                    "cold"
+                  ],
                   "description": "Electronic smearing method."
                 },
-                "width_eV": { "type": "number" }
+                "width_eV": {
+                  "type": "number"
+                }
               }
             }
           }
@@ -656,13 +977,30 @@
           "type": "object",
           "description": "Surface slab model parameters. Only relevant when sample.sample_form = 'slab_model'.",
           "properties": {
-            "surface_facet": { "type": "string", "description": "e.g., '111', '100', '110', '211'" },
-            "supercell": { "type": "string", "description": "e.g., '4x4', '4x3', '3x3'" },
-            "layers": { "type": "integer" },
-            "fixed_layers": { "type": "string", "description": "e.g., 'bottom 2'" },
-            "vacuum_A": { "type": "number" },
-            "lattice_constant_A": { "type": "number" },
-            "dipole_correction": { "type": "boolean" }
+            "surface_facet": {
+              "type": "string",
+              "description": "e.g., '111', '100', '110', '211'"
+            },
+            "supercell": {
+              "type": "string",
+              "description": "e.g., '4x4', '4x3', '3x3'"
+            },
+            "layers": {
+              "type": "integer"
+            },
+            "fixed_layers": {
+              "type": "string",
+              "description": "e.g., 'bottom 2'"
+            },
+            "vacuum_A": {
+              "type": "number"
+            },
+            "lattice_constant_A": {
+              "type": "number"
+            },
+            "dipole_correction": {
+              "type": "boolean"
+            }
           }
         },
         "potential_method": {
@@ -671,13 +1009,31 @@
           "properties": {
             "type": {
               "type": "string",
-              "enum": ["vacuum", "CHE", "implicit_solvent_PZC", "fixed_NELECT", "grand_canonical", "constant_potential", "joint_DFT"],
+              "enum": [
+                "vacuum",
+                "CHE",
+                "implicit_solvent_PZC",
+                "fixed_NELECT",
+                "grand_canonical",
+                "constant_potential",
+                "joint_DFT"
+              ],
               "description": "Electrochemical potential treatment."
             },
-            "target_potential_V_SHE": { "type": "number" },
-            "SHE_work_function_eV": { "type": "number", "description": "Assumed SHE work function (typically 4.4-4.8 eV)." },
-            "solvent_model": { "type": "string", "description": "Implicit solvent implementation (e.g., VASPsol, GLSSA13, CANDLE)." },
-            "dielectric_constant": { "type": "number" }
+            "target_potential_V_SHE": {
+              "type": "number"
+            },
+            "SHE_work_function_eV": {
+              "type": "number",
+              "description": "Assumed SHE work function (typically 4.4-4.8 eV)."
+            },
+            "solvent_model": {
+              "type": "string",
+              "description": "Implicit solvent implementation (e.g., VASPsol, GLSSA13, CANDLE)."
+            },
+            "dielectric_constant": {
+              "type": "number"
+            }
           }
         },
         "output_quantity": {
@@ -686,20 +1042,43 @@
           "properties": {
             "quantity": {
               "type": "string",
-              "enum": ["E_DFT", "E_DFT_plus_ZPE", "delta_E", "delta_G_CHE", "delta_G_grand_canonical", "activation_energy_raw", "activation_energy_ZPE", "activation_free_energy"],
+              "enum": [
+                "E_DFT",
+                "E_DFT_plus_ZPE",
+                "delta_E",
+                "delta_G_CHE",
+                "delta_G_grand_canonical",
+                "activation_energy_raw",
+                "activation_energy_ZPE",
+                "activation_free_energy"
+              ],
               "description": "The thermodynamic quantity reported in descriptors."
             },
             "corrections_applied": {
               "type": "object",
               "description": "Boolean flags for each correction included in the reported quantity.",
               "properties": {
-                "zero_point_energy": { "type": "boolean" },
-                "entropy": { "type": "boolean" },
-                "thermal": { "type": "boolean" },
-                "solvation": { "type": "boolean" },
-                "dispersion": { "type": "boolean" },
-                "grand_canonical": { "type": "boolean" },
-                "PCET": { "type": "boolean" }
+                "zero_point_energy": {
+                  "type": "boolean"
+                },
+                "entropy": {
+                  "type": "boolean"
+                },
+                "thermal": {
+                  "type": "boolean"
+                },
+                "solvation": {
+                  "type": "boolean"
+                },
+                "dispersion": {
+                  "type": "boolean"
+                },
+                "grand_canonical": {
+                  "type": "boolean"
+                },
+                "PCET": {
+                  "type": "boolean"
+                }
               }
             }
           }
@@ -710,12 +1089,28 @@
           "properties": {
             "method": {
               "type": "string",
-              "enum": ["NEB", "CI-NEB", "dimer", "string", "IRC", "growing_string"],
+              "enum": [
+                "NEB",
+                "CI-NEB",
+                "dimer",
+                "string",
+                "IRC",
+                "growing_string"
+              ],
               "description": "TS search method."
             },
-            "images": { "type": "integer", "description": "Number of NEB images." },
-            "reaction": { "type": "string", "description": "e.g., 'CO* + CO* → OCCO*'" },
-            "n_electrons_transferred": { "type": "integer", "description": "Electrons transferred in this step (0 for chemical, 1 for PCET)." }
+            "images": {
+              "type": "integer",
+              "description": "Number of NEB images."
+            },
+            "reaction": {
+              "type": "string",
+              "description": "e.g., 'CO* + CO* \u2192 OCCO*'"
+            },
+            "n_electrons_transferred": {
+              "type": "integer",
+              "description": "Electrons transferred in this step (0 for chemical, 1 for PCET)."
+            }
           }
         }
       }
