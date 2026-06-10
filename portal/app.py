@@ -698,31 +698,16 @@ elif page == "Record Validator":
                 st.json(record_data)
 
             if st.button("Validate", type="primary"):
-                # Schema validation
-                from jsonschema import Draft202012Validator
-                schema_path = os.path.join(os.path.dirname(__file__), "..", "schema", "isaac_record_v1.json")
-                with open(schema_path) as f:
-                    schema = json.load(f)
-                validator = Draft202012Validator(schema)
-
-                schema_errors = []
-                for err in validator.iter_errors(record_data):
-                    schema_errors.append({
-                        "path": "/".join(str(p) for p in err.absolute_path) or "(root)",
-                        "message": err.message,
-                    })
-
-                # Vocabulary validation
-                vocab_errors = ontology.validate_record_vocabulary(record_data)
-
-                # Semantic integrity validation
-                semantic_errors = ontology.validate_semantic_integrity(record_data)
+                # All three layers via the shared validation module — the
+                # SAME code path the REST API and database chokepoint use.
+                import validation
+                full = validation.validate_record_full(record_data)
 
                 # Store results in session state
                 st.session_state.validator_result = {
-                    "schema_errors": schema_errors,
-                    "vocab_errors": vocab_errors,
-                    "semantic_errors": semantic_errors,
+                    "schema_errors": full["schema_errors"],
+                    "vocab_errors": full["vocabulary_errors"],
+                    "semantic_errors": full["semantic_errors"],
                 }
                 st.session_state.validator_record = record_data
 
@@ -765,10 +750,26 @@ elif page == "Record Validator":
                     if st.button("Save to Database", key="save_json_btn"):
                         if database.test_db_connection():
                             try:
-                                saved_id = database.save_record(st.session_state.validator_record)
+                                # Save the CURRENT upload (record_data), not the
+                                # session-state copy from validate time — a re-uploaded
+                                # file with the same name would otherwise save stale
+                                # content. save_record re-validates internally (the
+                                # shared chokepoint), so a record that changed since
+                                # the displayed PASS cannot slip through.
+                                saved_id = database.save_record(record_data)
                                 st.success(f"Record saved! ID: `{saved_id}`")
                             except Exception as exc:
-                                st.error(f"Failed to save record: {exc}")
+                                import validation
+                                if isinstance(exc, validation.ValidationError):
+                                    st.error(
+                                        "Record failed validation at save time — it differs "
+                                        "from the version that was validated. Click Validate "
+                                        "again to see the errors."
+                                    )
+                                    for e in exc.result["errors"][:10]:
+                                        st.write(f"- **{e['path']}**: {e['message']}")
+                                else:
+                                    st.error(f"Failed to save record: {exc}")
                         else:
                             st.error("Database not connected. Cannot save record.")
 

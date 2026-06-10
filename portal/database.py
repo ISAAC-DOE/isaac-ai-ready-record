@@ -6,9 +6,12 @@ PostgreSQL connection for vocabulary, templates, and records storage
 import os
 import json
 import re
+import logging
 from datetime import datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+logger = logging.getLogger("isaac-database")
 
 
 def get_db_connection():
@@ -167,20 +170,44 @@ def init_tables():
 # Record Operations
 # =============================================================================
 
-def save_record(record_data: dict) -> str:
+def save_record(record_data: dict, *, skip_validation: bool = False) -> str:
     """
     Save an ISAAC record to the database.
 
+    VALIDATION CHOKEPOINT: every record persisted through this function is
+    validated by portal/validation.py (schema + vocabulary + semantic).
+    This is the single enforcement point shared by ALL ingestion paths
+    (REST API, Streamlit validator page, record form, future tools) — a
+    record that fails validation cannot reach the database, regardless of
+    which door it came through. To change what validation does, edit
+    portal/validation.py; every path picks up the change automatically.
+
     Args:
         record_data: The complete ISAAC record as a dictionary
+        skip_validation: Admin/migration escape hatch ONLY. Bypasses
+            validation; every use is logged. Never set this from a
+            user-facing path.
 
     Returns:
         The record_id of the saved record
 
     Raises:
+        validation.ValidationError: If the record fails validation
+            (carries the full structured per-layer result).
         ValueError: If required fields are missing
         Exception: If database operation fails
     """
+    if skip_validation:
+        logger.warning(
+            "save_record VALIDATION BYPASS (skip_validation=True) for record_id=%s",
+            record_data.get('record_id'),
+        )
+    else:
+        import validation  # deferred: validation imports ontology at module load
+        result = validation.validate_record_full(record_data)
+        if not result["valid"]:
+            raise validation.ValidationError(result)
+
     record_id = record_data.get('record_id')
     record_type = record_data.get('record_type')
     record_domain = record_data.get('record_domain')

@@ -760,24 +760,15 @@ def build_record(**kwargs) -> dict:
 
 
 def validate_record(record: dict) -> list:
-    """Validate required fields in an ISAAC record"""
-    errors = []
+    """
+    FULL ISAAC validation via the shared portal/validation.py module —
+    the same schema + vocabulary + semantic checks the REST API enforces.
 
-    if not record.get('record_id'):
-        errors.append("Record ID is required")
-    elif len(record['record_id']) != 26:
-        errors.append("Record ID must be exactly 26 characters")
-
-    if not record.get('record_type'):
-        errors.append("Record Type is required")
-
-    if not record.get('record_domain'):
-        errors.append("Record Domain is required")
-
-    if not record.get('timestamps', {}).get('created_utc'):
-        errors.append("Created timestamp is required")
-
-    if not record.get('source_type'):
-        errors.append("Source Type is required")
-
-    return errors
+    (This replaces a former 5-field presence check that let records into
+    the database which the API would have rejected. database.save_record
+    also re-validates internally, so even if this call were skipped the
+    record could not be persisted invalid.)
+    """
+    import validation
+    result = validation.validate_record_full(record)
+    return validation.format_errors_flat(result)

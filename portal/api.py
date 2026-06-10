@@ -70,16 +70,16 @@ _token_cache: dict = {}
 _TOKEN_CACHE_TTL = 300  # 5 minutes
 
 # ---------------------------------------------------------------------------
-# Load ISAAC record JSON Schema (Draft 2020-12)
-# Schema lives at <project_root>/schema/isaac_record_v1.json
-# api.py lives at <project_root>/portal/api.py  =>  go up one level
+# Validation: delegated to the shared portal/validation.py module — the
+# single source of truth used by ALL ingestion paths (API + Streamlit UI).
+# database.save_record() re-enforces the same validation internally.
 # ---------------------------------------------------------------------------
-SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema" / "isaac_record_v1.json"
-with open(SCHEMA_PATH) as f:
-    ISAAC_SCHEMA = json.load(f)
-ISAAC_VALIDATOR = Draft202012Validator(ISAAC_SCHEMA)
+import validation  # noqa: E402  (same import style as database/ontology)
 
-logger.info("Loaded ISAAC schema from %s", SCHEMA_PATH)
+ISAAC_SCHEMA = validation.ISAAC_SCHEMA
+ISAAC_VALIDATOR = validation.ISAAC_VALIDATOR
+
+logger.info("Loaded ISAAC schema via shared validation module (%s)", validation.SCHEMA_PATH)
 
 
 # ---------------------------------------------------------------------------
@@ -230,40 +230,23 @@ def _require_admin(fn):
 # ---------------------------------------------------------------------------
 # Validation helper
 # ---------------------------------------------------------------------------
+# Validation helpers now live in portal/validation.py (shared by every
+# ingestion path). These thin wrappers are kept for backward compatibility
+# with any external callers of the module-level functions.
+
 def _validate_record(data: dict) -> list:
-    """
-    Validate a record dict against the ISAAC schema.
-    Returns a list of error dicts; empty list means valid.
-    Collects ALL errors (does not stop at first).
-    """
-    errors = []
-    for err in ISAAC_VALIDATOR.iter_errors(data):
-        errors.append({
-            "path": "/".join(str(p) for p in err.absolute_path) or "(root)",
-            "message": err.message,
-        })
-    return errors
+    """Schema layer only — delegates to the shared validation module."""
+    return validation.validate_record_full(data)["schema_errors"]
 
 
 def _validate_semantic_integrity(data: dict) -> list:
-    """Delegate to ontology.validate_semantic_integrity."""
-    try:
-        return ontology.validate_semantic_integrity(data)
-    except Exception as exc:
-        logger.warning("Semantic integrity validation failed (degraded): %s", exc)
-        return []
+    """Semantic layer only — delegates to the shared validation module."""
+    return validation.validate_record_full(data)["semantic_errors"]
 
 
 def _validate_vocabulary(data: dict) -> list:
-    """
-    Validate a record dict against the live ontology vocabulary.
-    Degrades gracefully: returns an empty list on any internal error.
-    """
-    try:
-        return ontology.validate_record_vocabulary(data)
-    except Exception as exc:
-        logger.warning("Vocabulary validation failed (degraded): %s", exc)
-        return []
+    """Vocabulary layer only — delegates to the shared validation module."""
+    return validation.validate_record_full(data)["vocabulary_errors"]
 
 
 # ===========================================================================
@@ -336,24 +319,8 @@ def validate():
             "errors": [{"path": "(root)", "message": "Request body is not valid JSON"}],
         }), 400
 
-    schema_errors = _validate_record(data)
-    vocab_errors = _validate_vocabulary(data)
-    semantic_errors = _validate_semantic_integrity(data)
-    all_errors = schema_errors + vocab_errors + semantic_errors
-    schema_valid = len(schema_errors) == 0
-    vocab_valid = len(vocab_errors) == 0
-    semantic_valid = len(semantic_errors) == 0
-
-    return jsonify({
-        "valid": schema_valid and vocab_valid and semantic_valid,
-        "schema_valid": schema_valid,
-        "vocabulary_valid": vocab_valid,
-        "semantic_valid": semantic_valid,
-        "schema_errors": schema_errors,
-        "vocabulary_errors": vocab_errors,
-        "semantic_errors": semantic_errors,
-        "errors": all_errors,
-    }), 200
+    # One call to the shared validation module — identical result shape.
+    return jsonify(validation.validate_record_full(data)), 200
 
 
 # --- Create record ---------------------------------------------------------
@@ -373,25 +340,31 @@ def create_record():
             "message": "Request body is not valid JSON",
         }), 400
 
-    # Schema + vocabulary + semantic validation
-    schema_errors = _validate_record(data)
-    vocab_errors = _validate_vocabulary(data)
-    semantic_errors = _validate_semantic_integrity(data)
-    errors = schema_errors + vocab_errors + semantic_errors
-    if errors:
+    # Schema + vocabulary + semantic validation (shared module, one call)
+    result = validation.validate_record_full(data)
+    if not result["valid"]:
         return jsonify({
             "success": False,
             "reason": "validation_failed",
-            "schema_errors": schema_errors,
-            "vocabulary_errors": vocab_errors,
-            "semantic_errors": semantic_errors,
-            "errors": errors,
+            "schema_errors": result["schema_errors"],
+            "vocabulary_errors": result["vocabulary_errors"],
+            "semantic_errors": result["semantic_errors"],
+            "errors": result["errors"],
         }), 400
 
-    # Persist via shared database module
+    # Persist via shared database module (save_record re-validates
+    # internally — the chokepoint guarantee — at negligible cost).
     try:
         record_id = database.save_record(data)
         return jsonify({"success": True, "record_id": record_id}), 201
+    except validation.ValidationError as ve:
+        # Unreachable unless validation rules changed between the check
+        # above and the save; report identically to the pre-save failure.
+        return jsonify({
+            "success": False,
+            "reason": "validation_failed",
+            **ve.result,
+        }), 400
     except ValueError as ve:
         # Missing required fields that passed schema but failed DB check
         return jsonify({
