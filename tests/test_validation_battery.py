@@ -33,7 +33,7 @@ EXAMPLES = sorted((REPO / "examples").glob("*.json"))
 # Probes whose rules are consciously NOT yet implemented.
 # Maps probe stem -> (workstream that will implement it, reason)
 KNOWN_GAPS = {
-    "P02_fe_sum_1p40": ("WS3 semantic: FE sum <= 1.05 per output block", "needs warnings tier decision for 16 grandfathered records"),
+    "P02_fe_sum_1p40": ("warning-tier FE_SUM_EXCEEDS_UNITY fires (verified below); hard error pending policy", "warning != rejection by design"),
     "P03_negative_ecsa": ("WS2 schema: numeric bounds per descriptor class", "wave 2"),
     "P04_value_as_dict_and_string": ("WS2 schema: kind-conditional value types", "wave 2"),
     "P05_series_condition_smuggling": ("WS3 semantic: series.conditions vs context consistency", "wave 2"),
@@ -172,3 +172,41 @@ def test_potential_contract():
     r["context"]["electrochemistry"]["potential_vs_RHE"] = {
         "value_V": None, "rhe_basis": "derived_nominal"}
     assert not validation.validate_record_full(r)["valid"]
+
+
+def test_warnings_tier():
+    """Warnings never block; the right codes fire on the right gaps."""
+    base = json.loads((REPO / "examples" / "co2rr_performance_record.json").read_text())
+
+    # FE sum > 1.05 -> accepted WITH warning
+    r = json.loads(json.dumps(base))
+    for d in r["descriptors"]["outputs"][0]["descriptors"]:
+        if d["name"].startswith("faradaic_efficiency."):
+            d["value"] = 0.6
+    res = validation.validate_record_full(r)
+    assert res["valid"], "FE-sum is a warning, must not block"
+    assert any(w["code"] == "FE_SUM_EXCEEDS_UNITY" for w in res.get("warnings", []))
+
+    # Galvanostatic with no potential -> GALVANOSTATIC_NO_POTENTIAL warning
+    r = json.loads(json.dumps(base))
+    ec = r["context"]["electrochemistry"]
+    ec["control_mode"] = "galvanostatic"
+    ec["current_setpoint_mA_cm2"] = 200
+    del ec["potential_setpoint_V"]
+    del ec["potential_vs_RHE"]
+    # strip potential-named descriptors/channels for the test
+    r["measurement"]["series"] = []
+    res = validation.validate_record_full(r)
+    assert res["valid"]
+    assert any(w["code"] == "GALVANOSTATIC_NO_POTENTIAL" for w in res.get("warnings", []))
+
+    # And the honest not_reported marker silences it
+    ec["potential_vs_RHE"] = {"value_V": None, "rhe_basis": "not_reported"}
+    res = validation.validate_record_full(r)
+    assert not any(w["code"] == "GALVANOSTATIC_NO_POTENTIAL" for w in res.get("warnings", []))
+
+    # No-links warning fires on linkless record
+    r = json.loads(json.dumps(base))
+    r["links"] = []
+    res = validation.validate_record_full(r)
+    assert any(w["code"] == "NO_LINKS" for w in res.get("warnings", []))

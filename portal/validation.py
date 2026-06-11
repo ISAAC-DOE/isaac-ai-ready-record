@@ -219,6 +219,96 @@ def _potential_contract_errors(record: dict) -> list:
     return errors
 
 
+# ---------------------------------------------------------------------------
+# Warnings tier (2026-06-12) — accepted-but-improvable feedback.
+# Warnings NEVER block ingestion; they teach. Three severities in the
+# response: errors (block), warnings (educate), info (suggest).
+# ---------------------------------------------------------------------------
+CANONICAL_UNIT_SET = set()
+try:
+    for _section in _VOCAB.get("Units", {}).values():
+        for _u in _section.get("values", []) if isinstance(_section, dict) else []:
+            CANONICAL_UNIT_SET.add(_u)
+except Exception:
+    pass
+
+
+def _warning_checks(record: dict):
+    """Return (warnings, info) lists. Never raises; degrades to empty."""
+    warnings, info = [], []
+    try:
+        domain = record.get("record_domain")
+        ec = ((record.get("context") or {}).get("electrochemistry") or {})
+        is_perf = domain == "performance" and isinstance(ec, dict) and ec
+
+        if is_perf:
+            if ec.get("pH") is None:
+                warnings.append({"code": "MISSING_PH", "path": "context/electrochemistry/pH",
+                                 "message": "pH (+pH_basis) is recommended on performance records — required for RHE conversion and cross-record comparison."})
+            if not (record.get("sample") or {}).get("electrode_type"):
+                warnings.append({"code": "MISSING_ELECTRODE_TYPE", "path": "sample/electrode_type",
+                                 "message": "sample.electrode_type is recommended (GDE, thin_film, patterned_film, ...)."})
+            # Galvanostatic with no potential anywhere and no honest not_reported marker
+            if ec.get("control_mode") == "galvanostatic" and not ec.get("potential_vs_RHE"):
+                has_pot = False
+                for o in (record.get("descriptors") or {}).get("outputs") or []:
+                    for d in o.get("descriptors") or [] if isinstance(o, dict) else []:
+                        if "potential" in (d.get("name") or "").lower():
+                            has_pot = True
+                for s in (record.get("measurement") or {}).get("series") or []:
+                    for ch in (s.get("channels") or []) + (s.get("independent_variables") or []):
+                        if "potential" in (ch.get("name") or "").lower():
+                            has_pot = True
+                if not has_pot:
+                    warnings.append({"code": "GALVANOSTATIC_NO_POTENTIAL", "path": "context/electrochemistry/potential_vs_RHE",
+                                     "message": "Galvanostatic record carries no measured potential anywhere. Add steady_state_potential "
+                                                "(V_RHE) from the source, or declare potential_vs_RHE {value_V: null, rhe_basis: 'not_reported'} "
+                                                "so the gap is explicit (Potential Contract)."})
+
+        if not record.get("links"):
+            warnings.append({"code": "NO_LINKS", "path": "links",
+                             "message": "Record has no links. If it belongs to a potential/composition series or derives from another record, add same_sample_as / derived_from / intended_comparison_target."})
+
+        qc = ((record.get("measurement") or {}).get("qc") or {})
+        if qc.get("status") == "compromised" and str(qc.get("evidence", "")).strip().upper() in ("", "N/A", "NA", "NONE"):
+            warnings.append({"code": "QC_COMPROMISED_NO_EVIDENCE", "path": "measurement/qc/evidence",
+                             "message": "qc.status='compromised' requires a concrete evidence sentence (what is compromised and why). 'N/A' defeats the purpose."})
+
+        # FE physics: per-output-block product sum
+        for oi, o in enumerate((record.get("descriptors") or {}).get("outputs") or []):
+            total = 0.0
+            n_fe = 0
+            for d in o.get("descriptors") or [] if isinstance(o, dict) else []:
+                nm = d.get("name") or ""
+                if nm.startswith("faradaic_efficiency.") and not nm.startswith("faradaic_efficiency.ratio"):
+                    v = d.get("value")
+                    if isinstance(v, (int, float)):
+                        total += v
+                        n_fe += 1
+                # sigma=0 placeholder anti-pattern
+                unc = d.get("uncertainty") or {}
+                if unc.get("sigma") == 0.0 and "not" in str(unc.get("notes", "")).lower():
+                    info.append({"code": "SIGMA_ZERO_PLACEHOLDER", "path": f"descriptors/outputs/{oi}",
+                                 "message": f"Descriptor '{nm}': sigma=0.0 with a 'not reported' note reads as ZERO uncertainty to a machine. Prefer an explicit basis note without a numeric 0."})
+            if n_fe >= 2 and total > 1.05:
+                warnings.append({"code": "FE_SUM_EXCEEDS_UNITY", "path": f"descriptors/outputs/{oi}",
+                                 "message": f"Sum of {n_fe} product Faradaic efficiencies = {total:.2f} > 1.05 in one output block — check for double counting or percent encoding."})
+
+        # Unknown (non-canonical, non-alias) units — vocabulary growth signal
+        if CANONICAL_UNIT_SET:
+            seen = set()
+            for o in (record.get("descriptors") or {}).get("outputs") or []:
+                for d in o.get("descriptors") or [] if isinstance(o, dict) else []:
+                    u = d.get("unit")
+                    if u and u not in CANONICAL_UNIT_SET and u not in UNIT_ALIASES and u not in seen:
+                        seen.add(u)
+                        info.append({"code": "UNIT_NOT_IN_VOCABULARY", "path": "descriptors",
+                                     "message": f"Unit '{u}' is not in the canonical unit vocabulary (and not a known alias). If legitimate, request a vocabulary addition."})
+    except Exception as exc:
+        logger.warning("Warning-tier checks degraded: %s", exc)
+    return warnings, info
+
+
 def validate_record_full(record: dict) -> dict:
     """
     Run ALL validation layers against a record dict.
@@ -280,6 +370,11 @@ def validate_record_full(record: dict) -> dict:
         "semantic_errors": semantic_errors,
         "errors": errors,
     }
+    warnings, info = _warning_checks(record)
+    if warnings:
+        result["warnings"] = warnings
+    if info:
+        result["info"] = info
     if degraded:
         result["degraded"] = degraded
     return result
