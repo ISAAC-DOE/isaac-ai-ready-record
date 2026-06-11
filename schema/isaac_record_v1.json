@@ -256,6 +256,10 @@
               "type": "number"
             }
           }
+        },
+        "sample_id": {
+          "type": "string",
+          "description": "Stable identifier of the PHYSICAL sample/electrode. Two records share a sample_id if and only if they measured the same physical object \u2014 this is the basis that gives same_sample_as links their meaning. Format free (lab convention), but must be stable across all records of that object. Decided 2026-06-12."
         }
       }
     },

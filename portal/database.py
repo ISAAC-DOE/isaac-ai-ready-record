@@ -267,35 +267,83 @@ def get_record(record_id: str) -> dict:
         conn.close()
 
 
-def list_records(limit: int = 100, offset: int = 0) -> list:
+def list_records(limit: int = 100, offset: int = 0, filters: dict | None = None,
+                 full: bool = False) -> tuple:
     """
-    List all records with pagination.
+    List records with optional server-side filters.
 
-    Args:
-        limit: Maximum number of records to return
-        offset: Number of records to skip
+    filters keys (all optional):
+        record_type, record_domain    -> indexed column equality
+        reaction                      -> JSONB context.electrochemistry.reaction
+        material_contains             -> ILIKE on sample.material.name
+        created_after, created_before -> created_at range (ISO 8601)
 
-    Returns:
-        List of record summaries (record_id, record_type, record_domain, created_at)
+    Returns (rows, total_count). rows carry summary fields, or the full
+    record JSON when full=True (callers should cap limit accordingly).
     """
+    filters = filters or {}
+    where, params = [], []
+    if filters.get('record_type'):
+        where.append('record_type = %s'); params.append(filters['record_type'])
+    if filters.get('record_domain'):
+        where.append('record_domain = %s'); params.append(filters['record_domain'])
+    if filters.get('reaction'):
+        where.append("data->'context'->'electrochemistry'->>'reaction' = %s")
+        params.append(filters['reaction'])
+    if filters.get('material_contains'):
+        where.append("data->'sample'->'material'->>'name' ILIKE %s")
+        params.append(f"%{filters['material_contains']}%")
+    if filters.get('created_after'):
+        where.append('created_at >= %s'); params.append(filters['created_after'])
+    if filters.get('created_before'):
+        where.append('created_at <= %s'); params.append(filters['created_before'])
+    where_sql = ('WHERE ' + ' AND '.join(where)) if where else ''
+
     conn = get_db_connection()
     cur = conn.cursor()
-
     try:
-        cur.execute('''
-            SELECT record_id, record_type, record_domain, created_at
-            FROM records
-            ORDER BY created_at DESC
-            LIMIT %s OFFSET %s
-        ''', (limit, offset))
+        cur.execute(f'SELECT COUNT(*) AS count FROM records {where_sql}', params)
+        total = cur.fetchone()['count']
+        select_cols = 'data, created_at' if full else 'record_id, record_type, record_domain, created_at'
+        cur.execute(
+            f'SELECT {select_cols} FROM records {where_sql} '
+            f'ORDER BY created_at DESC LIMIT %s OFFSET %s',
+            params + [limit, offset])
+        rows = []
+        for row in cur.fetchall():
+            if full:
+                rec = row['data']
+                if isinstance(rec, str):
+                    rec = json.loads(rec)
+                rows.append(rec)
+            else:
+                rows.append({
+                    'record_id': row['record_id'].strip(),
+                    'record_type': row['record_type'],
+                    'record_domain': row['record_domain'],
+                    'created_at': row['created_at'].isoformat() if hasattr(row['created_at'], 'isoformat') else row['created_at'],
+                })
+        return rows, total
+    finally:
+        cur.close()
+        conn.close()
 
-        rows = cur.fetchall()
-        return [{
-            'record_id': row['record_id'].strip(),
-            'record_type': row['record_type'],
-            'record_domain': row['record_domain'],
-            'created_at': row['created_at'].isoformat() if row['created_at'] else None
-        } for row in rows]
+
+def get_records_batch(record_ids: list) -> list:
+    """Fetch full records for a list of IDs in one query. Missing IDs are skipped."""
+    if not record_ids:
+        return []
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute('SELECT data FROM records WHERE record_id = ANY(%s)', (record_ids,))
+        out = []
+        for row in cur.fetchall():
+            rec = row['data']
+            if isinstance(rec, str):
+                rec = json.loads(rec)
+            out.append(rec)
+        return out
     finally:
         cur.close()
         conn.close()

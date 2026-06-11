@@ -389,26 +389,146 @@ def create_record():
 
 # --- List records ----------------------------------------------------------
 
+_LIST_PARAMS = {"limit", "offset", "record_type", "record_domain", "reaction",
+                "material_contains", "created_after", "created_before", "full"}
+
+
 @app.route("/portal/api/records", methods=["GET"])
 @_require_auth
 def list_records():
     """
-    List records (metadata only) with optional pagination.
-    Query params: ?limit=100&offset=0
-    """
+    List records with optional server-side filters.
 
+    Query params: limit, offset, record_type, record_domain, reaction,
+    material_contains, created_after, created_before, full=true.
+    Unknown params are REJECTED (400) — silently ignoring filters made
+    clients believe they had filtered when they had not.
+    Response: JSON list (backward compatible); X-Total-Count header
+    carries the total matching count for pagination.
+    """
+    unknown = set(request.args.keys()) - _LIST_PARAMS
+    if unknown:
+        return jsonify({"error": f"Unknown query parameter(s): {sorted(unknown)}. "
+                                 f"Supported: {sorted(_LIST_PARAMS)}"}), 400
     try:
         limit = int(request.args.get("limit", 100))
         offset = int(request.args.get("offset", 0))
     except (ValueError, TypeError):
         return jsonify({"error": "limit and offset must be integers"}), 400
 
+    full = request.args.get("full", "").lower() == "true"
+    if full:
+        limit = min(limit, 50)  # full records are heavy; cap the page size
+
+    filters = {k: request.args.get(k) for k in
+               ("record_type", "record_domain", "reaction", "material_contains",
+                "created_after", "created_before") if request.args.get(k)}
     try:
-        records = database.list_records(limit=limit, offset=offset)
-        return jsonify(records), 200
+        rows, total = database.list_records(limit=limit, offset=offset,
+                                            filters=filters, full=full)
+        resp = jsonify(rows)
+        resp.headers["X-Total-Count"] = str(total)
+        return resp, 200
     except Exception as exc:
         logger.exception("Database error listing records")
         return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/portal/api/records/batch", methods=["POST"])
+@_require_auth
+def records_batch():
+    """Bulk hydration: {"record_ids": [...]} -> full records (max 200 per call)."""
+    body = request.get_json(silent=True) or {}
+    ids = body.get("record_ids")
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"error": "Body must be {\"record_ids\": [<ulid>, ...]}"}), 400
+    if len(ids) > 200:
+        return jsonify({"error": "Max 200 record_ids per call"}), 400
+    try:
+        records = database.get_records_batch(ids)
+        return jsonify({"records": records, "requested": len(ids),
+                        "returned": len(records)}), 200
+    except Exception as exc:
+        logger.exception("Database error in batch fetch")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/portal/api/records/query", methods=["POST"])
+@_require_auth
+def records_query():
+    """
+    Guarded read-only SQL: {"sql": "SELECT ...", "max_rows": 100}.
+    SELECT/WITH only, statement timeout, row cap 500 — delegates to
+    database.execute_readonly_query. The records table schema:
+    records(record_id CHAR(26), record_type, record_domain, data JSONB,
+    created_at). JSONB paths: data->'context'->'electrochemistry'->>'reaction' etc.
+    """
+    body = request.get_json(silent=True) or {}
+    sql = body.get("sql", "")
+    max_rows = min(int(body.get("max_rows", 100)), 500)
+    if not sql.strip():
+        return jsonify({"error": "Body must include non-empty 'sql'"}), 400
+    try:
+        rows = database.execute_readonly_query(sql, max_rows=max_rows)
+        return jsonify({"rows": rows, "row_count": len(rows),
+                        "truncated_at": max_rows if len(rows) >= max_rows else None}), 200
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as exc:
+        logger.exception("Read-only query failed")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/portal/api/records/<record_id>/quality", methods=["GET"])
+@_require_auth
+def record_quality(record_id):
+    """
+    Recompute the CURRENT validation report (errors + warnings + info)
+    for a stored record. Warnings are deterministic functions of the
+    record, so they are never stale and never lost — pipelines that
+    ignored the 201 response can be audited here any time.
+    """
+    try:
+        record = database.get_record(record_id)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    if record is None:
+        return jsonify({"error": "Record not found"}), 404
+    result = validation.validate_record_full(record)
+    return jsonify({"record_id": record_id, **result}), 200
+
+
+@app.route("/portal/api/quality/summary", methods=["GET"])
+@_require_auth
+def quality_summary():
+    """
+    Database-wide curation dashboard: counts of records by warning/info
+    code, plus validator pass/fail totals. Recomputed live (expensive —
+    seconds for thousands of records); intended for curators and agents,
+    not hot paths.
+    """
+    try:
+        rows, total = database.list_records(limit=100000, offset=0, full=True)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    from collections import Counter
+    warn_counts, info_counts = Counter(), Counter()
+    fail = 0
+    for rec in rows:
+        result = validation.validate_record_full(rec)
+        if not result["valid"]:
+            fail += 1
+        for w in result.get("warnings", []):
+            warn_counts[w["code"]] += 1
+        for i in result.get("info", []):
+            info_counts[i["code"]] += 1
+    return jsonify({
+        "total_records": total,
+        "validator_failing": fail,
+        "validator_passing": total - fail,
+        "warning_counts": dict(warn_counts.most_common()),
+        "info_counts": dict(info_counts.most_common()),
+    }), 200
 
 
 # --- Get single record -----------------------------------------------------
