@@ -24,7 +24,7 @@ import logging
 import sys
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 
 # Make sibling modules importable regardless of caller CWD (same pattern
 # as api.py / app.py, which run with different working directories).
@@ -42,7 +42,14 @@ logger = logging.getLogger("isaac-validation")
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema" / "isaac_record_v1.json"
 with open(SCHEMA_PATH) as f:
     ISAAC_SCHEMA = json.load(f)
-ISAAC_VALIDATOR = Draft202012Validator(ISAAC_SCHEMA)
+
+# FIX (2026-06-11): FormatChecker was never passed, so every `format:
+# "date-time"` in the schema was decorative — empty strings and
+# space-separated timestamps passed. Requires the rfc3339-validator
+# package (in requirements.txt) for date-time to actually be checked;
+# we assert its presence so the enforcement can never silently vanish.
+import rfc3339_validator  # noqa: F401  (presence assertion — see above)
+ISAAC_VALIDATOR = Draft202012Validator(ISAAC_SCHEMA, format_checker=FormatChecker())
 
 # ---------------------------------------------------------------------------
 # Canonical forms (Decisions A & B, 2026-06-11) — loaded from the vocabulary
@@ -63,6 +70,21 @@ PRODUCT_CLASS_PREFIXES = (
     "faradaic_efficiency.", "partial_current_density.", "production_rate.",
     "initial_faradaic_efficiency.", "final_faradaic_efficiency.",
 )
+
+# Canonical product tokens (Decision B). Unknown tokens (typos, ad-hoc
+# inventions) are rejected; known aliases get a rename message instead.
+try:
+    CANONICAL_PRODUCTS = set(
+        _VOCAB.get("Descriptors", {})
+        .get("descriptors.faradaic_efficiency_products", {})
+        .get("values", [])
+    )
+except Exception:
+    CANONICAL_PRODUCTS = set()
+
+# Grandfathered non-product suffixes pending a wave-2 decision (derived
+# metric stored as a token). Documented in the improvement plan.
+GRANDFATHERED_PRODUCT_TOKENS = {"ratio_CH4_to_C2plus"}
 
 
 def _canonical_form_errors(record: dict) -> list:
@@ -93,7 +115,29 @@ def _canonical_form_errors(record: dict) -> list:
                                        f"use canonical '{PRODUCT_ALIASES[suffix]}' "
                                        f"(formula-style tokens, see Controlled-Vocabulary wiki).",
                         })
+                    elif (CANONICAL_PRODUCTS
+                          and suffix not in CANONICAL_PRODUCTS
+                          and suffix not in GRANDFATHERED_PRODUCT_TOKENS):
+                        errors.append({
+                            "path": f"descriptors/outputs/{oi}/descriptors/{di}/name",
+                            "message": f"Product token '{suffix}' is not in the canonical "
+                                       f"product vocabulary (descriptors.faradaic_efficiency_products). "
+                                       f"If this is a genuinely new product, request a vocabulary "
+                                       f"addition; do not invent tokens.",
+                        })
                     break
+            # FE physics: fraction-encoded values must be physical. A value
+            # above 1.5 is almost certainly percent-encoded in a fraction
+            # field (e.g. 91 instead of 0.91).
+            if nm.startswith(("faradaic_efficiency.", "total_faradaic_efficiency")):
+                val = d.get("value")
+                if isinstance(val, (int, float)) and (val < 0 or val > 1.5):
+                    errors.append({
+                        "path": f"descriptors/outputs/{oi}/descriptors/{di}/value",
+                        "message": f"Faradaic efficiency value {val} is outside [0, 1.5]. "
+                                   f"FE is a fraction (0-1); values like 91 are percent-encoded "
+                                   f"— divide by 100.",
+                    })
             u = d.get("unit")
             if u in UNIT_ALIASES:
                 errors.append(unit_err(f"descriptors/outputs/{oi}/descriptors/{di}/unit", u))
@@ -151,11 +195,17 @@ def validate_record_full(record: dict) -> dict:
         for err in ISAAC_VALIDATOR.iter_errors(record)
     ]
 
+    # FIX (2026-06-11): degradation is no longer invisible. The layers still
+    # fail open (fail-closed is a pending policy decision), but the response
+    # now carries a `degraded` flag and the degradation reason so callers,
+    # logs, and monitors can SEE that a layer did not actually run.
+    degraded = []
     try:
         vocabulary_errors = ontology.validate_record_vocabulary(record)
     except Exception as exc:
-        logger.warning("Vocabulary validation degraded: %s", exc)
+        logger.error("VOCABULARY VALIDATION DEGRADED — layer did not run: %s", exc)
         vocabulary_errors = []
+        degraded.append({"layer": "vocabulary", "reason": str(exc)[:200]})
 
     # Canonical-form enforcement (Decisions A & B) — deterministic, never
     # degrades, lives in the vocabulary layer of the response.
@@ -164,11 +214,12 @@ def validate_record_full(record: dict) -> dict:
     try:
         semantic_errors = ontology.validate_semantic_integrity(record)
     except Exception as exc:
-        logger.warning("Semantic integrity validation degraded: %s", exc)
+        logger.error("SEMANTIC VALIDATION DEGRADED — layer did not run: %s", exc)
         semantic_errors = []
+        degraded.append({"layer": "semantic", "reason": str(exc)[:200]})
 
     errors = schema_errors + vocabulary_errors + semantic_errors
-    return {
+    result = {
         "valid": not errors,
         "schema_valid": not schema_errors,
         "vocabulary_valid": not vocabulary_errors,
@@ -178,6 +229,9 @@ def validate_record_full(record: dict) -> dict:
         "semantic_errors": semantic_errors,
         "errors": errors,
     }
+    if degraded:
+        result["degraded"] = degraded
+    return result
 
 
 def format_errors_flat(result: dict) -> list:

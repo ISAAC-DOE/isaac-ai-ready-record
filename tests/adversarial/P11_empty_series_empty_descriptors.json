@@ -1,0 +1,78 @@
+{
+ "isaac_record_version": "1.05",
+ "record_id": "01JFH5Z0A3S9H2Z45X9P6M4Q0E",
+ "record_type": "evidence",
+ "record_domain": "performance",
+ "source_type": "laboratory",
+ "timestamps": {
+  "acquired_start_utc": "2026-06-01T14:00:00Z",
+  "acquired_end_utc": "2026-06-01T16:00:00Z",
+  "created_utc": "2026-06-01T17:30:00Z"
+ },
+ "sample": {
+  "material": {
+   "name": "Cu nanoparticles on GDE",
+   "formula": "Cu",
+   "provenance": "synthesized"
+  },
+  "sample_form": "film",
+  "electrode_type": "GDE",
+  "geometry": {
+   "geometric_area_cm2": 1.0
+  }
+ },
+ "context": {
+  "environment": "in_situ",
+  "temperature_K": 298.15,
+  "electrochemistry": {
+   "reaction": "CO2RR",
+   "cell_type": "flow_cell",
+   "control_mode": "potentiostatic",
+   "potential_setpoint_V": -1.0,
+   "potential_scale": "RHE",
+   "electrolyte": {
+    "name": "KHCO3",
+    "concentration_M": 1.0
+   },
+   "pH": 6.8,
+   "pH_basis": "nominal"
+  },
+  "transport": {
+   "flow_mode": "gas_diffusion",
+   "feed": {
+    "phase": "gas",
+    "composition": "CO2",
+    "flow_rate": 20.0,
+    "flow_rate_unit": "sccm"
+   }
+  }
+ },
+ "system": {
+  "domain": "experimental",
+  "technique": "chronoamperometry",
+  "instrument": {
+   "instrument_type": "potentiostat",
+   "instrument_name": "Biologic_VMP3"
+  }
+ },
+ "measurement": {
+  "series": [],
+  "qc": {
+   "status": "valid",
+   "evidence": "Stable current within 5% over hold."
+  }
+ },
+ "descriptors": {
+  "outputs": [
+   {
+    "label": "steady_state_metrics",
+    "generated_utc": "2026-06-01T18:00:00Z",
+    "generated_by": {
+     "agent": "flow_cell_analyzer",
+     "version": "1.0"
+    },
+    "descriptors": []
+   }
+  ]
+ }
+}

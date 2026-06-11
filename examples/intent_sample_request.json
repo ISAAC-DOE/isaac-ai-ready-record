@@ -11,15 +11,14 @@
     "material": {
       "name": "Target: Low-index Copper facets",
       "formula": "Cu",
-      "provenance": "request",
-      "notes": "Requesting spectral data for ANY pure copper surface (111, 100, or 110)."
+      "provenance": "synthesized",
+      "notes": "Requesting spectral data for ANY pure copper surface (111, 100, or 110). Must be performed at room temperature under vacuum or He. [sample_form flexible \u2014 film preferred] [intent: synthesis requested]"
     },
-    "sample_form": "any"
+    "sample_form": "film"
   },
   "context": {
     "environment": "in_situ",
-    "temperature_K": 300,
-    "notes": "Must be performed at room temperature under vacuum or He."
+    "temperature_K": 300
   },
   "system": {
     "domain": "experimental",

@@ -54,8 +54,9 @@
       "reaction": "CO2RR",
       "cell_type": "flow_cell",
       "electrolyte": {
-        "composition": "1.0 M KHCO3",
-        "pH": 8.3
+        "pH": 8.3,
+        "name": "KHCO3",
+        "concentration_M": 1.0
       },
       "potential_control": {
         "setpoint_V": -1.0,

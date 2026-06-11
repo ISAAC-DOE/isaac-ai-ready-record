@@ -319,7 +319,7 @@
       ]
     },
     "measurement.processing.steps": {
-      "description": "Atomic processing steps applied to transform raw data into the reported payload. Use a list of steps instead of compound strings.",
+      "description": "Atomic processing steps applied to transform raw data into the reported payload. Use a list of steps instead of compound strings. Extended 2026-06-11 with literature-mining pipeline steps (figure digitization, verification, record splitting).",
       "values": [
         "background_correction",
         "averaging",
@@ -334,15 +334,26 @@
         "fe_calculation",
         "spectrum_merging",
         "energy_alignment",
-        "broadening"
+        "broadening",
+        "digitized_from_published_figure",
+        "user_verified",
+        "manual_record_split",
+        "user_verified_digitization_rules",
+        "duplicate_condition_deduplication",
+        "energy_referencing",
+        "thermodynamic_summation",
+        "rietveld_refinement",
+        "article_style_replot_checked",
+        "overlay_comparison_checked"
       ]
     },
     "measurement.qc.status": {
-      "description": "Quality control status of the measurement.",
+      "description": "Quality control status of the measurement. pending = intent records awaiting execution.",
       "values": [
         "valid",
         "compromised",
-        "failed"
+        "failed",
+        "pending"
       ]
     }
   },

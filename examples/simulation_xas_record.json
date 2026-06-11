@@ -14,14 +14,13 @@
       "name": "Cu(111) slab model with CO",
       "formula": "Cu",
       "provenance": "theoretical",
-      "notes": "4-layer Cu(111) slab, CO at atop site."
+      "notes": "4-layer Cu(111) slab, CO at atop site. Static 0 K electronic structure."
     },
     "sample_form": "slab_model"
   },
   "context": {
     "environment": "in_silico",
-    "temperature_K": 0,
-    "notes": "Static 0 K electronic structure."
+    "temperature_K": 0
   },
   "system": {
     "domain": "computational",

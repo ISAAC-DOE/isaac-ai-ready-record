@@ -702,14 +702,29 @@ def validate_record_vocabulary(record):
             hits = _resolve_path(record, path_parts)
 
             for dotted_path, value in hits:
-                if isinstance(value, str) and value not in allowed:
-                    errors.append({
-                        "path": dotted_path,
-                        "message": (
-                            f"'{value}' is not in the vocabulary for "
-                            f"{cat_key}. Allowed: {allowed}"
-                        ),
-                    })
+                if isinstance(value, str):
+                    if value not in allowed:
+                        errors.append({
+                            "path": dotted_path,
+                            "message": (
+                                f"'{value}' is not in the vocabulary for "
+                                f"{cat_key}. Allowed: {allowed}"
+                            ),
+                        })
+                elif isinstance(value, list):
+                    # FIX (2026-06-11): list-valued leaves (e.g.
+                    # measurement.processing.steps) were silently skipped by
+                    # the isinstance(str) check, making those vocabulary
+                    # categories dead code. Validate each string element.
+                    for idx, item in enumerate(value):
+                        if isinstance(item, str) and item not in allowed:
+                            errors.append({
+                                "path": f"{dotted_path}.{idx}",
+                                "message": (
+                                    f"'{item}' is not in the vocabulary for "
+                                    f"{cat_key}. Allowed: {allowed}"
+                                ),
+                            })
 
     return errors
 
@@ -731,7 +746,12 @@ def validate_semantic_integrity(data: dict) -> list:
 
     if record_type == "evidence":
         outputs = data.get("descriptors", {}).get("outputs", [])
-        has_real_value = False
+
+        # FIX (2026-06-11): the placeholder scan and the non-null-value scan
+        # were entangled in one loop with an early break — placeholder
+        # timestamps in any output block AFTER the first block with a real
+        # value were never scanned. The two rules now run independently
+        # over ALL output blocks.
         for output in outputs:
             gen_utc = output.get("generated_utc", "")
             if gen_utc and ("PLACEHOLDER" in gen_utc.upper()
@@ -746,12 +766,12 @@ def validate_semantic_integrity(data: dict) -> list:
                         f"Use a real ISO 8601 timestamp."
                     ),
                 })
-            for desc in output.get("descriptors", []):
-                if desc.get("value") is not None:
-                    has_real_value = True
-                    break
-            if has_real_value:
-                break
+
+        has_real_value = any(
+            desc.get("value") is not None
+            for output in outputs
+            for desc in output.get("descriptors", [])
+        )
 
         if not has_real_value:
             errors.append({

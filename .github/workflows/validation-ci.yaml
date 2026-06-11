@@ -1,0 +1,25 @@
+name: Validation Battery
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  battery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install jsonschema rfc3339-validator PyYAML GitPython requests pytest
+
+      - name: Run validation battery
+        run: |
+          pytest tests/test_validation_battery.py -v --tb=short

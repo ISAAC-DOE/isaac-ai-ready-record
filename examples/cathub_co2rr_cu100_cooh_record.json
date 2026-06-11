@@ -46,13 +46,6 @@
       "functional_name": "RPBE"
     }
   },
-  "literature": {
-    "doi": "https://doi.org/10.1021/acsenergylett.1c01485",
-    "title": "The role of roughening in enhancing selectivity to C2+ products during CO2 electroreduction on copper",
-    "authors": "Gauthier, Joseph A.; Halldin Stenlid, Joakim; Abild-Pedersen, Frank; Head-Gordon, Martin; Bell, Alexis T.",
-    "year": 2021,
-    "catalysis_hub_pub_id": "Gauthierrole2021"
-  },
   "descriptors": {
     "outputs": [
       {
@@ -78,5 +71,21 @@
         ]
       }
     ]
-  }
+  },
+  "assets": [
+    {
+      "asset_id": "source_publication",
+      "content_role": "auxiliary_reference",
+      "uri": "https://doi.org/10.1021/acsenergylett.1c01485",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "media_type": "publication/journal_article",
+      "citation": {
+        "doi": "https://doi.org/10.1021/acsenergylett.1c01485",
+        "title": "The role of roughening in enhancing selectivity to C2+ products during CO2 electroreduction on copper",
+        "authors": "Gauthier, Joseph A.; Halldin Stenlid, Joakim; Abild-Pedersen, Frank; Head-Gordon, Martin; Bell, Alexis T.",
+        "year": 2021,
+        "catalysis_hub_pub_id": "Gauthierrole2021"
+      }
+    }
+  ]
 }

@@ -14,7 +14,7 @@
       "name": "Copper(II) Oxide",
       "formula": "CuO2",
       "provenance": "commercial",
-      "notes": "Vendor: Sigma-Aldrich. Pressed pellet."
+      "notes": "Vendor: Sigma-Aldrich. Pressed pellet. [ambient_exposure: True]"
     },
     "sample_form": "pellet",
     "composition": {
@@ -48,9 +48,10 @@
   },
   "context": {
     "environment": "ex_situ",
-    "atmosphere": "air",
-    "ambient_exposure": true,
-    "temperature_K": 298
+    "temperature_K": 298,
+    "thermodynamics": {
+      "atmosphere": "air"
+    }
   },
   "measurement": {
     "processing": {

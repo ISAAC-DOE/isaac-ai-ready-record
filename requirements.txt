@@ -11,3 +11,4 @@ gunicorn>=21.0.0
 requests>=2.28.0
 PyYAML>=6.0.0
 GitPython>=3.1.0
+rfc3339-validator>=0.1.4
