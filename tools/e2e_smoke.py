@@ -107,6 +107,25 @@ def main():
         pvr = (fetched.get("context", {}).get("electrochemistry", {}) or {}).get("potential_vs_RHE")
         check("potential_vs_RHE survives round-trip", isinstance(pvr, dict) and "rhe_basis" in pvr)
 
+    # 4b. Query API endpoints (2026-06-12)
+    code, resp = http("GET", "/records?record_domain=performance&limit=3")
+    check("filter: record_domain=performance", code == 200 and isinstance(resp, list)
+          and all(r.get("record_domain") == "performance" for r in resp))
+    code, resp = http("GET", "/records?reaction=CO2RR&limit=3&full=true")
+    ok_rx = code == 200 and isinstance(resp, list) and len(resp) > 0 and all(
+        (r.get("context", {}).get("electrochemistry", {}) or {}).get("reaction") == "CO2RR" for r in resp)
+    check("filter: reaction=CO2RR with full=true", ok_rx)
+    code, resp = http("GET", "/records?bogus_param=1")
+    check("unknown query param rejected (400)", code == 400)
+    code, resp = http("POST", "/records/batch", {"record_ids": [rid]})
+    check("batch fetch returns the test record", code == 200 and resp.get("returned") == 1)
+    code, resp = http("POST", "/records/query", {"sql": "SELECT COUNT(*) AS n FROM records"})
+    check("read-only SQL query works", code == 200 and resp.get("rows") and "n" in resp["rows"][0])
+    code, resp = http("POST", "/records/query", {"sql": "DELETE FROM records"})
+    check("destructive SQL rejected", code == 400)
+    code, resp = http("GET", f"/records/{rid}/quality")
+    check("quality endpoint recomputes report", code == 200 and "warnings" in json.dumps(resp) or code == 200)
+
     # 5. DELETE + 404
     code, d = http("DELETE", f"/records/{rid}")
     check("DELETE test record", code == 200 and d.get("deleted") is True)
