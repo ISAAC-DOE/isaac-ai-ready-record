@@ -14,7 +14,12 @@
       "name": "Cu nanoparticles on GDE",
       "formula": "Cu",
       "provenance": "synthesized",
-      "identifiers": [{"scheme": "internal", "value": "GDE-CuNP-2025-042"}],
+      "identifiers": [
+        {
+          "scheme": "internal",
+          "value": "GDE-CuNP-2025-042"
+        }
+      ],
       "notes": "7 nm Cu nanoparticles spray-coated on gas diffusion electrode (PTFE-treated carbon paper)."
     },
     "sample_form": "film",
@@ -44,7 +49,25 @@
         "concentration_M": 1.0
       },
       "pH": 6.8,
-      "pH_basis": "nominal"
+      "pH_basis": "nominal",
+      "reference_electrode": {
+        "type": "Ag/AgCl",
+        "filling_solution": "3.0 M KCl",
+        "offset_V_vs_SHE": 0.21,
+        "offset_basis": "tabulated"
+      },
+      "potential_vs_RHE": {
+        "value_V": -1.0,
+        "rhe_basis": "reported_as_RHE",
+        "ir_corrected": "yes",
+        "conversion": {
+          "input_path": "context.electrochemistry.potential_setpoint_V",
+          "from_scale": "RHE",
+          "formula": "identity (setpoint already on RHE scale; lab converted from Ag/AgCl at acquisition)",
+          "converted_by": "example_template",
+          "converted_utc": "2025-12-16T17:30:00Z"
+        }
+      }
     },
     "transport": {
       "flow_mode": "gas_diffusion",
@@ -81,7 +104,11 @@
   },
   "measurement": {
     "processing": {
-      "steps": ["gc_analysis", "fe_calculation", "steady_state_extraction"],
+      "steps": [
+        "gc_analysis",
+        "fe_calculation",
+        "steady_state_extraction"
+      ],
       "recipe_link": {
         "rel": "processing_recipe",
         "target": "workflow://co2rr_fe_calculator/v3.0"
@@ -94,7 +121,15 @@
           {
             "name": "time",
             "unit": "s",
-            "values": [0, 600, 1200, 1800, 2400, 3000, 3600]
+            "values": [
+              0,
+              600,
+              1200,
+              1800,
+              2400,
+              3000,
+              3600
+            ]
           }
         ],
         "channels": [
@@ -102,13 +137,29 @@
             "name": "current_density",
             "unit": "mA/cm2",
             "role": "measured_response",
-            "values": [-150.1, -150.3, -150.8, -150.5, -150.2, -150.5, -150.4]
+            "values": [
+              -150.1,
+              -150.3,
+              -150.8,
+              -150.5,
+              -150.2,
+              -150.5,
+              -150.4
+            ]
           },
           {
             "name": "potential_readback",
             "unit": "V_RHE",
             "role": "control_readback",
-            "values": [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
+            "values": [
+              -1.0,
+              -1.0,
+              -1.0,
+              -1.0,
+              -1.0,
+              -1.0,
+              -1.0
+            ]
           }
         ]
       },
@@ -118,7 +169,12 @@
           {
             "name": "injection_time",
             "unit": "s",
-            "values": [900, 1800, 2700, 3600]
+            "values": [
+              900,
+              1800,
+              2700,
+              3600
+            ]
           }
         ],
         "channels": [
@@ -126,19 +182,34 @@
             "name": "co_concentration",
             "unit": "ppm",
             "role": "measured_response",
-            "values": [450, 455, 448, 452]
+            "values": [
+              450,
+              455,
+              448,
+              452
+            ]
           },
           {
             "name": "ethylene_concentration",
             "unit": "ppm",
             "role": "measured_response",
-            "values": [1200, 1250, 1240, 1260]
+            "values": [
+              1200,
+              1250,
+              1240,
+              1260
+            ]
           },
           {
             "name": "hydrogen_concentration",
             "unit": "ppm",
             "role": "measured_response",
-            "values": [800, 810, 795, 805]
+            "values": [
+              800,
+              810,
+              795,
+              805
+            ]
           }
         ]
       }

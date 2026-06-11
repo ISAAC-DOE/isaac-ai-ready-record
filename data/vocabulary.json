@@ -155,8 +155,7 @@
         "Ag/AgCl",
         "SCE",
         "Hg/HgO",
-        "Hg/HgSO4",
-        "V_vs_Ref"
+        "Hg/HgSO4"
       ]
     },
     "context.electrochemistry.cell_type": {
@@ -215,6 +214,32 @@
         "none",
         "implicit",
         "explicit"
+      ]
+    },
+    "context.electrochemistry.potential_vs_RHE.rhe_basis": {
+      "description": "Trust tier of the derived RHE potential. Filter meta-analyses with rhe_basis IN (measured_direct, derived_calibrated).",
+      "values": [
+        "measured_direct",
+        "derived_calibrated",
+        "reported_as_RHE",
+        "derived_nominal",
+        "in_silico_setpoint",
+        "not_convertible_no_pH",
+        "not_convertible_no_reference_offset",
+        "not_reported"
+      ]
+    },
+    "context.electrochemistry.reference_electrode.type": {
+      "description": "Physical reference electrode chemistry.",
+      "values": [
+        "Ag/AgCl",
+        "SCE",
+        "Hg/HgO",
+        "Hg/HgSO4",
+        "RHE",
+        "SHE",
+        "pseudo_reference",
+        "other"
       ]
     }
   },
@@ -687,7 +712,9 @@
         "uM",
         "mM",
         "bar",
-        "ppm"
+        "ppm",
+        "V_ref",
+        "V_cell"
       ]
     },
     "units.spectroscopy": {

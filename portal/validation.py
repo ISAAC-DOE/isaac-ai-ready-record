@@ -169,6 +169,56 @@ class ValidationError(Exception):
         super().__init__(f"Record failed ISAAC validation with {n} error(s)")
 
 
+def _potential_contract_errors(record: dict) -> list:
+    """
+    Canonical Potential Contract (2026-06-12):
+    1. potential_scale naming a physical electrode requires the structured
+       reference_electrode block (with a numeric offset for convertibility).
+    2. For derived rhe_basis values, the stored value_V must match the
+       recomputation from its own frozen conversion inputs within 2 mV —
+       provenance and value can never silently drift apart.
+    """
+    errors = []
+    ec = ((record.get("context") or {}).get("electrochemistry") or {})
+    if not isinstance(ec, dict):
+        return errors
+
+    scale = ec.get("potential_scale")
+    if scale in ("Ag/AgCl", "SCE", "Hg/HgO", "Hg/HgSO4"):
+        ref = ec.get("reference_electrode")
+        if not isinstance(ref, dict) or not ref.get("type"):
+            errors.append({
+                "path": "context/electrochemistry/reference_electrode",
+                "message": f"potential_scale '{scale}' names a physical reference electrode; the structured "
+                           f"reference_electrode block (type, filling_solution, offset_V_vs_SHE) is required "
+                           f"so the measurement is convertible (Potential Contract).",
+            })
+        elif ref.get("type") != scale:
+            errors.append({
+                "path": "context/electrochemistry/reference_electrode/type",
+                "message": f"reference_electrode.type '{ref.get('type')}' must equal potential_scale '{scale}'.",
+            })
+
+    pvr = ec.get("potential_vs_RHE")
+    if isinstance(pvr, dict) and pvr.get("rhe_basis") in ("derived_calibrated", "derived_nominal"):
+        conv = pvr.get("conversion") or {}
+        val = pvr.get("value_V")
+        off = conv.get("offset_V_vs_SHE_used")
+        ph = conv.get("pH_used")
+        src = ec.get("potential_setpoint_V")
+        if all(isinstance(x, (int, float)) for x in (val, off, ph, src)):
+            slope = 0.05916 if "0.05916" in str(conv.get("formula", "")) else 0.0591
+            recomputed = src + off + slope * ph
+            if abs(recomputed - val) > 0.002:
+                errors.append({
+                    "path": "context/electrochemistry/potential_vs_RHE/value_V",
+                    "message": f"Derived value_V={val} does not match recomputation from its own conversion "
+                               f"inputs ({src} + {off} + {slope}*{ph} = {recomputed:.4f}); tolerance 2 mV. "
+                               f"Provenance and value must agree (Potential Contract).",
+                })
+    return errors
+
+
 def validate_record_full(record: dict) -> dict:
     """
     Run ALL validation layers against a record dict.
@@ -210,6 +260,7 @@ def validate_record_full(record: dict) -> dict:
     # Canonical-form enforcement (Decisions A & B) — deterministic, never
     # degrades, lives in the vocabulary layer of the response.
     vocabulary_errors = vocabulary_errors + _canonical_form_errors(record)
+    vocabulary_errors = vocabulary_errors + _potential_contract_errors(record)
 
     try:
         semantic_errors = ontology.validate_semantic_integrity(record)

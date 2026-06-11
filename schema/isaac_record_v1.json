@@ -403,7 +403,8 @@
               ]
             },
             "potential_setpoint_V": {
-              "type": "number"
+              "type": "number",
+              "description": "PRIMARY, immutable: the as-commanded potential on the scale declared by potential_scale, exactly as measured/reported. Never overwritten by conversion \u2014 the RHE projection lives in potential_vs_RHE."
             },
             "current_setpoint_mA_cm2": {
               "type": "number"
@@ -416,8 +417,7 @@
                 "Ag/AgCl",
                 "SCE",
                 "Hg/HgO",
-                "Hg/HgSO4",
-                "V_vs_Ref"
+                "Hg/HgSO4"
               ]
             },
             "scan_rate_mV_s": {
@@ -438,6 +438,14 @@
                 },
                 "percent": {
                   "type": "number"
+                },
+                "cell_resistance_ohm": {
+                  "type": "number",
+                  "description": "Uncompensated resistance used for correction (promoted: 119 records already carried it ad hoc)."
+                },
+                "applied_to_reported_potential": {
+                  "type": "boolean",
+                  "description": "Whether potential_setpoint_V already includes the correction."
                 }
               }
             },
@@ -465,6 +473,192 @@
                 "measured",
                 "nominal",
                 "buffered_assumed"
+              ]
+            },
+            "reference_electrode": {
+              "type": "object",
+              "required": [
+                "type"
+              ],
+              "additionalProperties": false,
+              "description": "Structured specification of the physical reference electrode the PRIMARY potentials were measured against. Required when potential_scale names a physical electrode. Supersedes the free-text system.configuration.reference_electrode.",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "Ag/AgCl",
+                    "SCE",
+                    "Hg/HgO",
+                    "Hg/HgSO4",
+                    "RHE",
+                    "SHE",
+                    "pseudo_reference",
+                    "other"
+                  ]
+                },
+                "filling_solution": {
+                  "type": "string",
+                  "description": "e.g. '3.0 M KCl', 'saturated KCl'. For Ag/AgCl this fixes a 13-25 mV offset ambiguity."
+                },
+                "offset_V_vs_SHE": {
+                  "type": "number",
+                  "description": "E0 of this reference vs SHE. Ag/AgCl 3.0M KCl: 0.210; 1.0M KCl: 0.235; sat.: 0.197."
+                },
+                "offset_basis": {
+                  "type": "string",
+                  "enum": [
+                    "tabulated",
+                    "vendor_spec",
+                    "calibrated",
+                    "reported_by_source",
+                    "assumed"
+                  ]
+                },
+                "model": {
+                  "type": "string",
+                  "description": "Vendor/model, e.g. 'Gaskatel HydroFlex'."
+                }
+              }
+            },
+            "potential_vs_RHE": {
+              "type": "object",
+              "required": [
+                "rhe_basis"
+              ],
+              "additionalProperties": false,
+              "description": "DERIVED canonical query axis: the operating potential in V vs RHE (setpoint for potentiostatic, steady-state measured potential for galvanostatic). NEVER the primary \u2014 primaries (potential_setpoint_V, descriptors, channels) are immutable on their as-measured scale. value_V may be null ONLY with an explicit not_* rhe_basis, so records can never silently fall off the potential axis.",
+              "properties": {
+                "value_V": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "rhe_basis": {
+                  "type": "string",
+                  "enum": [
+                    "measured_direct",
+                    "derived_calibrated",
+                    "reported_as_RHE",
+                    "derived_nominal",
+                    "in_silico_setpoint",
+                    "not_convertible_no_pH",
+                    "not_convertible_no_reference_offset",
+                    "not_reported"
+                  ],
+                  "description": "Trust tier of value_V. measured_direct: physical RHE reference. derived_calibrated: converted with a calibrated offset. reported_as_RHE: source stated RHE, conversion unrecoverable. derived_nominal: converted with tabulated/assumed offset + nominal pH. not_*: value_V is null, reason explicit."
+                },
+                "uncertainty_V": {
+                  "type": "number",
+                  "description": "Estimated uncertainty of value_V (offset ambiguity + pH basis), in V."
+                },
+                "ir_corrected": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "unknown"
+                  ],
+                  "description": "Whether value_V includes iR correction. May differ from the primary."
+                },
+                "conversion": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "Frozen provenance. Inputs are snapshotted (pH_used, offset) so later context edits cannot silently invalidate the derivation.",
+                  "properties": {
+                    "input_path": {
+                      "type": "string",
+                      "description": "Path of the converted PRIMARY, e.g. 'context.electrochemistry.potential_setpoint_V' or 'descriptors:steady_state_potential'."
+                    },
+                    "from_scale": {
+                      "type": "string"
+                    },
+                    "formula": {
+                      "type": "string",
+                      "description": "e.g. 'E_RHE = E_meas + offset_V_vs_SHE + 0.0591*pH'. Verbatim source formula when reported_by_source."
+                    },
+                    "offset_V_vs_SHE_used": {
+                      "type": "number"
+                    },
+                    "offset_basis_used": {
+                      "type": "string",
+                      "enum": [
+                        "tabulated",
+                        "vendor_spec",
+                        "calibrated",
+                        "reported_by_source",
+                        "assumed"
+                      ]
+                    },
+                    "pH_used": {
+                      "type": "number"
+                    },
+                    "pH_basis_used": {
+                      "type": "string",
+                      "enum": [
+                        "measured",
+                        "nominal",
+                        "buffered_assumed"
+                      ]
+                    },
+                    "converted_by": {
+                      "type": "string"
+                    },
+                    "converted_utc": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "rhe_basis": {
+                        "enum": [
+                          "derived_calibrated",
+                          "derived_nominal"
+                        ]
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "value_V",
+                      "conversion"
+                    ],
+                    "properties": {
+                      "conversion": {
+                        "required": [
+                          "offset_V_vs_SHE_used",
+                          "pH_used",
+                          "formula"
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "rhe_basis": {
+                        "enum": [
+                          "not_convertible_no_pH",
+                          "not_convertible_no_reference_offset",
+                          "not_reported"
+                        ]
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "value_V": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
               ]
             }
           }

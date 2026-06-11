@@ -137,3 +137,38 @@ def test_vocabulary_list_leaves_checked():
     base["measurement"]["processing"]["steps"] = ["gc_analysis", "made_up_step_xyz"]
     result = validation.validate_record_full(base)
     assert not result["valid"], "non-vocabulary processing step must be rejected"
+
+
+def test_potential_contract():
+    """Potential Contract: ref-scale needs structured reference; derived values must recompute."""
+    base = json.loads((REPO / "examples" / "co2rr_performance_record.json").read_text())
+
+    # Physical-reference scale without structured reference_electrode -> error
+    r = json.loads(json.dumps(base))
+    r["context"]["electrochemistry"]["potential_scale"] = "Ag/AgCl"
+    del r["context"]["electrochemistry"]["reference_electrode"]
+    assert not validation.validate_record_full(r)["valid"]
+
+    # Derived value that contradicts its own conversion inputs -> error
+    r = json.loads(json.dumps(base))
+    ec = r["context"]["electrochemistry"]
+    ec["potential_vs_RHE"] = {
+        "value_V": 5.0,  # wrong on purpose
+        "rhe_basis": "derived_nominal",
+        "ir_corrected": "no",
+        "conversion": {"offset_V_vs_SHE_used": 0.210, "pH_used": 6.8,
+                        "formula": "E_RHE = E_meas + offset_V_vs_SHE + 0.0591*pH"},
+    }
+    assert not validation.validate_record_full(r)["valid"]
+
+    # Honest null: not-convertible with explicit reason -> passes
+    r = json.loads(json.dumps(base))
+    r["context"]["electrochemistry"]["potential_vs_RHE"] = {
+        "value_V": None, "rhe_basis": "not_convertible_no_pH"}
+    assert validation.validate_record_full(r)["valid"]
+
+    # Null value with a value-bearing basis -> schema rejects
+    r = json.loads(json.dumps(base))
+    r["context"]["electrochemistry"]["potential_vs_RHE"] = {
+        "value_V": None, "rhe_basis": "derived_nominal"}
+    assert not validation.validate_record_full(r)["valid"]
