@@ -356,7 +356,13 @@ def create_record():
     # internally — the chokepoint guarantee — at negligible cost).
     try:
         record_id = database.save_record(data)
-        return jsonify({"success": True, "record_id": record_id}), 201
+        resp = {"success": True, "record_id": record_id}
+        # Warnings tier: accepted-but-improvable feedback travels with the 201
+        if result.get("warnings"):
+            resp["warnings"] = result["warnings"]
+        if result.get("info"):
+            resp["info"] = result["info"]
+        return jsonify(resp), 201
     except validation.ValidationError as ve:
         # Unreachable unless validation rules changed between the check
         # above and the save; report identically to the pre-save failure.
