@@ -309,6 +309,54 @@ def _warning_checks(record: dict):
     return warnings, info
 
 
+# ---------------------------------------------------------------------------
+# Error-message enhancement (2026-06-12): rejection must TEACH.
+# additionalProperties rejections name the unknown field, list the allowed
+# fields at that location, and say what to do about it.
+# ---------------------------------------------------------------------------
+import re as _re
+
+
+def _schema_node_at(path: str):
+    """Resolve a jsonschema error path like 'context/electrochemistry' to the schema node."""
+    node = ISAAC_SCHEMA
+    for part in [p for p in path.split("/") if p and p != "(root)"]:
+        props = node.get("properties", {})
+        if part in props:
+            node = props[part]
+        elif part.isdigit() and "items" in node:
+            node = node["items"]
+        elif "items" in node:
+            node = node["items"]
+        else:
+            return None
+        if node.get("type") == "array" and "items" in node:
+            pass  # next loop part may be an index
+    return node
+
+
+def _enhance_schema_errors(errors: list) -> list:
+    out = []
+    for e in errors:
+        msg = e.get("message", "")
+        m = _re.match(r"Additional properties are not allowed \((.*) (?:was|were) unexpected\)", msg)
+        if m:
+            fields = m.group(1)
+            node = _schema_node_at(e.get("path", ""))
+            allowed = sorted((node or {}).get("properties", {}).keys())
+            hint = ""
+            loc = e.get("path", "(root)")
+            if "configuration" not in loc:
+                hint = (" Instrument/station-specific settings belong in system.configuration "
+                        "(the designated open namespace). If this field genuinely generalizes "
+                        "across labs, request a schema addition — do not invent fields.")
+            e = dict(e)
+            e["message"] = (f"Unknown field(s) {fields} in '{loc}'. "
+                            f"Allowed fields here: {allowed}.{hint}")
+        out.append(e)
+    return out
+
+
 def validate_record_full(record: dict) -> dict:
     """
     Run ALL validation layers against a record dict.
@@ -327,13 +375,13 @@ def validate_record_full(record: dict) -> dict:
     on internal failure, matching the API's historical behavior; the JSON
     Schema layer never degrades.
     """
-    schema_errors = [
+    schema_errors = _enhance_schema_errors([
         {
             "path": "/".join(str(p) for p in err.absolute_path) or "(root)",
             "message": err.message,
         }
         for err in ISAAC_VALIDATOR.iter_errors(record)
-    ]
+    ])
 
     # FIX (2026-06-11): degradation is no longer invisible. The layers still
     # fail open (fail-closed is a pending policy decision), but the response

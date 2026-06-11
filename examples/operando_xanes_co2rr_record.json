@@ -54,19 +54,22 @@
       "reaction": "CO2RR",
       "cell_type": "flow_cell",
       "electrolyte": {
-        "pH": 8.3,
         "name": "KHCO3",
         "concentration_M": 1.0
       },
-      "potential_control": {
-        "setpoint_V": -1.0,
-        "scale": "RHE",
-        "mode": "potentiostatic"
-      },
-      "mass_transport": {
-        "mode": "gas_feed_to_flow_field",
-        "reactant": "CO2",
-        "flow_sccm": 20
+      "pH": 8.3,
+      "pH_basis": "nominal",
+      "control_mode": "potentiostatic",
+      "potential_scale": "RHE",
+      "potential_setpoint_V": -1.0
+    },
+    "transport": {
+      "flow_mode": "flowing_liquid",
+      "feed": {
+        "composition": "CO2",
+        "phase": "gas",
+        "flow_rate": 20,
+        "flow_rate_unit": "sccm"
       }
     }
   },

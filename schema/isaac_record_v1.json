@@ -196,8 +196,25 @@
         "acquired_end_utc": {
           "type": "string",
           "format": "date-time"
+        },
+        "last_updated_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revision_note": {
+          "type": "string",
+          "description": "Why the record was last revised."
+        },
+        "split_operation": {
+          "type": "string",
+          "description": "Provenance note when this record was produced by splitting a multi-condition source record."
+        },
+        "derived_from_record_id": {
+          "type": "string",
+          "description": "DEPRECATED: use links[] with rel=derived_from. Retained for 215 legacy records pending the links repair migration."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "sample": {
       "type": "object",
@@ -208,10 +225,7 @@
       "properties": {
         "material": {
           "type": "object",
-          "required": [
-            "name",
-            "formula"
-          ],
+          "additionalProperties": false,
           "properties": {
             "name": {
               "type": "string"
@@ -219,8 +233,32 @@
             "formula": {
               "type": "string"
             },
+            "notes": {
+              "type": "string"
+            },
             "provenance": {
               "type": "string"
+            },
+            "identifiers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "scheme": {
+                    "type": "string",
+                    "description": "e.g. 'internal', 'CAS', 'pubchem'"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "scheme",
+                  "value"
+                ]
+              },
+              "description": "Stable identifiers for cross-referencing."
             }
           }
         },
@@ -232,10 +270,18 @@
           "description": "Type of electrode or substrate configuration (e.g., GDE, RDE, RRDE, foil, MEA)."
         },
         "composition": {
-          "type": "object"
+          "type": "object",
+          "description": "Open by design: per-material composition entries (at%, loadings, layer thicknesses). Keys should be self-describing with units in the name (e.g. loading_nmol_Ni_mm2, Cu_at_fraction)."
         },
         "geometry": {
-          "type": "object"
+          "type": "object",
+          "description": "Open by design: geometric descriptors. geometric_area_cm2 is the canonical electrode-area key.",
+          "properties": {
+            "geometric_area_cm2": {
+              "type": "number",
+              "description": "Geometric (projected) electrode area."
+            }
+          }
         },
         "library": {
           "type": "object",
@@ -261,7 +307,8 @@
           "type": "string",
           "description": "Stable identifier of the PHYSICAL sample/electrode. Two records share a sample_id if and only if they measured the same physical object \u2014 this is the basis that gives same_sample_as links their meaning. Format free (lab convention), but must be stable across all records of that object. Decided 2026-06-12."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "system": {
       "type": "object",
@@ -321,23 +368,62 @@
           "description": "Primary technique or computational method used to produce this record."
         },
         "facility": {
-          "type": "object"
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "facility_name": {
+              "type": "string"
+            },
+            "organization": {
+              "type": "string"
+            },
+            "laboratory": {
+              "type": "string"
+            },
+            "cluster": {
+              "type": "string",
+              "description": "Compute cluster for in_silico work."
+            },
+            "notes": {
+              "type": "string"
+            },
+            "beamline": {
+              "type": "string",
+              "description": "Beamline identifier (e.g. ID26, 4-2)."
+            },
+            "endstation": {
+              "type": "string"
+            },
+            "site": {
+              "type": "string",
+              "description": "Synchrotron/lab site (e.g. ESRF, SSRL)."
+            }
+          }
         },
         "instrument": {
-          "type": "object"
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "instrument_name": {
+              "type": "string"
+            },
+            "instrument_type": {
+              "type": "string"
+            },
+            "vendor_or_project": {
+              "type": "string"
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
         },
         "configuration": {
           "type": "object",
-          "additionalProperties": {
-            "type": [
-              "string",
-              "number",
-              "boolean"
-            ]
-          },
-          "description": "Flat object of categorical settings. No nested objects allowed."
+          "description": "THE designated open extension namespace: instrument/station/beamline-specific configuration that does not generalize across facilities (slits, pass energies, GC columns, channel IDs, logbook fields...). Anything that DOES generalize belongs in a schema field \u2014 request one."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "context": {
       "type": "object",
@@ -450,8 +536,12 @@
                 "applied_to_reported_potential": {
                   "type": "boolean",
                   "description": "Whether potential_setpoint_V already includes the correction."
+                },
+                "notes": {
+                  "type": "string"
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "electrolyte": {
               "type": "object",
@@ -465,8 +555,27 @@
                 },
                 "concentration_M": {
                   "type": "number"
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "co_reactant": {
+                  "type": "object",
+                  "description": "Co-fed reactant in the electrolyte (e.g. nitrate for urea co-electrosynthesis). Open for concentration extras.",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "concentration_M": {
+                      "type": "number"
+                    },
+                    "notes": {
+                      "type": "string"
+                    }
+                  }
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "pH": {
               "type": "number"
@@ -664,8 +773,38 @@
                   }
                 }
               ]
+            },
+            "membrane": {
+              "type": "string",
+              "description": "Membrane/separator, e.g. Nafion_117, Selemion_AEM."
+            },
+            "anolyte": {
+              "type": "object",
+              "description": "Anolyte specification when different from catholyte. Same shape as electrolyte; open for composition extras (e.g. nitrate_concentration_ppm_N).",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "concentration_M": {
+                  "type": "number"
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            },
+            "pH_notes": {
+              "type": "string"
+            },
+            "reaction_notes": {
+              "type": "string",
+              "description": "Nuance the reaction enum cannot express."
+            },
+            "notes": {
+              "type": "string"
             }
-          }
+          },
+          "additionalProperties": false
         },
         "transport": {
           "type": "object",
@@ -708,11 +847,26 @@
                 },
                 "partial_pressures": {
                   "type": "object"
+                },
+                "CO_percent": {
+                  "type": "number",
+                  "description": "CO fraction of the feed in percent (operando feed-variation studies)."
+                },
+                "pressure_bar": {
+                  "type": "number"
+                },
+                "notes": {
+                  "type": "string"
                 }
               },
-              "description": "Feed must be an object with phase and composition. Do not use a bare string."
+              "description": "Feed must be an object with phase and composition. Do not use a bare string.",
+              "additionalProperties": false
+            },
+            "flow_mode_notes": {
+              "type": "string"
             }
-          }
+          },
+          "additionalProperties": false
         },
         "thermodynamics": {
           "type": "object",
@@ -749,7 +903,32 @@
       ],
       "properties": {
         "processing": {
-          "type": "object"
+          "type": "object",
+          "description": "Processing chain. Canonical fields: steps[] (controlled vocabulary) + recipe_link. NOTE: block intentionally not locked yet \u2014 CatHub ingestion metadata (cathub_*) relocation pending; do not add new ad-hoc keys.",
+          "properties": {
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Ordered processing steps from the measurement.processing.steps vocabulary."
+            },
+            "recipe_link": {
+              "type": "object",
+              "properties": {
+                "rel": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "string"
+                }
+              }
+            },
+            "type": {
+              "type": "string",
+              "description": "DEPRECATED compound descriptor \u2014 use steps[]."
+            }
+          }
         },
         "series": {
           "type": "array",
@@ -784,8 +963,12 @@
                       "items": {
                         "type": "number"
                       }
+                    },
+                    "notes": {
+                      "type": "string"
                     }
-                  }
+                  },
+                  "additionalProperties": false
                 }
               },
               "channels": {
@@ -821,20 +1004,84 @@
                       "items": {
                         "type": "number"
                       }
+                    },
+                    "notes": {
+                      "type": "string"
+                    },
+                    "string_values": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Categorical channel values when the channel is non-numeric."
                     }
-                  }
+                  },
+                  "additionalProperties": false
                 }
+              },
+              "conditions": {
+                "type": "object",
+                "description": "Operating conditions specific to this series when they differ from context (e.g. per-series control_mode in multi-step protocols)."
+              },
+              "data_source": {
+                "type": "string",
+                "description": "e.g. 'digitized_from_published_figure'."
+              },
+              "source_figure_ref": {
+                "type": "string"
+              },
+              "source_figure_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "notes": {
+                "type": "string"
+              },
+              "conditions_inherited_from": {
+                "type": "string",
+                "description": "Provenance: series/record whose conditions this series inherits (record-split bookkeeping)."
               }
-            }
+            },
+            "additionalProperties": false
           }
         },
         "qc": {
           "type": "object",
           "required": [
             "status"
-          ]
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "valid",
+                "compromised",
+                "failed",
+                "pending"
+              ],
+              "description": "pending = intent records awaiting execution."
+            },
+            "evidence": {
+              "type": "string",
+              "description": "REQUIRED in practice when status != valid: what is compromised/failed and why. \"N/A\" defeats the purpose."
+            },
+            "assumptions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Documented judgment calls made during record creation."
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
         }
-      }
+      },
+      "additionalProperties": false
     },
     "links": {
       "type": "array",
@@ -925,8 +1172,39 @@
           },
           "media_type": {
             "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "citation": {
+            "type": "object",
+            "description": "Bibliographic metadata for literature-derived assets (authors, title, journal, year, volume, pages, doi)."
+          },
+          "caption_verbatim": {
+            "type": "string",
+            "description": "Verbatim figure caption from the source publication."
+          },
+          "caption_highlights": {
+            "type": "object",
+            "description": "Structured caption analysis (axes, series, error bars...)."
+          },
+          "paper_conclusions_about_figure": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "figure_label": {
+            "type": "string"
+          },
+          "page": {
+            "type": [
+              "number",
+              "string"
+            ]
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "descriptors": {
@@ -955,7 +1233,23 @@
                 "description": "ISO 8601 timestamp of when the descriptors were generated. Placeholder strings are not allowed."
               },
               "generated_by": {
-                "type": "object"
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "agent": {
+                    "type": "string",
+                    "description": "Tool/pipeline/person that generated these descriptors."
+                  },
+                  "version": {
+                    "type": "string"
+                  },
+                  "author": {
+                    "type": "string"
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
               },
               "descriptors": {
                 "type": "array",
@@ -1003,7 +1297,41 @@
                       "type": "string"
                     },
                     "uncertainty": {
-                      "type": "object"
+                      "type": "object",
+                      "additionalProperties": false,
+                      "description": "Uncertainty of the value. Prefer sigma+unit; basis documents provenance (reported, digitization, assumed). Do NOT encode \"not reported\" as sigma:0 \u2014 state it in basis.",
+                      "properties": {
+                        "sigma": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "description": "Standard deviation. null = not reported (prefer basis: not_reported)."
+                        },
+                        "unit": {
+                          "type": "string"
+                        },
+                        "confidence": {
+                          "type": "number",
+                          "description": "Confidence level for interval-type uncertainty (e.g. 0.95)."
+                        },
+                        "basis": {
+                          "type": "string",
+                          "description": "Provenance: 'reported', 'digitization_estimate', 'assumed', 'not_reported'."
+                        },
+                        "notes": {
+                          "type": "string"
+                        },
+                        "bounds": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2,
+                          "description": "[lower, upper] interval bounds (alternative to sigma)."
+                        }
+                      }
                     },
                     "at": {
                       "type": "object",
@@ -1058,8 +1386,26 @@
                   },
                   "additionalProperties": false
                 }
+              },
+              "source_figure_ref": {
+                "type": "string",
+                "description": "Single source figure (prefer source_figure_refs)."
+              },
+              "source_figure_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Source figures these descriptors were derived from."
+              },
+              "note": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string"
               }
-            }
+            },
+            "additionalProperties": false
           }
         }
       }

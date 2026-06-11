@@ -210,3 +210,25 @@ def test_warnings_tier():
     r["links"] = []
     res = validation.validate_record_full(r)
     assert any(w["code"] == "NO_LINKS" for w in res.get("warnings", []))
+
+
+def test_wave2_locks_and_teaching_errors():
+    """Wave-2: locked blocks reject unknown fields with TEACHING messages."""
+    base = json.loads((REPO / "examples" / "co2rr_performance_record.json").read_text())
+
+    r = json.loads(json.dumps(base))
+    r["context"]["electrochemistry"]["scale_is_converted"] = False  # the JCAP stray
+    res = validation.validate_record_full(r)
+    assert not res["valid"]
+    msg = res["schema_errors"][0]["message"]
+    assert "Allowed fields here" in msg, "rejection must list allowed fields"
+    assert "request a schema addition" in msg, "rejection must teach the process"
+
+    r = json.loads(json.dumps(base))
+    r["system"]["stray_field"] = "x"
+    assert not validation.validate_record_full(r)["valid"]
+
+    # The designated open namespace still accepts anything (string values)
+    r = json.loads(json.dumps(base))
+    r["system"].setdefault("configuration", {})["my_beamline_quirk_setting"] = "42"
+    assert validation.validate_record_full(r)["valid"]
