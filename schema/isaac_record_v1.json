@@ -236,6 +236,26 @@
         },
         "geometry": {
           "type": "object"
+        },
+        "library": {
+          "type": "object",
+          "description": "High-throughput library membership: locates this sample on a composition-spread plate. Required context for HTE records (e.g. scanning droplet cell screening).",
+          "properties": {
+            "plate_id": {
+              "type": "string",
+              "description": "Library/plate identifier (e.g. '20140213_NiFeCoCe_9931')."
+            },
+            "sample_no": {
+              "type": "integer",
+              "description": "Sample number within the plate."
+            },
+            "position_x_mm": {
+              "type": "number"
+            },
+            "position_y_mm": {
+              "type": "number"
+            }
+          }
         }
       }
     },
@@ -352,7 +372,9 @@
                 "water_splitting",
                 "surface_oxidation",
                 "stripping_voltammetry",
-                "None"
+                "None",
+                "NO3RR",
+                "urea_synthesis"
               ]
             },
             "cell_type": {
@@ -366,7 +388,8 @@
                 "mea_cell",
                 "zero_gap_cell",
                 "coin_cell",
-                "three_electrode"
+                "three_electrode",
+                "scanning_droplet_cell"
               ]
             },
             "control_mode": {
@@ -970,6 +993,14 @@
                   "type": "number"
                 }
               }
+            },
+            "code": {
+              "type": "string",
+              "description": "Simulation code name (e.g. 'VASP', 'Quantum ESPRESSO', 'JDFTx', 'CP2K', 'GPAW')."
+            },
+            "code_version": {
+              "type": "string",
+              "description": "Code version string (e.g. '6.5.1')."
             }
           }
         },
