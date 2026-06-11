@@ -240,8 +240,9 @@ def test_adr001_conventions():
 
     # Positive partial current under CO2RR -> SIGN_CONVENTION warning
     r = json.loads(json.dumps(base))
-    r["descriptors"]["outputs"][0]["descriptors"].append(
-        {"name": "partial_current_density.C2H4", "value": 45.0, "unit": "mA/cm2", "kind": "performance_metric"})
+    template = json.loads(json.dumps(r["descriptors"]["outputs"][0]["descriptors"][0]))
+    template.update({"name": "partial_current_density.C2H4", "value": 45.0, "unit": "mA/cm2"})
+    r["descriptors"]["outputs"][0]["descriptors"].append(template)
     res = validation.validate_record_full(r)
     assert res["valid"]
     assert any(w["code"] == "SIGN_CONVENTION" for w in res.get("warnings", []))
