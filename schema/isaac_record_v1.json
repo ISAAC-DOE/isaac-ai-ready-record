@@ -1128,9 +1128,11 @@
             ]
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "description": "Human-readable link justification."
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "assets": {
@@ -1408,7 +1410,8 @@
             "additionalProperties": false
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     "computation": {
       "type": "object",
@@ -1545,27 +1548,32 @@
             "code_version": {
               "type": "string",
               "description": "Code version string (e.g. '6.5.1')."
+            },
+            "notes": {
+              "type": "string"
             }
-          }
+          },
+          "additionalProperties": false
         },
         "slab_model": {
           "type": "object",
-          "description": "Surface slab model parameters. Only relevant when sample.sample_form = 'slab_model'.",
+          "additionalProperties": false,
+          "description": "Surface slab declaration.",
           "properties": {
             "surface_facet": {
-              "type": "string",
-              "description": "e.g., '111', '100', '110', '211'"
-            },
-            "supercell": {
-              "type": "string",
-              "description": "e.g., '4x4', '4x3', '3x3'"
+              "type": "string"
             },
             "layers": {
-              "type": "integer"
+              "type": [
+                "number",
+                "string"
+              ]
             },
             "fixed_layers": {
-              "type": "string",
-              "description": "e.g., 'bottom 2'"
+              "type": "string"
+            },
+            "supercell": {
+              "type": "string"
             },
             "vacuum_A": {
               "type": "number"
@@ -1573,122 +1581,92 @@
             "lattice_constant_A": {
               "type": "number"
             },
+            "adsorbate_coverage": {
+              "type": "string"
+            },
+            "notes": {
+              "type": "string"
+            },
             "dipole_correction": {
-              "type": "boolean"
+              "type": [
+                "boolean",
+                "string"
+              ]
             }
           }
         },
         "potential_method": {
           "type": "object",
-          "description": "How the electrochemical potential is treated in the simulation.",
+          "additionalProperties": false,
+          "description": "Electrochemical potential treatment declaration.",
           "properties": {
             "type": {
               "type": "string",
-              "enum": [
-                "vacuum",
-                "CHE",
-                "implicit_solvent_PZC",
-                "fixed_NELECT",
-                "grand_canonical",
-                "constant_potential",
-                "joint_DFT"
-              ],
-              "description": "Electrochemical potential treatment."
-            },
-            "target_potential_V_SHE": {
-              "type": "number"
-            },
-            "SHE_work_function_eV": {
-              "type": "number",
-              "description": "Assumed SHE work function (typically 4.4-4.8 eV)."
+              "description": "'CHE', 'constant_potential', 'vacuum', 'none'"
             },
             "solvent_model": {
               "type": "string",
-              "description": "Implicit solvent implementation (e.g., VASPsol, GLSSA13, CANDLE)."
+              "description": "e.g. 'VASPsol', 'implicit_PCM'"
             },
             "dielectric_constant": {
               "type": "number"
+            },
+            "notes": {
+              "type": "string"
+            },
+            "SHE_work_function_eV": {
+              "type": "number",
+              "description": "Work function of SHE used for the absolute potential scale (typically 4.4-4.6 eV)."
+            },
+            "target_potential_V_SHE": {
+              "type": "number",
+              "description": "Target electrode potential for constant-potential (GC-DFT) calculations."
             }
           }
         },
         "output_quantity": {
-          "type": "object",
-          "description": "Specifies what quantity is computed and which corrections are applied. CRITICAL for valid comparison between records.",
-          "properties": {
-            "quantity": {
-              "type": "string",
-              "enum": [
-                "E_DFT",
-                "E_DFT_plus_ZPE",
-                "delta_E",
-                "delta_G_CHE",
-                "delta_G_grand_canonical",
-                "activation_energy_raw",
-                "activation_energy_ZPE",
-                "activation_free_energy"
-              ],
-              "description": "The thermodynamic quantity reported in descriptors."
-            },
-            "corrections_applied": {
-              "type": "object",
-              "description": "Boolean flags for each correction included in the reported quantity.",
-              "properties": {
-                "zero_point_energy": {
-                  "type": "boolean"
-                },
-                "entropy": {
-                  "type": "boolean"
-                },
-                "thermal": {
-                  "type": "boolean"
-                },
-                "solvation": {
-                  "type": "boolean"
-                },
-                "dispersion": {
-                  "type": "boolean"
-                },
-                "grand_canonical": {
-                  "type": "boolean"
-                },
-                "PCET": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
+          "type": "string",
+          "description": "Declared primary output class (e.g. 'adsorption_energy', 'activation_barrier', 'simulated_spectrum')."
         },
         "transition_state": {
           "type": "object",
-          "description": "Transition state search parameters. Only for barrier calculations.",
+          "additionalProperties": false,
+          "description": "Transition-state search declaration.",
           "properties": {
             "method": {
               "type": "string",
-              "enum": [
-                "NEB",
-                "CI-NEB",
-                "dimer",
-                "string",
-                "IRC",
-                "growing_string"
-              ],
-              "description": "TS search method."
+              "description": "e.g. 'CI-NEB', 'dimer'"
             },
             "images": {
-              "type": "integer",
-              "description": "Number of NEB images."
+              "type": "number"
+            },
+            "n_electrons_transferred": {
+              "type": "number"
             },
             "reaction": {
               "type": "string",
-              "description": "e.g., 'CO* + CO* \u2192 OCCO*'"
+              "description": "Elementary step, e.g. CO* + CO* -> OCCO*"
             },
-            "n_electrons_transferred": {
-              "type": "integer",
-              "description": "Electrons transferred in this step (0 for chemical, 1 for PCET)."
+            "notes": {
+              "type": "string"
             }
           }
+        },
+        "energy_reference": {
+          "type": "string",
+          "description": "Energy reference convention (e.g. 'RHE via CHE', 'gas-phase H2/H2O')."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-text declaration notes (hypothesis context, calculation intent)."
+        },
+        "corrections_applied": {
+          "type": "object",
+          "description": "Energy corrections declared applied (booleans): dispersion, entropy, ZPE, PCET, solvation, ..."
         }
-      }
+      },
+      "description": "METHOD DECLARATION ONLY (ADR per computation verdict, 2026-06-13): computation declares HOW \u2014 never numerical results. Scalar results are descriptors (kind=theoretical_metric); simulated spectra/curves are measurement.series with role=simulated_observable; structures/INCARs/raw totals are assets (interim: JSON-strings in system.configuration).",
+      "additionalProperties": false
     }
   }
 }

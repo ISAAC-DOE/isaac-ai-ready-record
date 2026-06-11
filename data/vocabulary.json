@@ -67,7 +67,8 @@
         "inchi",
         "cas",
         "materials_project",
-        "internal"
+        "internal",
+        "ase_db"
       ]
     },
     "sample.electrode_type": {
@@ -99,11 +100,12 @@
     "sample.composition": {
       "description": "Canonical keys for the sample.composition free-form object. Domain-specific keys are allowed but these standard keys should be used when applicable.",
       "values": [
+        "Ag_at_fraction",
+        "Au_at_fraction",
+        "Cu_at_fraction",
+        "Pt_at_fraction",
         "catalyst_loading_mg_cm2",
-        "Cu_pct",
-        "Au_pct",
-        "Ag_pct",
-        "Pt_pct"
+        "support"
       ]
     }
   },
@@ -319,13 +321,10 @@
         "container_image",
         "channel_id",
         "electrode_configuration",
-        "reference_electrode",
         "counter_electrode",
-        "membrane",
         "gc_column_type",
         "gc_model",
         "cell_geometry",
-        "anolyte",
         "product_detection_gas",
         "product_detection_liquid",
         "scan_rate_mV_s",
@@ -561,6 +560,34 @@
         "peak_position",
         "peak_intensity"
       ]
+    },
+    "descriptors.theoretical": {
+      "description": "",
+      "values": [
+        "adsorption_energy",
+        "activation_barrier",
+        "reaction_energy",
+        "total_energy",
+        "formation_energy",
+        "surface_energy",
+        "band_gap",
+        "pourbaix_stability",
+        "work_function",
+        "vibrational_frequency",
+        "d_band_center"
+      ]
+    },
+    "theoretical_aliases": {
+      "description": "Deprecated theoretical descriptor spellings -> canonical (validator rejects aliases with rename message).",
+      "values": [],
+      "map": {
+        "activation_energy": "activation_barrier",
+        "dft.total_energy": "total_energy",
+        "reaction_energy.dE": "adsorption_energy",
+        "dE_ads": "adsorption_energy",
+        "binding_energy_eV": "adsorption_energy",
+        "Eads": "adsorption_energy"
+      }
     }
   },
   "Computation": {
