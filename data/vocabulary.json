@@ -1,636 +1,694 @@
 {
-    "Record Info": {
-        "record_type": {
-            "description": "Fundamental nature of the record.",
-            "values": [
-                "evidence",
-                "intent",
-                "synthesis"
-            ]
-        },
-        "record_domain": {
-            "description": "Scientific domain of the record content.",
-            "values": [
-                "characterization",
-                "performance",
-                "simulation",
-                "theory",
-                "derived"
-            ]
-        },
-        "source_type": {
-            "description": "Origin of the data acquisition.",
-            "values": [
-                "facility",
-                "laboratory",
-                "computation",
-                "literature",
-                "database",
-                "industrial"
-            ]
-        }
+  "Record Info": {
+    "record_type": {
+      "description": "Fundamental nature of the record.",
+      "values": [
+        "evidence",
+        "intent",
+        "synthesis"
+      ]
     },
-    "Sample": {
-        "sample.sample_form": {
-            "description": "Physical realization of the sample.",
-            "values": [
-                "powder",
-                "pellet",
-                "film",
-                "monolith",
-                "liquid",
-                "gas",
-                "single_crystal",
-                "nanoparticle",
-                "membrane_electrode_assembly",
-                "slab_model",
-                "cluster_model",
-                "unit_cell",
-                "fluids"
-            ]
-        },
-        "sample.material.provenance": {
-            "description": "Origin of the material.",
-            "values": [
-                "commercial",
-                "synthesized",
-                "fabricated",
-                "theoretical",
-                "literature",
-                "natural"
-            ]
-        },
-        "sample.material.identifiers.scheme": {
-            "description": "Scheme for external identifiers.",
-            "values": [
-                "doi",
-                "inchi",
-                "cas",
-                "materials_project",
-                "internal"
-            ]
-        },
-        "sample.electrode_type": {
-            "description": "Type of electrode or substrate configuration. Captures the functional form of the electrode assembly, distinct from the sample_form which describes the material form.",
-            "values": [
-                "GDE",
-                "thin_film",
-                "patterned_film",
-                "nanoparticle",
-                "foil",
-                "mesh",
-                "RDE",
-                "RRDE",
-                "pellet",
-                "single_crystal",
-                "MEA",
-                "flow_field_plate"
-            ]
-        },
-        "sample.geometry": {
-            "description": "Canonical keys for the sample.geometry free-form object. Use these exact key names to ensure cross-record queryability.",
-            "values": [
-                "geometric_area_cm2",
-                "thickness_um",
-                "particle_size_nominal_nm",
-                "loading_mg_cm2"
-            ]
-        },
-        "sample.composition": {
-            "description": "Canonical keys for the sample.composition free-form object. Domain-specific keys are allowed but these standard keys should be used when applicable.",
-            "values": [
-                "catalyst_loading_mg_cm2",
-                "Cu_pct",
-                "Au_pct",
-                "Ag_pct",
-                "Pt_pct"
-            ]
-        }
+    "record_domain": {
+      "description": "Scientific domain of the record content.",
+      "values": [
+        "characterization",
+        "performance",
+        "simulation",
+        "theory",
+        "derived"
+      ]
     },
-    "Context": {
-        "context.environment": {
-            "description": "The surrounding condition.",
-            "values": [
-                "operando",
-                "in_situ",
-                "ex_situ",
-                "in_silico"
-            ]
-        },
-        "context.electrochemistry.reaction": {
-            "description": "Target electrochemical reaction.",
-            "values": [
-                "CO2RR",
-                "CORR",
-                "OER",
-                "HER",
-                "ORR",
-                "NRR",
-                "N2RR",
-                "AOR",
-                "FOR",
-                "water_splitting",
-                "surface_oxidation",
-                "stripping_voltammetry",
-                "None"
-            ]
-        },
-        "context.electrochemistry.control_mode": {
-            "description": "Method of electrochemical control.",
-            "values": [
-                "potentiostatic",
-                "galvanostatic",
-                "potentiodynamic",
-                "open_circuit",
-                "mixed"
-            ]
-        },
-        "context.electrochemistry.potential_scale": {
-            "description": "Thermodynamic reference scale for voltage.",
-            "values": [
-                "RHE",
-                "SHE",
-                "Ag/AgCl",
-                "SCE",
-                "Hg/HgO",
-                "Hg/HgSO4",
-                "V_vs_Ref"
-            ]
-        },
-        "context.electrochemistry.cell_type": {
-            "description": "The specific hardware rig body.",
-            "values": [
-                "flow_cell",
-                "microfluidic_flow_cell",
-                "h_cell",
-                "beaker_cell",
-                "gde_cell",
-                "mea_cell",
-                "zero_gap_cell",
-                "coin_cell",
-                "three_electrode"
-            ]
-        },
-        "context.electrochemistry.pH_basis": {
-            "description": "Basis for the pH value.",
-            "values": [
-                "measured",
-                "nominal",
-                "buffered_assumed"
-            ]
-        },
-        "context.electrochemistry.ir_compensation.method": {
-            "description": "Method used for iR compensation.",
-            "values": [
-                "none",
-                "automatic",
-                "manual",
-                "post_hoc",
-                "EIS_based"
-            ]
-        },
-        "context.transport.flow_mode": {
-            "description": "Hydrodynamic conditions.",
-            "values": [
-                "stagnant",
-                "flowing_liquid",
-                "bubbling_gas",
-                "gas_diffusion",
-                "rotating_disk"
-            ]
-        },
-        "context.transport.feed.phase": {
-            "description": "Phase of the transport feed.",
-            "values": [
-                "gas",
-                "liquid"
-            ]
-        },
-        "context.simulation_assumptions.solvation_model": {
-            "description": "[In Silico] Solvation handling.",
-            "values": [
-                "none",
-                "implicit",
-                "explicit"
-            ]
-        }
-    },
-    "System": {
-        "system.domain": {
-            "description": "Physical vs Computational system.",
-            "values": [
-                "experimental",
-                "computational"
-            ]
-        },
-        "system.technique": {
-            "description": "Primary technique or computational method used to produce this record.",
-            "values": [
-                "XAS",
-                "HERFD-XAS",
-                "XES",
-                "RIXS",
-                "XPS",
-                "XRF",
-                "XRD",
-                "SAXS",
-                "WAXS",
-                "PDF",
-                "neutron_reflectometry",
-                "neutron_diffraction",
-                "SANS",
-                "cyclic_voltammetry",
-                "chronoamperometry",
-                "chronopotentiometry",
-                "EIS",
-                "linear_sweep_voltammetry",
-                "TEM",
-                "SEM",
-                "AFM",
-                "STM",
-                "DFT",
-                "ab_initio_MD",
-                "classical_MD",
-                "kinetic_monte_carlo",
-                "microkinetic_modeling",
-                "machine_learning_potential",
-                "GC",
-                "HPLC",
-                "ICP_MS",
-                "ICP_OES",
-                "NMR",
-                "mass_spectrometry",
-                "FTIR",
-                "Raman",
-                "UV_Vis"
-            ]
-        },
-        "system.instrument.instrument_type": {
-            "description": "Primary platform type.",
-            "values": [
-                "beamline_endstation",
-                "diffractometer",
-                "spectrometer",
-                "microscope",
-                "supercomputer_partition",
-                "simulation_engine",
-                "potentiostat",
-                "chromatograph",
-                "mass_spectrometer",
-                "nmr_spectrometer"
-            ]
-        },
-        "system.configuration": {
-            "description": "Allowed flat keys for system configuration. Values must be string, number, or boolean (no nesting).",
-            "values": [
-                "detector_model",
-                "monochromator_crystal",
-                "spectrometer_geometry",
-                "compute_architecture",
-                "code_version",
-                "container_image",
-                "channel_id",
-                "electrode_configuration",
-                "reference_electrode",
-                "counter_electrode",
-                "membrane",
-                "gc_column_type",
-                "gc_model",
-                "cell_geometry",
-                "anolyte",
-                "product_detection_gas",
-                "product_detection_liquid",
-                "scan_rate_mV_s",
-                "beam_attenuator"
-            ]
-        }
-    },
-    "Measurement": {
-        "measurement.series.channels.role": {
-            "description": "Semantic role of a data channel.",
-            "values": [
-                "primary_signal",
-                "measured_response",
-                "simulated_observable",
-                "derived_signal",
-                "auxiliary_signal",
-                "control_readback",
-                "quality_monitor"
-            ]
-        },
-        "measurement.processing.steps": {
-            "description": "Atomic processing steps applied to transform raw data into the reported payload. Use a list of steps instead of compound strings.",
-            "values": [
-                "background_correction",
-                "averaging",
-                "normalization",
-                "calibration",
-                "iR_correction",
-                "steady_state_extraction",
-                "gc_analysis",
-                "hplc_analysis",
-                "nmr_analysis",
-                "icpms_quantification",
-                "fe_calculation",
-                "spectrum_merging",
-                "energy_alignment",
-                "broadening"
-            ]
-        },
-        "measurement.qc.status": {
-            "description": "Quality control status of the measurement.",
-            "values": [
-                "valid",
-                "compromised",
-                "failed"
-            ]
-        }
-    },
-    "Assets": {
-        "assets.content_role": {
-            "description": "Role of the external file.",
-            "values": [
-                "raw_data",
-                "raw_data_pointer",
-                "reduction_product",
-                "input_structure",
-                "workflow_recipe",
-                "processing_script",
-                "calibration_reference",
-                "auxiliary_reference",
-                "documentation",
-                "metadata_snapshot",
-                "supplementary_image",
-                "other"
-            ]
-        }
-    },
-    "Links": {
-        "links.rel": {
-            "description": "Semantic relationship type.",
-            "values": [
-                "derived_from",
-                "intended_comparison_target",
-                "calibration_of",
-                "same_sample_as",
-                "replica_of",
-                "follows",
-                "validates",
-                "invalidates"
-            ]
-        },
-        "links.basis": {
-            "description": "Categorical justification for a link relationship.",
-            "values": [
-                "same_absorber_edge",
-                "matched_operating_conditions",
-                "shared_reference_state",
-                "same_workflow_version",
-                "identical_geometry",
-                "analysis_pipeline_output",
-                "replicate_preparation",
-                "same_sample_id",
-                "shared_analysis_method",
-                "shared_material_batch",
-                "matched_computational_method",
-                "unspecified"
-            ]
-        }
-    },
-    "Descriptors": {
-        "descriptors.outputs.descriptors.kind": {
-            "description": "Mathematical nature of the descriptor.",
-            "values": [
-                "absolute",
-                "differential",
-                "categorical",
-                "similarity",
-                "model",
-                "theoretical_metric"
-            ]
-        },
-        "descriptors.outputs.descriptors.source": {
-            "description": "Origin of the descriptor value.",
-            "values": [
-                "auto",
-                "manual",
-                "imported"
-            ]
-        },
-        "descriptors.faradaic_efficiency_products": {
-            "description": "Canonical product keys for faradaic_efficiency.{product} descriptors. Use molecular formula for unambiguous species. The descriptor name MUST follow the pattern faradaic_efficiency.{KEY} where KEY is from this list.",
-            "values": [
-                "H2",
-                "CO",
-                "CH4",
-                "HCOO",
-                "C2H4",
-                "C2H6",
-                "CH3COO",
-                "C2H5OH",
-                "C3H7OH",
-                "CH3OH",
-                "total_C1",
-                "total_C2plus"
-            ]
-        },
-        "descriptors.electrochemical_performance": {
-            "description": "Canonical descriptor names for electrochemical performance metrics. Descriptor names SHOULD use these keys for cross-record queryability.",
-            "values": [
-                "steady_state_current_density",
-                "onset_potential",
-                "half_wave_potential",
-                "limiting_current_density",
-                "tafel_slope",
-                "exchange_current_density",
-                "mass_activity",
-                "specific_activity",
-                "ecsa",
-                "roughness_factor",
-                "electron_transfer_number",
-                "overpotential",
-                "cell_voltage",
-                "energy_efficiency",
-                "turnover_frequency",
-                "stability_retention_percent",
-                "total_faradaic_efficiency",
-                "partial_current_density"
-            ]
-        },
-        "descriptors.theoretical_metric": {
-            "description": "[In Silico] Key theoretical outcomes. Use dot-notation for specificity (e.g., adsorption_energy.CO, activation_barrier.OCCO_coupling, d_band_center.Cu_surface).",
-            "values": [
-                "adsorption_energy",
-                "pourbaix_stability",
-                "activation_barrier",
-                "projected_density_of_states",
-                "band_gap",
-                "surface_energy",
-                "d_band_center",
-                "total_energy",
-                "bond_length",
-                "reaction_energy"
-            ]
-        }
-    },
-    "Computation": {
-        "computation.method.family": {
-            "description": "Method family for computational records.",
-            "values": [
-                "DFT",
-                "DFT_U",
-                "hybrid_DFT",
-                "AIMD",
-                "classical_MD",
-                "CHE",
-                "microkinetic",
-                "machine_learning",
-                "semi_empirical"
-            ]
-        },
-        "computation.method.functional_class": {
-            "description": "Density functional class.",
-            "values": [
-                "LDA",
-                "GGA",
-                "meta_GGA",
-                "hybrid",
-                "double_hybrid",
-                "RPA"
-            ]
-        },
-        "computation.method.basis_type": {
-            "description": "Basis set type.",
-            "values": [
-                "planewave",
-                "LCAO",
-                "real_space",
-                "mixed"
-            ]
-        },
-        "computation.method.spin_treatment": {
-            "description": "Spin polarization treatment.",
-            "values": [
-                "none",
-                "collinear",
-                "noncollinear",
-                "SOC"
-            ]
-        },
-        "computation.method.dispersion": {
-            "description": "Van der Waals dispersion correction.",
-            "values": [
-                "none",
-                "D2",
-                "D3",
-                "D3BJ",
-                "TS",
-                "MBD",
-                "dDsC",
-                "vdW_DF",
-                "vdW_DF2",
-                "rVV10"
-            ]
-        },
-        "computation.potential_method.type": {
-            "description": "Electrochemical potential treatment in the simulation. Critical for valid comparison between records.",
-            "values": [
-                "vacuum",
-                "CHE",
-                "implicit_solvent_PZC",
-                "fixed_NELECT",
-                "grand_canonical",
-                "constant_potential",
-                "joint_DFT"
-            ]
-        },
-        "computation.output_quantity.quantity": {
-            "description": "The thermodynamic quantity reported in descriptors. Records with different output quantities MUST NOT be compared without correction.",
-            "values": [
-                "E_DFT",
-                "E_DFT_plus_ZPE",
-                "delta_E",
-                "delta_G_CHE",
-                "delta_G_grand_canonical",
-                "activation_energy_raw",
-                "activation_energy_ZPE",
-                "activation_free_energy"
-            ]
-        },
-        "computation.transition_state.method": {
-            "description": "Transition state search method.",
-            "values": [
-                "NEB",
-                "CI-NEB",
-                "dimer",
-                "string",
-                "IRC",
-                "growing_string"
-            ]
-        }
-    },
-    "Units": {
-        "units.electrochemistry": {
-            "description": "Canonical unit strings for electrochemistry. Use these exact strings in measurement.series and descriptors to ensure cross-record consistency.",
-            "values": [
-                "mA/cm2",
-                "A/cm2",
-                "A/mg",
-                "A/mg_Pt",
-                "mA/mg",
-                "V",
-                "V_RHE",
-                "V_SHE",
-                "mV/dec",
-                "mV",
-                "fraction",
-                "percent",
-                "Hz",
-                "ohm",
-                "ohm_cm2",
-                "mF/cm2",
-                "cm2",
-                "rpm",
-                "s",
-                "min",
-                "h",
-                "mol/s",
-                "mol/s/cm2",
-                "1/s",
-                "sccm",
-                "mL/min"
-            ]
-        },
-        "units.spectroscopy": {
-            "description": "Canonical unit strings for spectroscopy measurements.",
-            "values": [
-                "eV",
-                "keV",
-                "nm",
-                "cm-1",
-                "angstrom",
-                "arb",
-                "mu_normalized",
-                "counts",
-                "counts/s"
-            ]
-        },
-        "units.general": {
-            "description": "Canonical unit strings for general physical quantities.",
-            "values": [
-                "K",
-                "Pa",
-                "atm",
-                "bar",
-                "ppm",
-                "ppb",
-                "mg/cm2",
-                "wt_percent",
-                "mol/L",
-                "mm",
-                "um",
-                "nm_length"
-            ]
-        }
+    "source_type": {
+      "description": "Origin of the data acquisition.",
+      "values": [
+        "facility",
+        "laboratory",
+        "computation",
+        "literature",
+        "database",
+        "industrial"
+      ]
     }
+  },
+  "Sample": {
+    "sample.sample_form": {
+      "description": "Physical realization of the sample.",
+      "values": [
+        "powder",
+        "pellet",
+        "film",
+        "monolith",
+        "liquid",
+        "gas",
+        "single_crystal",
+        "nanoparticle",
+        "membrane_electrode_assembly",
+        "slab_model",
+        "cluster_model",
+        "unit_cell",
+        "fluids"
+      ]
+    },
+    "sample.material.provenance": {
+      "description": "Origin of the material.",
+      "values": [
+        "commercial",
+        "synthesized",
+        "fabricated",
+        "theoretical",
+        "literature",
+        "natural"
+      ]
+    },
+    "sample.material.identifiers.scheme": {
+      "description": "Scheme for external identifiers.",
+      "values": [
+        "doi",
+        "inchi",
+        "cas",
+        "materials_project",
+        "internal"
+      ]
+    },
+    "sample.electrode_type": {
+      "description": "Type of electrode or substrate configuration. Captures the functional form of the electrode assembly, distinct from the sample_form which describes the material form.",
+      "values": [
+        "GDE",
+        "thin_film",
+        "patterned_film",
+        "nanoparticle",
+        "foil",
+        "mesh",
+        "RDE",
+        "RRDE",
+        "pellet",
+        "single_crystal",
+        "MEA",
+        "flow_field_plate"
+      ]
+    },
+    "sample.geometry": {
+      "description": "Canonical keys for the sample.geometry free-form object. Use these exact key names to ensure cross-record queryability.",
+      "values": [
+        "geometric_area_cm2",
+        "thickness_um",
+        "particle_size_nominal_nm",
+        "loading_mg_cm2"
+      ]
+    },
+    "sample.composition": {
+      "description": "Canonical keys for the sample.composition free-form object. Domain-specific keys are allowed but these standard keys should be used when applicable.",
+      "values": [
+        "catalyst_loading_mg_cm2",
+        "Cu_pct",
+        "Au_pct",
+        "Ag_pct",
+        "Pt_pct"
+      ]
+    }
+  },
+  "Context": {
+    "context.environment": {
+      "description": "The surrounding condition.",
+      "values": [
+        "operando",
+        "in_situ",
+        "ex_situ",
+        "in_silico"
+      ]
+    },
+    "context.electrochemistry.reaction": {
+      "description": "Target electrochemical reaction.",
+      "values": [
+        "CO2RR",
+        "CORR",
+        "OER",
+        "HER",
+        "ORR",
+        "NRR",
+        "N2RR",
+        "AOR",
+        "FOR",
+        "water_splitting",
+        "surface_oxidation",
+        "stripping_voltammetry",
+        "None"
+      ]
+    },
+    "context.electrochemistry.control_mode": {
+      "description": "Method of electrochemical control.",
+      "values": [
+        "potentiostatic",
+        "galvanostatic",
+        "potentiodynamic",
+        "open_circuit",
+        "mixed"
+      ]
+    },
+    "context.electrochemistry.potential_scale": {
+      "description": "Thermodynamic reference scale for voltage.",
+      "values": [
+        "RHE",
+        "SHE",
+        "Ag/AgCl",
+        "SCE",
+        "Hg/HgO",
+        "Hg/HgSO4",
+        "V_vs_Ref"
+      ]
+    },
+    "context.electrochemistry.cell_type": {
+      "description": "The specific hardware rig body.",
+      "values": [
+        "flow_cell",
+        "microfluidic_flow_cell",
+        "h_cell",
+        "beaker_cell",
+        "gde_cell",
+        "mea_cell",
+        "zero_gap_cell",
+        "coin_cell",
+        "three_electrode"
+      ]
+    },
+    "context.electrochemistry.pH_basis": {
+      "description": "Basis for the pH value.",
+      "values": [
+        "measured",
+        "nominal",
+        "buffered_assumed"
+      ]
+    },
+    "context.electrochemistry.ir_compensation.method": {
+      "description": "Method used for iR compensation.",
+      "values": [
+        "none",
+        "automatic",
+        "manual",
+        "post_hoc",
+        "EIS_based"
+      ]
+    },
+    "context.transport.flow_mode": {
+      "description": "Hydrodynamic conditions.",
+      "values": [
+        "stagnant",
+        "flowing_liquid",
+        "bubbling_gas",
+        "gas_diffusion",
+        "rotating_disk"
+      ]
+    },
+    "context.transport.feed.phase": {
+      "description": "Phase of the transport feed.",
+      "values": [
+        "gas",
+        "liquid"
+      ]
+    },
+    "context.simulation_assumptions.solvation_model": {
+      "description": "[In Silico] Solvation handling.",
+      "values": [
+        "none",
+        "implicit",
+        "explicit"
+      ]
+    }
+  },
+  "System": {
+    "system.domain": {
+      "description": "Physical vs Computational system.",
+      "values": [
+        "experimental",
+        "computational"
+      ]
+    },
+    "system.technique": {
+      "description": "Primary technique or computational method used to produce this record.",
+      "values": [
+        "XAS",
+        "HERFD-XAS",
+        "XES",
+        "RIXS",
+        "XPS",
+        "XRF",
+        "XRD",
+        "SAXS",
+        "WAXS",
+        "PDF",
+        "neutron_reflectometry",
+        "neutron_diffraction",
+        "SANS",
+        "cyclic_voltammetry",
+        "chronoamperometry",
+        "chronopotentiometry",
+        "EIS",
+        "linear_sweep_voltammetry",
+        "TEM",
+        "SEM",
+        "AFM",
+        "STM",
+        "DFT",
+        "ab_initio_MD",
+        "classical_MD",
+        "kinetic_monte_carlo",
+        "microkinetic_modeling",
+        "machine_learning_potential",
+        "GC",
+        "HPLC",
+        "ICP_MS",
+        "ICP_OES",
+        "NMR",
+        "mass_spectrometry",
+        "FTIR",
+        "Raman",
+        "UV_Vis"
+      ]
+    },
+    "system.instrument.instrument_type": {
+      "description": "Primary platform type.",
+      "values": [
+        "beamline_endstation",
+        "diffractometer",
+        "spectrometer",
+        "microscope",
+        "supercomputer_partition",
+        "simulation_engine",
+        "potentiostat",
+        "chromatograph",
+        "mass_spectrometer",
+        "nmr_spectrometer"
+      ]
+    },
+    "system.configuration": {
+      "description": "Allowed flat keys for system configuration. Values must be string, number, or boolean (no nesting).",
+      "values": [
+        "detector_model",
+        "monochromator_crystal",
+        "spectrometer_geometry",
+        "compute_architecture",
+        "code_version",
+        "container_image",
+        "channel_id",
+        "electrode_configuration",
+        "reference_electrode",
+        "counter_electrode",
+        "membrane",
+        "gc_column_type",
+        "gc_model",
+        "cell_geometry",
+        "anolyte",
+        "product_detection_gas",
+        "product_detection_liquid",
+        "scan_rate_mV_s",
+        "beam_attenuator"
+      ]
+    }
+  },
+  "Measurement": {
+    "measurement.series.channels.role": {
+      "description": "Semantic role of a data channel.",
+      "values": [
+        "primary_signal",
+        "measured_response",
+        "simulated_observable",
+        "derived_signal",
+        "auxiliary_signal",
+        "control_readback",
+        "quality_monitor"
+      ]
+    },
+    "measurement.processing.steps": {
+      "description": "Atomic processing steps applied to transform raw data into the reported payload. Use a list of steps instead of compound strings.",
+      "values": [
+        "background_correction",
+        "averaging",
+        "normalization",
+        "calibration",
+        "iR_correction",
+        "steady_state_extraction",
+        "gc_analysis",
+        "hplc_analysis",
+        "nmr_analysis",
+        "icpms_quantification",
+        "fe_calculation",
+        "spectrum_merging",
+        "energy_alignment",
+        "broadening"
+      ]
+    },
+    "measurement.qc.status": {
+      "description": "Quality control status of the measurement.",
+      "values": [
+        "valid",
+        "compromised",
+        "failed"
+      ]
+    }
+  },
+  "Assets": {
+    "assets.content_role": {
+      "description": "Role of the external file.",
+      "values": [
+        "raw_data",
+        "raw_data_pointer",
+        "reduction_product",
+        "input_structure",
+        "workflow_recipe",
+        "processing_script",
+        "calibration_reference",
+        "auxiliary_reference",
+        "documentation",
+        "metadata_snapshot",
+        "supplementary_image",
+        "other"
+      ]
+    }
+  },
+  "Links": {
+    "links.rel": {
+      "description": "Semantic relationship type.",
+      "values": [
+        "derived_from",
+        "intended_comparison_target",
+        "calibration_of",
+        "same_sample_as",
+        "replica_of",
+        "follows",
+        "validates",
+        "invalidates"
+      ]
+    },
+    "links.basis": {
+      "description": "Categorical justification for a link relationship.",
+      "values": [
+        "same_absorber_edge",
+        "matched_operating_conditions",
+        "shared_reference_state",
+        "same_workflow_version",
+        "identical_geometry",
+        "analysis_pipeline_output",
+        "replicate_preparation",
+        "same_sample_id",
+        "shared_analysis_method",
+        "shared_material_batch",
+        "matched_computational_method",
+        "unspecified"
+      ]
+    }
+  },
+  "Descriptors": {
+    "descriptors.outputs.descriptors.kind": {
+      "description": "Mathematical nature of the descriptor.",
+      "values": [
+        "absolute",
+        "differential",
+        "categorical",
+        "similarity",
+        "model",
+        "theoretical_metric"
+      ]
+    },
+    "descriptors.outputs.descriptors.source": {
+      "description": "Origin of the descriptor value.",
+      "values": [
+        "auto",
+        "manual",
+        "imported"
+      ]
+    },
+    "descriptors.faradaic_efficiency_products": {
+      "description": "Canonical product keys for {faradaic_efficiency|partial_current_density|production_rate}.{KEY} descriptors (Decision B, 2026-06-11: formula-style tokens). Single species use molecular formulas (CH3COO not acetate). Class tokens: C1 (all single-carbon), C1plus (all carbon products), C2plus, C3plus, C2plus_alcohols. Pragmatic-exception trivial names (no practical formula): urea, lactate. Aliases in descriptors.product_aliases are REJECTED by the validator on new submissions.",
+      "values": [
+        "H2",
+        "CO",
+        "CH4",
+        "HCOO",
+        "C2H4",
+        "C2H6",
+        "CH3COO",
+        "C2H5OH",
+        "C3H7OH",
+        "CH3OH",
+        "total_C1",
+        "total_C2plus",
+        "C3H6",
+        "n_C3H7OH",
+        "i_C3H7OH",
+        "CH3CHO",
+        "C3H5OH",
+        "lactate",
+        "urea",
+        "NH3",
+        "CH3NH2",
+        "C1",
+        "C1plus",
+        "C2plus",
+        "C3plus",
+        "C2plus_alcohols"
+      ]
+    },
+    "descriptors.electrochemical_performance": {
+      "description": "Canonical descriptor names for electrochemical performance metrics. Descriptor names SHOULD use these keys for cross-record queryability.",
+      "values": [
+        "steady_state_current_density",
+        "onset_potential",
+        "half_wave_potential",
+        "limiting_current_density",
+        "tafel_slope",
+        "exchange_current_density",
+        "mass_activity",
+        "specific_activity",
+        "ecsa",
+        "roughness_factor",
+        "electron_transfer_number",
+        "overpotential",
+        "cell_voltage",
+        "energy_efficiency",
+        "turnover_frequency",
+        "stability_retention_percent",
+        "total_faradaic_efficiency",
+        "partial_current_density"
+      ]
+    },
+    "descriptors.theoretical_metric": {
+      "description": "[In Silico] Key theoretical outcomes. Use dot-notation for specificity (e.g., adsorption_energy.CO, activation_barrier.OCCO_coupling, d_band_center.Cu_surface).",
+      "values": [
+        "adsorption_energy",
+        "pourbaix_stability",
+        "activation_barrier",
+        "projected_density_of_states",
+        "band_gap",
+        "surface_energy",
+        "d_band_center",
+        "total_energy",
+        "bond_length",
+        "reaction_energy"
+      ]
+    },
+    "descriptors.product_aliases": {
+      "description": "DEPRECATED product tokens and their canonical replacements (Decision B). All existing records migrated 2026-06-11.",
+      "map": {
+        "HCOOH": "HCOO",
+        "acetate": "CH3COO",
+        "CH3COOH": "CH3COO",
+        "n_propanol": "n_C3H7OH",
+        "1_propanol": "n_C3H7OH",
+        "C3H7OH": "n_C3H7OH",
+        "allyl_alcohol": "C3H5OH",
+        "acetaldehyde": "CH3CHO",
+        "lactic_acid": "lactate",
+        "total_C1": "C1",
+        "total_C2plus": "C2plus",
+        "C2plus_alcohol": "C2plus_alcohols"
+      }
+    }
+  },
+  "Computation": {
+    "computation.method.family": {
+      "description": "Method family for computational records.",
+      "values": [
+        "DFT",
+        "DFT_U",
+        "hybrid_DFT",
+        "AIMD",
+        "classical_MD",
+        "CHE",
+        "microkinetic",
+        "machine_learning",
+        "semi_empirical"
+      ]
+    },
+    "computation.method.functional_class": {
+      "description": "Density functional class.",
+      "values": [
+        "LDA",
+        "GGA",
+        "meta_GGA",
+        "hybrid",
+        "double_hybrid",
+        "RPA"
+      ]
+    },
+    "computation.method.basis_type": {
+      "description": "Basis set type.",
+      "values": [
+        "planewave",
+        "LCAO",
+        "real_space",
+        "mixed"
+      ]
+    },
+    "computation.method.spin_treatment": {
+      "description": "Spin polarization treatment.",
+      "values": [
+        "none",
+        "collinear",
+        "noncollinear",
+        "SOC"
+      ]
+    },
+    "computation.method.dispersion": {
+      "description": "Van der Waals dispersion correction.",
+      "values": [
+        "none",
+        "D2",
+        "D3",
+        "D3BJ",
+        "TS",
+        "MBD",
+        "dDsC",
+        "vdW_DF",
+        "vdW_DF2",
+        "rVV10"
+      ]
+    },
+    "computation.potential_method.type": {
+      "description": "Electrochemical potential treatment in the simulation. Critical for valid comparison between records.",
+      "values": [
+        "vacuum",
+        "CHE",
+        "implicit_solvent_PZC",
+        "fixed_NELECT",
+        "grand_canonical",
+        "constant_potential",
+        "joint_DFT"
+      ]
+    },
+    "computation.output_quantity.quantity": {
+      "description": "The thermodynamic quantity reported in descriptors. Records with different output quantities MUST NOT be compared without correction.",
+      "values": [
+        "E_DFT",
+        "E_DFT_plus_ZPE",
+        "delta_E",
+        "delta_G_CHE",
+        "delta_G_grand_canonical",
+        "activation_energy_raw",
+        "activation_energy_ZPE",
+        "activation_free_energy"
+      ]
+    },
+    "computation.transition_state.method": {
+      "description": "Transition state search method.",
+      "values": [
+        "NEB",
+        "CI-NEB",
+        "dimer",
+        "string",
+        "IRC",
+        "growing_string"
+      ]
+    }
+  },
+  "Units": {
+    "units.electrochemistry": {
+      "description": "Canonical unit strings for electrochemistry. Use these exact strings in measurement.series and descriptors to ensure cross-record consistency.",
+      "values": [
+        "mA/cm2",
+        "A/cm2",
+        "A/mg",
+        "A/mg_Pt",
+        "mA/mg",
+        "V",
+        "V_RHE",
+        "V_SHE",
+        "mV/dec",
+        "mV",
+        "fraction",
+        "percent",
+        "Hz",
+        "ohm",
+        "ohm_cm2",
+        "mF/cm2",
+        "cm2",
+        "rpm",
+        "s",
+        "min",
+        "h",
+        "mol/s",
+        "mol/s/cm2",
+        "1/s",
+        "sccm",
+        "mL/min",
+        "umol/cm2/h",
+        "mmol/s/cm2",
+        "mol/L",
+        "uM",
+        "mM",
+        "bar",
+        "ppm"
+      ]
+    },
+    "units.spectroscopy": {
+      "description": "Canonical unit strings for spectroscopy measurements.",
+      "values": [
+        "eV",
+        "keV",
+        "nm",
+        "cm-1",
+        "angstrom",
+        "arb",
+        "mu_normalized",
+        "counts",
+        "counts/s"
+      ]
+    },
+    "units.general": {
+      "description": "Canonical general-purpose unit strings.",
+      "values": [
+        "dimensionless",
+        "count",
+        "counts",
+        "ratio",
+        "arb",
+        "angstrom^-1",
+        "angstrom^2",
+        "angstrom^3",
+        "g/mol",
+        "ML",
+        "mu_B",
+        "eV/angstrom",
+        "J/m^2"
+      ]
+    },
+    "units.aliases": {
+      "description": "DEPRECATED unit spellings and their canonical replacements (Decision A, 2026-06-11: slash-form grammar). The validator REJECTS these aliases on new submissions with a message pointing to the canonical form. All 1,580 existing records were migrated 2026-06-11.",
+      "map": {
+        "mA_cm-2": "mA/cm2",
+        "mA_cm2": "mA/cm2",
+        "mA cm-2": "mA/cm2",
+        "V_vs_RHE": "V_RHE",
+        "V_vs_SHE": "V_SHE",
+        "umol_cm-2_h-1": "umol/cm2/h",
+        "umol_h-1_cm-2": "umol/cm2/h",
+        "mmol_s-1_cm-2": "mmol/s/cm2",
+        "mol_L-1": "mol/L",
+        "%": "percent",
+        "\u00c5\u207b\u00b9": "angstrom^-1",
+        "unitless": "dimensionless",
+        "none": "dimensionless",
+        "arbitrary_units": "arb"
+      }
+    }
+  }
 }
