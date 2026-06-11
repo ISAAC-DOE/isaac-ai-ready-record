@@ -232,3 +232,35 @@ def test_wave2_locks_and_teaching_errors():
     r = json.loads(json.dumps(base))
     r["system"].setdefault("configuration", {})["my_beamline_quirk_setting"] = "42"
     assert validation.validate_record_full(r)["valid"]
+
+
+def test_adr001_conventions():
+    """ADR-001: sign convention, FE-as-claim, concept-home deny-list (warning tier)."""
+    base = json.loads((REPO / "examples" / "co2rr_performance_record.json").read_text())
+
+    # Positive partial current under CO2RR -> SIGN_CONVENTION warning
+    r = json.loads(json.dumps(base))
+    r["descriptors"]["outputs"][0]["descriptors"].append(
+        {"name": "partial_current_density.C2H4", "value": 45.0, "unit": "mA/cm2", "kind": "performance_metric"})
+    res = validation.validate_record_full(r)
+    assert res["valid"]
+    assert any(w["code"] == "SIGN_CONVENTION" for w in res.get("warnings", []))
+
+    # Negative value -> no warning
+    r["descriptors"]["outputs"][0]["descriptors"][-1]["value"] = -45.0
+    res = validation.validate_record_full(r)
+    assert not any(w["code"] == "SIGN_CONVENTION" for w in res.get("warnings", []))
+
+    # FE channel with measured_response role -> FE_ROLE_VIOLATION
+    r = json.loads(json.dumps(base))
+    r["measurement"]["series"].append({"series_id": "fe_trace", "channels": [
+        {"name": "faradaic_efficiency.C2H4", "role": "measured_response", "unit": "fraction",
+         "values": [0.3, 0.32, 0.31]}]})
+    res = validation.validate_record_full(r)
+    assert any(w["code"] == "FE_ROLE_VIOLATION" for w in res.get("warnings", []))
+
+    # reference_electrode in configuration -> WRONG_BLOCK
+    r = json.loads(json.dumps(base))
+    r["system"].setdefault("configuration", {})["reference_electrode"] = "Ag/AgCl"
+    res = validation.validate_record_full(r)
+    assert any(w["code"] == "WRONG_BLOCK" for w in res.get("warnings", []))

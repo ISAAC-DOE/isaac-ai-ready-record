@@ -357,6 +357,61 @@ def _enhance_schema_errors(errors: list) -> list:
     return out
 
 
+# ADR-001 (2026-06-13) + Concept Home Matrix enforcement
+CATHODIC_REACTIONS = {"CO2RR", "CORR", "HER", "ORR", "NO3RR", "urea_synthesis"}
+CONFIG_DENYLIST = {
+    "reference_electrode": "context.electrochemistry.reference_electrode (structured object)",
+    "membrane": "context.electrochemistry.membrane",
+    "separator": "context.electrochemistry.membrane",
+    "anolyte": "context.electrochemistry.anolyte (structured object)",
+    "cell_type": "context.electrochemistry.cell_type",
+    "potential_conversion": "context.electrochemistry.potential_vs_RHE.conversion",
+}
+
+
+def _adr001_warnings(record):
+    """Concept-home + sign-convention + FE-trace warnings (errors after Migration B)."""
+    warnings = []
+    try:
+        ec = ((record.get("context") or {}).get("electrochemistry") or {})
+        reaction = ec.get("reaction")
+        # Sign convention: cathodic reactions carry negative currents (IUPAC)
+        if reaction in CATHODIC_REACTIONS:
+            def chk(name, val):
+                if isinstance(val, (int, float)) and val > 0:
+                    warnings.append({"code": "SIGN_CONVENTION", "path": name,
+                                     "message": f"{name}={val} is positive but {reaction} is cathodic — IUPAC signed convention (ADR-001): reduction currents are NEGATIVE."})
+            chk("context/electrochemistry/current_setpoint_mA_cm2", ec.get("current_setpoint_mA_cm2"))
+            for o in (record.get("descriptors") or {}).get("outputs") or []:
+                for d in o.get("descriptors") or [] if isinstance(o, dict) else []:
+                    nm = d.get("name") or ""
+                    if nm.startswith("partial_current_density.") or nm == "steady_state_current_density":
+                        chk(f"descriptors:{nm}", d.get("value"))
+        # FE-in-series ruling
+        fe_descriptor_names = {d.get("name") for o in (record.get("descriptors") or {}).get("outputs") or []
+                               for d in (o.get("descriptors") or [] if isinstance(o, dict) else [])}
+        for si, s in enumerate((record.get("measurement") or {}).get("series") or []):
+            for ch in s.get("channels") or []:
+                nm = ch.get("name") or ""
+                if nm.startswith("faradaic_efficiency"):
+                    vals = ch.get("values") or []
+                    if ch.get("role") == "measured_response":
+                        warnings.append({"code": "FE_ROLE_VIOLATION", "path": f"measurement/series/{si}",
+                                         "message": f"FE channel '{nm}' has role=measured_response. FE is a derived claim (ADR-001) — role must be 'derived_signal'; the measurement is the GC trace and the current."})
+                    if len(vals) <= 1 and nm in fe_descriptor_names:
+                        warnings.append({"code": "FE_SERIES_DUPLICATE", "path": f"measurement/series/{si}",
+                                         "message": f"Single-point series channel '{nm}' duplicates the descriptor of the same name — keep the descriptor, drop the channel (ADR-001)."})
+        # Concept-home deny-list for system.configuration
+        cfg = (record.get("system") or {}).get("configuration") or {}
+        for k, home in CONFIG_DENYLIST.items():
+            if k in cfg:
+                warnings.append({"code": "WRONG_BLOCK", "path": f"system/configuration/{k}",
+                                 "message": f"'{k}' belongs in {home}, not system.configuration (Concept Home Matrix). Will become an error after the cell-hardware migration."})
+    except Exception as exc:
+        logger.warning("ADR-001 checks degraded: %s", exc)
+    return warnings
+
+
 def validate_record_full(record: dict) -> dict:
     """
     Run ALL validation layers against a record dict.
@@ -419,6 +474,7 @@ def validate_record_full(record: dict) -> dict:
         "errors": errors,
     }
     warnings, info = _warning_checks(record)
+    warnings = warnings + _adr001_warnings(record)
     if warnings:
         result["warnings"] = warnings
     if info:
