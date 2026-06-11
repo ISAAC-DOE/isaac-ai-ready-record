@@ -118,7 +118,7 @@
       ]
     },
     "context.electrochemistry.reaction": {
-      "description": "Target electrochemical reaction.",
+      "description": "Target electrochemical reaction. urea_synthesis = co-electrosynthesis from CO2 + nitrate.",
       "values": [
         "CO2RR",
         "CORR",
@@ -132,7 +132,9 @@
         "water_splitting",
         "surface_oxidation",
         "stripping_voltammetry",
-        "None"
+        "None",
+        "NO3RR",
+        "urea_synthesis"
       ]
     },
     "context.electrochemistry.control_mode": {
@@ -168,7 +170,8 @@
         "mea_cell",
         "zero_gap_cell",
         "coin_cell",
-        "three_electrode"
+        "three_electrode",
+        "scanning_droplet_cell"
       ]
     },
     "context.electrochemistry.pH_basis": {
@@ -479,7 +482,10 @@
         "turnover_frequency",
         "stability_retention_percent",
         "total_faradaic_efficiency",
-        "partial_current_density"
+        "partial_current_density",
+        "steady_state_potential",
+        "production_rate",
+        "work_function"
       ]
     },
     "descriptors.theoretical_metric": {
@@ -513,6 +519,23 @@
         "total_C2plus": "C2plus",
         "C2plus_alcohol": "C2plus_alcohols"
       }
+    },
+    "descriptors.spectroscopy": {
+      "description": "Canonical descriptor names for spectroscopy-derived knowledge claims (added 2026-06-12). XAS: edge_position, white_line_energy, white_line_intensity, inflection_point_energy, edge_shift (kind=differential with relative_to), oxidation_state.{element}. XPS: binding_energy.{level}, spin_orbit_splitting.{level}. XRD: phase_fraction.{phase}, lattice_parameter.{phase}, peak_position.{reflection}, peak_intensity.{reflection}. Spectra themselves live in measurement.series; descriptors carry what was LEARNED from them.",
+      "values": [
+        "edge_position",
+        "white_line_energy",
+        "white_line_intensity",
+        "inflection_point_energy",
+        "edge_shift",
+        "oxidation_state",
+        "binding_energy",
+        "spin_orbit_splitting",
+        "phase_fraction",
+        "lattice_parameter",
+        "peak_position",
+        "peak_intensity"
+      ]
     }
   },
   "Computation": {
@@ -608,6 +631,23 @@
         "string",
         "IRC",
         "growing_string"
+      ]
+    },
+    "computation.method.code": {
+      "description": "Common simulation codes for computation.method.code.",
+      "values": [
+        "VASP",
+        "Quantum ESPRESSO",
+        "JDFTx",
+        "CP2K",
+        "GPAW",
+        "FHI-aims",
+        "ABINIT",
+        "CASTEP",
+        "ORCA",
+        "Gaussian",
+        "LAMMPS",
+        "ASE"
       ]
     }
   },
