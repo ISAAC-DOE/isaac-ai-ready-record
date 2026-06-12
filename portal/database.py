@@ -52,6 +52,21 @@ def init_tables():
         conn = get_db_connection()
         cur = conn.cursor()
 
+        # API usage log (api-usage-dashboard, 2026-06-14)
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS api_requests (
+                id BIGSERIAL PRIMARY KEY,
+                ts TIMESTAMPTZ NOT NULL DEFAULT now(),
+                username TEXT,
+                method TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                status SMALLINT,
+                duration_ms REAL
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_api_requests_ts ON api_requests (ts)')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_api_requests_user ON api_requests (username)')
+
         # Create templates table
         cur.execute('''
             CREATE TABLE IF NOT EXISTS templates (
@@ -324,6 +339,57 @@ def list_records(limit: int = 100, offset: int = 0, filters: dict | None = None,
                     'created_at': row['created_at'].isoformat() if hasattr(row['created_at'], 'isoformat') else row['created_at'],
                 })
         return rows, total
+    finally:
+        cur.close()
+        conn.close()
+
+
+def log_api_request(username, method, endpoint, status, duration_ms):
+    """Fire-and-forget API usage logging. MUST never break a request."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO api_requests (username, method, endpoint, status, duration_ms) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (username, method, endpoint, status, duration_ms))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception:
+        pass
+
+
+def get_api_usage_stats(days: int = 30) -> dict:
+    """Aggregates for the usage dashboard: daily series, by-user, by-endpoint."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT date_trunc('day', ts) AS day, COUNT(*) AS n "
+            "FROM api_requests WHERE ts > now() - (%s || ' days')::interval "
+            "GROUP BY 1 ORDER BY 1", (days,))
+        daily = [{'day': r['day'].date().isoformat(), 'requests': r['n']} for r in cur.fetchall()]
+        cur.execute(
+            "SELECT COALESCE(username, 'unauthenticated') AS who, COUNT(*) AS n "
+            "FROM api_requests WHERE ts > now() - (%s || ' days')::interval "
+            "GROUP BY 1 ORDER BY 2 DESC LIMIT 20", (days,))
+        by_user = [{'user': r['who'], 'requests': r['n']} for r in cur.fetchall()]
+        cur.execute(
+            "SELECT method || ' ' || endpoint AS what, COUNT(*) AS n, "
+            "ROUND(AVG(duration_ms)::numeric, 1) AS avg_ms "
+            "FROM api_requests WHERE ts > now() - (%s || ' days')::interval "
+            "GROUP BY 1 ORDER BY 2 DESC LIMIT 20", (days,))
+        by_endpoint = [{'endpoint': r['what'], 'requests': r['n'],
+                        'avg_ms': float(r['avg_ms'] or 0)} for r in cur.fetchall()]
+        cur.execute(
+            "SELECT COUNT(*) AS total, COUNT(DISTINCT username) AS users, "
+            "COUNT(*) FILTER (WHERE status >= 400) AS errors "
+            "FROM api_requests WHERE ts > now() - (%s || ' days')::interval", (days,))
+        row = cur.fetchone()
+        return {'days': days, 'total_requests': row['total'], 'distinct_users': row['users'],
+                'error_count': row['errors'], 'daily': daily, 'by_user': by_user,
+                'by_endpoint': by_endpoint}
     finally:
         cur.close()
         conn.close()
