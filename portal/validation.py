@@ -376,8 +376,11 @@ CONFIG_DENYLIST = {
 
 
 def _adr001_warnings(record):
-    """Concept-home + sign-convention + FE-trace warnings (errors after Migration B)."""
+    """ADR-001 + concept-home checks. SIGN_CONVENTION and WRONG_BLOCK are ERRORS
+    since 2026-06-15 (database measured clean after the phase21 convergence sweep);
+    FE-trace rules remain warnings."""
     warnings = []
+    errors = []
     try:
         ec = ((record.get("context") or {}).get("electrochemistry") or {})
         reaction = ec.get("reaction")
@@ -385,7 +388,7 @@ def _adr001_warnings(record):
         if reaction in CATHODIC_REACTIONS:
             def chk(name, val):
                 if isinstance(val, (int, float)) and val > 0:
-                    warnings.append({"code": "SIGN_CONVENTION", "path": name,
+                    errors.append({"code": "SIGN_CONVENTION", "path": name,
                                      "message": f"{name}={val} is positive but {reaction} is cathodic — IUPAC signed convention (ADR-001): reduction currents are NEGATIVE."})
             chk("context/electrochemistry/current_setpoint_mA_cm2", ec.get("current_setpoint_mA_cm2"))
             for o in (record.get("descriptors") or {}).get("outputs") or []:
@@ -411,11 +414,11 @@ def _adr001_warnings(record):
         cfg = (record.get("system") or {}).get("configuration") or {}
         for k, home in CONFIG_DENYLIST.items():
             if k in cfg:
-                warnings.append({"code": "WRONG_BLOCK", "path": f"system/configuration/{k}",
-                                 "message": f"'{k}' belongs in {home}, not system.configuration (Concept Home Matrix). Will become an error after the cell-hardware migration."})
+                errors.append({"code": "WRONG_BLOCK", "path": f"system/configuration/{k}",
+                                 "message": f"'{k}' belongs in {home}, not system.configuration (Concept Home Matrix)."})
     except Exception as exc:
         logger.warning("ADR-001 checks degraded: %s", exc)
-    return warnings
+    return warnings, errors
 
 
 def validate_record_full(record: dict) -> dict:
@@ -480,7 +483,12 @@ def validate_record_full(record: dict) -> dict:
         "errors": errors,
     }
     warnings, info = _warning_checks(record)
-    warnings = warnings + _adr001_warnings(record)
+    adr_warnings, adr_errors = _adr001_warnings(record)
+    warnings = warnings + adr_warnings
+    if adr_errors:
+        result["valid"] = False
+        result.setdefault("vocabulary_errors", []).extend(adr_errors)
+        result["errors"] = (result.get("errors") or []) + adr_errors
     if warnings:
         result["warnings"] = warnings
     if info:

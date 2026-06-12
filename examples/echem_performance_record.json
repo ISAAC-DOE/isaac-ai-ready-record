@@ -14,7 +14,12 @@
       "name": "Pt/C on RDE",
       "formula": "Pt/C",
       "provenance": "commercial",
-      "identifiers": [{"scheme": "internal", "value": "Dev-2025-PtC-005"}],
+      "identifiers": [
+        {
+          "scheme": "internal",
+          "value": "Dev-2025-PtC-005"
+        }
+      ],
       "notes": "40% Pt on Carbon. Commercial catalyst layer on RDE disk (carbon paper)."
     },
     "sample_form": "film",
@@ -43,6 +48,10 @@
       "ir_compensation": {
         "method": "post_hoc",
         "percent": 100
+      },
+      "reference_electrode": {
+        "type": "other",
+        "model": "RHE_hydroflex"
       }
     },
     "transport": {
@@ -70,14 +79,17 @@
     "configuration": {
       "channel_id": "1",
       "electrode_configuration": "RDE_AFE",
-      "reference_electrode": "RHE_hydroflex",
       "counter_electrode": "Pt_wire",
       "scan_rate_mV_s": 10
     }
   },
   "measurement": {
     "processing": {
-      "steps": ["iR_correction", "averaging", "steady_state_extraction"],
+      "steps": [
+        "iR_correction",
+        "averaging",
+        "steady_state_extraction"
+      ],
       "recipe_link": {
         "rel": "processing_recipe",
         "target": "workflow://echem_orr_processing/v1.2"
@@ -90,7 +102,19 @@
           {
             "name": "potential",
             "unit": "V_RHE",
-            "values": [0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.5, 0.4, 0.3]
+            "values": [
+              0.95,
+              0.9,
+              0.85,
+              0.8,
+              0.75,
+              0.7,
+              0.65,
+              0.6,
+              0.5,
+              0.4,
+              0.3
+            ]
           }
         ],
         "channels": [
@@ -98,7 +122,19 @@
             "name": "current_density",
             "unit": "mA/cm2",
             "role": "measured_response",
-            "values": [-0.02, -0.1, -0.3, -0.8, -1.5, -2.8, -4.2, -5.0, -5.6, -5.75, -5.8]
+            "values": [
+              -0.02,
+              -0.1,
+              -0.3,
+              -0.8,
+              -1.5,
+              -2.8,
+              -4.2,
+              -5.0,
+              -5.6,
+              -5.75,
+              -5.8
+            ]
           }
         ]
       }
