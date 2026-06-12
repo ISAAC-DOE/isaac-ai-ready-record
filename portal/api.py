@@ -498,6 +498,87 @@ def record_quality(record_id):
     return jsonify({"record_id": record_id, **result}), 200
 
 
+@app.route("/portal/api/records/<record_id>/suggestions", methods=["GET"])
+@_require_auth
+def record_suggestions(record_id):
+    """
+    Cross-record fine-tuning suggestions for a VALID record (Dimos, 2026-06-14:
+    'passing the validation but maybe can be fine-tuned'). Unlike /quality
+    (deterministic per-record warnings), these rules look across the database:
+    kinship candidates, derivable values, family-norm gaps.
+    """
+    try:
+        record = database.get_record(record_id)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    if record is None:
+        return jsonify({"error": "Record not found"}), 404
+
+    suggestions = []
+    ec = ((record.get("context") or {}).get("electrochemistry") or {})
+    mat_name = ((record.get("sample") or {}).get("material") or {}).get("name")
+    sample_id = (record.get("sample") or {}).get("sample_id")
+
+    # S1: kinship — other records of the same material, unlinked
+    if mat_name:
+        try:
+            kin = database.find_records_by_material(mat_name, record_id)
+        except Exception:
+            kin = []
+        linked = {l.get("target") for l in record.get("links") or []}
+        unlinked = [k for k in kin if k and k not in linked]
+        if unlinked:
+            suggestions.append({
+                "code": "KINSHIP_CANDIDATES",
+                "message": f"{len(unlinked)} other record(s) measure material '{mat_name}' but are not linked: "
+                           f"{unlinked[:4]}. If the same physical sample, share a sample.sample_id and add "
+                           f"same_sample_as links; if comparable conditions, consider intended_comparison_target.",
+            })
+    if not sample_id and mat_name:
+        suggestions.append({
+            "code": "NO_SAMPLE_ID",
+            "message": "sample.sample_id is unset. A stable physical-sample identifier is what makes "
+                       "same_sample_as links meaningful across records.",
+        })
+
+    # S2: derivable RHE value
+    pvr = ec.get("potential_vs_RHE") or {}
+    ref = ec.get("reference_electrode") or {}
+    if (not pvr or pvr.get("value_V") is None) and             isinstance(ec.get("potential_setpoint_V"), (int, float)) and             isinstance(ref.get("offset_V_vs_SHE"), (int, float)) and             isinstance(ec.get("pH"), (int, float)) and ec.get("potential_scale") not in ("RHE", None):
+        e_rhe = ec["potential_setpoint_V"] + ref["offset_V_vs_SHE"] + 0.0591 * ec["pH"]
+        suggestions.append({
+            "code": "RHE_DERIVABLE",
+            "message": f"potential_vs_RHE is empty but derivable: {ec['potential_setpoint_V']} + "
+                       f"{ref['offset_V_vs_SHE']} + 0.0591*{ec['pH']} = {e_rhe:.3f} V_RHE "
+                       f"(rhe_basis: derived_nominal). Populating it puts this record on the canonical query axis.",
+        })
+
+    # S3: computable partial current densities
+    has_fe = has_pcd = False
+    j_total = None
+    for o in (record.get("descriptors") or {}).get("outputs") or []:
+        for d in o.get("descriptors") or [] if isinstance(o, dict) else []:
+            nm = d.get("name") or ""
+            if nm.startswith("faradaic_efficiency."):
+                has_fe = True
+            if nm.startswith("partial_current_density."):
+                has_pcd = True
+            if nm == "steady_state_current_density" and isinstance(d.get("value"), (int, float)):
+                j_total = d["value"]
+    if j_total is None and isinstance(ec.get("current_setpoint_mA_cm2"), (int, float)):
+        j_total = ec["current_setpoint_mA_cm2"]
+    if has_fe and not has_pcd and isinstance(j_total, (int, float)):
+        suggestions.append({
+            "code": "PCD_COMPUTABLE",
+            "message": f"FE descriptors exist and total current density is known ({j_total} mA/cm2): "
+                       f"partial_current_density.{{product}} = FE x j_total are computable, queryable "
+                       f"additions (signed, IUPAC).",
+        })
+
+    return jsonify({"record_id": record_id, "suggestions": suggestions,
+                    "note": "Suggestions are advisory fine-tuning hints; the record is unchanged."}), 200
+
+
 @app.route("/portal/api/quality/summary", methods=["GET"])
 @_require_auth
 def quality_summary():

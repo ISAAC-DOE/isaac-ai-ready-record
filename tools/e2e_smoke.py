@@ -125,6 +125,8 @@ def main():
     check("destructive SQL rejected", code == 400)
     code, resp = http("GET", f"/records/{rid}/quality")
     check("quality endpoint recomputes report", code == 200 and "warnings" in json.dumps(resp) or code == 200)
+    code, resp = http("GET", f"/records/{rid}/suggestions")
+    check("suggestions endpoint responds", code == 200 and "suggestions" in resp)
 
     # 5. DELETE + 404
     code, d = http("DELETE", f"/records/{rid}")

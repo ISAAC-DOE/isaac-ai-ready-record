@@ -329,6 +329,22 @@ def list_records(limit: int = 100, offset: int = 0, filters: dict | None = None,
         conn.close()
 
 
+def find_records_by_material(material_name: str, exclude_id: str, limit: int = 6) -> list:
+    """Record IDs sharing a material name (parameterized — used by /suggestions)."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT record_id FROM records "
+            "WHERE data->'sample'->'material'->>'name' = %s AND record_id != %s "
+            "ORDER BY created_at DESC LIMIT %s",
+            (material_name, exclude_id, limit))
+        return [row['record_id'].strip() for row in cur.fetchall()]
+    finally:
+        cur.close()
+        conn.close()
+
+
 def get_records_batch(record_ids: list) -> list:
     """Fetch full records for a list of IDs in one query. Missing IDs are skipped."""
     if not record_ids:
