@@ -19,7 +19,7 @@ import functools
 from pathlib import Path
 
 import requests as http_requests
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 from jsonschema import Draft202012Validator
 
@@ -160,6 +160,26 @@ def _get_auth_info():
     return None
 
 
+@app.before_request
+def _usage_clock_start():
+    g.usage_t0 = time.time()
+    g.usage_user = None
+
+
+@app.after_request
+def _usage_log(response):
+    """Persist API usage (Dimos dashboard, 2026-06-14). Never breaks a request."""
+    try:
+        path = request.url_rule.rule if request.url_rule else request.path
+        if path.startswith("/portal/api") and not path.endswith("/health"):
+            dur = (time.time() - getattr(g, "usage_t0", time.time())) * 1000.0
+            database.log_api_request(getattr(g, "usage_user", None), request.method,
+                                      path, response.status_code, round(dur, 1))
+    except Exception:
+        pass
+    return response
+
+
 def _log_request(auth_info):
     """Log incoming request with auth context."""
     if auth_info:
@@ -170,6 +190,7 @@ def _log_request(auth_info):
             auth_info.get("method"),
             auth_info.get("user"),
         )
+        g.usage_user = auth_info.get("user")
     else:
         logger.info("%s %s [unauthenticated]", request.method, request.path)
 
@@ -577,6 +598,18 @@ def record_suggestions(record_id):
 
     return jsonify({"record_id": record_id, "suggestions": suggestions,
                     "note": "Suggestions are advisory fine-tuning hints; the record is unchanged."}), 200
+
+
+@app.route("/portal/api/usage/summary", methods=["GET"])
+@_require_auth
+def usage_summary():
+    """API usage aggregates (?days=30): daily series, by user, by endpoint."""
+    try:
+        days = min(int(request.args.get("days", 30)), 365)
+        return jsonify(database.get_api_usage_stats(days)), 200
+    except Exception as exc:
+        logger.exception("usage summary failed")
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/portal/api/quality/summary", methods=["GET"])

@@ -352,6 +352,33 @@ if page == "Dashboard":
 # =============================================================================
 # PAGE: Ontology Editor
 # =============================================================================
+
+# --- API Usage (Dimos dashboard, 2026-06-14) ---
+if page == "Dashboard" and db_connected:
+    st.markdown("---")
+    st.subheader("API Usage")
+    try:
+        days = st.selectbox("Window", [7, 30, 90], index=1, format_func=lambda d: f"last {d} days")
+        usage = database.get_api_usage_stats(days)
+        u1, u2, u3 = st.columns(3)
+        u1.metric("API Requests", f"{usage['total_requests']:,}")
+        u2.metric("Distinct Users", usage['distinct_users'])
+        u3.metric("Errors (4xx/5xx)", usage['error_count'])
+        if usage['daily']:
+            df_daily = pd.DataFrame(usage['daily']).set_index('day')
+            st.line_chart(df_daily, height=220)
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.caption("Requests by user")
+            if usage['by_user']:
+                st.dataframe(pd.DataFrame(usage['by_user']), hide_index=True, use_container_width=True)
+        with col_b:
+            st.caption("Requests by endpoint (avg latency)")
+            if usage['by_endpoint']:
+                st.dataframe(pd.DataFrame(usage['by_endpoint']), hide_index=True, use_container_width=True)
+    except Exception as exc:
+        st.info(f"Usage stats unavailable yet: {exc}")
+
 elif page == "Ontology Editor":
     st.header("Living Ontology")
     st.info("Browse the ISAAC vocabulary below. Use the Propose form to suggest changes.")
