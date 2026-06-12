@@ -360,5 +360,18 @@
         ]
       }
     ]
+  },
+  "attribution": {
+    "contributors": [
+      {
+        "name": "Example PI",
+        "role": "data_owner",
+        "affiliation": "LBNL"
+      },
+      {
+        "name": "Example Curator",
+        "role": "curated_record"
+      }
+    ]
   }
 }

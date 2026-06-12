@@ -265,3 +265,21 @@ def test_adr001_conventions():
     r["system"].setdefault("configuration", {})["reference_electrode"] = "Ag/AgCl"
     res = validation.validate_record_full(r)
     assert any(w["code"] == "WRONG_BLOCK" for w in res.get("warnings", []))
+
+
+def test_attribution_block():
+    """Attribution: schema accepts the block; missing data_owner warns; bad role rejected."""
+    base = json.loads((REPO / "examples" / "co2rr_performance_record.json").read_text())
+    res = validation.validate_record_full(base)
+    assert res["valid"]
+    assert not any(w["code"] == "NO_DATA_OWNER" for w in res.get("warnings", []))
+
+    r = json.loads(json.dumps(base))
+    del r["attribution"]
+    res = validation.validate_record_full(r)
+    assert res["valid"], "attribution is optional"
+    assert any(w["code"] == "NO_DATA_OWNER" for w in res.get("warnings", []))
+
+    r = json.loads(json.dumps(base))
+    r["attribution"]["contributors"][0]["role"] = "boss"
+    assert not validation.validate_record_full(r)["valid"], "unknown role must be rejected"

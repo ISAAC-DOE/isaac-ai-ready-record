@@ -1671,6 +1671,55 @@
       },
       "description": "METHOD DECLARATION ONLY (ADR per computation verdict, 2026-06-13): computation declares HOW \u2014 never numerical results. Scalar results are descriptors (kind=theoretical_metric); simulated spectra/curves are measurement.series with role=simulated_observable; structures/INCARs/raw totals are assets (interim: JSON-strings in system.configuration).",
       "additionalProperties": false
+    },
+    "attribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "WHO: uploader, owner, analyst, curator. uploaded_by is SERVER-STAMPED from the authenticated identity at ingestion \u2014 client-supplied values are overwritten (tamper-proof attribution). Per-output analysis attribution lives in descriptors.outputs[].generated_by; this block is record-level. Decided by D. Sokaras 2026-06-15.",
+      "properties": {
+        "uploaded_by": {
+          "type": "string",
+          "description": "Authenticated identity that submitted this record. Set by the server; any client value is overwritten."
+        },
+        "contributors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "role"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "data_owner",
+                  "performed_measurement",
+                  "performed_analysis",
+                  "curated_record"
+                ]
+              },
+              "affiliation": {
+                "type": "string"
+              },
+              "orcid": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]$"
+              },
+              "email": {
+                "type": "string"
+              },
+              "notes": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -793,5 +793,16 @@
         "arbitrary_units": "arb"
       }
     }
+  },
+  "Attribution": {
+    "attribution.contributors.role": {
+      "description": "Contributor roles. data_owner = the PI/lab whose data this is; the same person may hold multiple roles (separate entries).",
+      "values": [
+        "data_owner",
+        "performed_measurement",
+        "performed_analysis",
+        "curated_record"
+      ]
+    }
   }
 }

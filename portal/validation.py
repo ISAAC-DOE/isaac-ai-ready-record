@@ -265,6 +265,12 @@ def _warning_checks(record: dict):
                                                 "(V_RHE) from the source, or declare potential_vs_RHE {value_V: null, rhe_basis: 'not_reported'} "
                                                 "so the gap is explicit (Potential Contract)."})
 
+        contribs = (record.get("attribution") or {}).get("contributors") or []
+        if record.get("record_type") == "evidence" and not any(
+                c.get("role") == "data_owner" for c in contribs if isinstance(c, dict)):
+            warnings.append({"code": "NO_DATA_OWNER", "path": "attribution/contributors",
+                             "message": "No data_owner declared. Evidence records should credit whose data this is "
+                                        "(attribution.contributors, role=data_owner, ideally with ORCID)."})
         if not record.get("links"):
             warnings.append({"code": "NO_LINKS", "path": "links",
                              "message": "Record has no links. If it belongs to a potential/composition series or derives from another record, add same_sample_as / derived_from / intended_comparison_target."})

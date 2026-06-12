@@ -376,6 +376,11 @@ def create_record():
     # Persist via shared database module (save_record re-validates
     # internally — the chokepoint guarantee — at negligible cost).
     try:
+        # Attribution stamping (2026-06-15): uploaded_by is the AUTHENTICATED
+        # identity — any client-supplied value is overwritten.
+        auth_info = _get_auth_info()
+        if auth_info and auth_info.get("user"):
+            data.setdefault("attribution", {})["uploaded_by"] = auth_info["user"]
         record_id = database.save_record(data)
         resp = {"success": True, "record_id": record_id}
         # Warnings tier: accepted-but-improvable feedback travels with the 201
