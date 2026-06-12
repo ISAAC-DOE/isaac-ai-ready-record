@@ -25,10 +25,26 @@ jobs:
           pytest tests/test_validation_battery.py -v --tb=short
 
       - name: Check wiki generated sections freshness
+        # Hard gate on main only. On PRs this is ADVISORY: a PR that changes
+        # the schema/vocabulary CANNOT match the not-yet-regenerated wiki
+        # (chicken-and-egg) — failing the whole battery for that produced
+        # days of false-alarm failure emails.
         run: |
-          if git clone --depth 1 https://github.com/ISAAC-DOE/isaac-ai-ready-record.wiki.git /tmp/wiki; then
-            python3 tools/generate_schema_diagram.py --check /tmp/wiki/Schema-Architecture.md
-            python3 tools/generate_wiki_vocab.py --check /tmp/wiki
-          else
+          if ! git clone --depth 1 https://github.com/ISAAC-DOE/isaac-ai-ready-record.wiki.git /tmp/wiki; then
             echo "::warning::wiki clone failed — freshness check skipped"
+            exit 0
+          fi
+          set +e
+          python3 tools/generate_schema_diagram.py --check /tmp/wiki/Schema-Architecture.md
+          d=$?
+          python3 tools/generate_wiki_vocab.py --check /tmp/wiki
+          v=$?
+          set -e
+          if [ $d -ne 0 ] || [ $v -ne 0 ]; then
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              echo "::error::Wiki generated sections are stale on main — run the generators and push the wiki."
+              exit 1
+            else
+              echo "::warning::Wiki will need regeneration after this PR merges (expected for schema/vocab changes)."
+            fi
           fi
