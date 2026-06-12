@@ -23,3 +23,8 @@ jobs:
       - name: Run validation battery
         run: |
           pytest tests/test_validation_battery.py -v --tb=short
+
+      - name: Check schema diagram freshness
+        run: |
+          git clone https://github.com/ISAAC-DOE/isaac-ai-ready-record.wiki.git /tmp/wiki || exit 0
+          python3 tools/generate_schema_diagram.py --check /tmp/wiki/Schema-Architecture.md
