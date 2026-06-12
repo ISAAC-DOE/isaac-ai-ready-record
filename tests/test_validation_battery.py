@@ -191,7 +191,7 @@ def test_warnings_tier():
     r = json.loads(json.dumps(base))
     ec = r["context"]["electrochemistry"]
     ec["control_mode"] = "galvanostatic"
-    ec["current_setpoint_mA_cm2"] = 200
+    ec["current_setpoint_mA_cm2"] = -200
     del ec["potential_setpoint_V"]
     del ec["potential_vs_RHE"]
     # strip potential-named descriptors/channels for the test
