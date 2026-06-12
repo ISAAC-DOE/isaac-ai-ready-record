@@ -24,7 +24,11 @@ jobs:
         run: |
           pytest tests/test_validation_battery.py -v --tb=short
 
-      - name: Check schema diagram freshness
+      - name: Check wiki generated sections freshness
         run: |
-          git clone https://github.com/ISAAC-DOE/isaac-ai-ready-record.wiki.git /tmp/wiki || exit 0
-          python3 tools/generate_schema_diagram.py --check /tmp/wiki/Schema-Architecture.md
+          if git clone --depth 1 https://github.com/ISAAC-DOE/isaac-ai-ready-record.wiki.git /tmp/wiki; then
+            python3 tools/generate_schema_diagram.py --check /tmp/wiki/Schema-Architecture.md
+            python3 tools/generate_wiki_vocab.py --check /tmp/wiki
+          else
+            echo "::warning::wiki clone failed — freshness check skipped"
+          fi
