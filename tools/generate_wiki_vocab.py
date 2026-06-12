@@ -78,9 +78,9 @@ def apply(page_path, section_names):
         text = re.sub(re.escape(BEGIN) + r".*?" + re.escape(END), new_block, text, flags=re.S)
     else:
         # Replace a legacy hand-written appendix if present, else append
-        m = re.search(r"\n#+\s*(?:\d+\.\s*)?(?:Appendix:?\s*)?Controlled Vocabular.*$", text, flags=re.S | re.I)
+        m = re.search(r"\n#+\s*(?:\d+\.\s*)?(?:Appendix:?\s*)?Controlled Vocabular.*?(?=\n## |\Z)", text, flags=re.S | re.I)
         if m:
-            text = text[:m.start()] + "\n" + new_block + "\n"
+            text = text[:m.start()] + "\n" + new_block + "\n" + text[m.end():]
         else:
             text = text.rstrip() + "\n\n" + new_block + "\n"
     return text

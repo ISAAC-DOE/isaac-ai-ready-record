@@ -93,9 +93,7 @@
       "vendor_or_project": "BioLogic"
     },
     "configuration": {
-      "reference_electrode": "Ag/AgCl_leak_free",
       "counter_electrode": "Pt_mesh",
-      "membrane": "Nafion_117",
       "gc_column_type": "PLOT_Q",
       "gc_model": "SRI_8610C",
       "product_detection_gas": "GC",
