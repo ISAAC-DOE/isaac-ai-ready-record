@@ -244,13 +244,13 @@ def test_adr001_conventions():
     template.update({"name": "partial_current_density.C2H4", "value": 45.0, "unit": "mA/cm2"})
     r["descriptors"]["outputs"][0]["descriptors"].append(template)
     res = validation.validate_record_full(r)
-    assert res["valid"]
-    assert any(w["code"] == "SIGN_CONVENTION" for w in res.get("warnings", []))
+    assert not res["valid"], "positive cathodic current is an ERROR since 2026-06-15"
+    assert any(e.get("code") == "SIGN_CONVENTION" for e in res.get("errors", []))
 
     # Negative value -> no warning
     r["descriptors"]["outputs"][0]["descriptors"][-1]["value"] = -45.0
     res = validation.validate_record_full(r)
-    assert not any(w["code"] == "SIGN_CONVENTION" for w in res.get("warnings", []))
+    assert res["valid"]
 
     # FE channel with measured_response role -> FE_ROLE_VIOLATION
     r = json.loads(json.dumps(base))
@@ -264,7 +264,8 @@ def test_adr001_conventions():
     r = json.loads(json.dumps(base))
     r["system"].setdefault("configuration", {})["reference_electrode"] = "Ag/AgCl"
     res = validation.validate_record_full(r)
-    assert any(w["code"] == "WRONG_BLOCK" for w in res.get("warnings", []))
+    assert not res["valid"], "misplaced cell-hardware key is an ERROR since 2026-06-15"
+    assert any(e.get("code") == "WRONG_BLOCK" for e in res.get("errors", []))
 
 
 def test_attribution_block():
