@@ -360,10 +360,13 @@ if page == "Dashboard" and db_connected:
     try:
         days = st.selectbox("Window", [7, 30, 90], index=1, format_func=lambda d: f"last {d} days")
         usage = database.get_api_usage_stats(days)
-        u1, u2, u3 = st.columns(3)
+        u1, u2, u3, u4 = st.columns(4)
         u1.metric("API Requests", f"{usage['total_requests']:,}")
         u2.metric("Distinct Users", usage['distinct_users'])
-        u3.metric("Errors (4xx/5xx)", usage['error_count'])
+        u3.metric("Rejections (4xx)", usage['rejection_count'],
+                  help="Validation rejections, auth failures, not-found — mostly the defenses doing their job. A user with many 4xx needs help.")
+        u4.metric("System Errors (5xx)", usage['server_error_count'],
+                  help="The portal itself failed — the only genuinely alarming column.")
         if usage['daily']:
             df_daily = pd.DataFrame(usage['daily']).set_index('day')
             st.line_chart(df_daily, height=220)

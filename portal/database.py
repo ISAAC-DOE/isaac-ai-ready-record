@@ -384,11 +384,13 @@ def get_api_usage_stats(days: int = 30) -> dict:
                         'avg_ms': float(r['avg_ms'] or 0)} for r in cur.fetchall()]
         cur.execute(
             "SELECT COUNT(*) AS total, COUNT(DISTINCT username) AS users, "
-            "COUNT(*) FILTER (WHERE status >= 400) AS errors "
+            "COUNT(*) FILTER (WHERE status BETWEEN 400 AND 499) AS rejections, "
+            "COUNT(*) FILTER (WHERE status >= 500) AS server_errors "
             "FROM api_requests WHERE ts > now() - (%s || ' days')::interval", (days,))
         row = cur.fetchone()
         return {'days': days, 'total_requests': row['total'], 'distinct_users': row['users'],
-                'error_count': row['errors'], 'daily': daily, 'by_user': by_user,
+                'rejection_count': row['rejections'], 'server_error_count': row['server_errors'],
+                'daily': daily, 'by_user': by_user,
                 'by_endpoint': by_endpoint}
     finally:
         cur.close()
