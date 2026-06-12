@@ -720,6 +720,10 @@
                     "converted_utc": {
                       "type": "string",
                       "format": "date-time"
+                    },
+                    "rhe_conversion_offset_V": {
+                      "type": "number",
+                      "description": "Single additive calibrated conversion constant: E_RHE = E_measured + rhe_conversion_offset_V. Bundles the reference-electrode offset AND the Nernst pH term, calibrated against a master reference (accounts for individual electrode drift). When present, use it instead of the offset+pH route and set rhe_basis=derived_calibrated. Origin: Caltech HTE per-session calibration values (2026-06-12)."
                     }
                   }
                 }
