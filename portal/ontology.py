@@ -3,7 +3,7 @@ ISAAC AI-Ready Record - Ontology/Vocabulary Module
 Wiki-sourced living ontology with proposal/approval workflow.
 
 Data flow:
-  Wiki (source of truth) → sync_from_wiki() → vocabulary_cache table → load_vocabulary()
+  data/vocabulary.json (SOURCE OF TRUTH, ships with the image) → sync_vocabulary_from_file() → vocabulary_cache → load_vocabulary(). The wiki is GENERATED from the same file (tools/generate_wiki_vocab.py) — never parse the wiki back.
   Proposals: user submits → admin approves → apply_approved_proposal() → cache + wiki push
   Fallback: vocabulary_cache → vocabulary.json (file)
 """

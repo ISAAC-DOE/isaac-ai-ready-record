@@ -64,7 +64,7 @@ if db_connected and os.environ.get("WIKI_REPO_URL"):
             if age.total_seconds() < 300:
                 need_sync = False
         if need_sync:
-            ontology.sync_from_wiki(synced_by="auto")
+            ontology.sync_vocabulary_from_file()
     except Exception:
         pass
 
@@ -172,7 +172,8 @@ def render_mermaid(code, height=600):
 
 SECTION_ORDER = [
     "Record Info", "Sample", "Context", "System",
-    "Measurement", "Assets", "Links", "Descriptors",
+    "Measurement", "Computation", "Descriptors",
+    "Assets", "Links", "Units", "Attribution",
 ]
 
 def generate_mermaid_code(active_section=None, active_category=None):
@@ -410,9 +411,9 @@ elif page == "Ontology Editor":
                         else:
                             st.caption("Never synced from wiki")
                 with admin_cols[1]:
-                    if st.button("Sync from Wiki", type="secondary"):
-                        with st.spinner("Syncing from wiki..."):
-                            ok, msg = ontology.sync_from_wiki(synced_by=current_username)
+                    if st.button("Re-sync from deployed file", type="secondary", help="vocabulary.json ships with the image and is the source of truth; the wiki is generated FROM it."):
+                        with st.spinner("Syncing from vocabulary.json..."):
+                            ok, msg = ontology.sync_vocabulary_from_file()
                         if ok:
                             st.success(msg)
                             st.rerun()
