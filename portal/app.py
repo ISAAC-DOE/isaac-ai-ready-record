@@ -108,26 +108,27 @@ with user_col:
 
 page = st.session_state.current_page
 
-# --- CONFIG: Display Names ---
-DISPLAY_MAP = {
-    "Record Info": "1. Record Info",
-    "Sample": "2. Sample",
-    "Context": "3. Context",
-    "System": "4. System",
-    "Measurement": "5. Measurement",
-    "Assets": "6. Assets",
-    "Links": "7. Links",
-    "Descriptors": "8. Descriptors"
-}
+# --- CONFIG: Display Names (derived from SECTION_ORDER — single source, no hand-numbering) ---
+# Cross-cutting vocabulary sections that are NOT record blocks:
+CROSS_CUTTING = {"Units": "Units (cross-cutting: unit grammar + alias map)",
+                  "Record Info": "Record Info (root fields)"}
 
 def get_display_name(key):
-    return DISPLAY_MAP.get(key, key)
+    if key in CROSS_CUTTING:
+        return CROSS_CUTTING[key]
+    try:
+        return f"{SECTION_ORDER.index(key) + 1}. {key}"
+    except ValueError:
+        return key
 
 # --- CONFIG: Wiki Mapping ---
 WIKI_BASE = "https://github.com/ISAAC-DOE/isaac-ai-ready-record/wiki"
 
 WIKI_MAP = {
     "Record Info": "Record-Overview",
+    "Computation": "Computation",
+    "Units": "Controlled-Vocabulary",
+    "Attribution": "Schema-Architecture",
     "Sample": "Sample",
     "Context": "Context",
     "System": "System",
@@ -385,7 +386,7 @@ if page == "Dashboard" and db_connected:
 
 elif page == "Ontology Editor":
     st.header("Living Ontology")
-    st.info("Browse the ISAAC vocabulary below. Use the Propose form to suggest changes.")
+    st.info("Browse the ISAAC vocabulary below. Numbered sections mirror the record blocks; Units and Record Info are cross-cutting vocabularies (units and root fields appear inside records, not as blocks). Use the Propose form to suggest changes.")
 
     all_sections = ontology.get_sections()
     sections = [s for s in SECTION_ORDER if s in all_sections]
