@@ -845,7 +845,7 @@ elif page == "Saved Records":
             st.write(f"Total records: **{record_count}**")
 
             if record_count > 0:
-                records = database.list_records(limit=50)
+                records, _total = database.list_records(limit=50)
 
                 # Display as table
                 df = pd.DataFrame(records)
