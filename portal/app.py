@@ -25,8 +25,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ISAAC logo at the top of every page
-branding.render_header()
+# Theme (dark/light) — initialise before injecting the design system.
+# Mirrored to the URL so the choice survives a page reload.
+if "ui_theme" not in st.session_state:
+    _qp_theme = st.query_params.get("theme")
+    st.session_state.ui_theme = _qp_theme if _qp_theme in ("dark", "light") else "dark"
+
+# ISAAC logo + design system at the top of every page
+branding.render_header(st.session_state.ui_theme)
 
 # Initialize database tables on startup (if configured)
 if database.is_db_configured():
@@ -77,8 +83,15 @@ if user_is_admin:
     # Insert Admin Review after Ontology Editor
     PAGES.insert(2, "Admin Review")
 
-# --- Top navigation bar: hamburger menu + DB status + user info ---
-nav_col, status_col, user_col = st.columns([6, 1, 2])
+# --- Top navigation bar: hamburger menu + theme toggle + DB status + user info ---
+nav_col, theme_col, status_col, user_col = st.columns([5, 1, 1, 2])
+with theme_col:
+    _is_dark = st.session_state.ui_theme == "dark"
+    if st.button("☀️ Light" if _is_dark else "🌙 Dark", key="theme_toggle",
+                 use_container_width=True, help="Switch between dark and light mode"):
+        st.session_state.ui_theme = "light" if _is_dark else "dark"
+        st.query_params["theme"] = st.session_state.ui_theme
+        st.rerun()
 with nav_col:
     with st.popover("☰ Menu"):
         for p in PAGES:
