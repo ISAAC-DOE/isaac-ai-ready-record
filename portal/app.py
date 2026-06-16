@@ -26,10 +26,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Theme (dark/light) — initialise before injecting the design system.
-# Mirrored to the URL so the choice survives a page reload.
+# Light is the default; mirrored to the URL so the choice survives a page reload.
 if "ui_theme" not in st.session_state:
     _qp_theme = st.query_params.get("theme")
-    st.session_state.ui_theme = _qp_theme if _qp_theme in ("dark", "light") else "dark"
+    st.session_state.ui_theme = _qp_theme if _qp_theme in ("dark", "light") else "light"
 
 # ISAAC logo + design system at the top of every page
 branding.render_header(st.session_state.ui_theme)

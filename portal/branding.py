@@ -15,7 +15,7 @@ _PARTNERS_PATH = os.path.join(_STATIC_DIR, "ISAAC_partners_footer_white.png")
 _DOE_PATH = os.path.join(_STATIC_DIR, "DOE_White_Seal_White_Lettering_Horizontal.png")
 
 
-def render_header(mode: str = "dark"):
+def render_header(mode: str = "light"):
     """Render the ISAAC logo and inject the design system for the given mode."""
     try:
         st.logo(_LOGO_PATH, size="large")
@@ -65,9 +65,9 @@ PALETTES = {
 }
 
 
-def inject_theme(mode: str = "dark"):
+def inject_theme(mode: str = "light"):
     """Inject the design-system CSS for the given mode ('dark' | 'light')."""
-    p = PALETTES.get(mode, PALETTES["dark"])
+    p = PALETTES.get(mode, PALETTES["light"])
     st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
@@ -144,8 +144,24 @@ h2, h3 {{ font-weight: 600 !important; letter-spacing: -0.01em; color: {p['text'
     background: {p['accent']}; color: {p['on_accent']}; filter: brightness(1.06);
 }}
 
-/* Popover / hamburger-menu surface */
-[data-testid="stPopoverBody"] {{ background: {p['surface']}; border: 1px solid {p['border_soft']}; }}
+/* Popover / hamburger-menu. The popover portals OUTSIDE .stApp, so it never
+   inherits the canvas bg — without setting the body AND its inner containers
+   explicitly, dark mode shows the native-light white between the menu items. */
+[data-testid="stPopover"],
+[data-testid="stPopoverBody"],
+[data-testid="stPopoverBody"] [data-testid="stVerticalBlock"],
+[data-testid="stPopoverBody"] [data-testid="stElementContainer"] {{
+    background: {p['bg']};
+}}
+[data-testid="stPopoverBody"] {{ border: 1px solid {p['border_soft']}; }}
+/* The "☰ Menu" trigger is a stPopoverButton (NOT stBaseButton) — style it too,
+   or it renders as a bright native-white button in dark mode. */
+[data-testid="stPopoverButton"] {{
+    background: {p['surface']}; border: 1px solid {p['border']}; color: {p['text']};
+}}
+[data-testid="stPopoverButton"]:hover {{
+    border-color: {p['accent']}; color: {p['accent']}; background: {p['accent_soft']};
+}}
 
 /* Inputs + selectbox dropdown (baseweb popover) */
 .stTextInput input, .stTextArea textarea {{
