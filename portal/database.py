@@ -185,7 +185,7 @@ def init_tables():
 # Record Operations
 # =============================================================================
 
-def save_record(record_data: dict, *, skip_validation: bool = False) -> str:
+def save_record(record_data: dict, *, skip_validation: bool = False, uploaded_by: str | None = None) -> str:
     """
     Save an ISAAC record to the database.
 
@@ -212,6 +212,12 @@ def save_record(record_data: dict, *, skip_validation: bool = False) -> str:
         ValueError: If required fields are missing
         Exception: If database operation fails
     """
+    # Server-stamped attribution: the AUTHENTICATED identity, set before
+    # validation so every ingestion door (API + both Streamlit paths) writes
+    # tamper-proof provenance. Client-supplied uploaded_by is overwritten.
+    if uploaded_by:
+        record_data.setdefault("attribution", {})["uploaded_by"] = uploaded_by
+
     if skip_validation:
         logger.warning(
             "save_record VALIDATION BYPASS (skip_validation=True) for record_id=%s",

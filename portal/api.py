@@ -38,7 +38,13 @@ import ontology  # noqa: E402
 # Flask app setup
 # ---------------------------------------------------------------------------
 app = Flask(__name__)
-CORS(app)
+# Restrict CORS to the portal origin (bearer-token API; server-to-server
+# callers like migration scripts and converters ignore CORS entirely).
+_ALLOWED_ORIGINS = os.environ.get(
+    "ISAAC_CORS_ORIGINS", "https://isaac.slac.stanford.edu").split(",")
+CORS(app, origins=[o.strip() for o in _ALLOWED_ORIGINS if o.strip()])
+# Reject oversized bodies before buffering (memory-exhaustion DoS guard).
+app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("ISAAC_MAX_BODY_BYTES", str(5 * 1024 * 1024)))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -376,12 +382,10 @@ def create_record():
     # Persist via shared database module (save_record re-validates
     # internally — the chokepoint guarantee — at negligible cost).
     try:
-        # Attribution stamping (2026-06-15): uploaded_by is the AUTHENTICATED
-        # identity — any client-supplied value is overwritten.
+        # Attribution: stamped inside the chokepoint from the authenticated identity.
         auth_info = _get_auth_info()
-        if auth_info and auth_info.get("user"):
-            data.setdefault("attribution", {})["uploaded_by"] = auth_info["user"]
-        record_id = database.save_record(data)
+        record_id = database.save_record(
+            data, uploaded_by=(auth_info or {}).get("user"))
         resp = {"success": True, "record_id": record_id}
         # Warnings tier: accepted-but-improvable feedback travels with the 201
         if result.get("warnings"):
@@ -457,7 +461,7 @@ def list_records():
         return resp, 200
     except Exception as exc:
         logger.exception("Database error listing records")
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "internal server error"}), 500
 
 
 @app.route("/portal/api/records/batch", methods=["POST"])
@@ -476,11 +480,11 @@ def records_batch():
                         "returned": len(records)}), 200
     except Exception as exc:
         logger.exception("Database error in batch fetch")
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "internal server error"}), 500
 
 
 @app.route("/portal/api/records/query", methods=["POST"])
-@_require_auth
+@_require_admin
 def records_query():
     """
     Guarded read-only SQL: {"sql": "SELECT ...", "max_rows": 100}.
@@ -502,7 +506,7 @@ def records_query():
         return jsonify({"error": str(ve)}), 400
     except Exception as exc:
         logger.exception("Read-only query failed")
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "internal server error"}), 500
 
 
 @app.route("/portal/api/records/<record_id>/quality", methods=["GET"])
@@ -517,7 +521,7 @@ def record_quality(record_id):
     try:
         record = database.get_record(record_id)
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "internal server error"}), 500
     if record is None:
         return jsonify({"error": "Record not found"}), 404
     result = validation.validate_record_full(record)
@@ -536,7 +540,7 @@ def record_suggestions(record_id):
     try:
         record = database.get_record(record_id)
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "internal server error"}), 500
     if record is None:
         return jsonify({"error": "Record not found"}), 404
 
@@ -606,7 +610,7 @@ def record_suggestions(record_id):
 
 
 @app.route("/portal/api/usage/summary", methods=["GET"])
-@_require_auth
+@_require_admin
 def usage_summary():
     """API usage aggregates (?days=30): daily series, by user, by endpoint."""
     try:
@@ -614,11 +618,11 @@ def usage_summary():
         return jsonify(database.get_api_usage_stats(days)), 200
     except Exception as exc:
         logger.exception("usage summary failed")
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "internal server error"}), 500
 
 
 @app.route("/portal/api/quality/summary", methods=["GET"])
-@_require_auth
+@_require_admin
 def quality_summary():
     """
     Database-wide curation dashboard: counts of records by warning/info
@@ -629,7 +633,7 @@ def quality_summary():
     try:
         rows, total = database.list_records(limit=100000, offset=0, full=True)
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "internal server error"}), 500
     from collections import Counter
     warn_counts, info_counts = Counter(), Counter()
     fail = 0
@@ -663,7 +667,7 @@ def get_record(record_id):
         record = database.get_record(record_id)
     except Exception as exc:
         logger.exception("Database error fetching record %s", record_id)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "internal server error"}), 500
 
     if record is None:
         return jsonify({"error": "Record not found"}), 404
@@ -684,7 +688,7 @@ def delete_record(record_id):
         deleted = database.delete_record(record_id)
     except Exception as exc:
         logger.exception("Database error deleting record %s", record_id)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "internal server error"}), 500
 
     if not deleted:
         return jsonify({"error": "Record not found"}), 404
@@ -705,4 +709,4 @@ if __name__ == "__main__":
         )
 
     logger.info("Starting ISAAC Portal API on port %d", PORT)
-    app.run(host="0.0.0.0", port=PORT, debug=os.environ.get("FLASK_DEBUG", "0") == "1")
+    app.run(host="0.0.0.0", port=PORT, debug=False)  # never enable the Werkzeug debugger (RCE)

@@ -70,7 +70,7 @@ if db_connected and os.environ.get("WIKI_REPO_URL"):
             if age.total_seconds() < 300:
                 need_sync = False
         if need_sync:
-            ontology.sync_vocabulary_from_file()
+            ontology.sync_file_to_db()
     except Exception:
         pass
 
@@ -427,7 +427,7 @@ elif page == "Ontology Editor":
                 with admin_cols[1]:
                     if st.button("Re-sync from deployed file", type="secondary", help="vocabulary.json ships with the image and is the source of truth; the wiki is generated FROM it."):
                         with st.spinner("Syncing from vocabulary.json..."):
-                            ok, msg = ontology.sync_vocabulary_from_file()
+                            ok, msg = ontology.sync_file_to_db()
                         if ok:
                             st.success(msg)
                             st.rerun()
@@ -801,7 +801,7 @@ elif page == "Record Validator":
                                 # content. save_record re-validates internally (the
                                 # shared chokepoint), so a record that changed since
                                 # the displayed PASS cannot slip through.
-                                saved_id = database.save_record(record_data)
+                                saved_id = database.save_record(record_data, uploaded_by=(current_username if current_username != "anonymous" else None))
                                 st.success(f"Record saved! ID: `{saved_id}`")
                             except Exception as exc:
                                 import validation
@@ -890,7 +890,9 @@ elif page == "Saved Records":
                         with st.expander("Danger Zone"):
                             st.warning("This action cannot be undone!")
                             if st.button(f"Delete Record {selected_id}", type="secondary"):
-                                if database.delete_record(selected_id):
+                                if not user_is_admin:
+                                    st.error("Deleting records requires admin privileges.")
+                                elif database.delete_record(selected_id):
                                     st.success("Record deleted.")
                                     st.rerun()
                                 else:
