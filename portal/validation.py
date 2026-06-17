@@ -203,19 +203,35 @@ def _potential_contract_errors(record: dict) -> list:
     if isinstance(pvr, dict) and pvr.get("rhe_basis") in ("derived_calibrated", "derived_nominal"):
         conv = pvr.get("conversion") or {}
         val = pvr.get("value_V")
+        src = ec.get("potential_setpoint_V")
+        cal = conv.get("rhe_conversion_offset_V")
         off = conv.get("offset_V_vs_SHE_used")
         ph = conv.get("pH_used")
-        src = ec.get("potential_setpoint_V")
-        if all(isinstance(x, (int, float)) for x in (val, off, ph, src)):
-            slope = 0.05916 if "0.05916" in str(conv.get("formula", "")) else 0.0591
-            recomputed = src + off + slope * ph
-            if abs(recomputed - val) > 0.002:
-                errors.append({
-                    "path": "context/electrochemistry/potential_vs_RHE/value_V",
-                    "message": f"Derived value_V={val} does not match recomputation from its own conversion "
-                               f"inputs ({src} + {off} + {slope}*{ph} = {recomputed:.4f}); tolerance 2 mV. "
-                               f"Provenance and value must agree (Potential Contract).",
-                })
+        recomputed = None
+        label = None
+        if isinstance(val, (int, float)) and isinstance(src, (int, float)):
+            if isinstance(cal, (int, float)):
+                # Calibrated single-constant path. CANONICAL CONVENTION: ADDITIVE.
+                # rhe_conversion_offset_V already bundles reference offset + Nernst
+                # pH term + electrode drift, so there is NO separate pH term here.
+                recomputed = src + cal
+                label = f"E_measured({src}) + rhe_conversion_offset_V({cal})"
+            elif isinstance(off, (int, float)) and isinstance(ph, (int, float)):
+                # Nominal path: offset vs SHE + Nernst slope * pH.
+                slope = 0.05916 if "0.05916" in str(conv.get("formula", "")) else 0.0591
+                recomputed = src + off + slope * ph
+                label = f"{src} + {off} + {slope}*{ph}"
+        # 5 mV tolerance absorbs source-side rounding of value_V while still
+        # catching genuine value/provenance drift (which is tens of mV).
+        if recomputed is not None and abs(recomputed - val) > 0.005:
+            errors.append({
+                "path": "context/electrochemistry/potential_vs_RHE/value_V",
+                "message": f"Derived value_V={val} does not match recomputation from its own conversion "
+                           f"inputs ({label} = {recomputed:.4f}); tolerance 5 mV. Provenance and value must "
+                           f"agree (Potential Contract). NOTE: rhe_conversion_offset_V is ADDITIVE "
+                           f"(E_RHE = E_measured + rhe_conversion_offset_V) — if your pipeline subtracts it, "
+                           f"negate the stored constant.",
+            })
     return errors
 
 

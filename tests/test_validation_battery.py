@@ -284,3 +284,25 @@ def test_attribution_block():
     r = json.loads(json.dumps(base))
     r["attribution"]["contributors"][0]["role"] = "boss"
     assert not validation.validate_record_full(r)["valid"], "unknown role must be rejected"
+
+
+def test_calibrated_rhe_conversion():
+    """Calibrated single-constant path: additive convention, recompute-checked."""
+    base = json.loads((REPO / "examples" / "co2rr_performance_record.json").read_text())
+    r = json.loads(json.dumps(base))
+    ec = r["context"]["electrochemistry"]
+    ec["potential_setpoint_V"] = 0.1494614
+    ec["potential_scale"] = "Ag/AgCl"
+    ec["reference_electrode"] = {"type": "Ag/AgCl", "filling_solution": "3.0 M KCl",
+                                  "offset_V_vs_SHE": 0.210, "offset_basis": "calibrated"}
+    ec["potential_vs_RHE"] = {"value_V": round(0.1494614 + 1.04, 4), "rhe_basis": "derived_calibrated",
+        "ir_corrected": "no",
+        "conversion": {"input_path": "context.electrochemistry.potential_setpoint_V", "from_scale": "Ag/AgCl",
+                       "formula": "E_RHE = E_measured + rhe_conversion_offset_V",
+                       "rhe_conversion_offset_V": 1.04, "converted_by": "test"}}
+    assert validation.validate_record_full(r)["valid"], "additive calibrated path must pass"
+
+    # Wrong sign (subtractive -1.04) must be caught by the recompute guard
+    r2 = json.loads(json.dumps(r))
+    r2["context"]["electrochemistry"]["potential_vs_RHE"]["conversion"]["rhe_conversion_offset_V"] = -1.04
+    assert not validation.validate_record_full(r2)["valid"], "wrong-sign calibrated offset must be rejected"

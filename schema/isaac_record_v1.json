@@ -733,10 +733,7 @@
                   "if": {
                     "properties": {
                       "rhe_basis": {
-                        "enum": [
-                          "derived_calibrated",
-                          "derived_nominal"
-                        ]
+                        "const": "derived_nominal"
                       }
                     }
                   },
@@ -750,6 +747,29 @@
                         "required": [
                           "offset_V_vs_SHE_used",
                           "pH_used",
+                          "formula"
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "rhe_basis": {
+                        "const": "derived_calibrated"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "value_V",
+                      "conversion"
+                    ],
+                    "properties": {
+                      "conversion": {
+                        "required": [
+                          "rhe_conversion_offset_V",
                           "formula"
                         ]
                       }
