@@ -26,10 +26,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Theme (dark/light) — initialise before injecting the design system.
-# Light is the default; mirrored to the URL so the choice survives a page reload.
+# Dark deep-ink is the canonical default; mirrored to the URL so the choice
+# survives a page reload.
 if "ui_theme" not in st.session_state:
     _qp_theme = st.query_params.get("theme")
-    st.session_state.ui_theme = _qp_theme if _qp_theme in ("dark", "light") else "light"
+    st.session_state.ui_theme = _qp_theme if _qp_theme in ("dark", "light") else "dark"
 
 # ISAAC logo + design system at the top of every page
 branding.render_header(st.session_state.ui_theme)
@@ -87,13 +88,13 @@ if user_is_admin:
 nav_col, theme_col, status_col, user_col = st.columns([5, 1, 1, 2])
 with theme_col:
     _is_dark = st.session_state.ui_theme == "dark"
-    if st.button("☀️ Light" if _is_dark else "🌙 Dark", key="theme_toggle",
+    if st.button("Light" if _is_dark else "Dark", key="theme_toggle",
                  use_container_width=True, help="Switch between dark and light mode"):
         st.session_state.ui_theme = "light" if _is_dark else "dark"
         st.query_params["theme"] = st.session_state.ui_theme
         st.rerun()
 with nav_col:
-    with st.popover("☰ Menu"):
+    with st.popover("Menu"):
         for p in PAGES:
             label = p
             # Show pending count badge for Admin Review
@@ -109,17 +110,58 @@ with nav_col:
                 st.session_state.current_page = p
                 st.rerun()
 with status_col:
-    if db_connected:
-        st.success("DB Online")
-    else:
-        st.warning("DB Offline")
+    branding.status_dot(db_connected, "DB Online" if db_connected else "DB Offline")
 with user_col:
     _logout_url = "https://isaac.slac.stanford.edu/outpost.goauthentik.io/flows/logout/?rd=https://isaac.slac.stanford.edu/"
     st.markdown(
-        f"👤 **{current_username}** &nbsp;|&nbsp; [Logout]({_logout_url})"
+        f"**{current_username}** &nbsp;|&nbsp; [Logout]({_logout_url})"
     )
 
 page = st.session_state.current_page
+
+
+def _themed_bar(df, x, y):
+    """Ink-and-teal Altair bar chart matching the active theme. None on failure."""
+    try:
+        import altair as alt
+        pal = branding.palette(st.session_state.ui_theme)
+        return (
+            alt.Chart(df).mark_bar(color=pal["accent"], cornerRadiusEnd=2, size=46)
+            .encode(
+                x=alt.X(f"{x}:N", sort="-y", axis=alt.Axis(
+                    labelAngle=0, labelColor=pal["muted"], titleColor=pal["muted"],
+                    domainColor=pal["border_soft"], ticks=False, title=None)),
+                y=alt.Y(f"{y}:Q", axis=alt.Axis(
+                    labelColor=pal["muted"], titleColor=pal["muted"], grid=True,
+                    gridColor=pal["border_soft"], domain=False, ticks=False, title=None)),
+                tooltip=[x, y])
+            .properties(height=300, background=pal["bg"])
+            .configure_view(stroke=None)
+        )
+    except Exception:
+        return None
+
+
+def _themed_line(df, x, y):
+    """Ink-and-teal Altair line chart matching the active theme. None on failure."""
+    try:
+        import altair as alt
+        pal = branding.palette(st.session_state.ui_theme)
+        base = alt.Chart(df).encode(
+            x=alt.X(f"{x}:T", axis=alt.Axis(
+                labelColor=pal["muted"], titleColor=pal["muted"], domainColor=pal["border_soft"],
+                ticks=False, title=None)),
+            y=alt.Y(f"{y}:Q", axis=alt.Axis(
+                labelColor=pal["muted"], titleColor=pal["muted"], grid=True,
+                gridColor=pal["border_soft"], domain=False, ticks=False, title=None)))
+        return (
+            (base.mark_line(color=pal["accent"], strokeWidth=2, interpolate="monotone")
+             + base.mark_point(color=pal["accent"], size=28, filled=True))
+            .properties(height=240, background=pal["bg"])
+            .configure_view(stroke=None)
+        )
+    except Exception:
+        return None
 
 # --- CONFIG: Display Names (derived from SECTION_ORDER — single source, no hand-numbering) ---
 # Cross-cutting vocabulary sections that are NOT record blocks:
@@ -355,8 +397,12 @@ if page == "Dashboard":
                 type_df = pd.DataFrame(
                     list(by_type.items()),
                     columns=["Record Type", "Count"]
-                ).set_index("Record Type")
-                st.bar_chart(type_df)
+                )
+                _bar = _themed_bar(type_df, "Record Type", "Count")
+                if _bar is not None:
+                    st.altair_chart(_bar, use_container_width=True)
+                else:
+                    st.bar_chart(type_df.set_index("Record Type"))
             else:
                 st.info("No records yet. Use the Record Validator or Record Form to add data.")
 
@@ -383,8 +429,12 @@ if page == "Dashboard" and db_connected:
         u4.metric("System Errors (5xx)", usage['server_error_count'],
                   help="The portal itself failed — the only genuinely alarming column.")
         if usage['daily']:
-            df_daily = pd.DataFrame(usage['daily']).set_index('day')
-            st.line_chart(df_daily, height=220)
+            df_daily = pd.DataFrame(usage['daily'])
+            _line = _themed_line(df_daily, "day", "requests")
+            if _line is not None:
+                st.altair_chart(_line, use_container_width=True)
+            else:
+                st.line_chart(df_daily.set_index('day'), height=220)
         col_a, col_b = st.columns(2)
         with col_a:
             st.caption("Requests by user")
