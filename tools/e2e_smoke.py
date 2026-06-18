@@ -94,15 +94,7 @@ def main():
     code, p = http("POST", "/records", test)
     check("POST test record", code == 201 and p.get("success") is True, str(p)[:200])
 
-    # 3b. Ownership model (2026-06-17): re-POST same id is rejected, PUT edits
-    code, p2 = http("POST", "/records", test)
-    check("re-POST existing id rejected (409, no silent overwrite)", code == 409)
-    edited = copy.deepcopy(test)
-    edited["sample"]["material"]["name"] = "E2E EDITED via PUT"
-    code, pe = http("PUT", f"/records/{rid}", edited)
-    check("PUT edits an owned record (200)", code == 200 and pe.get("updated") is True, str(pe)[:160])
-
-    # 4. GET round-trip fidelity
+    # 4. GET round-trip fidelity (BEFORE any edit, vs the original POSTed record)
     code, fetched = http("GET", f"/records/{rid}")
     check("GET test record", code == 200 and fetched.get("record_id") == rid)
     if code == 200:
@@ -111,9 +103,19 @@ def main():
             if json.dumps(test.get(block), sort_keys=True) != json.dumps(fetched.get(block), sort_keys=True):
                 diffs.append(block)
         check("round-trip fidelity (all blocks byte-identical)", not diffs, f"differing blocks: {diffs}")
-        # Potential Contract specifically
         pvr = (fetched.get("context", {}).get("electrochemistry", {}) or {}).get("potential_vs_RHE")
         check("potential_vs_RHE survives round-trip", isinstance(pvr, dict) and "rhe_basis" in pvr)
+
+    # 4a. Ownership model (2026-06-17): re-POST rejected; PUT edits and persists
+    code, p2 = http("POST", "/records", test)
+    check("re-POST existing id rejected (409, no silent overwrite)", code == 409)
+    edited = copy.deepcopy(test)
+    edited["sample"]["material"]["name"] = "E2E EDITED via PUT"
+    code, pe = http("PUT", f"/records/{rid}", edited)
+    check("PUT edits an owned record (200)", code == 200 and pe.get("updated") is True, str(pe)[:160])
+    code, after = http("GET", f"/records/{rid}")
+    check("PUT edit persisted", code == 200
+          and after.get("sample", {}).get("material", {}).get("name") == "E2E EDITED via PUT")
 
     # 4b. Query API endpoints (2026-06-12)
     code, resp = http("GET", "/records?record_domain=performance&limit=3")
