@@ -264,22 +264,35 @@ def _warning_checks(record: dict):
             if not (record.get("sample") or {}).get("electrode_type"):
                 warnings.append({"code": "MISSING_ELECTRODE_TYPE", "path": "sample/electrode_type",
                                  "message": "sample.electrode_type is recommended (GDE, thin_film, patterned_film, ...)."})
-            # Galvanostatic with no potential anywhere and no honest not_reported marker
-            if ec.get("control_mode") == "galvanostatic" and not ec.get("potential_vs_RHE"):
+            # Galvanostatic with no potential anywhere and no honest marker.
+            # Full-cell electrolyzers (mea_cell/zero_gap_cell) report CELL VOLTAGE,
+            # not a half-cell RHE potential — for them the half-cell projection is
+            # not merely unreported but INAPPLICABLE, so this must not nag.
+            pvr = ec.get("potential_vs_RHE") or {}
+            full_cell = ec.get("cell_type") in ("mea_cell", "zero_gap_cell")
+            voltage_accounted = (
+                pvr.get("rhe_basis") in ("not_reported", "not_applicable")
+                or full_cell
+            )
+            if ec.get("control_mode") == "galvanostatic" and not voltage_accounted:
                 has_pot = False
                 for o in (record.get("descriptors") or {}).get("outputs") or []:
                     for d in o.get("descriptors") or [] if isinstance(o, dict) else []:
-                        if "potential" in (d.get("name") or "").lower():
+                        nm = (d.get("name") or "").lower()
+                        if "potential" in nm or "cell_voltage" in nm:
                             has_pot = True
                 for s in (record.get("measurement") or {}).get("series") or []:
                     for ch in (s.get("channels") or []) + (s.get("independent_variables") or []):
-                        if "potential" in (ch.get("name") or "").lower():
+                        nm = (ch.get("name") or "").lower()
+                        if "potential" in nm or "cell_voltage" in nm or ch.get("unit") == "V_cell":
                             has_pot = True
                 if not has_pot:
                     warnings.append({"code": "GALVANOSTATIC_NO_POTENTIAL", "path": "context/electrochemistry/potential_vs_RHE",
-                                     "message": "Galvanostatic record carries no measured potential anywhere. Add steady_state_potential "
-                                                "(V_RHE) from the source, or declare potential_vs_RHE {value_V: null, rhe_basis: 'not_reported'} "
-                                                "so the gap is explicit (Potential Contract)."})
+                                     "message": "Galvanostatic record carries no measured voltage anywhere. Half-cell study: "
+                                                "add steady_state_potential (V_RHE) or declare potential_vs_RHE {value_V: null, "
+                                                "rhe_basis: 'not_reported'}. Full-cell electrolyzer: report cell_voltage (V_cell) "
+                                                "or declare potential_vs_RHE {value_V: null, rhe_basis: 'not_applicable'} — the "
+                                                "half-cell potential does not exist for a 2-electrode device."})
 
         contribs = (record.get("attribution") or {}).get("contributors") or []
         if record.get("record_type") == "evidence" and not any(

@@ -228,7 +228,8 @@
         "in_silico_setpoint",
         "not_convertible_no_pH",
         "not_convertible_no_reference_offset",
-        "not_reported"
+        "not_reported",
+        "not_applicable"
       ]
     },
     "context.electrochemistry.reference_electrode.type": {
@@ -507,7 +508,9 @@
         "partial_current_density",
         "steady_state_potential",
         "production_rate",
-        "work_function"
+        "work_function",
+        "degradation_rate",
+        "operating_duration"
       ]
     },
     "descriptors.theoretical_metric": {
@@ -739,7 +742,9 @@
         "bar",
         "ppm",
         "V_ref",
-        "V_cell"
+        "V_cell",
+        "mV/h",
+        "uV/h"
       ]
     },
     "units.spectroscopy": {

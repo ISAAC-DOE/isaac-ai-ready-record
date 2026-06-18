@@ -657,9 +657,10 @@
                     "in_silico_setpoint",
                     "not_convertible_no_pH",
                     "not_convertible_no_reference_offset",
-                    "not_reported"
+                    "not_reported",
+                    "not_applicable"
                   ],
-                  "description": "Trust tier of value_V. measured_direct: physical RHE reference. derived_calibrated: converted with a calibrated offset. reported_as_RHE: source stated RHE, conversion unrecoverable. derived_nominal: converted with tabulated/assumed offset + nominal pH. not_*: value_V is null, reason explicit."
+                  "description": "Trust tier of value_V. measured_direct: physical RHE reference. derived_calibrated: converted with a calibrated offset. reported_as_RHE: source stated RHE, conversion unrecoverable. derived_nominal: converted with tabulated/assumed offset + nominal pH. not_*: value_V is null, reason explicit. not_applicable = a half-cell RHE projection does not exist for this device (full 2-electrode electrolyzer); value_V is null."
                 },
                 "uncertainty_V": {
                   "type": "number",
@@ -783,7 +784,8 @@
                         "enum": [
                           "not_convertible_no_pH",
                           "not_convertible_no_reference_offset",
-                          "not_reported"
+                          "not_reported",
+                          "not_applicable"
                         ]
                       }
                     }

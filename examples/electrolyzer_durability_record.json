@@ -1,0 +1,140 @@
+{
+  "record_id": "01ELECTROLYZER00000000000A",
+  "isaac_record_version": "1.05",
+  "record_domain": "performance",
+  "record_type": "evidence",
+  "source_type": "literature",
+  "timestamps": {
+    "created_utc": "2026-06-17T00:00:00Z"
+  },
+  "sample": {
+    "material": {
+      "name": "Pt/C(cathode) | Nafion117 | IrO2(anode) PEM-MEA",
+      "formula": "IrO2/Pt",
+      "provenance": "literature"
+    },
+    "sample_form": "membrane_electrode_assembly",
+    "electrode_type": "MEA",
+    "composition": {
+      "anode_catalyst": "IrO2",
+      "cathode_catalyst": "Pt/C",
+      "membrane": "Nafion_117",
+      "anode_loading_mg_cm2": 2.0,
+      "cathode_loading_mg_cm2": 0.4,
+      "active_area_cm2": 5.0
+    }
+  },
+  "context": {
+    "environment": "in_situ",
+    "temperature_K": 353.15,
+    "electrochemistry": {
+      "reaction": "water_splitting",
+      "cell_type": "mea_cell",
+      "control_mode": "galvanostatic",
+      "current_setpoint_mA_cm2": 1000.0,
+      "membrane": "Nafion_117",
+      "potential_vs_RHE": {
+        "value_V": null,
+        "rhe_basis": "not_applicable"
+      }
+    }
+  },
+  "measurement": {
+    "series": [
+      {
+        "series_id": "durability",
+        "independent_variables": [
+          {
+            "name": "time",
+            "unit": "h",
+            "values": [
+              0,
+              500,
+              1000
+            ]
+          }
+        ],
+        "channels": [
+          {
+            "name": "cell_voltage",
+            "role": "measured_response",
+            "unit": "V_cell",
+            "values": [
+              1.8,
+              1.83,
+              1.85
+            ]
+          }
+        ]
+      }
+    ],
+    "processing": {
+      "steps": [
+        "digitized_from_published_figure"
+      ]
+    },
+    "qc": {
+      "status": "valid",
+      "evidence": "Voltage-vs-time digitized from durability figure."
+    }
+  },
+  "descriptors": {
+    "outputs": [
+      {
+        "label": "PEM electrolyzer durability",
+        "generated_utc": "2026-06-17T00:00:00Z",
+        "generated_by": {
+          "agent": "literature_extraction"
+        },
+        "descriptors": [
+          {
+            "name": "cell_voltage",
+            "kind": "absolute",
+            "source": "imported",
+            "value": 1.8,
+            "unit": "V_cell",
+            "uncertainty": {
+              "sigma": 0.01,
+              "unit": "V_cell",
+              "basis": "digitization_estimate"
+            }
+          },
+          {
+            "name": "degradation_rate",
+            "kind": "absolute",
+            "source": "imported",
+            "value": 50.0,
+            "unit": "uV/h",
+            "uncertainty": {
+              "sigma": 5.0,
+              "unit": "uV/h",
+              "basis": "reported"
+            }
+          },
+          {
+            "name": "operating_duration",
+            "kind": "absolute",
+            "source": "imported",
+            "value": 1000.0,
+            "unit": "h",
+            "uncertainty": {
+              "sigma": null,
+              "unit": "h",
+              "basis": "reported"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "assets": [],
+  "links": [],
+  "attribution": {
+    "contributors": [
+      {
+        "name": "Source authors",
+        "role": "data_owner"
+      }
+    ]
+  }
+}

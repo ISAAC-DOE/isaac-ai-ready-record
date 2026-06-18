@@ -306,3 +306,29 @@ def test_calibrated_rhe_conversion():
     r2 = json.loads(json.dumps(r))
     r2["context"]["electrochemistry"]["potential_vs_RHE"]["conversion"]["rhe_conversion_offset_V"] = -1.04
     assert not validation.validate_record_full(r2)["valid"], "wrong-sign calibrated offset must be rejected"
+
+
+def test_electrolyzer_voltage_optional():
+    """Full-cell electrolyzer records: cell_voltage not half-cell potential;
+    voltage may be absent; no inappropriate GALVANOSTATIC_NO_POTENTIAL nag."""
+    rec = json.loads((REPO / "examples" / "electrolyzer_durability_record.json").read_text())
+    res = validation.validate_record_full(rec)
+    assert res["valid"], f"electrolyzer example must validate: {res['errors'][:3]}"
+    assert not any(w["code"] == "GALVANOSTATIC_NO_POTENTIAL" for w in res.get("warnings", [])), \
+        "full-cell electrolyzer (rhe_basis not_applicable + cell_voltage) must not be nagged"
+
+    # Pure literature case: only current density + duration, no voltage, no measurement
+    bare = json.loads(json.dumps(rec))
+    bare.pop("measurement", None)
+    bare["context"]["electrochemistry"]["potential_vs_RHE"] = {"value_V": None, "rhe_basis": "not_applicable"}
+    bare["descriptors"]["outputs"][0]["descriptors"] = [
+        {"name": "steady_state_current_density", "kind": "absolute", "source": "imported",
+         "value": 1000.0, "unit": "mA/cm2", "uncertainty": {"sigma": None, "unit": "mA/cm2", "basis": "reported"}}]
+    res = validation.validate_record_full(bare)
+    assert res["valid"], "current-density-only electrolyzer must validate"
+    assert not any(w["code"] == "GALVANOSTATIC_NO_POTENTIAL" for w in res.get("warnings", []))
+
+    # not_applicable requires value_V null (Potential Contract invariant holds)
+    bad = json.loads(json.dumps(rec))
+    bad["context"]["electrochemistry"]["potential_vs_RHE"] = {"value_V": 1.8, "rhe_basis": "not_applicable"}
+    assert not validation.validate_record_full(bad)["valid"], "not_applicable must force value_V null"
