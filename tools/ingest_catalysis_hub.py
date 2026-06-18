@@ -393,8 +393,10 @@ def save_to_api(records: list, api_token: str):
     fail = 0
     for record in records:
         try:
+            # allow_update: admin-only opt-in to upsert (re-ingest updates an
+            # existing record instead of 409). POST is INSERT-only by default.
             resp = requests.post(
-                f"{ISAAC_API_BASE}/records",
+                f"{ISAAC_API_BASE}/records?allow_update=true",
                 headers=headers,
                 json=record,
                 timeout=15,

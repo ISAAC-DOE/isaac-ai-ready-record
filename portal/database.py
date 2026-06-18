@@ -116,6 +116,20 @@ def init_tables():
         cur.execute('CREATE INDEX IF NOT EXISTS idx_records_type ON records(record_type)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_records_domain ON records(record_domain)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_records_created ON records(created_at)')
+
+        # Record history: prior content snapshotted before every update/delete
+        # (audit trail + undo; deletes are admin-only and always recoverable).
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS record_history (
+                id BIGSERIAL PRIMARY KEY,
+                record_id CHAR(26) NOT NULL,
+                action TEXT NOT NULL,
+                actor TEXT,
+                archived_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                data JSONB NOT NULL
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_record_history_rid ON record_history(record_id)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_records_data_gin ON records USING GIN (data)')
 
         # Create portal access log table
@@ -185,7 +199,39 @@ def init_tables():
 # Record Operations
 # =============================================================================
 
-def save_record(record_data: dict, *, skip_validation: bool = False, uploaded_by: str | None = None) -> str:
+def archive_record(record_id: str, data: dict, action: str, actor: str | None = None) -> None:
+    """Snapshot a record's prior content before an update or delete (audit/undo)."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO record_history (record_id, action, actor, data) VALUES (%s, %s, %s, %s)",
+            (record_id, action, actor, json.dumps(data)))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception:
+        logger.exception("archive_record failed for %s", record_id)
+
+
+def record_owner(record_id: str) -> str | None:
+    """The uploaded_by of a record, or None if missing/unowned (legacy records)."""
+    rec = get_record(record_id)
+    if not rec:
+        return None
+    return (rec.get("attribution") or {}).get("uploaded_by")
+
+
+class RecordExistsError(Exception):
+    """Raised when an INSERT hits an existing record_id (no silent overwrite)."""
+
+
+class RecordNotFoundError(Exception):
+    """Raised when an UPDATE targets a record_id that does not exist."""
+
+
+def save_record(record_data: dict, *, skip_validation: bool = False,
+                uploaded_by: str | None = None, mode: str = "upsert") -> str:
     """
     Save an ISAAC record to the database.
 
@@ -244,15 +290,40 @@ def save_record(record_data: dict, *, skip_validation: bool = False, uploaded_by
     cur = conn.cursor()
 
     try:
-        cur.execute('''
-            INSERT INTO records (record_id, record_type, record_domain, data)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (record_id) DO UPDATE SET
-                record_type = EXCLUDED.record_type,
-                record_domain = EXCLUDED.record_domain,
-                data = EXCLUDED.data
-            RETURNING record_id
-        ''', (record_id, record_type, record_domain, json.dumps(record_data)))
+        if mode == "insert":
+            # Pure INSERT. A record_id collision RAISES (RecordExistsError) — a
+            # caller may NOT silently overwrite an existing record by supplying
+            # its id. Editing an owned record goes through PUT (update).
+            try:
+                cur.execute('''
+                    INSERT INTO records (record_id, record_type, record_domain, data)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING record_id
+                ''', (record_id, record_type, record_domain, json.dumps(record_data)))
+            except psycopg2.errors.UniqueViolation:
+                conn.rollback()
+                raise RecordExistsError(record_id)
+        elif mode == "update":
+            cur.execute('''
+                UPDATE records SET record_type = %s, record_domain = %s, data = %s
+                WHERE record_id = %s
+                RETURNING record_id
+            ''', (record_type, record_domain, json.dumps(record_data), record_id))
+            if cur.fetchone() is None:
+                conn.rollback()
+                raise RecordNotFoundError(record_id)
+            conn.commit()
+            return record_id.strip()
+        else:  # "upsert" — admin/migration paths only (never a user door)
+            cur.execute('''
+                INSERT INTO records (record_id, record_type, record_domain, data)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (record_id) DO UPDATE SET
+                    record_type = EXCLUDED.record_type,
+                    record_domain = EXCLUDED.record_domain,
+                    data = EXCLUDED.data
+                RETURNING record_id
+            ''', (record_id, record_type, record_domain, json.dumps(record_data)))
 
         result = cur.fetchone()
         conn.commit()
@@ -439,16 +510,14 @@ def get_records_batch(record_ids: list) -> list:
         conn.close()
 
 
-def delete_record(record_id: str) -> bool:
+def delete_record(record_id: str, actor: str | None = None) -> bool:
     """
-    Delete a record by its ID.
-
-    Args:
-        record_id: The record identifier to delete
-
-    Returns:
-        True if deleted, False if not found
+    Delete a record by its ID. Prior content is archived to record_history
+    first (deletes are admin-only and rare, but always recoverable).
     """
+    existing = get_record(record_id)
+    if existing is not None:
+        archive_record(record_id, existing, "delete", actor)
     conn = get_db_connection()
     cur = conn.cursor()
 

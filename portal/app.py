@@ -801,7 +801,7 @@ elif page == "Record Validator":
                                 # content. save_record re-validates internally (the
                                 # shared chokepoint), so a record that changed since
                                 # the displayed PASS cannot slip through.
-                                saved_id = database.save_record(record_data, uploaded_by=(current_username if current_username != "anonymous" else None))
+                                saved_id = database.save_record(record_data, uploaded_by=(current_username if current_username != "anonymous" else None), mode="insert")
                                 st.success(f"Record saved! ID: `{saved_id}`")
                             except Exception as exc:
                                 import validation

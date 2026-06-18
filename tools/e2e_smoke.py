@@ -94,6 +94,14 @@ def main():
     code, p = http("POST", "/records", test)
     check("POST test record", code == 201 and p.get("success") is True, str(p)[:200])
 
+    # 3b. Ownership model (2026-06-17): re-POST same id is rejected, PUT edits
+    code, p2 = http("POST", "/records", test)
+    check("re-POST existing id rejected (409, no silent overwrite)", code == 409)
+    edited = copy.deepcopy(test)
+    edited["sample"]["material"]["name"] = "E2E EDITED via PUT"
+    code, pe = http("PUT", f"/records/{rid}", edited)
+    check("PUT edits an owned record (200)", code == 200 and pe.get("updated") is True, str(pe)[:160])
+
     # 4. GET round-trip fidelity
     code, fetched = http("GET", f"/records/{rid}")
     check("GET test record", code == 200 and fetched.get("record_id") == rid)

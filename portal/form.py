@@ -507,7 +507,7 @@ def render_form():
                             _user = _hdrs.get("X-authentik-username")
                         except Exception:
                             _user = None
-                        saved_id = database.save_record(record, uploaded_by=_user)
+                        saved_id = database.save_record(record, uploaded_by=_user, mode="insert")
                         st.success(f"Record saved successfully! ID: {saved_id}")
                         # Generate new ID for next record
                         st.session_state.record_id = generate_ulid()

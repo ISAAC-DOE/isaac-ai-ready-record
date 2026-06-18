@@ -225,6 +225,13 @@ def _require_auth(fn):
     return wrapper
 
 
+def _caller_is_admin() -> bool:
+    """True if the request's Bearer token belongs to an admin group."""
+    token = request.headers.get("Authorization", "")[7:]
+    info = _validate_bearer_token(token)
+    return bool(info and any(g in ADMIN_GROUPS for g in info.get("groups", [])))
+
+
 def _require_admin(fn):
     """Decorator that enforces admin-group membership."""
     @functools.wraps(fn)
@@ -384,8 +391,13 @@ def create_record():
     try:
         # Attribution: stamped inside the chokepoint from the authenticated identity.
         auth_info = _get_auth_info()
+        caller = (auth_info or {}).get("user")
+        # POST is INSERT-only: a caller may NOT overwrite an existing record by
+        # supplying its id (use PUT to edit your OWN record). Admins may opt into
+        # upsert with ?allow_update=true for ingestion/migration tooling.
+        allow_update = _caller_is_admin() and request.args.get("allow_update") == "true"
         record_id = database.save_record(
-            data, uploaded_by=(auth_info or {}).get("user"))
+            data, uploaded_by=caller, mode=("upsert" if allow_update else "insert"))
         resp = {"success": True, "record_id": record_id}
         # Warnings tier: accepted-but-improvable feedback travels with the 201
         if result.get("warnings"):
@@ -393,6 +405,14 @@ def create_record():
         if result.get("info"):
             resp["info"] = result["info"]
         return jsonify(resp), 201
+    except database.RecordExistsError:
+        return jsonify({
+            "success": False,
+            "reason": "record_exists",
+            "message": f"Record {data.get('record_id')} already exists. You cannot overwrite "
+                       f"it via POST. To edit a record you submitted, use PUT "
+                       f"/portal/api/records/<record_id>.",
+        }), 409
     except validation.ValidationError as ve:
         # Unreachable unless validation rules changed between the check
         # above and the save; report identically to the pre-save failure.
@@ -675,17 +695,80 @@ def get_record(record_id):
     return jsonify(record), 200
 
 
+# --- Edit a record you submitted (owner or admin) -------------------------
+
+@app.route("/portal/api/records/<record_id>", methods=["PUT"])
+@_require_auth
+def update_record(record_id):
+    """
+    Update an EXISTING record. Authorization: the caller must be the record's
+    uploaded_by (the submitter) OR an admin. Prior content is archived to
+    record_history first. This is the ONLY way a non-admin may change a stored
+    record, and only their own — never anyone else's, and never a delete.
+    """
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"success": False, "reason": "invalid_json",
+                        "message": "Request body is not valid JSON"}), 400
+
+    caller = (_get_auth_info() or {}).get("user")
+    try:
+        existing = database.get_record(record_id)
+    except Exception:
+        logger.exception("Database error loading record %s", record_id)
+        return jsonify({"error": "internal server error"}), 500
+    if existing is None:
+        return jsonify({"success": False, "reason": "not_found",
+                        "message": "Record not found. Use POST to create a new record."}), 404
+
+    owner = (existing.get("attribution") or {}).get("uploaded_by")
+    if not _caller_is_admin() and (owner is None or owner != caller):
+        return jsonify({
+            "success": False, "reason": "forbidden",
+            "message": "You may only edit records you submitted. This record is owned by "
+                       f"'{owner or 'unknown'}'.",
+        }), 403
+
+    # Force the path id; preserve the ORIGINAL owner (an edit does not transfer
+    # ownership). Validation happens inside save_record (the chokepoint).
+    data["record_id"] = record_id
+    result = validation.validate_record_full(data)
+    if not result["valid"]:
+        return jsonify({"success": False, "reason": "validation_failed",
+                        "schema_errors": result["schema_errors"],
+                        "vocabulary_errors": result["vocabulary_errors"],
+                        "semantic_errors": result["semantic_errors"],
+                        "errors": result["errors"]}), 400
+
+    database.archive_record(record_id, existing, "update", caller)
+    try:
+        database.save_record(data, uploaded_by=owner, mode="update")
+    except database.RecordNotFoundError:
+        return jsonify({"success": False, "reason": "not_found"}), 404
+    except Exception:
+        logger.exception("Database error updating record %s", record_id)
+        return jsonify({"error": "internal server error"}), 500
+
+    logger.info("Record %s updated by %s (owner %s)", record_id, caller, owner)
+    resp = {"success": True, "record_id": record_id, "updated": True}
+    if result.get("warnings"):
+        resp["warnings"] = result["warnings"]
+    return jsonify(resp), 200
+
+
 # --- Delete record (admin only) -------------------------------------------
 
 @app.route("/portal/api/records/<record_id>", methods=["DELETE"])
 @_require_admin
 def delete_record(record_id):
     """
-    Delete a record by its ULID. Requires admin privileges.
+    Delete a record by its ULID. Requires admin privileges. Regular users
+    (including a record's own submitter) CANNOT delete — only edit via PUT.
+    Prior content is archived to record_history.
     """
 
     try:
-        deleted = database.delete_record(record_id)
+        deleted = database.delete_record(record_id, actor=request.auth_info.get("user"))
     except Exception as exc:
         logger.exception("Database error deleting record %s", record_id)
         return jsonify({"error": "internal server error"}), 500
