@@ -886,17 +886,13 @@ elif page == "Saved Records":
                             mime="application/json"
                         )
 
-                        # Delete button (with confirmation)
-                        with st.expander("Danger Zone"):
-                            st.warning("This action cannot be undone!")
-                            if st.button(f"Delete Record {selected_id}", type="secondary"):
-                                if not user_is_admin:
-                                    st.error("Deleting records requires admin privileges.")
-                                elif database.delete_record(selected_id):
-                                    st.success("Record deleted.")
-                                    st.rerun()
-                                else:
-                                    st.error("Failed to delete record.")
+                        # Record deletion is intentionally NOT available from the
+                        # web interface. Deleting a record is an irreversible,
+                        # high-trust operation; it is exposed ONLY through the
+                        # admin-authenticated API (DELETE /portal/api/records/<id>,
+                        # which validates the Bearer-token admin group and archives
+                        # the record to history). The web identity is proxy-header
+                        # derived and must never gate destructive actions.
             else:
                 st.info("No records found. Create records using the Excel Validator or Record Form.")
 
