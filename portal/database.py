@@ -66,6 +66,10 @@ def init_tables():
         ''')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_api_requests_ts ON api_requests (ts)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_api_requests_user ON api_requests (username)')
+        # Client IP for security forensics (added 2026-06-18). ADD COLUMN IF NOT
+        # EXISTS migrates the already-deployed table in place.
+        cur.execute("ALTER TABLE api_requests ADD COLUMN IF NOT EXISTS ip TEXT")
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_api_requests_ip ON api_requests (ip)')
 
         # Create templates table
         cur.execute('''
@@ -421,15 +425,15 @@ def list_records(limit: int = 100, offset: int = 0, filters: dict | None = None,
         conn.close()
 
 
-def log_api_request(username, method, endpoint, status, duration_ms):
+def log_api_request(username, method, endpoint, status, duration_ms, ip=None):
     """Fire-and-forget API usage logging. MUST never break a request."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO api_requests (username, method, endpoint, status, duration_ms) "
-            "VALUES (%s, %s, %s, %s, %s)",
-            (username, method, endpoint, status, duration_ms))
+            "INSERT INTO api_requests (username, method, endpoint, status, duration_ms, ip) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (username, method, endpoint, status, duration_ms, ip))
         conn.commit()
         cur.close()
         conn.close()
@@ -465,10 +469,21 @@ def get_api_usage_stats(days: int = 30) -> dict:
             "COUNT(*) FILTER (WHERE status >= 500) AS server_errors "
             "FROM api_requests WHERE ts > now() - (%s || ' days')::interval", (days,))
         row = cur.fetchone()
+        # Forensics: unauthenticated traffic grouped by source IP (added 2026-06-18).
+        cur.execute(
+            "SELECT COALESCE(ip, 'unknown') AS ip, COUNT(*) AS n, "
+            "MIN(ts) AS first_seen, MAX(ts) AS last_seen "
+            "FROM api_requests WHERE username IS NULL "
+            "AND ts > now() - (%s || ' days')::interval "
+            "GROUP BY 1 ORDER BY 2 DESC LIMIT 20", (days,))
+        unauth_by_ip = [{'ip': r['ip'], 'requests': r['n'],
+                         'first_seen': r['first_seen'].isoformat() if r['first_seen'] else None,
+                         'last_seen': r['last_seen'].isoformat() if r['last_seen'] else None}
+                        for r in cur.fetchall()]
         return {'days': days, 'total_requests': row['total'], 'distinct_users': row['users'],
                 'rejection_count': row['rejections'], 'server_error_count': row['server_errors'],
                 'daily': daily, 'by_user': by_user,
-                'by_endpoint': by_endpoint}
+                'by_endpoint': by_endpoint, 'unauth_by_ip': unauth_by_ip}
     finally:
         cur.close()
         conn.close()

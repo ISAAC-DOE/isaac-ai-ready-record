@@ -444,6 +444,11 @@ if page == "Dashboard" and db_connected:
             st.caption("Requests by endpoint (avg latency)")
             if usage['by_endpoint']:
                 st.dataframe(pd.DataFrame(usage['by_endpoint']), hide_index=True, use_container_width=True)
+        # Forensics: source IPs of any unauthenticated traffic (only shown when present)
+        unauth = usage.get('unauth_by_ip') or []
+        if unauth:
+            st.caption("Unauthenticated requests by source IP")
+            st.dataframe(pd.DataFrame(unauth), hide_index=True, use_container_width=True)
     except Exception as exc:
         st.info(f"Usage stats unavailable yet: {exc}")
 

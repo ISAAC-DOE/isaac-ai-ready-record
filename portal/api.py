@@ -179,8 +179,12 @@ def _usage_log(response):
         path = request.url_rule.rule if request.url_rule else request.path
         if path.startswith("/portal/api") and not path.endswith("/health"):
             dur = (time.time() - getattr(g, "usage_t0", time.time())) * 1000.0
+            # Real client IP behind the ingress/proxy: first hop of
+            # X-Forwarded-For, else the direct peer.
+            xff = request.headers.get("X-Forwarded-For", "")
+            client_ip = (xff.split(",")[0].strip() if xff else None) or request.remote_addr
             database.log_api_request(getattr(g, "usage_user", None), request.method,
-                                      path, response.status_code, round(dur, 1))
+                                      path, response.status_code, round(dur, 1), ip=client_ip)
     except Exception:
         pass
     return response
