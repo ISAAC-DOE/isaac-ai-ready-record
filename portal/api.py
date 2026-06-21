@@ -231,8 +231,10 @@ def _require_auth(fn):
 
 def _caller_is_admin() -> bool:
     """True if the request's Bearer token belongs to an admin group."""
-    token = request.headers.get("Authorization", "")[7:]
-    info = _validate_bearer_token(token)
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return False
+    info = _validate_bearer_token(auth[7:])
     return bool(info and any(g in ADMIN_GROUPS for g in info.get("groups", [])))
 
 
