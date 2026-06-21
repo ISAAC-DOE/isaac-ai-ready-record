@@ -959,6 +959,15 @@ elif page == "Saved Records":
 # PAGE: nano ISAAC
 # =============================================================================
 elif page == "nano ISAAC":
+    # Admin-gated (2026-06-20, Dean security audit C2): nano-ISAAC runs
+    # LLM-authored SQL through the same raw-SQL sink, currently on a privileged
+    # DB role — so it must not be reachable by non-admin users until the
+    # dedicated read-only role (Bucket B) lands. Re-open to all users then.
+    if not user_is_admin:
+        st.header("nano ISAAC")
+        st.info("nano ISAAC is temporarily restricted to administrators while the "
+                "query backend is hardened. It will reopen to all users shortly.")
+        st.stop()
     # Header row with title and Clear button
     title_col, btn_col = st.columns([5, 1])
     with title_col:

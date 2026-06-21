@@ -80,6 +80,18 @@ def _load_vocabulary_from_file():
 # Wiki Sync Operations
 # =============================================================================
 
+def _scrub_secrets(text) -> str:
+    """Redact GITHUB_TOKEN (and any inlined token) from strings shown/logged.
+    GitPython exceptions frequently embed the tokenized remote URL (Dean H3)."""
+    import re as _re
+    s = str(text)
+    tok = os.environ.get("GITHUB_TOKEN", "")
+    if tok:
+        s = s.replace(tok, "***")
+    s = _re.sub(r'https://[^@/\s]+@github\.com', 'https://***@github.com', s)
+    return s
+
+
 def _get_wiki_url():
     """Get the wiki repo URL, optionally injecting GITHUB_TOKEN for auth."""
     url = os.environ.get("WIKI_REPO_URL", "")
@@ -194,7 +206,7 @@ def sync_from_wiki(synced_by: str = "system") -> tuple:
         return True, msg
 
     except Exception as e:
-        return False, f"Wiki sync failed: {e}"
+        return False, f"Wiki sync failed: {_scrub_secrets(e)}"
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -506,7 +518,7 @@ def push_change_to_wiki(section: str, vocab_for_section: dict,
             return True, "No changes to push"
 
     except Exception as e:
-        return False, f"Wiki push failed: {e}"
+        return False, f"Wiki push failed: {_scrub_secrets(e)}"
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -568,7 +580,7 @@ def apply_approved_proposal(proposal: dict, wiki_prose: str = "") -> tuple:
         wiki_push_ok = ok
     except Exception as e:
         wiki_push_ok = False
-        wiki_msg = str(e)
+        wiki_msg = _scrub_secrets(e)
 
     msg = f"Applied proposal: {proposal_type}"
     if not wiki_push_ok:

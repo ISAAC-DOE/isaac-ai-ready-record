@@ -584,6 +584,11 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000)
     stripped = sql.strip().rstrip(";")
     upper = stripped.upper()
 
+    # Single statement only — reject stacked statements (a ';' that is not the
+    # trailing one we already stripped). Defeats "SELECT 1; <anything>".
+    if ";" in stripped:
+        raise ValueError("Only a single statement is allowed.")
+
     # Must start with SELECT or WITH
     if not (upper.startswith("SELECT") or upper.startswith("WITH")):
         raise ValueError("Only SELECT or WITH (CTE) queries are allowed.")
@@ -593,6 +598,16 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000)
     if re.search(forbidden, upper):
         raise ValueError("Query contains forbidden mutation keywords.")
 
+    # Defense-in-depth denylist (the real fix is the non-superuser isaac_readonly
+    # DB role — Dean/Bucket B). Until then, block the file/credential/catalog/DoS
+    # primitives that a superuser connection would otherwise expose, anywhere in
+    # the query (also catches the `WITH x AS (SELECT pg_read_file(...))` bypass).
+    blocked = r'\b(PG_READ_FILE|PG_READ_BINARY_FILE|PG_LS_DIR|PG_STAT_FILE|LO_IMPORT|LO_EXPORT|' \
+              r'PG_LARGEOBJECT|PG_AUTHID|PG_SHADOW|PG_CATALOG|INFORMATION_SCHEMA|PG_SETTINGS|' \
+              r'PG_READ_SERVER_FILES|CURRENT_SETTING|SET_CONFIG|PG_SLEEP|DBLINK|PG_STAT_ACTIVITY)\b'
+    if re.search(blocked, upper):
+        raise ValueError("Query references a restricted system function or catalog.")
+
     # Enforce LIMIT if not present
     if "LIMIT" not in upper:
         stripped += f" LIMIT {max_rows}"
@@ -601,7 +616,9 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000)
     cur = conn.cursor()
 
     try:
-        cur.execute(f"SET LOCAL statement_timeout = '{timeout_ms}'")
+        # Parameterized timeout (M4): set_config(..., is_local=true) == SET LOCAL,
+        # but accepts a bound parameter so no value is f-string-interpolated.
+        cur.execute("SELECT set_config('statement_timeout', %s, true)", (str(int(timeout_ms)),))
         cur.execute(stripped)
         rows = cur.fetchall()
         return [dict(row) for row in rows]
