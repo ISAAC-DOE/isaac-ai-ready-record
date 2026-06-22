@@ -959,15 +959,12 @@ elif page == "Saved Records":
 # PAGE: nano ISAAC
 # =============================================================================
 elif page == "nano ISAAC":
-    # Admin-gated (2026-06-20, Dean security audit C2): nano-ISAAC runs
-    # LLM-authored SQL through the same raw-SQL sink, currently on a privileged
-    # DB role — so it must not be reachable by non-admin users until the
-    # dedicated read-only role (Bucket B) lands. Re-open to all users then.
-    if not user_is_admin:
-        st.header("nano ISAAC")
-        st.info("nano ISAAC is temporarily restricted to administrators while the "
-                "query backend is hardened. It will reopen to all users shortly.")
-        st.stop()
+    # Re-opened to all users 2026-06-22. The 2026-06-20 admin-gate responded to a
+    # suspected secret-exfil path (pg_read_file) that — verified live — does NOT
+    # exist: the deployed DB role is `isaac` (NON-superuser), so file/credential
+    # reads were never possible. nano-ISAAC's SQL now also runs in agent_mode
+    # (records-table only; operational tables rejected by name), so the real
+    # residual (cross-table reads) is closed in-code too.
     # Header row with title and Clear button
     title_col, btn_col = st.columns([5, 1])
     with title_col:

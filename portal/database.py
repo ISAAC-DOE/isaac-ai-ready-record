@@ -560,29 +560,41 @@ def count_records() -> int:
         conn.close()
 
 
-def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000) -> list:
+# Tables the nano-ISAAC agent may read. Its scope is scientific records only;
+# operational/control tables (usage logs, proposals, ACLs, history) are off-limits
+# even though the `isaac` DB role technically has SELECT on them. (The true scoping
+# is Dean's isaac_readonly role with REVOKE on these; this is the in-code belt.)
+_AGENT_FORBIDDEN_TABLES = (
+    "api_requests", "portal_access_log", "vocabulary_proposals", "vocabulary_cache",
+    "vocabulary_sync_log", "templates", "record_history", "record_acl",
+)
+
+
+def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
+                           agent_mode: bool = False) -> list:
     """
     Execute a read-only SQL query against the database.
 
     Security:
     - Only SELECT and WITH (CTE) statements are allowed
     - Mutation keywords (INSERT, UPDATE, DELETE, DROP, ALTER, etc.) are rejected
-    - A LIMIT clause is enforced (appended if missing)
-    - A statement timeout is set to prevent long-running queries
-
-    Args:
-        sql: The SQL query string (must be SELECT or WITH)
-        max_rows: Maximum rows to return (default 50)
-        timeout_ms: Statement timeout in milliseconds (default 5000)
-
-    Returns:
-        List of row dicts from the query result
+    - File/credential/catalog primitives are rejected (defense-in-depth; the
+      deployed `isaac` role is already NON-superuser and cannot read files)
+    - A single statement, a LIMIT, and a statement timeout are enforced
+    - agent_mode=True (nano-ISAAC): additionally restricts reads to the `records`
+      table — operational/control tables are rejected by name
 
     Raises:
         ValueError: If the query is not a safe read-only SELECT/WITH
     """
     stripped = sql.strip().rstrip(";")
     upper = stripped.upper()
+
+    if agent_mode:
+        low = stripped.lower()
+        hit = [tbl for tbl in _AGENT_FORBIDDEN_TABLES if re.search(r'\b' + tbl + r'\b', low)]
+        if hit:
+            raise ValueError(f"nano-ISAAC may only query scientific records, not {hit[0]}.")
 
     # Single statement only — reject stacked statements (a ';' that is not the
     # trailing one we already stripped). Defeats "SELECT 1; <anything>".
