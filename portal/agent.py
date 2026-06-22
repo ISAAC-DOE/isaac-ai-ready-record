@@ -236,7 +236,7 @@ def run_agent_turn(conversation_history: list[dict]) -> tuple[str, list[dict]]:
         tool_results = []
         for sql in sql_blocks:
             try:
-                rows = database.execute_readonly_query(sql.strip())
+                rows = database.execute_readonly_query(sql.strip(), agent_mode=True)
                 result_text = _format_query_results(rows, sql.strip())
             except (ValueError, Exception) as exc:
                 result_text = f"Query error:\n{sql}\n\nError: {exc}"
