@@ -211,11 +211,20 @@ def _potential_contract_errors(record: dict) -> list:
         label = None
         if isinstance(val, (int, float)) and isinstance(src, (int, float)):
             if isinstance(cal, (int, float)):
-                # Calibrated single-constant path. CANONICAL CONVENTION: ADDITIVE.
-                # rhe_conversion_offset_V already bundles reference offset + Nernst
-                # pH term + electrode drift, so there is NO separate pH term here.
-                recomputed = src + cal
-                label = f"E_measured({src}) + rhe_conversion_offset_V({cal})"
+                # Calibrated single-constant path. The constant bundles reference
+                # offset + Nernst pH term + electrode drift (no separate pH term).
+                # SIGN is taken from the stated formula so raw source values are
+                # preserved (e.g. Caltech reports a NEGATIVE offset with a
+                # SUBTRACTIVE formula). Default additive when the formula is silent.
+                fml = str(conv.get("formula", "")).lower().replace(" ", "")
+                subtractive = ("-rhe_conversion_offset" in fml
+                               or "e_measured-" in fml or "e_meas-" in fml)
+                if subtractive:
+                    recomputed = src - cal
+                    label = f"E_measured({src}) - rhe_conversion_offset_V({cal})"
+                else:
+                    recomputed = src + cal
+                    label = f"E_measured({src}) + rhe_conversion_offset_V({cal})"
             elif isinstance(off, (int, float)) and isinstance(ph, (int, float)):
                 # Nominal path: offset vs SHE + Nernst slope * pH.
                 slope = 0.05916 if "0.05916" in str(conv.get("formula", "")) else 0.0591
@@ -228,9 +237,9 @@ def _potential_contract_errors(record: dict) -> list:
                 "path": "context/electrochemistry/potential_vs_RHE/value_V",
                 "message": f"Derived value_V={val} does not match recomputation from its own conversion "
                            f"inputs ({label} = {recomputed:.4f}); tolerance 5 mV. Provenance and value must "
-                           f"agree (Potential Contract). NOTE: rhe_conversion_offset_V is ADDITIVE "
-                           f"(E_RHE = E_measured + rhe_conversion_offset_V) — if your pipeline subtracts it, "
-                           f"negate the stored constant.",
+                           f"agree (Potential Contract). The recompute follows the SIGN in conversion.formula "
+                           f"(E_measured + offset, or E_measured - offset) — keep value_V, offset, and formula "
+                           f"mutually consistent.",
             })
     return errors
 
