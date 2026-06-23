@@ -270,6 +270,25 @@ def _warning_checks(record: dict):
             if ec.get("pH") is None:
                 warnings.append({"code": "MISSING_PH", "path": "context/electrochemistry/pH",
                                  "message": "pH (+pH_basis) is recommended on performance records — required for RHE conversion and cross-record comparison."})
+            # Physical plausibility: current densities above ~10 A/cm2 are almost
+            # always a unit/area-normalization bug (e.g. raw A not divided by the
+            # electrode area, or an mA<->A slip). Catches silent converter errors
+            # before a bulk ingest. 10 A/cm2 is well above even industrial
+            # electrolyzers (~1-6 A/cm2), so legitimate data is not flagged.
+            def _check_j(value, path):
+                if isinstance(value, (int, float)) and abs(value) > 10000:
+                    warnings.append({"code": "IMPLAUSIBLE_CURRENT_DENSITY", "path": path,
+                                     "message": f"current density {value} mA/cm2 (= {value/1000:.0f} A/cm2) is "
+                                                f"physically implausible — likely a unit/area-normalization bug. "
+                                                f"Electrocatalysis is typically 0.1-1000 mA/cm2; even industrial "
+                                                f"electrolyzers stay below ~6000."})
+            _check_j(ec.get("current_setpoint_mA_cm2"), "context/electrochemistry/current_setpoint_mA_cm2")
+            for o in (record.get("descriptors") or {}).get("outputs") or []:
+                for d in o.get("descriptors") or [] if isinstance(o, dict) else []:
+                    nm = d.get("name") or ""
+                    if (nm.startswith("partial_current_density.") or nm == "steady_state_current_density") \
+                            and d.get("unit") == "mA/cm2":
+                        _check_j(d.get("value"), f"descriptors:{nm}")
             if not (record.get("sample") or {}).get("electrode_type"):
                 warnings.append({"code": "MISSING_ELECTRODE_TYPE", "path": "sample/electrode_type",
                                  "message": "sample.electrode_type is recommended (GDE, thin_film, patterned_film, ...)."})
