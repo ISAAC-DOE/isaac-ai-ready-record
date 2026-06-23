@@ -302,10 +302,17 @@ def test_calibrated_rhe_conversion():
                        "rhe_conversion_offset_V": 1.04, "converted_by": "test"}}
     assert validation.validate_record_full(r)["valid"], "additive calibrated path must pass"
 
-    # Wrong sign (subtractive -1.04) must be caught by the recompute guard
+    # Caltech subtractive convention (negative offset + subtractive formula) must PASS
+    # — the recompute follows the stated formula's sign (raw-data preservation).
     r2 = json.loads(json.dumps(r))
-    r2["context"]["electrochemistry"]["potential_vs_RHE"]["conversion"]["rhe_conversion_offset_V"] = -1.04
-    assert not validation.validate_record_full(r2)["valid"], "wrong-sign calibrated offset must be rejected"
+    c2 = r2["context"]["electrochemistry"]["potential_vs_RHE"]
+    c2["conversion"]["rhe_conversion_offset_V"] = -1.04
+    c2["conversion"]["formula"] = "E_RHE = E_measured - rhe_conversion_offset_V"
+    c2["value_V"] = round(0.1494614 - (-1.04), 4)
+    assert validation.validate_record_full(r2)["valid"], "Caltech subtractive form must pass"
+    # A value that contradicts its own formula+offset is still caught
+    c2["value_V"] = 0.5
+    assert not validation.validate_record_full(r2)["valid"], "value/formula mismatch must be rejected"
 
 
 def test_electrolyzer_voltage_optional():
