@@ -52,6 +52,6 @@ is open to all users; these layers are what make that safe.
   `http.extraHeader` (GIT_CONFIG_* env), and error strings are scrubbed (`_scrub_secrets`).
 
 ## Open security follow-ups
-Tracked in `../security-followup.md`: M1 (record-read IDOR), M2 (pod hardening),
-C3 part-2 (remove `AUTHENTIK_API_TOKEN` from the Streamlit container), M5 (revoke the
-latent PUBLIC CONNECT to other databases).
+Tracked in `../security-open-issues.md`: per-record read IDOR, confining the
+`AUTHENTIK_API_TOKEN` to the API sidecar, pod hardening, and revoking the latent
+PUBLIC CONNECT to other databases.
