@@ -175,7 +175,7 @@ def _potential_contract_errors(record: dict) -> list:
     1. potential_scale naming a physical electrode requires the structured
        reference_electrode block (with a numeric offset for convertibility).
     2. For derived rhe_basis values, the stored value_V must match the
-       recomputation from its own frozen conversion inputs within 2 mV —
+       recomputation from its own frozen conversion inputs within 5 mV —
        provenance and value can never silently drift apart.
     """
     errors = []
