@@ -64,15 +64,22 @@ def resolve(path):
 
 def generate():
     L = ["classDiagram", "    direction LR", ""]
-    # Root
+    blocks = ["sample", "context", "system", "measurement", "computation",
+              "descriptors", "assets", "links", "timestamps", "attribution"]
+    # Root: render every scalar/array root field that is NOT one of the object
+    # blocks (those get their own nodes). Derived from the schema so a new root
+    # field (e.g. tags) can never be silently missing from the diagram.
     L.append("    class Record {")
-    for k in ("record_id", "isaac_record_version", "record_type", "record_domain", "source_type"):
-        if k in SCHEMA.get("properties", {}):
+    for k, sub in SCHEMA.get("properties", {}).items():
+        if k in blocks:
+            continue
+        typ = sub.get("type")
+        if typ == "string":
             L.append(f"    +String {k}")
+        elif typ == "array":
+            L.append(f"    +String[] {k}")
     L.append("    }")
     L.append("")
-    blocks = ["sample", "context", "system", "measurement", "computation",
-              "descriptors", "assets", "links", "timestamps"]
     for b in blocks:
         node = SCHEMA["properties"].get(b)
         if node is None:
