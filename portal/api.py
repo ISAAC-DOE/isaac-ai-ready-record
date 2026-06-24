@@ -805,6 +805,15 @@ def _disc_identity():
     return (request.auth_info or {}).get("user")
 
 
+@app.route("/portal/api/discovery/manifest", methods=["GET"])
+def discovery_manifest():
+    """Public, no-auth bootstrap: how to operate on ISAAC discovery projects.
+    An agent's FIRST call — it learns the protocol, state machines, endpoints and
+    field shapes here, so the platform is self-describing rather than relying on a
+    human to paste a spec."""
+    return jsonify(discovery.get_manifest()), 200
+
+
 @app.route("/portal/api/projects", methods=["POST"])
 @_require_auth
 def discovery_create_project():
