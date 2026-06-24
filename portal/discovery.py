@@ -107,7 +107,7 @@ def list_projects(owner_identity) -> list:
                  FROM hyp_projects p
                  LEFT JOIN hyp_hypotheses h ON h.project_id = p.project_id
                 WHERE p.owner_identity = %s
-                GROUP BY p.project_id
+                GROUP BY p.id
                 ORDER BY p.updated_at DESC""",
             (owner_identity,))
         projects = cur.fetchall()
