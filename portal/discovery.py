@@ -39,11 +39,88 @@ EVENT_TYPES = {
 }
 
 # Prediction workflow lifecycle (distinct from `verdict`, the scientific
-# outcome). Drives the Validation board (Section B).
+# outcome). Drives the Validation board (Section B). Order = pipeline order.
 WORK_STATUSES = {
     "awaiting_evidence", "more_work_pending", "compute_submitted",
     "compute_running", "evaluated",
 }
+WORK_STATUS_ORDER = ["awaiting_evidence", "more_work_pending", "compute_submitted",
+                     "compute_running", "evaluated"]
+
+# Hypothesis status + prediction verdict vocabularies (documented for agents;
+# not hard-enforced yet while the reasoning loop is still being learned).
+HYPOTHESIS_STATUSES = ["proposed", "supported", "eliminated", "needs_more_data",
+                       "superseded"]
+VERDICTS = ["supports", "contradicts", "neutral", "insufficient"]
+
+
+def get_manifest() -> dict:
+    """Self-describing contract: the bootstrap an agent fetches to learn how to
+    operate on ISAAC discovery projects. PROVISIONAL (v0.1) — refined as the real
+    reasoning loop is pinned down with the practitioners."""
+    return {
+        "name": "ISAAC Discovery — Agent Operating Protocol",
+        "version": "0.1-provisional",
+        "prime_directive": [
+            "READ before you act: GET /projects/{id}/briefing at the start of every "
+            "turn; treat it as authoritative current state and reconcile to it.",
+            "WRITE after you act: every hypothesis, prediction, verdict, status "
+            "change and compute run is an API write. If it is not on the dashboard, "
+            "it did not happen — never hold project state only in your context.",
+            "One project = one ground truth. Do not fork reality in your head.",
+        ],
+        "auth": {"scheme": "Bearer", "header": "Authorization: Bearer <token>",
+                 "obtain": "portal API Keys page; user must be in an allowed group"},
+        "object_model": "project -> hypotheses -> predictions; append-only events "
+                        "journal; one next_experiment per project. evidence_record_ids "
+                        "are plain ISAAC record IDs (read-only cross-reference).",
+        "state_machines": {
+            "hypothesis_status": HYPOTHESIS_STATUSES,
+            "prediction_work_status": WORK_STATUS_ORDER,
+            "prediction_verdict": VERDICTS,
+            "note": "work_status = where in the pipeline; verdict = the scientific "
+                    "outcome (set at 'evaluated'). They are orthogonal.",
+        },
+        "event_types": sorted(EVENT_TYPES),
+        "endpoints": [
+            {"m": "GET", "path": "/projects/{id}/briefing",
+             "purpose": "Curated ground-truth digest — READ THIS FIRST each turn."},
+            {"m": "POST", "path": "/projects", "purpose": "Create a project."},
+            {"m": "GET", "path": "/projects", "purpose": "List your projects."},
+            {"m": "GET", "path": "/projects/{id}", "purpose": "Full project view."},
+            {"m": "POST", "path": "/projects/{id}/hypotheses",
+             "purpose": "Add a hypothesis (statement, label, origin, mechanism)."},
+            {"m": "PUT", "path": "/hypotheses/{id}",
+             "purpose": "Update status / confidence / confidence_basis."},
+            {"m": "POST", "path": "/hypotheses/{id}/predictions",
+             "purpose": "Add a prediction (descriptor_name, direction, falsification)."},
+            {"m": "PUT", "path": "/predictions/{id}/status",
+             "purpose": "Advance work_status (compute_submitted/running, ...)."},
+            {"m": "PUT", "path": "/predictions/{id}/evaluate",
+             "purpose": "Terminal: set verdict + strength + evidence + mlflow_run_url."},
+            {"m": "POST", "path": "/projects/{id}/events",
+             "purpose": "Append a reasoning-transcript entry (one per step)."},
+            {"m": "PUT", "path": "/projects/{id}/next_experiment",
+             "purpose": "Propose the discriminating next experiment."},
+        ],
+        "per_turn_loop": [
+            "GET /briefing", "reason", "write each move (hypotheses/predictions/"
+            "evaluate/status)", "POST /events per step", "PUT /next_experiment"],
+        "compute_loop": [
+            "submit NERSC/DFT/MLIP/microkinetics job",
+            "PUT /predictions/{id}/status {work_status:'compute_submitted', mlflow_run_url}",
+            "PUT ... {work_status:'compute_running'} when it starts",
+            "PUT /predictions/{id}/evaluate with verdict + evidence + final mlflow_run_url"],
+        "field_shapes": {
+            "origin": {"type": "agent_reasoning|literature|prior_result|human",
+                       "summary": "str", "reasoning": "str",
+                       "sources": "[{record_id|doi|hypothesis}]"},
+            "mlflow_event": {"event_type": "compute_running",
+                             "detail": "run_name / what_it_computed / status",
+                             "mlflow_run_url": "str"},
+        },
+        "invariant": "If it is not on the dashboard, it did not happen.",
+    }
 
 
 def new_ulid() -> str:
