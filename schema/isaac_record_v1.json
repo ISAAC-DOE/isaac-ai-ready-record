@@ -1746,6 +1746,17 @@
           }
         }
       }
+    },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "pattern": "^\\S(.*\\S)?$"
+      },
+      "description": "Free-form, user-assigned grouping labels. A record may carry SEVERAL (it can belong to a broad archive AND a specific campaign). This is how a user groups an arbitrary SET of records at any granularity (campaign, material system, study) without a rigid hierarchy \u2014 finer groupings are just more specific tags. Recommended convention: lowercase, hyphenated, scoped, e.g. 'jcap-hte', 'nifecoce-oer-screen', 'caltech-2014'. The physical HTE hierarchy (plate/spot) stays in sample.library.{plate_id,sample_no}. A non-empty tags array satisfies the NO_LINKS grouping nudge."
     }
   }
 }
