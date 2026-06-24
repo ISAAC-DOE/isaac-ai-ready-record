@@ -1479,6 +1479,8 @@ elif page == "Discovery":
             proj = data["project"]
             hyps = data["hypotheses"]
             events = data["events"]
+            relations = data.get("relations", [])
+            _hlabel = {h["hypothesis_id"]: h["label"] for h in hyps}
             brief = discovery.get_briefing(pid, owner) or {}
 
             # ---------- BRIEFING HEADER (the universal-truth digest) ----------
@@ -1515,12 +1517,66 @@ elif page == "Discovery":
                                    for rid in (p.get("evidence_record_ids") or [])})
             prov = discovery.resolve_record_summaries(evidence_ids)
 
-            tabA, tabB, tabC, tabJ = st.tabs([
+            tabA, tabB, tabE, tabC, tabJ = st.tabs([
                 "🧪 Hypotheses & provenance", "✅ Validation board",
-                "📊 Compute ledger", "📓 Journal"])
+                "🔎 Evidence & matrix", "📊 Compute ledger", "📓 Journal"])
+
+            # ---- E: Evidence index (by descriptor) + discrimination matrix ----
+            with tabE:
+                st.markdown("**Discrimination matrix** — what each hypothesis "
+                            "predicts for a measurable (drives next-experiment choice)")
+                matrix = brief.get("discrimination_matrix", [])
+                if matrix:
+                    labels = sorted({e["hypothesis_label"]
+                                     for m in matrix for e in (m["expected_by_hypothesis"] or [])})
+                    rows = []
+                    for m in matrix:
+                        row = {"Prediction": m["prediction"], "Descriptor": m["descriptor"]}
+                        exp = {e["hypothesis_label"]: e.get("expected")
+                               for e in (m["expected_by_hypothesis"] or [])}
+                        for lb in labels:
+                            row[lb] = exp.get(lb, "—")
+                        rows.append(row)
+                    st.dataframe(pd.DataFrame(rows), width='stretch', hide_index=True)
+                else:
+                    st.caption("_No discriminating predictions yet — the agent adds "
+                               "`discriminates` when it proposes a prediction._")
+
+                st.divider()
+                ev_idx = brief.get("evidence_index", {})
+                st.markdown(f"**Evidence index** — what already exists for "
+                            f"`{', '.join(brief.get('elements', []))}` in the records DB, "
+                            f"keyed by descriptor ({len(ev_idx)} descriptors). "
+                            f"Reaction is *annotated*, not filtered.")
+                if ev_idx:
+                    erows = [{"Descriptor": k, "Records": v["n"],
+                              "exact/baseline/analog":
+                                  f"{v['by_role'].get('exact_system',0)}/"
+                                  f"{v['by_role'].get('baseline',0)}/"
+                                  f"{v['by_role'].get('analog',0)}",
+                              "Reactions": ", ".join(v["reactions"]) or "—",
+                              "Methods": ", ".join(v["methods"][:4]) or "—"}
+                             for k, v in sorted(ev_idx.items(), key=lambda kv: -kv[1]["n"])]
+                    st.dataframe(pd.DataFrame(erows), width='stretch', hide_index=True)
+                    st.caption("The agent queries `GET /projects/{id}/evidence?"
+                               "descriptor=<name>` for the full per-record list before "
+                               "ever concluding 'no data'. `output_quantity`/`functional` "
+                               "per record = the methodological-compatibility ledger.")
+                else:
+                    st.caption("_No element-matched evidence found (or records DB "
+                               "unavailable)._")
 
             # ---- A: Hypotheses, how they were formed, their predictions ----
             with tabA:
+                if relations:
+                    st.markdown("**Hypothesis relations** (the graph)")
+                    st.dataframe(pd.DataFrame([
+                        {"From": _hlabel.get(r["from_hypothesis_id"], "?"),
+                         "Relation": r["relation_type"],
+                         "To": _hlabel.get(r["to_hypothesis_id"], "?"),
+                         "Note": r.get("note")} for r in relations]),
+                        width='stretch', hide_index=True)
+                    st.divider()
                 if not hyps:
                     st.caption("_No hypotheses yet._")
                 for h in hyps:
@@ -1593,20 +1649,30 @@ elif page == "Discovery":
                         runs.append({"When": _fmt(e.get("created_at")),
                                      "Event": e["event_type"], "Summary": e["summary"],
                                      "MLflow": e["mlflow_run_url"]})
+                # Compute runs (multi-run per prediction; the real lifecycle)
+                crows = []
                 for h in hyps:
                     for p in h["predictions"]:
-                        if p.get("mlflow_run_url"):
-                            runs.append({"When": _fmt(p.get("updated_at")),
-                                         "Event": f"{h['label']} / {p.get('descriptor_name')}",
-                                         "Summary": f"{p.get('work_status')} · "
-                                                    f"verdict {p.get('verdict') or '—'}",
-                                         "MLflow": p["mlflow_run_url"]})
+                        for r in (p.get("compute_runs") or []):
+                            met = r.get("metrics") or {}
+                            crows.append({
+                                "Prediction": f"{h['label']} / {p.get('descriptor_name')}",
+                                "Backend": r.get("backend"), "Status": r.get("status"),
+                                "Resource": r.get("resource"),
+                                "Slurm": r.get("slurm_job_id"),
+                                "Metrics": ", ".join(f"{k}={v}" for k, v in met.items())[:60],
+                                "MLflow": r.get("mlflow_run_url") or ""})
+                if crows:
+                    st.markdown("**Compute runs**")
+                    st.dataframe(pd.DataFrame(crows), width='stretch', hide_index=True,
+                                 column_config={"MLflow": st.column_config.LinkColumn("MLflow")})
                 if runs:
+                    st.markdown("**MLflow-linked events**")
                     st.dataframe(pd.DataFrame(runs), width='stretch', hide_index=True,
                                  column_config={"MLflow": st.column_config.LinkColumn("MLflow")})
-                else:
-                    st.caption("_No MLflow runs linked yet. The agent attaches run URLs "
-                               "as it submits/finishes compute._")
+                if not crows and not runs:
+                    st.caption("_No compute runs yet. The agent registers runs "
+                               "(POST /predictions/{id}/runs) as it submits/finishes._")
 
             # ---- Journal — append-only history ----
             with tabJ:
