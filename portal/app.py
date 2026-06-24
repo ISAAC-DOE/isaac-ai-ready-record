@@ -6,6 +6,7 @@ import ontology
 import database
 import branding
 import agent
+import discovery
 import os
 import re
 import importlib
@@ -103,6 +104,15 @@ PAGES = ["Dashboard", "Ontology Editor", "Record Form", "Record Validator", "Sav
 if user_is_admin:
     # Insert Admin Review after Ontology Editor
     PAGES.insert(2, "Admin Review")
+
+# Discovery page (hypothesis-reasoning workbench) — feature-gated: only shown when
+# the isolated discovery DB is configured AND either the global DISCOVERY_ENABLED
+# flag is set or the viewer is an admin. Lets us merge to main and demo to a
+# limited audience before flipping it on for everyone.
+if database.is_discovery_db_configured() and (
+        os.environ.get("DISCOVERY_ENABLED", "").lower() in ("1", "true", "yes", "on")
+        or user_is_admin):
+    PAGES.insert(PAGES.index("About"), "Discovery")
 
 # --- Top navigation bar: hamburger menu + theme toggle + DB status + user info ---
 nav_col, theme_col, status_col, user_col = st.columns([5, 1, 1, 2])
@@ -1387,6 +1397,220 @@ if records:
 
     st.divider()
     st.markdown(f"**Schema version: ISAAC AI-Ready Record v1.05**")
+
+
+# =============================================================================
+# PAGE: Discovery (hypothesis-driven reasoning workbench)
+# =============================================================================
+elif page == "Discovery":
+    st.header("🔬 Discovery")
+    st.caption("Hypothesis-driven reasoning workbench. Projects, competing "
+               "hypotheses, their predictions and verdicts, a live ranking, and "
+               "the ISAAC agent's reasoning transcript — with full provenance.")
+
+    if not database.is_discovery_db_configured():
+        st.info("Discovery database is not configured in this environment.")
+    else:
+        _DISC_OWNER = current_username
+        if "discovery_project" not in st.session_state:
+            st.session_state.discovery_project = None
+
+        _STATUS_COLORS = {
+            "supported": "#2e7d32", "needs_more_data": "#f9a825",
+            "eliminated": "#c62828", "proposed": "#90a4ae",
+            "superseded": "#607d8b",
+        }
+        _VERDICT_ICON = {"supports": "✅", "contradicts": "❌",
+                         "neutral": "➖", "insufficient": "❓"}
+
+        def _bar(label, statement, confidence, status):
+            c = float(confidence or 0.0)
+            color = _STATUS_COLORS.get(status, "#90a4ae")
+            pct = max(0, min(100, int(round(c * 100))))
+            return (
+                f"<div style='margin:4px 0'>"
+                f"<div style='font-size:0.85em'><b>{label or ''}</b> "
+                f"<span style='color:#666'>{(statement or '')[:90]}</span> "
+                f"<span style='float:right;color:#666'>{status} · {c:.2f}</span></div>"
+                f"<div style='background:#eee;border-radius:4px;height:14px;width:100%'>"
+                f"<div style='background:{color};width:{pct}%;height:14px;"
+                f"border-radius:4px'></div></div></div>")
+
+        def _discovery_detail(pid, owner):
+            data = discovery.get_project(pid, owner_identity=owner)
+            if data is None:
+                st.warning("Project not found (or not yours).")
+                return
+            proj = data["project"]
+            hyps = data["hypotheses"]
+            events = data["events"]
+
+            st.markdown(f"### {proj['title']}")
+            if proj.get("goal"):
+                st.info(f"🎯 **Goal:** {proj['goal']}")
+            meta = " · ".join(filter(None, [
+                proj.get("material_system"), proj.get("reaction"),
+                f"status: {proj.get('status')}"]))
+            if meta:
+                st.caption(meta)
+
+            # Progress strip
+            n = len(hyps)
+            by_status = {}
+            for h in hyps:
+                by_status[h["status"]] = by_status.get(h["status"], 0) + 1
+            preds = [p for h in hyps for p in h["predictions"]]
+            evaluated = sum(1 for p in preds if p.get("verdict"))
+            evidence_ids = sorted({rid for p in preds
+                                   for rid in (p.get("evidence_record_ids") or [])})
+            leader = hyps[0] if hyps else None
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Hypotheses", n)
+            c2.metric("Predictions evaluated", f"{evaluated}/{len(preds)}")
+            c3.metric("Evidence records", len(evidence_ids))
+            c4.metric("Leader", (leader["label"] if leader else "—"))
+
+            # Ranking bars
+            st.markdown("#### Hypothesis ranking")
+            st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
+                                     h["status"]) for h in hyps) or "_No hypotheses yet._",
+                        unsafe_allow_html=True)
+
+            # Resolve evidence record provenance once
+            prov = discovery.resolve_record_summaries(evidence_ids)
+
+            # Hypothesis cards
+            st.markdown("#### Hypotheses")
+            for h in hyps:
+                head = (f"{_STATUS_COLORS.get(h['status'],'')} "
+                        f"{h['label'] or ''} — {h['status']} "
+                        f"(conf {float(h['confidence'] or 0):.2f})")
+                with st.expander(f"{h['label'] or 'H'} · {h['status']} · "
+                                 f"conf {float(h['confidence'] or 0):.2f}"):
+                    st.write(h["statement"])
+                    if h.get("confidence_basis"):
+                        st.caption(f"Basis: {h['confidence_basis']}")
+                    if h.get("mechanism"):
+                        st.markdown("**Mechanism**")
+                        st.json(h["mechanism"], expanded=False)
+                    if h.get("origin"):
+                        st.markdown("**Origin / provenance**")
+                        st.json(h["origin"], expanded=False)
+                    if h["predictions"]:
+                        rows = []
+                        for p in h["predictions"]:
+                            ev = ", ".join(
+                                f"{rid} ({prov.get(rid,{}).get('material','?')})"
+                                for rid in (p.get("evidence_record_ids") or [])) or "—"
+                            rows.append({
+                                "Label": p.get("label"),
+                                "Descriptor": p.get("descriptor_name"),
+                                "Direction": p.get("direction"),
+                                "Falsification": p.get("falsification_criterion"),
+                                "Verdict": (f"{_VERDICT_ICON.get(p.get('verdict'),'')} "
+                                            f"{p.get('verdict') or '—'} "
+                                            f"({p.get('strength') or '—'})"),
+                                "Evidence": ev,
+                                "MLflow": p.get("mlflow_run_url") or "",
+                            })
+                        st.dataframe(pd.DataFrame(rows), width='stretch',
+                                     hide_index=True)
+                    else:
+                        st.caption("_No predictions yet._")
+
+            # Next experiment
+            nx = proj.get("next_experiment")
+            if nx:
+                st.markdown("#### 🧪 Next experiment (proposed)")
+                st.success(f"**{nx.get('descriptor','')}** — {nx.get('method','')} "
+                           f"@ {nx.get('facility','')}")
+                if nx.get("rationale"):
+                    st.write(nx["rationale"])
+                if nx.get("predicted_outcomes"):
+                    st.dataframe(pd.DataFrame(nx["predicted_outcomes"]),
+                                 width='stretch', hide_index=True)
+
+            # Activity feed
+            st.markdown("#### 📡 Activity feed (agent reasoning transcript)")
+            if not events:
+                st.caption("_No activity yet._")
+            for e in events:
+                ts = e.get("created_at")
+                ts = ts.strftime("%Y-%m-%d %H:%M") if hasattr(ts, "strftime") else str(ts)
+                with st.container():
+                    st.markdown(f"**{e['event_type']}** · {ts} · "
+                                f"_{e.get('actor_identity') or 'agent'}_")
+                    st.write(e["summary"])
+                    detail_bits = []
+                    if e.get("detail"):
+                        detail_bits.append(e["detail"])
+                    if e.get("evidence_record_ids"):
+                        detail_bits.append("Evidence: " + ", ".join(e["evidence_record_ids"]))
+                    if e.get("mlflow_run_url"):
+                        detail_bits.append(f"[MLflow run]({e['mlflow_run_url']})")
+                    if detail_bits:
+                        with st.expander("detail"):
+                            for b in detail_bits:
+                                st.markdown(b)
+                    st.divider()
+
+        # ---- Project list vs detail ----
+        if st.session_state.discovery_project is None:
+            st.subheader("My Projects")
+            if st.button("🔄 Refresh"):
+                st.rerun()
+            projects = discovery.list_projects(_DISC_OWNER)
+            if not projects:
+                st.caption("No projects yet. Create one below.")
+            for p in projects:
+                with st.container(border=True):
+                    cols = st.columns([4, 1])
+                    with cols[0]:
+                        st.markdown(f"**{p['title']}**")
+                        if p.get("goal"):
+                            st.caption(p["goal"])
+                        lead = p.get("leading_hypothesis")
+                        leadtxt = (f"Leader: {lead['label']} "
+                                   f"(conf {float(lead['confidence'] or 0):.2f})"
+                                   if lead else "No hypotheses yet")
+                        st.caption(f"{p['n_hypotheses']} hypotheses · {leadtxt} · "
+                                   f"{p['status']}")
+                    with cols[1]:
+                        if st.button("Open", key=f"open_{p['project_id']}"):
+                            st.session_state.discovery_project = p["project_id"]
+                            st.rerun()
+
+            st.divider()
+            with st.expander("➕ New Project"):
+                with st.form("new_discovery_project"):
+                    t = st.text_input("Title *")
+                    g = st.text_area("Goal")
+                    ms = st.text_input("Material system", placeholder="e.g. Cu-Au")
+                    rx = st.text_input("Reaction", placeholder="e.g. CO2RR")
+                    if st.form_submit_button("Create project"):
+                        if not t.strip():
+                            st.error("Title is required.")
+                        else:
+                            new_id = discovery.create_project(
+                                _DISC_OWNER, t.strip(), goal=g.strip() or None,
+                                material_system=ms.strip() or None,
+                                reaction=rx.strip() or None)
+                            st.session_state.discovery_project = new_id
+                            st.rerun()
+        else:
+            if st.button("← Back to projects"):
+                st.session_state.discovery_project = None
+                st.rerun()
+            pid = st.session_state.discovery_project
+            # Live auto-refresh when the Streamlit build supports it; otherwise a
+            # manual refresh button keeps it functional on older versions.
+            if hasattr(st, "fragment"):
+                st.caption("Live — auto-refreshing every 5s.")
+                st.fragment(run_every=5)(lambda: _discovery_detail(pid, _DISC_OWNER))()
+            else:
+                if st.button("🔄 Refresh"):
+                    st.rerun()
+                _discovery_detail(pid, _DISC_OWNER)
 
 
 # =============================================================================
