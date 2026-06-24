@@ -29,7 +29,7 @@ REGISTRY = {
     "MISSING_ELECTRODE_TYPE": ("warning", "sample.electrode_type is unset (GDE, thin_film, MEA, ...)."),
     "GALVANOSTATIC_NO_POTENTIAL": ("warning", "Galvanostatic record carries no measured voltage; add steady_state_potential / cell_voltage, or declare potential_vs_RHE rhe_basis not_reported / not_applicable."),
     "IMPLAUSIBLE_CURRENT_DENSITY": ("warning", "A current density exceeds ~10 A/cm2 — almost always a unit/area-normalization bug."),
-    "NO_LINKS": ("warning", "Record has no links[]; if it belongs to a series or derives from another record, add same_sample_as / derived_from / intended_comparison_target."),
+    "NO_LINKS": ("warning", "Record has no links[] and no tags[]; group it via a typed link (same_sample_as / derived_from / intended_comparison_target) or a tag."),
     "NO_DATA_OWNER": ("warning", "Evidence record declares no attribution.contributors with role data_owner."),
     "QC_COMPROMISED_NO_EVIDENCE": ("warning", "qc.status='compromised' without a concrete evidence sentence."),
     "FE_SUM_EXCEEDS_UNITY": ("warning", "Product faradaic efficiencies in one output block sum to > 1.05."),

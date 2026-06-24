@@ -339,3 +339,18 @@ def test_electrolyzer_voltage_optional():
     bad = json.loads(json.dumps(rec))
     bad["context"]["electrochemistry"]["potential_vs_RHE"] = {"value_V": 1.8, "rhe_basis": "not_applicable"}
     assert not validation.validate_record_full(bad)["valid"], "not_applicable must force value_V null"
+
+
+def test_record_tags():
+    """Free-form grouping tags: a tagged record is valid and not NO_LINKS-nagged."""
+    base = json.loads((REPO / "examples" / "co2rr_performance_record.json").read_text())
+    r = json.loads(json.dumps(base)); r["tags"] = ["jcap-hte", "nifecoce-oer-screen"]
+    res = validation.validate_record_full(r)
+    assert res["valid"]
+    assert not any(w["code"] == "NO_LINKS" for w in res.get("warnings", [])), \
+        "a tagged record is grouped (by tag) and must not trigger NO_LINKS"
+    # hygiene: whitespace-padded and duplicate tags rejected
+    r2 = json.loads(json.dumps(base)); r2["tags"] = ["  pad"]
+    assert not validation.validate_record_full(r2)["valid"]
+    r3 = json.loads(json.dumps(base)); r3["tags"] = ["x", "x"]
+    assert not validation.validate_record_full(r3)["valid"]
