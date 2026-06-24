@@ -53,7 +53,9 @@ Each record's `data` column is a JSON object with these top-level keys:
 - `measurement` → `{series[{series_id, independent_variables[], channels[{name, unit, role, values[]}]}], qc{status}}`
 - `links` (array) → `[{rel, target, basis, notes}]`
 - `assets` (array) → `[{asset_id, content_role, uri, sha256, media_type}]`
-- `descriptors` → `{policy{}, outputs[{label, generated_utc, generated_by{}, descriptors[{name, kind, source, value, unit, uncertainty{}}]}]}`
+- `descriptors` → `{outputs[{label, generated_utc, generated_by{}, descriptors[{name, kind, source, value, unit, uncertainty{}}]}]}`
+- `attribution` → `{uploaded_by, contributors[{name, role, orcid}]}`
+- `tags` (array) → free-form grouping labels, e.g. `["jcap-hte", "co2rr-flowcell"]`
 
 ## Useful JSONB query patterns
 

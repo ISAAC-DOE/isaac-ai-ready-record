@@ -330,7 +330,7 @@ def _warning_checks(record: dict):
                                         "(attribution.contributors, role=data_owner, ideally with ORCID)."})
         if not record.get("links") and not record.get("tags"):
             warnings.append({"code": "NO_LINKS", "path": "links",
-                             "message": "Record has no links. If it belongs to a potential/composition series or derives from another record, add same_sample_as / derived_from / intended_comparison_target."})
+                             "message": "Record has no links[] and no tags[]. Group it via a typed link (same_sample_as / derived_from / intended_comparison_target) or a tag."})
 
         qc = ((record.get("measurement") or {}).get("qc") or {})
         if qc.get("status") == "compromised" and str(qc.get("evidence", "")).strip().upper() in ("", "N/A", "NA", "NONE"):

@@ -990,7 +990,7 @@ elif page == "Saved Records":
                         # the record to history). The web identity is proxy-header
                         # derived and must never gate destructive actions.
             else:
-                st.info("No records found. Create records using the Excel Validator or Record Form.")
+                st.info("No records found. Create records using the Record Validator or Record Form.")
 
         except Exception as e:
             st.error(f"Error loading records: {e}")
@@ -1265,6 +1265,7 @@ elif page == "API Documentation":
     "record_type": "evidence",
     "record_domain": "characterization",
     "source_type": "facility",
+    "tags": ["cuo-reference", "xps-2025"],
     "timestamps": { "created_utc": "2025-12-14T20:15:00Z" },
     "sample": {
       "material": { "name": "Copper(II) Oxide", "formula": "CuO2", "provenance": "commercial" },
@@ -1275,12 +1276,16 @@ elif page == "API Documentation":
     st.markdown("""
     | Field | Type | Description |
     |---|---|---|
-    | `valid` | bool | `true` only if **both** schema and vocabulary pass |
+    | `valid` | bool | `true` only if schema, vocabulary **and** semantic/integrity all pass |
     | `schema_valid` | bool | JSON Schema validation result |
     | `vocabulary_valid` | bool | Living-ontology vocabulary check result |
+    | `semantic_valid` | bool | Semantic/integrity check result |
     | `schema_errors` | list | Schema validation errors |
     | `vocabulary_errors` | list | Vocabulary validation errors |
-    | `errors` | list | Combined list (schema + vocabulary) for backward compatibility |
+    | `semantic_errors` | list | Semantic/integrity errors |
+    | `errors` | list | Combined list (schema + vocabulary + semantic) |
+    | `warnings` | list | Accepted-but-improvable feedback (does not block) |
+    | `info` | list | Suggestions (does not block) |
     """)
     st.markdown("**Responses:**")
     col1, col2 = st.columns(2)
@@ -1387,7 +1392,7 @@ elif page == "About":
     Features:
     - **Dashboard**: Database health, record stats, and access metrics at a glance
     - **Ontology Editor**: Browse and edit the ISAAC vocabulary
-    - **Record Validator**: Validate Excel files against the schema and save to database
+    - **Record Validator**: Validate JSON records against the schema and save to database
     - **Record Form**: Manually create ISAAC records
     - **Saved Records**: View and manage records in the database
     - **API Keys**: Generate and manage API keys for programmatic access
