@@ -303,6 +303,97 @@ def init_discovery_tables():
             ON CONFLICT (id) DO NOTHING
         ''')
         # --- discovery feature tables go here ---
+        # Hypothesis-driven reasoning workbench (Discovery page). These are NOT
+        # ISAAC records and live only here; record_ids referenced below are plain
+        # strings into the records DB (no cross-DB FK by design).
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS hyp_projects (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                project_id CHAR(26) UNIQUE NOT NULL,
+                owner_identity TEXT NOT NULL,
+                title TEXT NOT NULL,
+                goal TEXT,
+                material_system TEXT,
+                reaction TEXT,
+                status TEXT DEFAULT 'active',
+                next_experiment JSONB,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_projects_owner '
+                    'ON hyp_projects (owner_identity, updated_at DESC)')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS hyp_hypotheses (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                hypothesis_id CHAR(26) UNIQUE NOT NULL,
+                project_id CHAR(26) NOT NULL REFERENCES hyp_projects(project_id),
+                label TEXT,
+                statement TEXT NOT NULL,
+                hypothesis_type TEXT,
+                mechanism JSONB,
+                origin JSONB,
+                status TEXT DEFAULT 'proposed',
+                confidence REAL,
+                confidence_basis TEXT,
+                created_by TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_hypotheses_project '
+                    'ON hyp_hypotheses (project_id)')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS hyp_predictions (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                prediction_id CHAR(26) UNIQUE NOT NULL,
+                hypothesis_id CHAR(26) NOT NULL REFERENCES hyp_hypotheses(hypothesis_id),
+                label TEXT,
+                descriptor_name TEXT NOT NULL,
+                direction TEXT,
+                reference_condition TEXT,
+                magnitude TEXT,
+                output_quantity TEXT,
+                falsification_criterion TEXT,
+                verdict TEXT,
+                strength TEXT,
+                evidence_record_ids TEXT[],
+                rationale TEXT,
+                mlflow_run_url TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_predictions_hypothesis '
+                    'ON hyp_predictions (hypothesis_id)')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS hyp_events (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                project_id CHAR(26) NOT NULL REFERENCES hyp_projects(project_id),
+                hypothesis_id CHAR(26),
+                event_type TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                detail TEXT,
+                evidence_record_ids TEXT[],
+                mlflow_run_url TEXT,
+                actor_identity TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_events_project '
+                    'ON hyp_events (project_id, created_at DESC)')
+        # v2 (stubbed now): in-portal human<->agent chat.
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS hyp_messages (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                project_id CHAR(26) NOT NULL REFERENCES hyp_projects(project_id),
+                role TEXT NOT NULL,
+                body TEXT NOT NULL,
+                author_identity TEXT,
+                consumed BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        ''')
         conn.commit()
         cur.close()
         conn.close()

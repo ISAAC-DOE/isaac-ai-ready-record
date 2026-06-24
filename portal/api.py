@@ -33,6 +33,7 @@ if str(_portal_dir) not in sys.path:
 
 import database  # noqa: E402  (same import style as app.py)
 import ontology  # noqa: E402
+import discovery  # noqa: E402  (isolated isaac_discovery data-access)
 
 # ---------------------------------------------------------------------------
 # Flask app setup
@@ -789,6 +790,136 @@ def delete_record(record_id):
 
     logger.info("Record %s deleted by %s", record_id, request.auth_info.get("user"))
     return jsonify({"success": True, "record_id": record_id, "deleted": True}), 200
+
+
+# ===========================================================================
+# Discovery endpoints (hypothesis-driven reasoning workbench)
+# ===========================================================================
+# All under /portal/api/, reuse @_require_auth (Bearer -> Authentik -> group
+# gate). Identity is server-stamped from the validated username; any
+# client-supplied identity is ignored. Writes go ONLY to the isolated
+# isaac_discovery DB via discovery.* — never the records DB. Cross-DB FKs do not
+# exist; evidence_record_ids are plain strings into the records DB.
+
+def _disc_identity():
+    return (request.auth_info or {}).get("user")
+
+
+@app.route("/portal/api/projects", methods=["POST"])
+@_require_auth
+def discovery_create_project():
+    d = request.get_json(silent=True) or {}
+    if not d.get("title"):
+        return jsonify({"error": "title is required"}), 400
+    pid = discovery.create_project(
+        _disc_identity(), d["title"], goal=d.get("goal"),
+        material_system=d.get("material_system"), reaction=d.get("reaction"))
+    return jsonify({"project_id": pid}), 201
+
+
+@app.route("/portal/api/projects", methods=["GET"])
+@_require_auth
+def discovery_list_projects():
+    return jsonify(discovery.list_projects(_disc_identity())), 200
+
+
+@app.route("/portal/api/projects/<project_id>", methods=["GET"])
+@_require_auth
+def discovery_get_project(project_id):
+    proj = discovery.get_project(project_id, owner_identity=_disc_identity())
+    if proj is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(proj), 200
+
+
+@app.route("/portal/api/projects/<project_id>/hypotheses", methods=["POST"])
+@_require_auth
+def discovery_create_hypothesis(project_id):
+    d = request.get_json(silent=True) or {}
+    if not d.get("statement"):
+        return jsonify({"error": "statement is required"}), 400
+    hid = discovery.create_hypothesis(
+        project_id, d["statement"], label=d.get("label"),
+        hypothesis_type=d.get("hypothesis_type"), mechanism=d.get("mechanism"),
+        origin=d.get("origin"), created_by=_disc_identity())
+    if hid is None:
+        return jsonify({"error": "project not found"}), 404
+    return jsonify({"hypothesis_id": hid}), 201
+
+
+@app.route("/portal/api/hypotheses/<hypothesis_id>", methods=["PUT"])
+@_require_auth
+def discovery_update_hypothesis(hypothesis_id):
+    d = request.get_json(silent=True) or {}
+    ok = discovery.update_hypothesis(
+        hypothesis_id, status=d.get("status"), confidence=d.get("confidence"),
+        confidence_basis=d.get("confidence_basis"), actor=_disc_identity())
+    if not ok:
+        return jsonify({"error": "not found or no fields to update"}), 404
+    return jsonify({"ok": True}), 200
+
+
+@app.route("/portal/api/hypotheses/<hypothesis_id>/predictions", methods=["POST"])
+@_require_auth
+def discovery_create_prediction(hypothesis_id):
+    d = request.get_json(silent=True) or {}
+    if not d.get("descriptor_name"):
+        return jsonify({"error": "descriptor_name is required"}), 400
+    pid = discovery.create_prediction(
+        hypothesis_id, d["descriptor_name"], label=d.get("label"),
+        direction=d.get("direction"), reference_condition=d.get("reference_condition"),
+        magnitude=d.get("magnitude"), output_quantity=d.get("output_quantity"),
+        falsification_criterion=d.get("falsification_criterion"), actor=_disc_identity())
+    if pid is None:
+        return jsonify({"error": "hypothesis not found"}), 404
+    return jsonify({"prediction_id": pid}), 201
+
+
+@app.route("/portal/api/predictions/<prediction_id>/evaluate", methods=["PUT"])
+@_require_auth
+def discovery_evaluate_prediction(prediction_id):
+    d = request.get_json(silent=True) or {}
+    if not d.get("verdict"):
+        return jsonify({"error": "verdict is required"}), 400
+    ok = discovery.evaluate_prediction(
+        prediction_id, d["verdict"], strength=d.get("strength"),
+        evidence_record_ids=d.get("evidence_record_ids"), rationale=d.get("rationale"),
+        mlflow_run_url=d.get("mlflow_run_url"), actor=_disc_identity())
+    if not ok:
+        return jsonify({"error": "prediction not found"}), 404
+    return jsonify({"ok": True}), 200
+
+
+@app.route("/portal/api/projects/<project_id>/events", methods=["POST"])
+@_require_auth
+def discovery_add_event(project_id):
+    d = request.get_json(silent=True) or {}
+    etype, summary = d.get("event_type"), d.get("summary")
+    if not etype or not summary:
+        return jsonify({"error": "event_type and summary are required"}), 400
+    if etype not in discovery.EVENT_TYPES:
+        return jsonify({"error": f"unknown event_type; allowed: "
+                                 f"{sorted(discovery.EVENT_TYPES)}"}), 400
+    eid = discovery.add_event(
+        project_id, etype, summary, detail=d.get("detail"),
+        hypothesis_id=d.get("hypothesis_id"),
+        evidence_record_ids=d.get("evidence_record_ids"),
+        mlflow_run_url=d.get("mlflow_run_url"), actor=_disc_identity())
+    if eid is None:
+        return jsonify({"error": "project not found"}), 404
+    return jsonify({"event_id": eid}), 201
+
+
+@app.route("/portal/api/projects/<project_id>/next_experiment", methods=["PUT"])
+@_require_auth
+def discovery_set_next_experiment(project_id):
+    d = request.get_json(silent=True) or {}
+    ok = discovery.set_next_experiment(
+        project_id, d.get("descriptor"), d.get("facility"), d.get("method"),
+        d.get("rationale"), d.get("predicted_outcomes") or [], actor=_disc_identity())
+    if not ok:
+        return jsonify({"error": "project not found"}), 404
+    return jsonify({"ok": True}), 200
 
 
 # ===========================================================================
