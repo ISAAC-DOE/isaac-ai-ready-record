@@ -587,9 +587,15 @@ def delete_project(project_id, owner_identity=None, is_admin=False) -> bool:
         if not is_admin and owner_identity is not None and \
                 row["owner_identity"] != owner_identity:
             return False
+        # Order matters: clear FK children before parents.
+        cur.execute("""DELETE FROM hyp_compute_runs WHERE prediction_id IN
+                         (SELECT prediction_id FROM hyp_predictions WHERE hypothesis_id IN
+                            (SELECT hypothesis_id FROM hyp_hypotheses WHERE project_id=%s))""",
+                    (project_id,))
         cur.execute("DELETE FROM hyp_predictions WHERE hypothesis_id IN "
                     "(SELECT hypothesis_id FROM hyp_hypotheses WHERE project_id=%s)",
                     (project_id,))
+        cur.execute("DELETE FROM hyp_hypothesis_relations WHERE project_id=%s", (project_id,))
         cur.execute("DELETE FROM hyp_events WHERE project_id=%s", (project_id,))
         cur.execute("DELETE FROM hyp_messages WHERE project_id=%s", (project_id,))
         cur.execute("DELETE FROM hyp_hypotheses WHERE project_id=%s", (project_id,))
