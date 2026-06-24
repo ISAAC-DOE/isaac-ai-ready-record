@@ -442,6 +442,10 @@ def init_discovery_tables():
         ''')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_runs_prediction '
                     'ON hyp_compute_runs (prediction_id)')
+        # v1: explicit evidence include/exclude override layer (curation on top of
+        # the auto element-matched candidate set): {include:[record_id], exclude:[]}.
+        cur.execute("ALTER TABLE hyp_projects ADD COLUMN IF NOT EXISTS "
+                    "evidence_overrides JSONB")
         conn.commit()
         cur.close()
         conn.close()

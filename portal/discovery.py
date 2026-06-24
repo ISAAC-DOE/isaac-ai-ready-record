@@ -20,10 +20,14 @@ Discovery page and the /portal/api/* discovery endpoints call.
 """
 
 import json
+import logging
+import re
 import secrets
 import time
 
 import database
+
+logger = logging.getLogger("isaac-discovery")
 
 # Crockford base32 (a subset of [0-9A-Z]); ULID-style 26-char ids, generated
 # server-side. Discovery ids are independent of records ULIDs (separate DB).
@@ -65,7 +69,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.2-provisional",
+        "version": "0.3-provisional",
         "prime_directive": [
             "READ before you act: GET /projects/{id}/briefing at the start of every "
             "turn; treat it as authoritative current state and reconcile to it.",
@@ -97,7 +101,14 @@ def get_manifest() -> dict:
         "event_types": sorted(EVENT_TYPES),
         "endpoints": [
             {"m": "GET", "path": "/projects/{id}/briefing",
-             "purpose": "Curated ground-truth digest — READ THIS FIRST each turn."},
+             "purpose": "Curated ground-truth digest (incl. evidence-index summary, "
+                        "discrimination matrix) — READ THIS FIRST each turn."},
+            {"m": "GET", "path": "/projects/{id}/evidence",
+             "purpose": "Exhaustive descriptor-keyed evidence index (element-matched "
+                        "candidates, reaction annotated). ?descriptor=<name> to narrow. "
+                        "Query this by a prediction's descriptor before saying 'no data'."},
+            {"m": "PUT", "path": "/projects/{id}/evidence_overrides",
+             "purpose": "Curate the auto candidates: {include:[record_id], exclude:[...]}."},
             {"m": "POST", "path": "/projects", "purpose": "Create a project."},
             {"m": "GET", "path": "/projects", "purpose": "List your projects."},
             {"m": "GET", "path": "/projects/{id}", "purpose": "Full project view."},
@@ -502,6 +513,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
 
     ranking, validated, invalidated, open_q, pending_compute = [], [], [], [], []
     supported, eliminated = [], []
+    matrix = []
     for h in hyps:
         ranking.append({"label": h["label"], "status": h["status"],
                         "confidence": h["confidence"], "statement": _oneline(h["statement"])})
@@ -510,6 +522,11 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         elif h["status"] == "eliminated":
             eliminated.append(h["label"])
         for p in h["predictions"]:
+            if p.get("discriminates"):
+                matrix.append({"prediction": p.get("label") or p.get("descriptor_name"),
+                               "descriptor": p.get("descriptor_name"),
+                               "owner_hypothesis": h["label"],
+                               "expected_by_hypothesis": p["discriminates"]})
             ws = p.get("work_status")
             item = {"hypothesis_label": h["label"], "descriptor": p.get("descriptor_name"),
                     "work_status": ws, "verdict": p.get("verdict"),
@@ -523,12 +540,18 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             else:
                 open_q.append(item)
 
+    elements = extract_elements(proj.get("material_system"))
+    ov = proj.get("evidence_overrides") or {}
+    evidence_index = build_evidence_index(elements, include_ids=ov.get("include"),
+                                          exclude_ids=ov.get("exclude"))
+
     return {
         "project_id": project_id,
         "title": proj["title"],
         "goal": proj.get("goal"),
         "material_system": proj.get("material_system"),
         "reaction": proj.get("reaction"),
+        "elements": elements,
         "as_of": _now_iso(),
         "ranking": ranking,
         "settled": {"supported": supported, "eliminated": eliminated},
@@ -536,6 +559,8 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         "invalidated_predictions": invalidated,
         "open_questions": open_q,
         "pending_compute": pending_compute,
+        "discrimination_matrix": matrix,
+        "evidence_index": _evidence_summary(evidence_index),
         "next_experiment": proj.get("next_experiment"),
         "recent_journal": [{"event_type": e["event_type"], "summary": e["summary"],
                             "at": (e["created_at"].isoformat()
@@ -702,6 +727,173 @@ def update_compute_run(run_id, *, status=None, metrics=None, mlflow_run_url=None
     finally:
         cur.close()
         conn.close()
+
+
+# --- Evidence index (descriptor-keyed, element-matched; READ-ONLY records) --
+# Per the practitioner spec: candidates by composition ELEMENT (not material
+# string), reaction ANNOTATED not gated, indexed BY DESCRIPTOR so "is there
+# FE(CO) data?" is an exhaustive lookup, not a recall. The per-record annotation
+# doubles as the methodological-compatibility ledger (output_quantity/functional).
+
+_ELEMENTS = {
+    "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg", "Al", "Si",
+    "P", "S", "Cl", "Ar", "K", "Ca", "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co",
+    "Ni", "Cu", "Zn", "Ga", "Ge", "As", "Se", "Br", "Kr", "Rb", "Sr", "Y", "Zr",
+    "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd", "In", "Sn", "Sb", "Te", "I",
+    "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd", "Pt", "Au", "Hg", "Pb", "Bi", "W",
+    "Re", "Os", "Ir", "Ta", "Hf",
+}
+
+
+def extract_elements(text) -> list:
+    """Pull valid element symbols out of a material_system / formula / name."""
+    if not text:
+        return []
+    out, seen = [], set()
+    for m in re.findall(r"[A-Z][a-z]?", str(text)):
+        if m in _ELEMENTS and m not in seen:
+            seen.add(m)
+            out.append(m)
+    return out
+
+
+def _system_role(record_text, project_elements):
+    rec = set(extract_elements(record_text))
+    proj = set(project_elements)
+    present = rec & proj
+    foreign = rec - proj
+    if not present:
+        return "analog"
+    if foreign:
+        return "analog"
+    if present == proj:
+        return "exact_system"
+    return "baseline"  # a strict subset, e.g. pure Cu / pure Au
+
+
+def build_evidence_index(project_elements, *, include_ids=None, exclude_ids=None) -> dict:
+    """descriptor_name -> [ {record_id, material, reaction, domain, value, unit,
+    output_quantity, functional, system_role} ]. Read-only against records;
+    degrades to {} on any error so it can never break the briefing."""
+    if not project_elements:
+        return {}
+    include_ids = list(include_ids or [])
+    exclude_ids = set(exclude_ids or [])
+    try:
+        conn = database.get_readonly_db_connection()
+    except Exception:
+        return {}
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            WITH cand AS (
+              SELECT record_id, record_domain, data FROM records
+              WHERE record_id = ANY(%(inc)s)
+                 OR EXISTS (
+                   SELECT 1 FROM unnest(%(elems)s::text[]) e
+                   WHERE data->'sample'->'material'->>'formula' ~ ('(^|[^A-Za-z])'||e||'([^a-z]|$)')
+                      OR data->'sample'->'material'->>'name'    ~ ('(^|[^A-Za-z])'||e||'([^a-z]|$)')
+                      OR COALESCE((data->'sample'->'composition')::text,'') ~ ('"[^"]*'||e||'[^"]*"')
+                 )
+            )
+            SELECT c.record_id,
+                   c.data->'sample'->'material'->>'name'    AS material,
+                   c.data->'sample'->'material'->>'formula' AS formula,
+                   c.data->'context'->'electrochemistry'->>'reaction' AS reaction,
+                   c.record_domain AS domain,
+                   c.data->'computation'->'method'->>'functional' AS functional,
+                   d->>'name' AS descriptor_name, d->>'value' AS value,
+                   d->>'unit' AS unit, d->>'output_quantity' AS output_quantity
+            FROM cand c,
+                 jsonb_array_elements(COALESCE(c.data->'descriptors'->'outputs','[]'::jsonb)) o,
+                 jsonb_array_elements(COALESCE(o->'descriptors','[]'::jsonb)) d
+            LIMIT 4000
+            """,
+            {"elems": list(project_elements), "inc": include_ids})
+        rows = cur.fetchall()
+    except Exception as exc:
+        logger.warning("evidence index query failed: %s", exc)
+        return {}
+    finally:
+        cur.close()
+        conn.close()
+
+    index = {}
+    for r in rows:
+        rid = r["record_id"]
+        if rid in exclude_ids:
+            continue
+        name = r["descriptor_name"]
+        if not name:
+            continue
+        role = _system_role(f"{r.get('material') or ''} {r.get('formula') or ''}",
+                            project_elements)
+        index.setdefault(name, []).append({
+            "record_id": rid, "material": r.get("material"),
+            "reaction": r.get("reaction"), "domain": r.get("domain"),
+            "value": r.get("value"), "unit": r.get("unit"),
+            "output_quantity": r.get("output_quantity"),
+            "functional": r.get("functional"),
+            "system_role": role,
+        })
+    return index
+
+
+def _evidence_summary(index) -> dict:
+    """Compact per-descriptor rollup for the briefing (the full lists are served
+    on demand by GET /projects/{id}/evidence)."""
+    summary = {}
+    for name, items in index.items():
+        roles, reactions, methods = {}, set(), set()
+        for it in items:
+            roles[it["system_role"]] = roles.get(it["system_role"], 0) + 1
+            if it.get("reaction"):
+                reactions.add(it["reaction"])
+            methods.add(it.get("output_quantity") or it.get("functional")
+                        or ("experimental" if it.get("domain") != "simulation" else "?"))
+        summary[name] = {"n": len(items), "by_role": roles,
+                         "reactions": sorted(reactions),
+                         "methods": sorted(m for m in methods if m)}
+    return summary
+
+
+def set_evidence_overrides(project_id, *, include=None, exclude=None,
+                           owner_identity=None) -> bool:
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT owner_identity FROM hyp_projects WHERE project_id=%s",
+                    (project_id,))
+        row = cur.fetchone()
+        if row is None or (owner_identity is not None
+                           and row["owner_identity"] != owner_identity):
+            return False
+        cur.execute("UPDATE hyp_projects SET evidence_overrides=%s, updated_at=NOW() "
+                    "WHERE project_id=%s",
+                    (json.dumps({"include": include or [], "exclude": exclude or []}),
+                     project_id))
+        conn.commit()
+        return True
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_evidence(project_id, owner_identity=None, descriptor=None) -> dict | None:
+    """Full descriptor-keyed evidence index for a project (optionally filtered to
+    one descriptor) — the exhaustive lookup the agent runs when evaluating."""
+    data = get_project(project_id, owner_identity=owner_identity)
+    if data is None:
+        return None
+    proj = data["project"]
+    elems = extract_elements(proj.get("material_system"))
+    ov = proj.get("evidence_overrides") or {}
+    index = build_evidence_index(elems, include_ids=ov.get("include"),
+                                 exclude_ids=ov.get("exclude"))
+    if descriptor:
+        index = {descriptor: index.get(descriptor, [])}
+    return {"project_id": project_id, "elements": elems, "evidence_index": index}
 
 
 # --- Provenance (READ-ONLY against the records DB) -------------------------

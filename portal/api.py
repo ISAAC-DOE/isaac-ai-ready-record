@@ -852,6 +852,31 @@ def discovery_briefing(project_id):
     return jsonify(brief), 200
 
 
+@app.route("/portal/api/projects/<project_id>/evidence", methods=["GET"])
+@_require_auth
+def discovery_evidence(project_id):
+    """Exhaustive descriptor-keyed evidence index (element-matched candidates,
+    reaction annotated). ?descriptor=<name> narrows to one — the lookup the agent
+    runs when evaluating a prediction so it never reasons 'no data' from memory."""
+    ev = discovery.get_evidence(project_id, owner_identity=_disc_identity(),
+                                descriptor=request.args.get("descriptor"))
+    if ev is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(ev), 200
+
+
+@app.route("/portal/api/projects/<project_id>/evidence_overrides", methods=["PUT"])
+@_require_auth
+def discovery_evidence_overrides(project_id):
+    d = request.get_json(silent=True) or {}
+    ok = discovery.set_evidence_overrides(
+        project_id, include=d.get("include"), exclude=d.get("exclude"),
+        owner_identity=_disc_identity())
+    if not ok:
+        return jsonify({"error": "not found or not yours"}), 404
+    return jsonify({"ok": True}), 200
+
+
 @app.route("/portal/api/projects/<project_id>", methods=["DELETE"])
 @_require_auth
 def discovery_delete_project(project_id):
