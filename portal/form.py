@@ -182,6 +182,11 @@ def render_form():
         source_type_options = [""] + get_vocab_values("Record Info", "source_type")
         source_type = st.selectbox("Source Type *", source_type_options)
 
+        tags_raw = st.text_input(
+            "Tags (optional)",
+            placeholder="comma-separated, e.g. jcap-hte, nifecoce-oer-2014",
+            help="Free-form grouping labels (lowercase-hyphenated, scoped). A record may carry several.")
+
         # =====================================================================
         # SECTION 4: Sample (Optional)
         # =====================================================================
@@ -428,6 +433,7 @@ def render_form():
             acquired_end_date=acquired_end_date,
             acquired_end_time=acquired_end_time,
             source_type=source_type,
+            tags=[s.strip() for s in tags_raw.split(",") if s.strip()] if tags_raw else [],
             material_name=material_name,
             material_formula=material_formula,
             material_provenance=material_provenance,
@@ -572,6 +578,10 @@ def build_record(**kwargs) -> dict:
     # Source Type
     if kwargs['source_type']:
         record['source_type'] = kwargs['source_type']
+
+    # Tags (free-form grouping labels)
+    if kwargs.get('tags'):
+        record['tags'] = kwargs['tags']
 
     # Timestamps
     if kwargs['created_date'] and kwargs['created_time']:

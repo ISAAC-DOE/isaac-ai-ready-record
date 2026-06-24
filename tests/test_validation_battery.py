@@ -205,11 +205,17 @@ def test_warnings_tier():
     res = validation.validate_record_full(r)
     assert not any(w["code"] == "GALVANOSTATIC_NO_POTENTIAL" for w in res.get("warnings", []))
 
-    # No-links warning fires on linkless record
+    # No-links warning fires on linkless, untagged record
     r = json.loads(json.dumps(base))
     r["links"] = []
+    r.pop("tags", None)  # tags also satisfy the grouping nudge — clear to test NO_LINKS alone
     res = validation.validate_record_full(r)
     assert any(w["code"] == "NO_LINKS" for w in res.get("warnings", []))
+
+    # A tag alone suppresses NO_LINKS (a tagged record is grouped)
+    r["tags"] = ["some-campaign"]
+    res = validation.validate_record_full(r)
+    assert not any(w["code"] == "NO_LINKS" for w in res.get("warnings", []))
 
 
 def test_wave2_locks_and_teaching_errors():

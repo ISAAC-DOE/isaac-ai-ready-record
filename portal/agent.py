@@ -58,6 +58,9 @@ Each record's `data` column is a JSON object with these top-level keys:
 ## Useful JSONB query patterns
 
 ```sql
+-- Records carry a free-form data->'tags' array (grouping labels, e.g.
+-- 'jcap-hte', 'nifecoce-oer-2014'). Filter a dataset/campaign with:
+--   WHERE data->'tags' ? 'jcap-hte'
 -- Count records by type
 SELECT record_type, COUNT(*) FROM records GROUP BY record_type;
 

@@ -373,5 +373,9 @@
         "role": "curated_record"
       }
     ]
-  }
+  },
+  "tags": [
+    "lbnl-cu-au",
+    "co2rr-flowcell"
+  ]
 }
