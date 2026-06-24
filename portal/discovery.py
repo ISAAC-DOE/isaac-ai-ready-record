@@ -100,7 +100,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.4-provisional",
+        "version": "0.4.1-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -817,18 +817,29 @@ def extract_elements(text) -> list:
     return out
 
 
+def _elements_from_composition(comp) -> set:
+    """Element symbols from composition KEYS by WHOLE-TOKEN match (split on
+    non-letters), so `Cu_geometric_area_fraction` -> {Cu} but `CO_producing_metal`
+    -> {} (CO is not an element symbol; case-sensitive, so it is not Co either)."""
+    out = set()
+    if isinstance(comp, dict):
+        for k in comp:
+            for tok in re.split(r"[^A-Za-z]+", k):
+                if tok in _ELEMENTS:
+                    out.add(tok)
+    return out
+
+
+def _role_from_elements(rec_elems, project_elements):
+    rec, proj = set(rec_elems), set(project_elements)
+    present, foreign = rec & proj, rec - proj
+    if not present or foreign:
+        return "analog"
+    return "exact_system" if present == proj else "baseline"
+
+
 def _system_role(record_text, project_elements):
-    rec = set(extract_elements(record_text))
-    proj = set(project_elements)
-    present = rec & proj
-    foreign = rec - proj
-    if not present:
-        return "analog"
-    if foreign:
-        return "analog"
-    if present == proj:
-        return "exact_system"
-    return "baseline"  # a strict subset, e.g. pure Cu / pure Au
+    return _role_from_elements(extract_elements(record_text), project_elements)
 
 
 def build_evidence_index(project_elements, *, include_ids=None, exclude_ids=None) -> dict:
@@ -860,7 +871,7 @@ def build_evidence_index(project_elements, *, include_ids=None, exclude_ids=None
             SELECT c.record_id,
                    c.data->'sample'->'material'->>'name'    AS material,
                    c.data->'sample'->'material'->>'formula' AS formula,
-                   (c.data->'sample'->'composition')::text  AS composition_text,
+                   c.data->'sample'->'composition'          AS composition,
                    c.data->'context'->'electrochemistry'->>'reaction' AS reaction,
                    c.record_domain AS domain,
                    c.data->'computation'->'method'->>'functional' AS functional,
@@ -888,13 +899,15 @@ def build_evidence_index(project_elements, *, include_ids=None, exclude_ids=None
         name = r["descriptor_name"]
         if not name:
             continue
-        # Classify by the COMPOSITION element-set (+ formula), NOT the free-text
-        # name — "Interdigitated" must not read as Indium. Fall back to name only
+        # Classify by the COMPOSITION element-set (whole-token) + formula (regex),
+        # NOT the free-text name — "Interdigitated" must not read as Indium, and the
+        # key "CO_producing_metal" must not read as C+O. Fall back to the name only
         # if a record has neither composition nor formula.
-        role_text = f"{r.get('formula') or ''} {r.get('composition_text') or ''}".strip()
-        if not role_text:
-            role_text = r.get("material") or ""
-        role = _system_role(role_text, project_elements)
+        rec_elems = set(extract_elements(r.get("formula") or ""))
+        rec_elems |= _elements_from_composition(r.get("composition"))
+        if not rec_elems:
+            rec_elems = set(extract_elements(r.get("material") or ""))
+        role = _role_from_elements(rec_elems, project_elements)
         index.setdefault(name, []).append({
             "record_id": rid, "material": r.get("material"),
             "reaction": r.get("reaction"), "domain": r.get("domain"),
