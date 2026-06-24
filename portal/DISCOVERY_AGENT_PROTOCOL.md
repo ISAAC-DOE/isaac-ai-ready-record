@@ -92,3 +92,48 @@ The dashboard renders `compute_submitted` / `compute_running` predictions as
 
 **If it is not on the dashboard, it did not happen.** The dashboard is the shared
 brain for the project; your context is scratch space.
+
+---
+
+## v0.2 additions (hardened from the first real Cu-Au cycle)
+
+These come from one fully-executed discrimination cycle (real VASP on Perlmutter,
+UMA benchmark, CatMAP, MLflow). They are now in the contract; the briefing-5 below
+is the next increment.
+
+**Hypotheses are a graph, not a list.** Relate them with
+`POST /hypotheses/{id}/relations {to_hypothesis_id, relation_type, note}`,
+`relation_type ∈ {supersedes, derived_from, competes_with, co_operating}`.
+`derived_from` carries an analogy transfer (Cu-Au → Cu-Ag); `co_operating` says two
+mechanisms can both be partly true (not everything competes).
+
+**Predictions discriminate.** A good prediction differs in what each hypothesis
+predicts for it. Declare that with `discriminates: [{hypothesis_label, expected}]`
+when you create the prediction; the server aggregates these into the
+cross-hypothesis **discrimination matrix** that drives next-experiment selection.
+
+**Compute is multi-run with a real lifecycle.** A prediction has MANY runs (a
+failed job + its resubmit both belong to one prediction). Register each:
+`POST /predictions/{id}/runs {backend, engine, resource, slurm_job_id,
+mlflow_run_url, status, params, metrics}` and advance it with `PUT /runs/{run_id}`.
+`status ∈ {queued, running, completed, failed, resubmitted}`. Backends are **data**
+(`vasp`, `uma`, `catmap`, …), not a fixed enum — any engine plugs in. Design for
+minutes-to-hours latency.
+
+**Methodological compatibility is a non-negotiable gate.** Before an evidence
+record can support/contradict a prediction, its method must match: same
+`output_quantity` (ΔE vs ΔG), functional, and corrections (PBE vs UMA-RPBE are NOT
+comparable). State the prediction's `output_quantity`; the dashboard resolves each
+evidence record's method from the records DB and flags incompatible comparisons. A
+verdict resting on a mismatch is surfaced as a warning, not trusted silently.
+
+**Verdicts are atomic; the confidence rollup is a separate, swappable step.** Write
+each verdict via `/evaluate`. Updating a hypothesis's confidence/status from its
+verdicts is a distinct, auditable reasoning step (heuristic net-score now; Bayesian
+posterior is roadmap). Don't fold them together.
+
+**The briefing-5 (the next increment).** The ground-truth digest will always show,
+at the top: (1) goal; (2) ranking + confidence; (3) an **evidence index keyed by
+descriptor** — what already exists for this system (so you never say "no data" when
+it's there); (4) a **methodological-compatibility ledger**; (5) the
+**pending-experiment queue** ranked by discriminating power vs cost.

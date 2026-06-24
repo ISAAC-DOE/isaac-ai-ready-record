@@ -400,6 +400,48 @@ def init_discovery_tables():
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         ''')
+        # v1: what each hypothesis predicts for this measurable — the rows the
+        # server aggregates into the cross-hypothesis discrimination matrix.
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
+                    "discriminates JSONB")
+        # v1: typed relations between hypotheses (graph, not list):
+        # supersedes | derived_from | competes_with | co_operating.
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS hyp_hypothesis_relations (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                project_id CHAR(26) NOT NULL REFERENCES hyp_projects(project_id),
+                from_hypothesis_id CHAR(26) NOT NULL REFERENCES hyp_hypotheses(hypothesis_id),
+                to_hypothesis_id CHAR(26) NOT NULL REFERENCES hyp_hypotheses(hypothesis_id),
+                relation_type TEXT NOT NULL,
+                note TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_relations_project '
+                    'ON hyp_hypothesis_relations (project_id)')
+        # v1: a prediction has MANY compute runs (failed + resubmit). Backends are
+        # data (vasp/uma/catmap/...), not enum-locked. status: queued | running |
+        # completed | failed | resubmitted.
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS hyp_compute_runs (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                run_id CHAR(26) UNIQUE NOT NULL,
+                prediction_id CHAR(26) NOT NULL REFERENCES hyp_predictions(prediction_id),
+                backend TEXT,
+                engine TEXT,
+                resource TEXT,
+                slurm_job_id TEXT,
+                mlflow_run_url TEXT,
+                status TEXT NOT NULL DEFAULT 'queued',
+                params JSONB,
+                metrics JSONB,
+                note TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_runs_prediction '
+                    'ON hyp_compute_runs (prediction_id)')
         conn.commit()
         cur.close()
         conn.close()

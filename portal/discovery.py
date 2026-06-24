@@ -53,6 +53,11 @@ HYPOTHESIS_STATUSES = ["proposed", "supported", "eliminated", "needs_more_data",
                        "superseded"]
 VERDICTS = ["supports", "contradicts", "neutral", "insufficient"]
 
+# v1: hypotheses form a graph, not a list.
+RELATION_TYPES = {"supersedes", "derived_from", "competes_with", "co_operating"}
+# v1: a prediction has many compute runs; backends are data, not enum-locked.
+COMPUTE_STATUSES = {"queued", "running", "completed", "failed", "resubmitted"}
+
 
 def get_manifest() -> dict:
     """Self-describing contract: the bootstrap an agent fetches to learn how to
@@ -60,7 +65,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.1-provisional",
+        "version": "0.2-provisional",
         "prime_directive": [
             "READ before you act: GET /projects/{id}/briefing at the start of every "
             "turn; treat it as authoritative current state and reconcile to it.",
@@ -76,10 +81,18 @@ def get_manifest() -> dict:
                         "are plain ISAAC record IDs (read-only cross-reference).",
         "state_machines": {
             "hypothesis_status": HYPOTHESIS_STATUSES,
+            "hypothesis_relation_types": sorted(RELATION_TYPES),
             "prediction_work_status": WORK_STATUS_ORDER,
             "prediction_verdict": VERDICTS,
+            "compute_run_status": sorted(COMPUTE_STATUSES),
             "note": "work_status = where in the pipeline; verdict = the scientific "
-                    "outcome (set at 'evaluated'). They are orthogonal.",
+                    "outcome (set at 'evaluated'). They are orthogonal. A prediction "
+                    "may have MANY compute_runs (failed + resubmit). Hypotheses form a "
+                    "graph via relations (supersedes/derived_from/competes_with/"
+                    "co_operating), not a flat list. A prediction's `discriminates` "
+                    "([{hypothesis_label, expected}]) declares what each hypothesis "
+                    "predicts for that measurable; the server aggregates these into the "
+                    "cross-hypothesis discrimination matrix.",
         },
         "event_types": sorted(EVENT_TYPES),
         "endpoints": [
@@ -93,11 +106,21 @@ def get_manifest() -> dict:
             {"m": "PUT", "path": "/hypotheses/{id}",
              "purpose": "Update status / confidence / confidence_basis."},
             {"m": "POST", "path": "/hypotheses/{id}/predictions",
-             "purpose": "Add a prediction (descriptor_name, direction, falsification)."},
+             "purpose": "Add a prediction (descriptor_name, direction, falsification, "
+                        "output_quantity, discriminates:[{hypothesis_label,expected}])."},
+            {"m": "POST", "path": "/hypotheses/{id}/relations",
+             "purpose": "Link hypotheses {to_hypothesis_id, relation_type, note}."},
             {"m": "PUT", "path": "/predictions/{id}/status",
-             "purpose": "Advance work_status (compute_submitted/running, ...)."},
+             "purpose": "Advance the prediction work_status lane."},
+            {"m": "POST", "path": "/predictions/{id}/runs",
+             "purpose": "Register a compute run {backend, engine, resource, "
+                        "slurm_job_id, mlflow_run_url, status, params, metrics}."},
+            {"m": "PUT", "path": "/runs/{run_id}",
+             "purpose": "Update a compute run {status, metrics, mlflow_run_url, ...}."},
             {"m": "PUT", "path": "/predictions/{id}/evaluate",
-             "purpose": "Terminal: set verdict + strength + evidence + mlflow_run_url."},
+             "purpose": "Terminal: set verdict + strength + evidence + mlflow_run_url. "
+                        "GATE on methodological compatibility (output_quantity / "
+                        "functional / corrections) before trusting an evidence record."},
             {"m": "POST", "path": "/projects/{id}/events",
              "purpose": "Append a reasoning-transcript entry (one per step)."},
             {"m": "PUT", "path": "/projects/{id}/next_experiment",
@@ -235,12 +258,22 @@ def get_project(project_id, owner_identity=None) -> dict | None:
                    ORDER BY created_at""",
                 (h["hypothesis_id"],))
             h["predictions"] = cur.fetchall()
+            for p in h["predictions"]:
+                cur.execute(
+                    """SELECT * FROM hyp_compute_runs WHERE prediction_id=%s
+                       ORDER BY created_at""", (p["prediction_id"],))
+                p["compute_runs"] = cur.fetchall()
+        cur.execute(
+            """SELECT * FROM hyp_hypothesis_relations WHERE project_id=%s
+               ORDER BY created_at""", (project_id,))
+        relations = cur.fetchall()
         cur.execute(
             """SELECT * FROM hyp_events WHERE project_id=%s
                ORDER BY created_at DESC LIMIT 200""",
             (project_id,))
         events = cur.fetchall()
         return {"project": project, "hypotheses": hypotheses, "events": events,
+                "relations": relations,
                 "next_experiment": project.get("next_experiment")}
     finally:
         cur.close()
@@ -345,7 +378,8 @@ def update_hypothesis(hypothesis_id, *, status=None, confidence=None,
 
 def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=None,
                       reference_condition=None, magnitude=None, output_quantity=None,
-                      falsification_criterion=None, actor=None) -> str | None:
+                      falsification_criterion=None, discriminates=None,
+                      actor=None) -> str | None:
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -356,10 +390,12 @@ def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=N
         cur.execute(
             """INSERT INTO hyp_predictions
                  (prediction_id, hypothesis_id, label, descriptor_name, direction,
-                  reference_condition, magnitude, output_quantity, falsification_criterion)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                  reference_condition, magnitude, output_quantity,
+                  falsification_criterion, discriminates)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (prediction_id, hypothesis_id, label, descriptor_name, direction,
-             reference_condition, magnitude, output_quantity, falsification_criterion))
+             reference_condition, magnitude, output_quantity, falsification_criterion,
+             json.dumps(discriminates) if discriminates is not None else None))
         _append_event(cur, project_id, "prediction_added",
                       f"Prediction added: {descriptor_name} ({direction or '?'})",
                       hypothesis_id=hypothesis_id, actor=actor)
@@ -556,6 +592,113 @@ def add_event(project_id, event_type, summary, *, detail=None, hypothesis_id=Non
                             mlflow_run_url=mlflow_run_url, actor=actor)
         conn.commit()
         return eid
+    finally:
+        cur.close()
+        conn.close()
+
+
+# --- Hypothesis relations (the hypothesis graph) ---------------------------
+
+def add_relation(from_hypothesis_id, to_hypothesis_id, relation_type, *,
+                 note=None, actor=None) -> bool:
+    if relation_type not in RELATION_TYPES:
+        return False
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        project_id = _project_of_hypothesis(cur, from_hypothesis_id)
+        proj_to = _project_of_hypothesis(cur, to_hypothesis_id)
+        if project_id is None or proj_to is None:
+            return False
+        cur.execute(
+            """INSERT INTO hyp_hypothesis_relations
+                 (project_id, from_hypothesis_id, to_hypothesis_id, relation_type, note)
+               VALUES (%s,%s,%s,%s,%s)""",
+            (project_id, from_hypothesis_id, to_hypothesis_id, relation_type, note))
+        _append_event(cur, project_id, "status_changed",
+                      f"Relation added: {relation_type}",
+                      detail=note, hypothesis_id=from_hypothesis_id, actor=actor)
+        conn.commit()
+        return True
+    finally:
+        cur.close()
+        conn.close()
+
+
+# --- Compute runs (many per prediction; real lifecycle) --------------------
+
+def create_compute_run(prediction_id, *, backend=None, engine=None, resource=None,
+                       slurm_job_id=None, mlflow_run_url=None, status="queued",
+                       params=None, metrics=None, note=None, actor=None) -> str | None:
+    if status not in COMPUTE_STATUSES:
+        return None
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT p.hypothesis_id, h.project_id, p.descriptor_name
+                 FROM hyp_predictions p
+                 JOIN hyp_hypotheses h ON h.hypothesis_id = p.hypothesis_id
+                WHERE p.prediction_id = %s""", (prediction_id,))
+        row = cur.fetchone()
+        if row is None:
+            return None
+        run_id = new_ulid()
+        cur.execute(
+            """INSERT INTO hyp_compute_runs
+                 (run_id, prediction_id, backend, engine, resource, slurm_job_id,
+                  mlflow_run_url, status, params, metrics, note)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (run_id, prediction_id, backend, engine, resource, slurm_job_id,
+             mlflow_run_url, status,
+             json.dumps(params) if params is not None else None,
+             json.dumps(metrics) if metrics is not None else None, note))
+        _append_event(cur, row["project_id"], "compute_submitted",
+                      f"Compute {backend or ''} {status} for {row['descriptor_name']}",
+                      detail=note, hypothesis_id=row["hypothesis_id"],
+                      mlflow_run_url=mlflow_run_url, actor=actor)
+        conn.commit()
+        return run_id
+    finally:
+        cur.close()
+        conn.close()
+
+
+def update_compute_run(run_id, *, status=None, metrics=None, mlflow_run_url=None,
+                       slurm_job_id=None, note=None, actor=None) -> bool:
+    if status is not None and status not in COMPUTE_STATUSES:
+        return False
+    sets, vals = [], []
+    for col, v in [("status", status), ("mlflow_run_url", mlflow_run_url),
+                   ("slurm_job_id", slurm_job_id), ("note", note)]:
+        if v is not None:
+            sets.append(f"{col}=%s"); vals.append(v)
+    if metrics is not None:
+        sets.append("metrics=%s"); vals.append(json.dumps(metrics))
+    if not sets:
+        return False
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT r.prediction_id, p.hypothesis_id, h.project_id, p.descriptor_name
+                 FROM hyp_compute_runs r
+                 JOIN hyp_predictions p ON p.prediction_id = r.prediction_id
+                 JOIN hyp_hypotheses h ON h.hypothesis_id = p.hypothesis_id
+                WHERE r.run_id = %s""", (run_id,))
+        row = cur.fetchone()
+        if row is None:
+            return False
+        vals.append(run_id)
+        cur.execute(f"UPDATE hyp_compute_runs SET {', '.join(sets)}, updated_at=NOW() "
+                    f"WHERE run_id=%s", vals)
+        etype = "compute_running" if status == "running" else "status_changed"
+        _append_event(cur, row["project_id"], etype,
+                      f"Compute run {status or 'updated'} for {row['descriptor_name']}",
+                      detail=note, hypothesis_id=row["hypothesis_id"],
+                      mlflow_run_url=mlflow_run_url, actor=actor)
+        conn.commit()
+        return True
     finally:
         cur.close()
         conn.close()

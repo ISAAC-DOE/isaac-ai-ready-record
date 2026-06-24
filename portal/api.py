@@ -915,10 +915,54 @@ def discovery_create_prediction(hypothesis_id):
         hypothesis_id, d["descriptor_name"], label=d.get("label"),
         direction=d.get("direction"), reference_condition=d.get("reference_condition"),
         magnitude=d.get("magnitude"), output_quantity=d.get("output_quantity"),
-        falsification_criterion=d.get("falsification_criterion"), actor=_disc_identity())
+        falsification_criterion=d.get("falsification_criterion"),
+        discriminates=d.get("discriminates"), actor=_disc_identity())
     if pid is None:
         return jsonify({"error": "hypothesis not found"}), 404
     return jsonify({"prediction_id": pid}), 201
+
+
+@app.route("/portal/api/hypotheses/<hypothesis_id>/relations", methods=["POST"])
+@_require_auth
+def discovery_add_relation(hypothesis_id):
+    d = request.get_json(silent=True) or {}
+    if not d.get("to_hypothesis_id") or d.get("relation_type") not in discovery.RELATION_TYPES:
+        return jsonify({"error": f"to_hypothesis_id required; relation_type one of "
+                                 f"{sorted(discovery.RELATION_TYPES)}"}), 400
+    ok = discovery.add_relation(hypothesis_id, d["to_hypothesis_id"],
+                                d["relation_type"], note=d.get("note"),
+                                actor=_disc_identity())
+    if not ok:
+        return jsonify({"error": "hypothesis not found"}), 404
+    return jsonify({"ok": True}), 201
+
+
+@app.route("/portal/api/predictions/<prediction_id>/runs", methods=["POST"])
+@_require_auth
+def discovery_create_run(prediction_id):
+    d = request.get_json(silent=True) or {}
+    rid = discovery.create_compute_run(
+        prediction_id, backend=d.get("backend"), engine=d.get("engine"),
+        resource=d.get("resource"), slurm_job_id=d.get("slurm_job_id"),
+        mlflow_run_url=d.get("mlflow_run_url"), status=d.get("status", "queued"),
+        params=d.get("params"), metrics=d.get("metrics"), note=d.get("note"),
+        actor=_disc_identity())
+    if rid is None:
+        return jsonify({"error": "prediction not found or invalid status"}), 404
+    return jsonify({"run_id": rid}), 201
+
+
+@app.route("/portal/api/runs/<run_id>", methods=["PUT"])
+@_require_auth
+def discovery_update_run(run_id):
+    d = request.get_json(silent=True) or {}
+    ok = discovery.update_compute_run(
+        run_id, status=d.get("status"), metrics=d.get("metrics"),
+        mlflow_run_url=d.get("mlflow_run_url"), slurm_job_id=d.get("slurm_job_id"),
+        note=d.get("note"), actor=_disc_identity())
+    if not ok:
+        return jsonify({"error": "run not found or no valid fields"}), 404
+    return jsonify({"ok": True}), 200
 
 
 @app.route("/portal/api/predictions/<prediction_id>/evaluate", methods=["PUT"])
