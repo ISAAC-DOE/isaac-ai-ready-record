@@ -39,8 +39,12 @@ jobs:
           d=$?
           python3 tools/generate_wiki_vocab.py --check /tmp/wiki
           v=$?
+          python3 tools/generate_validation_docs.py --check /tmp/wiki
+          r=$?
+          python3 tools/generate_constraint_matrix.py --check /tmp/wiki
+          m=$?
           set -e
-          if [ $d -ne 0 ] || [ $v -ne 0 ]; then
+          if [ $d -ne 0 ] || [ $v -ne 0 ] || [ $r -ne 0 ] || [ $m -ne 0 ]; then
             if [ "${{ github.ref }}" = "refs/heads/main" ]; then
               echo "::error::Wiki generated sections are stale on main — run the generators and push the wiki."
               exit 1
