@@ -832,6 +832,43 @@ def discovery_get_project(project_id):
     return jsonify(proj), 200
 
 
+@app.route("/portal/api/projects/<project_id>/briefing", methods=["GET"])
+@_require_auth
+def discovery_briefing(project_id):
+    """The curated 'universal truth' digest the agent should read at the start of
+    every turn and reconcile to. Compact by design."""
+    brief = discovery.get_briefing(project_id, owner_identity=_disc_identity())
+    if brief is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(brief), 200
+
+
+@app.route("/portal/api/projects/<project_id>", methods=["DELETE"])
+@_require_auth
+def discovery_delete_project(project_id):
+    ok = discovery.delete_project(
+        project_id, owner_identity=_disc_identity(), is_admin=_caller_is_admin())
+    if not ok:
+        return jsonify({"error": "not found or not yours"}), 404
+    return jsonify({"ok": True, "deleted": project_id}), 200
+
+
+@app.route("/portal/api/predictions/<prediction_id>/status", methods=["PUT"])
+@_require_auth
+def discovery_set_prediction_status(prediction_id):
+    d = request.get_json(silent=True) or {}
+    ws = d.get("work_status")
+    if ws not in discovery.WORK_STATUSES:
+        return jsonify({"error": f"work_status must be one of "
+                                 f"{sorted(discovery.WORK_STATUSES)}"}), 400
+    ok = discovery.set_prediction_status(
+        prediction_id, ws, mlflow_run_url=d.get("mlflow_run_url"),
+        actor=_disc_identity())
+    if not ok:
+        return jsonify({"error": "prediction not found"}), 404
+    return jsonify({"ok": True}), 200
+
+
 @app.route("/portal/api/projects/<project_id>/hypotheses", methods=["POST"])
 @_require_auth
 def discovery_create_hypothesis(project_id):

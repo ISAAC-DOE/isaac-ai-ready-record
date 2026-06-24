@@ -35,6 +35,14 @@ EVENT_TYPES = {
     "hypothesis_created", "prediction_added", "prediction_evaluated",
     "ranking_updated", "status_changed", "next_experiment_proposed",
     "evidence_ingested", "agent_message", "project_created",
+    "compute_submitted", "compute_running",
+}
+
+# Prediction workflow lifecycle (distinct from `verdict`, the scientific
+# outcome). Drives the Validation board (Section B).
+WORK_STATUSES = {
+    "awaiting_evidence", "more_work_pending", "compute_submitted",
+    "compute_running", "evaluated",
 }
 
 
@@ -303,7 +311,8 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
         cur.execute(
             """UPDATE hyp_predictions
                   SET verdict=%s, strength=%s, evidence_record_ids=%s,
-                      rationale=%s, mlflow_run_url=%s, updated_at=NOW()
+                      rationale=%s, mlflow_run_url=%s, work_status='evaluated',
+                      updated_at=NOW()
                 WHERE prediction_id=%s""",
             (verdict, strength, evidence_record_ids, rationale, mlflow_run_url,
              prediction_id))
@@ -313,6 +322,140 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                       detail=rationale, hypothesis_id=row["hypothesis_id"],
                       evidence_record_ids=evidence_record_ids,
                       mlflow_run_url=mlflow_run_url, actor=actor)
+        conn.commit()
+        return True
+    finally:
+        cur.close()
+        conn.close()
+
+
+def set_prediction_status(prediction_id, work_status, *, mlflow_run_url=None,
+                          actor=None) -> bool:
+    """Advance a prediction through its workflow lifecycle (compute_submitted /
+    compute_running / more_work_pending / awaiting_evidence). Use evaluate() to
+    reach the terminal 'evaluated' state with a verdict."""
+    if work_status not in WORK_STATUSES:
+        return False
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT p.hypothesis_id, h.project_id, p.descriptor_name
+                 FROM hyp_predictions p
+                 JOIN hyp_hypotheses h ON h.hypothesis_id = p.hypothesis_id
+                WHERE p.prediction_id = %s""", (prediction_id,))
+        row = cur.fetchone()
+        if row is None:
+            return False
+        if mlflow_run_url is not None:
+            cur.execute("UPDATE hyp_predictions SET work_status=%s, "
+                        "mlflow_run_url=%s, updated_at=NOW() WHERE prediction_id=%s",
+                        (work_status, mlflow_run_url, prediction_id))
+        else:
+            cur.execute("UPDATE hyp_predictions SET work_status=%s, "
+                        "updated_at=NOW() WHERE prediction_id=%s",
+                        (work_status, prediction_id))
+        etype = ("compute_submitted" if work_status == "compute_submitted"
+                 else "compute_running" if work_status == "compute_running"
+                 else "status_changed")
+        _append_event(cur, row["project_id"], etype,
+                      f"Prediction {row['descriptor_name']} → {work_status}",
+                      hypothesis_id=row["hypothesis_id"],
+                      mlflow_run_url=mlflow_run_url, actor=actor)
+        conn.commit()
+        return True
+    finally:
+        cur.close()
+        conn.close()
+
+
+# --- Briefing (the curated "universal truth" digest the agent reads first) --
+
+def get_briefing(project_id, owner_identity=None) -> dict | None:
+    """A compact, server-curated summary of where the project stands RIGHT NOW —
+    the canonical ground truth both the human header and the agent consume.
+
+    Deliberately NOT the full firehose: as a project grows, handing back
+    everything makes an agent MORE likely to drift. This is the digest the agent
+    must read at the start of each turn and reconcile its reasoning to."""
+    data = get_project(project_id, owner_identity=owner_identity)
+    if data is None:
+        return None
+    proj, hyps, events = data["project"], data["hypotheses"], data["events"]
+
+    def _oneline(s):
+        s = s or ""
+        return (s.split(":", 1)[0] if ":" in s[:60] else s)[:90]
+
+    ranking, validated, invalidated, open_q, pending_compute = [], [], [], [], []
+    supported, eliminated = [], []
+    for h in hyps:
+        ranking.append({"label": h["label"], "status": h["status"],
+                        "confidence": h["confidence"], "statement": _oneline(h["statement"])})
+        if h["status"] == "supported":
+            supported.append(h["label"])
+        elif h["status"] == "eliminated":
+            eliminated.append(h["label"])
+        for p in h["predictions"]:
+            ws = p.get("work_status")
+            item = {"hypothesis_label": h["label"], "descriptor": p.get("descriptor_name"),
+                    "work_status": ws, "verdict": p.get("verdict"),
+                    "mlflow_run_url": p.get("mlflow_run_url")}
+            if ws == "evaluated":
+                (validated if p.get("verdict") == "supports"
+                 else invalidated if p.get("verdict") == "contradicts"
+                 else open_q).append(item)
+            elif ws in ("compute_submitted", "compute_running"):
+                pending_compute.append(item)
+            else:
+                open_q.append(item)
+
+    return {
+        "project_id": project_id,
+        "title": proj["title"],
+        "goal": proj.get("goal"),
+        "material_system": proj.get("material_system"),
+        "reaction": proj.get("reaction"),
+        "as_of": _now_iso(),
+        "ranking": ranking,
+        "settled": {"supported": supported, "eliminated": eliminated},
+        "validated_predictions": validated,
+        "invalidated_predictions": invalidated,
+        "open_questions": open_q,
+        "pending_compute": pending_compute,
+        "next_experiment": proj.get("next_experiment"),
+        "recent_journal": [{"event_type": e["event_type"], "summary": e["summary"],
+                            "at": (e["created_at"].isoformat()
+                                   if hasattr(e["created_at"], "isoformat")
+                                   else str(e["created_at"]))}
+                           for e in events[:8]],
+        "_note": ("Authoritative current state of this project. Reconcile your "
+                  "reasoning to it before acting; write every change back here — "
+                  "if it is not on this dashboard, it did not happen."),
+    }
+
+
+def delete_project(project_id, owner_identity=None, is_admin=False) -> bool:
+    """Delete a project and all its children (events, predictions, hypotheses,
+    messages). Scoped to the owner unless is_admin. Discovery DB only."""
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT owner_identity FROM hyp_projects WHERE project_id=%s",
+                    (project_id,))
+        row = cur.fetchone()
+        if row is None:
+            return False
+        if not is_admin and owner_identity is not None and \
+                row["owner_identity"] != owner_identity:
+            return False
+        cur.execute("DELETE FROM hyp_predictions WHERE hypothesis_id IN "
+                    "(SELECT hypothesis_id FROM hyp_hypotheses WHERE project_id=%s)",
+                    (project_id,))
+        cur.execute("DELETE FROM hyp_events WHERE project_id=%s", (project_id,))
+        cur.execute("DELETE FROM hyp_messages WHERE project_id=%s", (project_id,))
+        cur.execute("DELETE FROM hyp_hypotheses WHERE project_id=%s", (project_id,))
+        cur.execute("DELETE FROM hyp_projects WHERE project_id=%s", (project_id,))
         conn.commit()
         return True
     finally:

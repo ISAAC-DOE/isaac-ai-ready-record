@@ -1436,6 +1436,41 @@ elif page == "Discovery":
                 f"<div style='background:{color};width:{pct}%;height:14px;"
                 f"border-radius:4px'></div></div></div>")
 
+        def _fmt(ts):
+            return ts.strftime("%Y-%m-%d %H:%M") if hasattr(ts, "strftime") else str(ts)
+
+        def _pred_row(p, prov):
+            ev = ", ".join(f"{rid} ({prov.get(rid, {}).get('material', '?')})"
+                           for rid in (p.get("evidence_record_ids") or [])) or "—"
+            return {"Label": p.get("label"), "Descriptor": p.get("descriptor_name"),
+                    "Direction": p.get("direction"),
+                    "Work status": p.get("work_status") or "awaiting_evidence",
+                    "Falsification": p.get("falsification_criterion"),
+                    "Verdict": f"{_VERDICT_ICON.get(p.get('verdict'), '')} "
+                               f"{p.get('verdict') or '—'} ({p.get('strength') or '—'})",
+                    "Evidence": ev, "MLflow": p.get("mlflow_run_url") or ""}
+
+        def _board_section(title, items, prov, show_verdict=False):
+            st.markdown(f"**{title}** ({len(items)})")
+            if not items:
+                st.caption("_none_")
+                return
+            rows = []
+            for h, p in items:
+                ev = ", ".join(f"{rid} ({prov.get(rid, {}).get('material', '?')})"
+                               for rid in (p.get("evidence_record_ids") or [])) or "—"
+                row = {"Hypothesis": h["label"], "Descriptor": p.get("descriptor_name"),
+                       "Direction": p.get("direction")}
+                if show_verdict:
+                    row["Verdict"] = (f"{_VERDICT_ICON.get(p.get('verdict'), '')} "
+                                      f"{p.get('verdict') or '—'} ({p.get('strength') or '—'})")
+                    row["Evidence"] = ev
+                else:
+                    row["Falsification"] = p.get("falsification_criterion")
+                    row["MLflow"] = p.get("mlflow_run_url") or ""
+                rows.append(row)
+            st.dataframe(pd.DataFrame(rows), width='stretch', hide_index=True)
+
         def _discovery_detail(pid, owner):
             data = discovery.get_project(pid, owner_identity=owner)
             if data is None:
@@ -1444,7 +1479,9 @@ elif page == "Discovery":
             proj = data["project"]
             hyps = data["hypotheses"]
             events = data["events"]
+            brief = discovery.get_briefing(pid, owner) or {}
 
+            # ---------- BRIEFING HEADER (the universal-truth digest) ----------
             st.markdown(f"### {proj['title']}")
             if proj.get("goal"):
                 st.info(f"🎯 **Goal:** {proj['goal']}")
@@ -1454,91 +1491,129 @@ elif page == "Discovery":
             if meta:
                 st.caption(meta)
 
-            # Progress strip
-            n = len(hyps)
-            by_status = {}
-            for h in hyps:
-                by_status[h["status"]] = by_status.get(h["status"], 0) + 1
-            preds = [p for h in hyps for p in h["predictions"]]
-            evaluated = sum(1 for p in preds if p.get("verdict"))
-            evidence_ids = sorted({rid for p in preds
-                                   for rid in (p.get("evidence_record_ids") or [])})
-            leader = hyps[0] if hyps else None
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Hypotheses", n)
-            c2.metric("Predictions evaluated", f"{evaluated}/{len(preds)}")
-            c3.metric("Evidence records", len(evidence_ids))
-            c4.metric("Leader", (leader["label"] if leader else "—"))
+            settled = brief.get("settled", {"supported": [], "eliminated": []})
+            c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric("Hypotheses", len(hyps))
+            c2.metric("Supported", len(settled.get("supported", [])))
+            c3.metric("Eliminated", len(settled.get("eliminated", [])))
+            c4.metric("Validated preds", len(brief.get("validated_predictions", [])))
+            c5.metric("Compute running", len(brief.get("pending_compute", [])))
 
-            # Ranking bars
-            st.markdown("#### Hypothesis ranking")
+            st.markdown("**Hypothesis ranking** — bar length = confidence, colour = status")
             st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
                                      h["status"]) for h in hyps) or "_No hypotheses yet._",
                         unsafe_allow_html=True)
 
-            # Resolve evidence record provenance once
+            with st.expander("🧭 Briefing — exactly what the agent reads as ground truth"):
+                st.caption("Server-curated digest (not the full firehose). The agent "
+                           "reconciles its reasoning to this at the start of every turn; "
+                           "if a change isn't written back here, it didn't happen.")
+                st.json(brief)
+
+            preds = [p for h in hyps for p in h["predictions"]]
+            evidence_ids = sorted({rid for p in preds
+                                   for rid in (p.get("evidence_record_ids") or [])})
             prov = discovery.resolve_record_summaries(evidence_ids)
 
-            # Hypothesis cards
-            st.markdown("#### Hypotheses")
-            for h in hyps:
-                head = (f"{_STATUS_COLORS.get(h['status'],'')} "
-                        f"{h['label'] or ''} — {h['status']} "
-                        f"(conf {float(h['confidence'] or 0):.2f})")
-                with st.expander(f"{h['label'] or 'H'} · {h['status']} · "
-                                 f"conf {float(h['confidence'] or 0):.2f}"):
-                    st.write(h["statement"])
-                    if h.get("confidence_basis"):
-                        st.caption(f"Basis: {h['confidence_basis']}")
-                    if h.get("mechanism"):
-                        st.markdown("**Mechanism**")
-                        st.json(h["mechanism"], expanded=False)
-                    if h.get("origin"):
-                        st.markdown("**Origin / provenance**")
-                        st.json(h["origin"], expanded=False)
-                    if h["predictions"]:
-                        rows = []
-                        for p in h["predictions"]:
-                            ev = ", ".join(
-                                f"{rid} ({prov.get(rid,{}).get('material','?')})"
-                                for rid in (p.get("evidence_record_ids") or [])) or "—"
-                            rows.append({
-                                "Label": p.get("label"),
-                                "Descriptor": p.get("descriptor_name"),
-                                "Direction": p.get("direction"),
-                                "Falsification": p.get("falsification_criterion"),
-                                "Verdict": (f"{_VERDICT_ICON.get(p.get('verdict'),'')} "
-                                            f"{p.get('verdict') or '—'} "
-                                            f"({p.get('strength') or '—'})"),
-                                "Evidence": ev,
-                                "MLflow": p.get("mlflow_run_url") or "",
-                            })
-                        st.dataframe(pd.DataFrame(rows), width='stretch',
-                                     hide_index=True)
-                    else:
-                        st.caption("_No predictions yet._")
+            tabA, tabB, tabC, tabJ = st.tabs([
+                "🧪 Hypotheses & provenance", "✅ Validation board",
+                "📊 Compute ledger", "📓 Journal"])
 
-            # Next experiment
-            nx = proj.get("next_experiment")
-            if nx:
-                st.markdown("#### 🧪 Next experiment (proposed)")
-                st.success(f"**{nx.get('descriptor','')}** — {nx.get('method','')} "
-                           f"@ {nx.get('facility','')}")
-                if nx.get("rationale"):
-                    st.write(nx["rationale"])
-                if nx.get("predicted_outcomes"):
-                    st.dataframe(pd.DataFrame(nx["predicted_outcomes"]),
-                                 width='stretch', hide_index=True)
+            # ---- A: Hypotheses, how they were formed, their predictions ----
+            with tabA:
+                if not hyps:
+                    st.caption("_No hypotheses yet._")
+                for h in hyps:
+                    with st.expander(f"{h['label'] or 'H'} · {h['status']} · "
+                                     f"conf {float(h['confidence'] or 0):.2f}"):
+                        st.write(h["statement"])
+                        if h.get("confidence_basis"):
+                            st.caption(f"Confidence basis: {h['confidence_basis']}")
+                        st.markdown("**How it was formed / provenance**")
+                        org = h.get("origin")
+                        if isinstance(org, dict) and org:
+                            if org.get("type"):
+                                st.write(f"Source type: `{org['type']}`")
+                            if org.get("summary"):
+                                st.write(org["summary"])
+                            if org.get("reasoning"):
+                                st.caption(org["reasoning"])
+                            if org.get("sources"):
+                                st.markdown("Sources:")
+                                for s in org["sources"]:
+                                    st.markdown(f"- {s}")
+                        elif org:
+                            st.json(org)
+                        else:
+                            st.caption("_Origin not documented yet (the agent fills this)._")
+                        if h.get("mechanism"):
+                            st.markdown("**Mechanism**")
+                            st.json(h["mechanism"], expanded=False)
+                        st.markdown("**Predictions**")
+                        if h["predictions"]:
+                            st.dataframe(pd.DataFrame(_pred_row(p, prov)
+                                                      for p in h["predictions"]),
+                                         width='stretch', hide_index=True)
+                        else:
+                            st.caption("_No predictions yet._")
 
-            # Activity feed
-            st.markdown("#### 📡 Activity feed (agent reasoning transcript)")
-            if not events:
-                st.caption("_No activity yet._")
-            for e in events:
-                ts = e.get("created_at")
-                ts = ts.strftime("%Y-%m-%d %H:%M") if hasattr(ts, "strftime") else str(ts)
-                with st.container():
-                    st.markdown(f"**{e['event_type']}** · {ts} · "
+            # ---- B: Validation board — predictions by workflow state ----
+            with tabB:
+                groups = {k: [] for k in ["evaluated", "compute_running",
+                                          "compute_submitted", "more_work_pending",
+                                          "awaiting_evidence"]}
+                for h in hyps:
+                    for p in h["predictions"]:
+                        groups.setdefault(p.get("work_status") or "awaiting_evidence",
+                                          []).append((h, p))
+                _board_section("✅ Evaluated — validated / invalidated by data",
+                               groups["evaluated"], prov, show_verdict=True)
+                _board_section("⏳ Compute running", groups["compute_running"], prov)
+                _board_section("📤 Compute submitted (queued)",
+                               groups["compute_submitted"], prov)
+                _board_section("🔧 More work pending", groups["more_work_pending"], prov)
+                _board_section("📥 Awaiting evidence", groups["awaiting_evidence"], prov)
+                nx = proj.get("next_experiment")
+                if nx:
+                    st.divider()
+                    st.markdown("#### 🧪 Next experiment (proposed)")
+                    st.success(f"**{nx.get('descriptor', '')}** — {nx.get('method', '')} "
+                               f"@ {nx.get('facility', '')}")
+                    if nx.get("rationale"):
+                        st.write(nx["rationale"])
+                    if nx.get("predicted_outcomes"):
+                        st.dataframe(pd.DataFrame(nx["predicted_outcomes"]),
+                                     width='stretch', hide_index=True)
+
+            # ---- C: Compute ledger — every MLflow run, what & why ----
+            with tabC:
+                runs = []
+                for e in events:
+                    if e.get("mlflow_run_url"):
+                        runs.append({"When": _fmt(e.get("created_at")),
+                                     "Event": e["event_type"], "Summary": e["summary"],
+                                     "MLflow": e["mlflow_run_url"]})
+                for h in hyps:
+                    for p in h["predictions"]:
+                        if p.get("mlflow_run_url"):
+                            runs.append({"When": _fmt(p.get("updated_at")),
+                                         "Event": f"{h['label']} / {p.get('descriptor_name')}",
+                                         "Summary": f"{p.get('work_status')} · "
+                                                    f"verdict {p.get('verdict') or '—'}",
+                                         "MLflow": p["mlflow_run_url"]})
+                if runs:
+                    st.dataframe(pd.DataFrame(runs), width='stretch', hide_index=True,
+                                 column_config={"MLflow": st.column_config.LinkColumn("MLflow")})
+                else:
+                    st.caption("_No MLflow runs linked yet. The agent attaches run URLs "
+                               "as it submits/finishes compute._")
+
+            # ---- Journal — append-only history ----
+            with tabJ:
+                if not events:
+                    st.caption("_No activity yet._")
+                for e in events:
+                    st.markdown(f"**{e['event_type']}** · {_fmt(e.get('created_at'))} · "
                                 f"_{e.get('actor_identity') or 'agent'}_")
                     st.write(e["summary"])
                     detail_bits = []
@@ -1598,10 +1673,23 @@ elif page == "Discovery":
                             st.session_state.discovery_project = new_id
                             st.rerun()
         else:
-            if st.button("← Back to projects"):
-                st.session_state.discovery_project = None
-                st.rerun()
+            top_l, top_r = st.columns([4, 1])
+            with top_l:
+                if st.button("← Back to projects"):
+                    st.session_state.discovery_project = None
+                    st.rerun()
             pid = st.session_state.discovery_project
+            with top_r:
+                with st.popover("⋯ Manage"):
+                    st.caption("Delete this project and all its hypotheses, "
+                               "predictions, and history. Cannot be undone.")
+                    if st.button("🗑 Delete project", type="secondary"):
+                        if discovery.delete_project(pid, owner_identity=_DISC_OWNER,
+                                                    is_admin=user_is_admin):
+                            st.session_state.discovery_project = None
+                            st.rerun()
+                        else:
+                            st.error("Delete failed (not yours or not found).")
             # Live auto-refresh when the Streamlit build supports it; otherwise a
             # manual refresh button keeps it functional on older versions.
             if hasattr(st, "fragment"):

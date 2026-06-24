@@ -366,6 +366,12 @@ def init_discovery_tables():
         ''')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_predictions_hypothesis '
                     'ON hyp_predictions (hypothesis_id)')
+        # work_status: the workflow lifecycle of getting to a verdict (distinct
+        # from `verdict`, which is the scientific outcome). Drives the Validation
+        # board. awaiting_evidence | more_work_pending | compute_submitted |
+        # compute_running | evaluated.
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
+                    "work_status TEXT NOT NULL DEFAULT 'awaiting_evidence'")
         cur.execute('''
             CREATE TABLE IF NOT EXISTS hyp_events (
                 id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
