@@ -62,6 +62,37 @@ RELATION_TYPES = {"supersedes", "derived_from", "competes_with", "co_operating"}
 # v1: a prediction has many compute runs; backends are data, not enum-locked.
 COMPUTE_STATUSES = {"queued", "running", "completed", "failed", "resubmitted"}
 
+# Accept-and-normalize: agents reach for natural words. We map common synonyms to
+# the canonical vocabulary on write (teach, don't block) so the briefing's
+# categorization stays correct. (Lesson from the first live agent run.)
+VERDICT_SYNONYMS = {
+    "refutes": "contradicts", "refute": "contradicts", "refuted": "contradicts",
+    "rejects": "contradicts", "contradict": "contradicts", "against": "contradicts",
+    "support": "supports", "supported": "supports", "confirms": "supports",
+    "inconclusive": "neutral", "ambiguous": "neutral", "mixed": "neutral",
+    "no_data": "insufficient", "incompatible": "insufficient", "none": "insufficient",
+}
+RELATION_SYNONYMS = {
+    "co_operates_with": "co_operating", "cooperates_with": "co_operating",
+    "cooperating": "co_operating", "cooperates": "co_operating",
+    "competes": "competes_with", "supersede": "supersedes",
+    "derives_from": "derived_from", "derived": "derived_from",
+}
+
+
+def normalize_verdict(v):
+    if not v:
+        return v
+    k = str(v).strip().lower()
+    return VERDICT_SYNONYMS.get(k, k)
+
+
+def normalize_relation(r):
+    if not r:
+        return r
+    k = str(r).strip().lower()
+    return RELATION_SYNONYMS.get(k, k)
+
 
 def get_manifest() -> dict:
     """Self-describing contract: the bootstrap an agent fetches to learn how to
@@ -69,7 +100,12 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.3-provisional",
+        "version": "0.4-provisional",
+        "base_path": "https://isaac.slac.stanford.edu/portal/api",
+        "endpoint_paths_note": "Every endpoint `path` below is relative to "
+            "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
+            "URL. Do not prepend '/discovery/' to them — the manifest just happens "
+            "to live under /discovery/.",
         "prime_directive": [
             "READ before you act: GET /projects/{id}/briefing at the start of every "
             "turn; treat it as authoritative current state and reconcile to it.",
@@ -149,10 +185,21 @@ def get_manifest() -> dict:
             "origin": {"type": "agent_reasoning|literature|prior_result|human",
                        "summary": "str", "reasoning": "str",
                        "sources": "[{record_id|doi|hypothesis}]"},
-            "mlflow_event": {"event_type": "compute_running",
-                             "detail": "run_name / what_it_computed / status",
-                             "mlflow_run_url": "str"},
+            "event": {"event_type": "(required, from event_types)",
+                      "summary": "(REQUIRED, one line)", "detail": "(optional, long)",
+                      "hypothesis_id": "optional", "evidence_record_ids": "optional",
+                      "mlflow_run_url": "optional"},
+            "next_experiment": {"_semantics": "PUT REPLACES the whole object (not a "
+                                "merge); send the complete payload each time. ALL keys "
+                                "you send are stored — nothing is dropped.",
+                                "descriptor": "str", "facility": "str", "method": "str",
+                                "rationale": "str",
+                                "predicted_outcomes": "[{hypothesis_label, expected}]"},
         },
+        "vocabulary_is_normalized": "Verdicts and relation_types are accept-and-"
+            "normalized: synonyms (e.g. 'refutes'->'contradicts', "
+            "'co_operates_with'->'co_operating', 'inconclusive'->'neutral') are "
+            "mapped to canonical on write. Prefer the canonical terms above.",
         "invariant": "If it is not on the dashboard, it did not happen.",
     }
 
@@ -291,24 +338,28 @@ def get_project(project_id, owner_identity=None) -> dict | None:
         conn.close()
 
 
-def set_next_experiment(project_id, descriptor, facility, method, rationale,
-                        predicted_outcomes, actor=None) -> bool:
+def set_next_experiment(project_id, payload, actor=None) -> bool:
+    """REPLACE the project's next_experiment with the full payload the agent
+    sends — ALL keys preserved (no silent drop), plus a server proposed_at. PUT
+    is replace-not-merge: send the complete object each time."""
+    if not isinstance(payload, dict):
+        return False
     conn = _conn()
     cur = conn.cursor()
     try:
-        payload = {"descriptor": descriptor, "facility": facility,
-                   "method": method, "rationale": rationale,
-                   "predicted_outcomes": predicted_outcomes,
-                   "proposed_at": _now_iso()}
+        stored = dict(payload)
+        stored["proposed_at"] = _now_iso()
         cur.execute(
             "UPDATE hyp_projects SET next_experiment=%s, updated_at=NOW() "
             "WHERE project_id=%s",
-            (json.dumps(payload), project_id))
+            (json.dumps(stored), project_id))
         if cur.rowcount == 0:
             return False
+        desc = payload.get("descriptor") or payload.get("title") or "experiment"
         _append_event(cur, project_id, "next_experiment_proposed",
-                      f"Next experiment proposed: {descriptor} ({method} @ {facility})",
-                      detail=rationale, actor=actor)
+                      f"Next experiment proposed: {desc} "
+                      f"({payload.get('method', '')} @ {payload.get('facility', '')})",
+                      detail=payload.get("rationale"), actor=actor)
         conn.commit()
         return True
     finally:
@@ -420,6 +471,7 @@ def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=N
 def evaluate_prediction(prediction_id, verdict, *, strength=None,
                         evidence_record_ids=None, rationale=None,
                         mlflow_run_url=None, actor=None) -> bool:
+    verdict = normalize_verdict(verdict)
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -532,8 +584,9 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                     "work_status": ws, "verdict": p.get("verdict"),
                     "mlflow_run_url": p.get("mlflow_run_url")}
             if ws == "evaluated":
-                (validated if p.get("verdict") == "supports"
-                 else invalidated if p.get("verdict") == "contradicts"
+                nv = normalize_verdict(p.get("verdict"))
+                (validated if nv == "supports"
+                 else invalidated if nv == "contradicts"
                  else open_q).append(item)
             elif ws in ("compute_submitted", "compute_running"):
                 pending_compute.append(item)
@@ -632,6 +685,7 @@ def add_event(project_id, event_type, summary, *, detail=None, hypothesis_id=Non
 
 def add_relation(from_hypothesis_id, to_hypothesis_id, relation_type, *,
                  note=None, actor=None) -> bool:
+    relation_type = normalize_relation(relation_type)
     if relation_type not in RELATION_TYPES:
         return False
     conn = _conn()
@@ -806,6 +860,7 @@ def build_evidence_index(project_elements, *, include_ids=None, exclude_ids=None
             SELECT c.record_id,
                    c.data->'sample'->'material'->>'name'    AS material,
                    c.data->'sample'->'material'->>'formula' AS formula,
+                   (c.data->'sample'->'composition')::text  AS composition_text,
                    c.data->'context'->'electrochemistry'->>'reaction' AS reaction,
                    c.record_domain AS domain,
                    c.data->'computation'->'method'->>'functional' AS functional,
@@ -833,8 +888,13 @@ def build_evidence_index(project_elements, *, include_ids=None, exclude_ids=None
         name = r["descriptor_name"]
         if not name:
             continue
-        role = _system_role(f"{r.get('material') or ''} {r.get('formula') or ''}",
-                            project_elements)
+        # Classify by the COMPOSITION element-set (+ formula), NOT the free-text
+        # name — "Interdigitated" must not read as Indium. Fall back to name only
+        # if a record has neither composition nor formula.
+        role_text = f"{r.get('formula') or ''} {r.get('composition_text') or ''}".strip()
+        if not role_text:
+            role_text = r.get("material") or ""
+        role = _system_role(role_text, project_elements)
         index.setdefault(name, []).append({
             "record_id": rid, "material": r.get("material"),
             "reaction": r.get("reaction"), "domain": r.get("domain"),

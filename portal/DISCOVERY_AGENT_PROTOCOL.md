@@ -137,3 +137,20 @@ at the top: (1) goal; (2) ranking + confidence; (3) an **evidence index keyed by
 descriptor** — what already exists for this system (so you never say "no data" when
 it's there); (4) a **methodological-compatibility ledger**; (5) the
 **pending-experiment queue** ranked by discriminating power vs cost.
+
+## v0.4 fixes (from the first end-to-end agent run)
+
+- **Endpoint base path is explicit.** All endpoint paths are relative to
+  `base_path` = `https://isaac.slac.stanford.edu/portal/api` — e.g.
+  `base_path + "/projects"`. Do **not** prepend `/discovery/`; the manifest merely
+  lives under `/discovery/`. (The manifest now carries `base_path` + a note.)
+- **Vocabulary is accept-and-normalized.** Verdicts and relation types map common
+  synonyms to canonical on write — `refutes → contradicts`, `inconclusive →
+  neutral`, `co_operates_with → co_operating`, etc. Prefer the canonical terms,
+  but natural words won't silently break the briefing's categorization anymore.
+- **`POST /events` requires `summary`** (one line); `detail` is optional/long.
+- **`next_experiment` is REPLACE, not merge**, and now preserves **all** keys you
+  send (no silent drop). Send the complete object each PUT.
+- **Evidence `system_role` is classified by the composition element-set + formula,
+  not the material name** — so "Interdigitated Au–Cu …" is no longer misread (the
+  free-text name was extracting Indium from "Interdigitated").

@@ -951,12 +951,13 @@ def discovery_create_prediction(hypothesis_id):
 @_require_auth
 def discovery_add_relation(hypothesis_id):
     d = request.get_json(silent=True) or {}
-    if not d.get("to_hypothesis_id") or d.get("relation_type") not in discovery.RELATION_TYPES:
+    rel = discovery.normalize_relation(d.get("relation_type"))
+    if not d.get("to_hypothesis_id") or rel not in discovery.RELATION_TYPES:
         return jsonify({"error": f"to_hypothesis_id required; relation_type one of "
-                                 f"{sorted(discovery.RELATION_TYPES)}"}), 400
+                                 f"{sorted(discovery.RELATION_TYPES)} "
+                                 f"(synonyms like co_operates_with are accepted)"}), 400
     ok = discovery.add_relation(hypothesis_id, d["to_hypothesis_id"],
-                                d["relation_type"], note=d.get("note"),
-                                actor=_disc_identity())
+                                rel, note=d.get("note"), actor=_disc_identity())
     if not ok:
         return jsonify({"error": "hypothesis not found"}), 404
     return jsonify({"ok": True}), 201
@@ -1028,12 +1029,12 @@ def discovery_add_event(project_id):
 @app.route("/portal/api/projects/<project_id>/next_experiment", methods=["PUT"])
 @_require_auth
 def discovery_set_next_experiment(project_id):
+    # REPLACE semantics: the full payload is stored (all keys preserved); send the
+    # complete object each PUT.
     d = request.get_json(silent=True) or {}
-    ok = discovery.set_next_experiment(
-        project_id, d.get("descriptor"), d.get("facility"), d.get("method"),
-        d.get("rationale"), d.get("predicted_outcomes") or [], actor=_disc_identity())
+    ok = discovery.set_next_experiment(project_id, d, actor=_disc_identity())
     if not ok:
-        return jsonify({"error": "project not found"}), 404
+        return jsonify({"error": "project not found or invalid payload"}), 404
     return jsonify({"ok": True}), 200
 
 
