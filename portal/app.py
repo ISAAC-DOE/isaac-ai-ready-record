@@ -823,11 +823,16 @@ elif page == "Record Validator":
                 import validation
                 full = validation.validate_record_full(record_data)
 
-                # Store results in session state
+                # Store results in session state — including warnings/info, so the
+                # UI surfaces exactly what the REST API and the chokepoint return
+                # (they were previously dropped here, hiding accepted-but-improvable
+                # feedback from anyone validating in the portal).
                 st.session_state.validator_result = {
                     "schema_errors": full["schema_errors"],
                     "vocab_errors": full["vocabulary_errors"],
                     "semantic_errors": full["semantic_errors"],
+                    "warnings": full.get("warnings", []),
+                    "info": full.get("info", []),
                 }
                 st.session_state.validator_record = record_data
 
@@ -864,8 +869,24 @@ elif page == "Record Validator":
                         for e in semantic_errors:
                             st.write(f"- **{e['path']}**: {e['message']}")
 
+                # Warnings (accepted-but-improvable) and info — shown regardless of
+                # error state, matching the API's 201 response.
+                _warnings = result.get("warnings", [])
+                _info = result.get("info", [])
+                if _warnings:
+                    st.warning(f"{len(_warnings)} warning(s) — record is accepted, but consider:")
+                    for w in _warnings:
+                        st.write(f"- **{w['code']}** ({w['path']}): {w['message']}")
+                if _info:
+                    with st.expander(f"{len(_info)} suggestion(s)"):
+                        for i in _info:
+                            st.write(f"- **{i['code']}** ({i['path']}): {i['message']}")
+
                 if not schema_errors and not vocab_errors and not semantic_errors:
-                    st.success("This record is fully compliant with the ISAAC schema and vocabulary!")
+                    if _warnings:
+                        st.success("This record is schema-valid (with the warnings above — they do not block saving).")
+                    else:
+                        st.success("This record is fully compliant with the ISAAC schema and vocabulary!")
 
                     if st.button("Save to Database", key="save_json_btn"):
                         if database.test_db_connection():
