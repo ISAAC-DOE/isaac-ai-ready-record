@@ -100,7 +100,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.7-provisional",
+        "version": "0.8-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -116,6 +116,39 @@ def get_manifest() -> dict:
         ],
         "auth": {"scheme": "Bearer", "header": "Authorization: Bearer <token>",
                  "obtain": "portal API Keys page; user must be in an allowed group"},
+        "getting_started": {
+            "what": "Discovery is a hypothesis-driven scientific-discovery workbench. "
+                "You drive it with an AI agent (any LLM/agent with web access) that "
+                "reads this manifest and self-configures — you don't need to learn the "
+                "API yourself.",
+            "steps": [
+                "Generate a Bearer token from the portal's API Keys page.",
+                "Paste the `agent_prompt` below into your agent, with your token.",
+                "Your agent fetches this manifest, learns the whole protocol, and is "
+                "ready to start a new discovery project or continue a shared one.",
+            ],
+            "agent_prompt": (
+                "You are connecting to the ISAAC Discovery platform — a "
+                "hypothesis-driven scientific-discovery workbench at SLAC. Bootstrap "
+                "yourself:\n\n"
+                "1. Read the self-describing operating manual (it defines everything: "
+                "auth, all endpoints, the reasoning protocol, how to record decisions, "
+                "and the literature/compute integrations):\n"
+                "   GET https://isaac.slac.stanford.edu/portal/api/discovery/manifest\n"
+                "   Read ALL of it and follow it exactly.\n\n"
+                "2. Authenticate every request with:\n"
+                "   Authorization: Bearer <PASTE_YOUR_PORTAL_API_TOKEN_HERE>\n\n"
+                "3. Verify access:\n"
+                "   GET https://isaac.slac.stanford.edu/portal/api/projects\n"
+                "   (the projects you own or that are shared with you).\n\n"
+                "4. Prime directive: the dashboard is the single source of truth. "
+                "Before acting on a project, GET its /briefing and reconcile to it; "
+                "write every hypothesis, prediction, verdict and reasoning step back "
+                "via the API — if it isn't written to the dashboard, it didn't happen.\n\n"
+                "Then tell me, in your own words, what the manifest says the workflow "
+                "is, and propose what discovery project we should start or continue."
+            ),
+        },
         "object_model": "project -> hypotheses -> predictions; append-only events "
                         "journal; one next_experiment per project. evidence_record_ids "
                         "are plain ISAAC record IDs (read-only cross-reference).",

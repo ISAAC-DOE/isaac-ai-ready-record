@@ -1740,8 +1740,23 @@ elif page == "Discovery":
             if st.button("🔄 Refresh"):
                 st.rerun()
             projects = discovery.list_projects(_DISC_OWNER)
+
+            # First-landing onboarding: how to point YOUR agent at the platform.
+            _gs = discovery.get_manifest().get("getting_started", {})
+            with st.expander("🔌 Connect your agent — start here",
+                             expanded=(not projects)):
+                st.write(_gs.get("what", ""))
+                for _i, _s in enumerate(_gs.get("steps", []), 1):
+                    st.markdown(f"**{_i}.** {_s}")
+                st.caption("Copy this into your agent (any LLM with web access), "
+                           "replacing the token placeholder:")
+                st.code(_gs.get("agent_prompt", ""), language="text")
+                st.caption("Your agent reads the self-describing manifest and "
+                           "configures itself — you don't need to know the API. "
+                           "Get a token from the **API Keys** page.")
+
             if not projects:
-                st.caption("No projects yet. Create one below.")
+                st.caption("No projects yet. Create one below, or connect your agent above.")
             for p in projects:
                 with st.container(border=True):
                     cols = st.columns([4, 1])
