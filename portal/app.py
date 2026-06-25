@@ -1436,6 +1436,60 @@ elif page == "Discovery":
                 f"<div style='background:{color};width:{pct}%;height:14px;"
                 f"border-radius:4px'></div></div></div>")
 
+        def _constellation_html(payload):
+            data = json.dumps(payload)
+            tmpl = """
+<html><head><script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>html,body{margin:0;background:radial-gradient(circle at 50% 46%,#0c1226,#05060b);}
+text{font-family:-apple-system,Segoe UI,Roboto,sans-serif;}</style></head>
+<body><svg id="c" width="100%" height="540"></svg><script>
+const DATA = __DATA__;
+const el=document.getElementById('c'); const W=el.clientWidth||760, H=540;
+const cx=W/2, cy=H/2-6;
+const svg=d3.select('#c').attr('viewBox','0 0 '+W+' '+H);
+const defs=svg.append('defs');
+const glow=defs.append('filter').attr('id','g').attr('x','-60%').attr('y','-60%').attr('width','220%').attr('height','220%');
+glow.append('feGaussianBlur').attr('stdDeviation','3').attr('result','b');
+const fm=glow.append('feMerge'); fm.append('feMergeNode').attr('in','b'); fm.append('feMergeNode').attr('in','SourceGraphic');
+const SC={supported:'#ffca28',eliminated:'#6a6a6a',needs_more_data:'#ffa726',proposed:'#4aa3ff',superseded:'#555'};
+const VC={supports:'#26c6da',contradicts:'#ec407a',neutral:'#90a4ae',insufficient:'#5c6b7a'};
+function rT(d){return d.kind==='hyp'?55+(1-(d.conf||0))*150:d.kind==='pred'?255:345;}
+function nR(d){return d.kind==='hyp'?8+(d.conf||0)*22:d.kind==='pred'?({strong:7,moderate:5,weak:3}[d.strength]||4):2.4;}
+function nC(d){return d.kind==='hyp'?(SC[d.status]||'#90caf9'):d.kind==='pred'?(VC[d.verdict]||'#455a64'):'#cfd8dc';}
+[[55,'leading'],[255,'predictions'],[345,'evidence']].forEach(function(p){
+ svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',p[0]).attr('fill','none').attr('stroke','#1d2a48').attr('stroke-dasharray','3,6');
+ svg.append('text').attr('x',cx).attr('y',cy-p[0]-3).attr('fill','#3a4a6e').attr('font-size',10).attr('text-anchor','middle').text(p[1]);});
+svg.append('text').attr('x',14).attr('y',24).attr('fill','#7fb0c8').attr('font-size',12)
+ .text(DATA.corpus.records+'  records   \\u2192   '+DATA.corpus.screened+'  descriptors screened   \\u2192   '+DATA.corpus.cited+'  cited as evidence');
+const nodes=DATA.nodes.map(function(d){return Object.assign({},d);});
+const links=DATA.links.map(function(d){return Object.assign({},d);});
+const link=svg.append('g').selectAll('line').data(links).join('line')
+ .attr('stroke',function(d){return d.rel==='pred'?(VC[d.verdict]||'#37474f'):d.rel==='evid'?'#26324f':d.rel==='competes_with'?'#ef5350':d.rel==='co_operating'?'#66bb6a':'#7e8aa0';})
+ .attr('stroke-opacity',function(d){return d.rel==='evid'?0.22:d.rel==='pred'?0.55:0.65;})
+ .attr('stroke-width',function(d){return d.rel==='pred'?({strong:2.4,moderate:1.5,weak:0.8}[d.strength]||1):(d.rel==='competes_with'||d.rel==='co_operating')?1.7:0.6;})
+ .attr('stroke-dasharray',function(d){return d.rel==='competes_with'?'4,3':null;});
+const node=svg.append('g').selectAll('circle').data(nodes).join('circle')
+ .attr('r',nR).attr('fill',nC)
+ .attr('opacity',function(d){return d.kind==='evid'?0.75:(d.status==='eliminated'||d.status==='superseded')?0.45:1;})
+ .attr('filter',function(d){return d.kind==='hyp'?'url(#g)':null;})
+ .attr('stroke','#0009').attr('stroke-width',0.5);
+node.append('title').text(function(d){return d.label+(d.conf!=null?' ('+Math.round(d.conf*100)+'%)':'');});
+const lab=svg.append('g').selectAll('text').data(nodes.filter(function(d){return d.kind==='hyp';})).join('text')
+ .attr('fill','#eaf0ff').attr('font-size',11).attr('font-weight',700).attr('text-anchor','middle')
+ .text(function(d){return d.label+' '+Math.round((d.conf||0)*100)+'%';});
+const sim=d3.forceSimulation(nodes)
+ .force('link',d3.forceLink(links).id(function(d){return d.id;}).distance(function(d){return d.rel==='pred'?70:d.rel==='evid'?45:120;}).strength(function(d){return d.rel==='pred'?0.45:0.18;}))
+ .force('charge',d3.forceManyBody().strength(-85))
+ .force('r',d3.forceRadial(rT,cx,cy).strength(0.85))
+ .force('collide',d3.forceCollide().radius(function(d){return nR(d)+2;}))
+ .on('tick',function(){
+  link.attr('x1',function(d){return d.source.x;}).attr('y1',function(d){return d.source.y;}).attr('x2',function(d){return d.target.x;}).attr('y2',function(d){return d.target.y;});
+  node.attr('cx',function(d){return d.x;}).attr('cy',function(d){return d.y;});
+  lab.attr('x',function(d){return d.x;}).attr('y',function(d){return d.y-nR(d)-4;});});
+</script></body></html>
+"""
+            return tmpl.replace("__DATA__", data)
+
         def _funnel(stages):
             n = len(stages)
             out = ["<div style='padding:4px 0'>"]
@@ -1563,6 +1617,40 @@ elif page == "Discovery":
                     corpus = database.count_records()
                 except Exception:
                     corpus = 0
+
+                # Hero: the Convergent Constellation (radial force graph).
+                _cnodes, _clinks = [], []
+                for _h in hyps:
+                    _cnodes.append({"id": _h["hypothesis_id"], "label": _h["label"] or "H",
+                                    "kind": "hyp", "conf": float(_h["confidence"] or 0),
+                                    "status": _h["status"]})
+                for _h in hyps:
+                    for _p in _h["predictions"]:
+                        _pid = _p["prediction_id"]
+                        _cnodes.append({"id": _pid, "label": _p.get("descriptor_name") or "",
+                                        "kind": "pred", "verdict": _p.get("verdict"),
+                                        "strength": _p.get("strength")})
+                        _clinks.append({"source": _pid, "target": _h["hypothesis_id"],
+                                        "rel": "pred", "verdict": _p.get("verdict"),
+                                        "strength": _p.get("strength")})
+                        for _rid in (_p.get("evidence_record_ids") or [])[:6]:
+                            _enid = _rid + "|" + _pid
+                            _cnodes.append({"id": _enid, "label": _rid, "kind": "evid"})
+                            _clinks.append({"source": _enid, "target": _pid, "rel": "evid"})
+                for _r in relations:
+                    _clinks.append({"source": _r["from_hypothesis_id"],
+                                    "target": _r["to_hypothesis_id"],
+                                    "rel": _r["relation_type"]})
+                if hyps:
+                    components.html(_constellation_html({
+                        "nodes": _cnodes, "links": _clinks,
+                        "corpus": {"records": corpus or 0, "screened": n_desc, "cited": n_ev}}),
+                        height=560)
+                    st.caption("Force-directed convergence — evidence (rim) → predictions "
+                               "(mid) → hypotheses (core); a hypothesis is pulled toward the "
+                               "centre by its confidence, `competes_with` ties push losers "
+                               "out. Every position, size and colour is a real value.")
+
                 m = st.columns(6)
                 m[0].metric("Mechanisms", len(hyps))
                 m[1].metric("Predictions", len(preds_all))
