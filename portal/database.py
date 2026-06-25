@@ -404,6 +404,10 @@ def init_discovery_tables():
         # server aggregates into the cross-hypothesis discrimination matrix.
         cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
                     "discriminates JSONB")
+        # provenance: HOW this falsifying prediction was generated/inspired
+        # (from the hypothesis mechanism, from literature, by discrimination design,
+        # from a prior result, ...). {type, summary, reasoning, sources}.
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS origin JSONB")
         # v1: typed relations between hypotheses (graph, not list):
         # supersedes | derived_from | competes_with | co_operating.
         cur.execute('''

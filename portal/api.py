@@ -1012,7 +1012,8 @@ def discovery_create_prediction(hypothesis_id):
         direction=d.get("direction"), reference_condition=d.get("reference_condition"),
         magnitude=d.get("magnitude"), output_quantity=d.get("output_quantity"),
         falsification_criterion=d.get("falsification_criterion"),
-        discriminates=d.get("discriminates"), actor=_disc_identity())
+        discriminates=d.get("discriminates"), origin=d.get("origin"),
+        actor=_disc_identity())
     if pid is None:
         return jsonify({"error": "hypothesis not found"}), 404
     return jsonify({"prediction_id": pid}), 201
