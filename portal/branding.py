@@ -12,6 +12,7 @@ no motion. Appearance is driven entirely by injected CSS keyed to `mode`
 (NOT .streamlit/config.toml, which the native charts read independently).
 """
 
+import base64
 import os
 import streamlit as st
 
@@ -22,24 +23,52 @@ _PARTNERS_PATH = os.path.join(_STATIC_DIR, "ISAAC_partners_footer_white.png")
 _DOE_PATH = os.path.join(_STATIC_DIR, "DOE_White_Seal_White_Lettering_Horizontal.png")
 
 
+def _data_uri(path: str) -> str:
+    """Base64 data-URI so the logo is an inline <img> we fully control (the white
+    PNG asset is flipped to dark in light mode via a CSS filter)."""
+    with open(path, "rb") as f:
+        return "data:image/png;base64," + base64.b64encode(f.read()).decode()
+
+
 def render_header(mode: str = "dark"):
-    """Render the ISAAC logo and inject the design system for the given mode."""
+    """Render the ISAAC logo top-left and inject the design system for the mode.
+
+    Rendered as an explicit inline <img> (not st.logo, which lives in the sidebar
+    that this portal hides — so st.logo never shows). The `.isaac-brand-logo`
+    class carries a theme-keyed filter: white asset stays white on dark, flips to
+    dark (invert) on light so it's always legible."""
     try:
-        st.logo(_LOGO_PATH, size="large")
+        st.markdown(
+            f'<img class="isaac-brand-logo isaac-header-logo" '
+            f'src="{_data_uri(_LOGO_PATH)}" alt="ISAAC"/>',
+            unsafe_allow_html=True)
     except Exception:
         st.image(_LOGO_PATH, width=250)
     inject_theme(mode)
 
 
 def render_footer():
-    """Render partner logos and DOE logo at the bottom of the page."""
+    """Render partner logos and DOE logo at the bottom of the page. Same
+    theme-keyed filter via `.isaac-brand-logo` so they stay visible on light."""
     st.divider()
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
-        st.image(_PARTNERS_PATH, use_container_width=True)
+        try:
+            st.markdown(
+                f'<div style="text-align:center"><img class="isaac-brand-logo" '
+                f'style="max-width:100%" src="{_data_uri(_PARTNERS_PATH)}" '
+                f'alt="ISAAC partners"/></div>', unsafe_allow_html=True)
+        except Exception:
+            st.image(_PARTNERS_PATH, use_container_width=True)
         subcol1, subcol2, subcol3 = st.columns([2, 1, 2])
         with subcol2:
-            st.image(_DOE_PATH, width=150)
+            try:
+                st.markdown(
+                    f'<div style="text-align:center"><img class="isaac-brand-logo" '
+                    f'style="width:150px" src="{_data_uri(_DOE_PATH)}" '
+                    f'alt="DOE"/></div>', unsafe_allow_html=True)
+            except Exception:
+                st.image(_DOE_PATH, width=150)
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +82,7 @@ PALETTES = {
         "border": "rgba(255,255,255,0.10)", "border_soft": "rgba(255,255,255,0.06)",
         "accent": "#5EC8C0", "accent_hover": "#7AD6CF", "accent_soft": "rgba(94,200,192,0.06)",
         "on_accent": "#0B0F14", "error": "#E0726A",
-        "code_bg": "#0D1219", "logo_chip": "transparent",
+        "code_bg": "#0D1219", "logo_filter": "none",
     },
     "light": {
         "bg": "#FFFFFF", "surface": "#F4F6F8", "surface_raised": "#FFFFFF",
@@ -61,7 +90,7 @@ PALETTES = {
         "border": "rgba(0,0,0,0.10)", "border_soft": "rgba(0,0,0,0.06)",
         "accent": "#0E8C84", "accent_hover": "#0B736C", "accent_soft": "rgba(14,140,132,0.08)",
         "on_accent": "#FFFFFF", "error": "#C0392B",
-        "code_bg": "#F4F6F8", "logo_chip": "#0B0F14",
+        "code_bg": "#F4F6F8", "logo_filter": "invert(1)",
     },
 }
 
@@ -91,10 +120,11 @@ html, body, [class*="css"], .stMarkdown, .stButton, .stSelectbox, .stTextInput {
 #MainMenu, footer, header [data-testid="stToolbar"] {{ visibility: hidden; }}
 .block-container {{ max-width: 1080px; padding: 2.4rem 2rem 4rem; }}
 
-/* Logo legibility (white asset → dark chip on light bg only) */
-[data-testid="stLogo"], [data-testid="stSidebarHeader"] img {{
-    background: {p['logo_chip']}; border-radius: 8px; padding: 2px 6px;
-}}
+/* Logo legibility: the brand assets are WHITE PNGs. On dark they show as-is;
+   on light we invert them to dark so they stay visible. Scoped to the brand
+   logos only (never content images). */
+.isaac-brand-logo {{ filter: {p['logo_filter']}; }}
+.isaac-header-logo {{ height: 40px; display: block; margin: 0.1rem 0 0.3rem; }}
 
 /* Header rule: a single restrained hairline (no gradient flourish) */
 .isaac-spectral-line {{
