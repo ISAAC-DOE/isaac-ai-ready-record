@@ -100,7 +100,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.4.1-provisional",
+        "version": "0.4.2-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -196,6 +196,12 @@ def get_manifest() -> dict:
                                 "rationale": "str",
                                 "predicted_outcomes": "[{hypothesis_label, expected}]"},
         },
+        "auditability": "The dashboard is the FULL audit record (MLflow holds the "
+            "compute; the dashboard holds the reasoning). Record richly so the trail is "
+            "complete: put the decision logic in each prediction's `rationale` (the "
+            "method-compatibility check + direction + magnitude-vs-falsification + "
+            "replication), and POST an `event` with a `detail` for every reasoning "
+            "step — not just a one-line summary. If it isn't recorded, it can't be audited.",
         "vocabulary_is_normalized": "Verdicts and relation_types are accept-and-"
             "normalized: synonyms (e.g. 'refutes'->'contradicts', "
             "'co_operates_with'->'co_operating', 'inconclusive'->'neutral') are "
