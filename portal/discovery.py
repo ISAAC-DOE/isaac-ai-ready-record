@@ -100,7 +100,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.4.2-provisional",
+        "version": "0.5-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -161,9 +161,13 @@ def get_manifest() -> dict:
              "purpose": "Advance the prediction work_status lane."},
             {"m": "POST", "path": "/predictions/{id}/runs",
              "purpose": "Register a compute run {backend, engine, resource, "
-                        "slurm_job_id, mlflow_run_url, status, params, metrics}."},
+                        "slurm_job_id, mlflow_run_url, status, params, metrics}. "
+                        "IDEMPOTENT on (prediction_id, slurm_job_id): re-POSTing the "
+                        "same job updates it, never duplicates."},
             {"m": "PUT", "path": "/runs/{run_id}",
              "purpose": "Update a compute run {status, metrics, mlflow_run_url, ...}."},
+            {"m": "DELETE", "path": "/runs/{run_id}",
+             "purpose": "Delete a compute run (e.g. a stray duplicate)."},
             {"m": "PUT", "path": "/predictions/{id}/evaluate",
              "purpose": "Terminal: set verdict + strength + evidence + mlflow_run_url. "
                         "GATE on methodological compatibility (output_quantity / "
@@ -196,12 +200,49 @@ def get_manifest() -> dict:
                                 "rationale": "str",
                                 "predicted_outcomes": "[{hypothesis_label, expected}]"},
         },
-        "auditability": "The dashboard is the FULL audit record (MLflow holds the "
-            "compute; the dashboard holds the reasoning). Record richly so the trail is "
-            "complete: put the decision logic in each prediction's `rationale` (the "
-            "method-compatibility check + direction + magnitude-vs-falsification + "
-            "replication), and POST an `event` with a `detail` for every reasoning "
-            "step — not just a one-line summary. If it isn't recorded, it can't be audited.",
+        "auditability": "Record EVERY decision point in BOTH places (dual-write): "
+            "(1) POST an `event` to the dashboard with a `detail` carrying the full "
+            "reasoning — this is canonical and drives the briefing; (2) mirror the same "
+            "step to MLflow (see integrations.experiment_tracking). Put the decision "
+            "logic in each prediction's `rationale` (method-compat check + direction + "
+            "magnitude-vs-falsification + replication). One-line summaries are not "
+            "enough — if it isn't recorded in full, it can't be audited.",
+        "integrations": {
+            "experiment_tracking_mlflow": {
+                "purpose": "MLflow is the unified experiment-replay trace — it logs "
+                    "the COMPUTE *and*, now, the full REASONING, so an MLflow run is a "
+                    "self-contained record of the whole discovery cycle.",
+                "convention": "One MLflow experiment per project, named "
+                    "`ISAAC-Discovery-<project_id>`; one run per hypothesis (or per "
+                    "project for the reasoning stream).",
+                "log_every_thinking_step": "After you POST each dashboard event "
+                    "(canonical), MIRROR it to MLflow: mlflow.log_text(json.dumps(step), "
+                    "f'reasoning/{n:04d}.json') and increment a 'reasoning_step' metric, "
+                    "so the run holds the complete, ordered decision sequence — every "
+                    "hypothesis formed, every prediction, every verdict and why.",
+                "compute": "Log params (functional, slab, …), metrics (E_ads, scores), "
+                    "and the Slurm job IDs as tags; put the run URL on the dashboard "
+                    "compute_run.mlflow_run_url so the two cross-link.",
+                "cross_link": "Tag every MLflow run with project_id + the dashboard URL; "
+                    "store mlflow_run_url back on the dashboard event/run.",
+                "source_of_truth": "The DASHBOARD is canonical (the briefing reads it). "
+                    "MLflow mirrors for replay — write the dashboard FIRST, then mirror, "
+                    "so they never diverge.",
+            },
+            "literature_edison": {
+                "use": "the `edison-client` Python package (FutureHouse PaperQA3).",
+                "do_not": "DO NOT call `api.edisonsci.com` — that host is DEAD/retired "
+                    "(NXDOMAIN). It was migrated to the client below.",
+                "host": "platform.edisonscientific.com",
+                "auth": "env EDISON_API_KEY",
+                "snippet": "from edison_client import EdisonClient, JobNames; "
+                    "c = EdisonClient(api_key=os.environ['EDISON_API_KEY']); "
+                    "t = c.create_task({'name': JobNames.LITERATURE, 'query': '...'}); "
+                    "# poll c.get_task(t) until status success (~2-5 min)",
+                "job_types": ["LITERATURE", "LITERATURE_HIGH", "PRECEDENT",
+                              "ANALYSIS", "MOLECULES"],
+            },
+        },
         "vocabulary_is_normalized": "Verdicts and relation_types are accept-and-"
             "normalized: synonyms (e.g. 'refutes'->'contradicts', "
             "'co_operates_with'->'co_operating', 'inconclusive'->'neutral') are "
@@ -734,6 +775,24 @@ def create_compute_run(prediction_id, *, backend=None, engine=None, resource=Non
         row = cur.fetchone()
         if row is None:
             return None
+        # Idempotent on (prediction_id, slurm_job_id): a re-POST of the same job
+        # UPDATES the existing run rather than duplicating it.
+        if slurm_job_id:
+            cur.execute("SELECT run_id FROM hyp_compute_runs "
+                        "WHERE prediction_id=%s AND slurm_job_id=%s",
+                        (prediction_id, slurm_job_id))
+            ex = cur.fetchone()
+            if ex:
+                cur.execute(
+                    """UPDATE hyp_compute_runs SET status=%s,
+                         mlflow_run_url=COALESCE(%s, mlflow_run_url),
+                         metrics=COALESCE(%s, metrics), note=COALESCE(%s, note),
+                         updated_at=NOW() WHERE run_id=%s""",
+                    (status, mlflow_run_url,
+                     json.dumps(metrics) if metrics is not None else None,
+                     note, ex["run_id"]))
+                conn.commit()
+                return ex["run_id"]
         run_id = new_ulid()
         cur.execute(
             """INSERT INTO hyp_compute_runs
@@ -750,6 +809,21 @@ def create_compute_run(prediction_id, *, backend=None, engine=None, resource=Non
                       mlflow_run_url=mlflow_run_url, actor=actor)
         conn.commit()
         return run_id
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_compute_run(run_id) -> bool:
+    """Delete a single compute run (e.g. a duplicate)."""
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM hyp_compute_runs WHERE run_id=%s RETURNING run_id",
+                    (run_id,))
+        ok = cur.fetchone() is not None
+        conn.commit()
+        return ok
     finally:
         cur.close()
         conn.close()

@@ -978,6 +978,14 @@ def discovery_create_run(prediction_id):
     return jsonify({"run_id": rid}), 201
 
 
+@app.route("/portal/api/runs/<run_id>", methods=["DELETE"])
+@_require_auth
+def discovery_delete_run(run_id):
+    if not discovery.delete_compute_run(run_id):
+        return jsonify({"error": "run not found"}), 404
+    return jsonify({"ok": True, "deleted": run_id}), 200
+
+
 @app.route("/portal/api/runs/<run_id>", methods=["PUT"])
 @_require_auth
 def discovery_update_run(run_id):
