@@ -1501,6 +1501,12 @@ elif page == "Discovery":
             c4.metric("Validated preds", len(brief.get("validated_predictions", [])))
             c5.metric("Compute running", len(brief.get("pending_compute", [])))
 
+            open_n = len(brief.get("open_questions", []))
+            running = len(brief.get("pending_compute", []))
+            needs = sum(1 for h in hyps if h["status"] == "needs_more_data")
+            st.caption(f"⏳ **Pending** — {open_n} prediction(s) open · {running} compute "
+                       f"running · {needs} hypothes(es) need more data")
+
             st.markdown("**Hypothesis ranking** — bar length = confidence, colour = status")
             st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
                                      h["status"]) for h in hyps) or "_No hypotheses yet._",
@@ -1605,13 +1611,35 @@ elif page == "Discovery":
                         if h.get("mechanism"):
                             st.markdown("**Mechanism**")
                             st.json(h["mechanism"], expanded=False)
-                        st.markdown("**Predictions**")
-                        if h["predictions"]:
-                            st.dataframe(pd.DataFrame(_pred_row(p, prov)
-                                                      for p in h["predictions"]),
-                                         width='stretch', hide_index=True)
-                        else:
+                        st.markdown("**Predictions & verification (audit trail)**")
+                        if not h["predictions"]:
                             st.caption("_No predictions yet._")
+                        for p in h["predictions"]:
+                            ws = p.get("work_status") or "awaiting_evidence"
+                            vd = p.get("verdict")
+                            icon = _VERDICT_ICON.get(vd, "•")
+                            nev = len(p.get("evidence_record_ids") or [])
+                            cr = p.get("compute_runs") or []
+                            st.markdown(
+                                f"{icon} **{p.get('descriptor_name')}** — "
+                                f"{vd or ws}"
+                                f"{(' (' + p['strength'] + ')') if p.get('strength') else ''} "
+                                f"· evidence: {nev} · compute: {len(cr)} · `{ws}`")
+                            if p.get("direction") or p.get("falsification_criterion"):
+                                st.caption(f"↳ expects **{p.get('direction') or '—'}**; "
+                                           f"falsified if: {p.get('falsification_criterion') or '—'}")
+                            if p.get("rationale"):
+                                st.caption(f"↳ **why:** {p['rationale']}")
+                            if nev:
+                                ev_txt = ", ".join(
+                                    f"`{rid}`·{prov.get(rid, {}).get('material', '?')[:18]}"
+                                    for rid in (p.get("evidence_record_ids") or [])[:6])
+                                st.caption(f"↳ evidence: {ev_txt}")
+                            for r in cr:
+                                met = ", ".join(f"{k}={v2}" for k, v2 in (r.get("metrics") or {}).items())
+                                jid = f"job {r['slurm_job_id']}" if r.get("slurm_job_id") else ""
+                                st.caption(f"   • {r.get('backend') or 'compute'} "
+                                           f"[{r.get('status')}] {jid} {met}")
 
             # ---- B: Validation board — predictions by workflow state ----
             with tabB:
@@ -1674,26 +1702,31 @@ elif page == "Discovery":
                     st.caption("_No compute runs yet. The agent registers runs "
                                "(POST /predictions/{id}/runs) as it submits/finishes._")
 
-            # ---- Journal — append-only history ----
+            # ---- Journal — compact, scrollable; detail on demand ----
             with tabJ:
                 if not events:
                     st.caption("_No activity yet._")
-                for e in events:
-                    st.markdown(f"**{e['event_type']}** · {_fmt(e.get('created_at'))} · "
-                                f"_{e.get('actor_identity') or 'agent'}_")
-                    st.write(e["summary"])
-                    detail_bits = []
+                else:
+                    st.caption(f"{len(events)} reasoning steps — newest first. "
+                               "Scroll the log; pick a step to read its full detail.")
+                    jdf = pd.DataFrame([
+                        {"#": len(events) - i, "time": _fmt(e.get("created_at")),
+                         "type": e["event_type"], "summary": e["summary"]}
+                        for i, e in enumerate(events)])
+                    st.dataframe(jdf, height=340, width='stretch', hide_index=True)
+                    opts = [f"{len(events) - i} · {e['event_type']} · {e['summary'][:50]}"
+                            for i, e in enumerate(events)]
+                    sel = st.selectbox("Inspect step", opts, key=f"jsel_{pid}")
+                    e = events[opts.index(sel)] if sel in opts else events[0]
                     if e.get("detail"):
-                        detail_bits.append(e["detail"])
+                        st.markdown(e["detail"])
                     if e.get("evidence_record_ids"):
-                        detail_bits.append("Evidence: " + ", ".join(e["evidence_record_ids"]))
+                        st.caption("Evidence: " + ", ".join(e["evidence_record_ids"]))
                     if e.get("mlflow_run_url"):
-                        detail_bits.append(f"[MLflow run]({e['mlflow_run_url']})")
-                    if detail_bits:
-                        with st.expander("detail"):
-                            for b in detail_bits:
-                                st.markdown(b)
-                    st.divider()
+                        st.markdown(f"[MLflow run]({e['mlflow_run_url']})")
+                    if not (e.get("detail") or e.get("evidence_record_ids")
+                            or e.get("mlflow_run_url")):
+                        st.caption("_(no extra detail recorded for this step)_")
 
         # ---- Project list vs detail ----
         if st.session_state.discovery_project is None:
