@@ -100,13 +100,17 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.10-provisional",
+        "version": "0.11-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
             "URL. Do not prepend '/discovery/' to them — the manifest just happens "
             "to live under /discovery/.",
         "prime_directive": [
+            "FOLLOW THE METHOD: see `method` below. Discovery here is not free-form — "
+            "it is competing FALSIFIABLE hypotheses, each carrying a traceable SET of "
+            "predictions that would kill it, every prediction with recorded provenance, "
+            "resolved by discriminating evidence. This is the contract, not a suggestion.",
             "READ before you act: GET /projects/{id}/briefing at the start of every "
             "turn; treat it as authoritative current state and reconcile to it.",
             "WRITE after you act: every hypothesis, prediction, verdict, status "
@@ -114,6 +118,49 @@ def get_manifest() -> dict:
             "it did not happen — never hold project state only in your context.",
             "One project = one ground truth. Do not fork reality in your head.",
         ],
+        "method": {
+            "_what": "The discovery epistemics this platform enforces. The dashboard, "
+                "briefing, ranking and discrimination matrix are all built around these "
+                "steps — follow them in order. This is the heart of the protocol; read it "
+                "before any endpoint.",
+            "loop": [
+                "1. FRAME competing hypotheses (>=2) that explain the goal via DIFFERENT "
+                "mechanisms. Each carries a statement, a mechanism, and an `origin` (how "
+                "you arrived at it — reasoning + sources). A single unopposed hypothesis "
+                "is not a discovery, it is an assumption.",
+                "2. ENUMERATE falsifiers: for EACH hypothesis, register the SET of "
+                "predictions whose observed outcome would KILL it — not one token "
+                "prediction, the full discriminating set. A hypothesis with no falsifier "
+                "is inadmissible. Each prediction needs a concrete `falsification_criterion` "
+                "(the threshold/direction that, if seen, refutes the hypothesis).",
+                "3. RECORD PROVENANCE: every prediction MUST carry an `origin` — HOW it was "
+                "produced (derived_from_mechanism | discrimination_design | literature | "
+                "prior_result | agent_reasoning) with reasoning and sources. Provenance is "
+                "mandatory, not decorative: a prediction nobody can trace cannot be trusted "
+                "or reproduced. See field_shapes.prediction_origin.",
+                "4. DESIGN TO DISCRIMINATE: prefer measurables where the competing "
+                "hypotheses predict DIFFERENT outcomes; declare them in `discriminates` "
+                "([{hypothesis_label, expected}]). The server aggregates these into the "
+                "cross-hypothesis discrimination matrix that drives the next experiment.",
+                "5. GATHER evidence per prediction (records corpus via /evidence, "
+                "literature via the proxy, compute via NERSC/MLflow), GATING on "
+                "methodological compatibility (output_quantity / functional / corrections) "
+                "before a record is allowed to count.",
+                "6. RENDER a verdict per prediction (supports | contradicts | neutral) with "
+                "a strength and EXPLICIT reasoning via /evaluate; update hypothesis "
+                "confidence + confidence_basis; let the ranking move.",
+                "7. PROPOSE the single most discriminating next experiment via "
+                "/next_experiment.",
+            ],
+            "non_negotiables": [
+                "Every hypothesis is falsifiable and carries >=1 falsifying prediction.",
+                "Every prediction carries an `origin` (provenance) AND a "
+                "`falsification_criterion`.",
+                "Evidence is methodological-compatibility-gated before it counts.",
+                "Every decision is dual-written: dashboard event (canonical) + MLflow "
+                "mirror (replay).",
+            ],
+        },
         "resume_protocol": "To CONTINUE an existing project from a cold start (a "
             "fresh agent with no prior memory): GET /projects to find it, then GET "
             "/projects/{id}/context — a single call returning the full current state "
@@ -154,7 +201,16 @@ def get_manifest() -> dict:
                 "ENTIRE step-by-step reasoning history (with detail) + the briefing, so "
                 "you can reconstruct exactly where the project stands. To START a new "
                 "one: POST /projects.\n\n"
-                "5. Prime directive: the dashboard is the single source of truth. Each "
+                "5. Follow the `method` block of the manifest — it is the scientific "
+                "contract, not a suggestion. Discovery here means: frame >=2 competing "
+                "FALSIFIABLE hypotheses (each with a mechanism and an origin); for each, "
+                "register the SET of predictions that would KILL it, every one carrying "
+                "(a) a concrete falsification_criterion and (b) an `origin` recording HOW "
+                "it was produced (mechanism / discrimination design / literature / prior "
+                "result / reasoning, with sources); design predictions to DISCRIMINATE "
+                "between hypotheses; gather method-compatible evidence; render verdicts "
+                "with reasoning; propose the discriminating next experiment.\n\n"
+                "6. Prime directive: the dashboard is the single source of truth. Each "
                 "turn GET the project's /briefing and reconcile to it; write every "
                 "hypothesis, prediction, verdict and reasoning step back via the API — "
                 "if it isn't written to the dashboard, it didn't happen.\n\n"
@@ -746,6 +802,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     ranking, validated, invalidated, open_q, pending_compute = [], [], [], [], []
     supported, eliminated = [], []
     matrix = []
+    hyps_without_falsifier, preds_without_origin, preds_without_criterion = [], [], []
     for h in hyps:
         ranking.append({"label": h["label"], "status": h["status"],
                         "confidence": h["confidence"], "statement": _oneline(h["statement"])})
@@ -753,7 +810,14 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             supported.append(h["label"])
         elif h["status"] == "eliminated":
             eliminated.append(h["label"])
+        if not h["predictions"]:
+            hyps_without_falsifier.append(h["label"])
         for p in h["predictions"]:
+            _ptag = h["label"] + "/" + (p.get("descriptor_name") or p.get("label") or "?")
+            if not p.get("origin"):
+                preds_without_origin.append(_ptag)
+            if not p.get("falsification_criterion"):
+                preds_without_criterion.append(_ptag)
             if p.get("discriminates"):
                 matrix.append({"prediction": p.get("label") or p.get("descriptor_name"),
                                "descriptor": p.get("descriptor_name"),
@@ -793,6 +857,14 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         "open_questions": open_q,
         "pending_compute": pending_compute,
         "discrimination_matrix": matrix,
+        "method_compliance": {
+            "_what": "Live check against the manifest `method`. Close these gaps — they "
+                     "are not optional formatting, they are what makes a claim auditable.",
+            "enough_competing_hypotheses": len(hyps) >= 2,
+            "hypotheses_without_falsifying_prediction": hyps_without_falsifier,
+            "predictions_missing_origin_provenance": preds_without_origin,
+            "predictions_missing_falsification_criterion": preds_without_criterion,
+        },
         "evidence_index": _evidence_summary(evidence_index),
         "literature": "For published-evidence cross-checks (Edison/PaperQA3): "
                       "POST /portal/api/literature/search {query, job}, then poll "

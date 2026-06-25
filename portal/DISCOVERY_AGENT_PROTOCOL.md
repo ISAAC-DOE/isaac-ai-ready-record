@@ -1,4 +1,4 @@
-# ISAAC Discovery — Agent Operating Protocol (v0.1, provisional)
+# ISAAC Discovery — Agent Operating Protocol (v0.11, provisional)
 
 > How an agent operates on an ISAAC **scientific-discovery project**. This is the
 > *reasoning* layer — separate from, and not part of, the frozen ISAAC **records**
@@ -26,6 +26,38 @@
 These are affordances, not just etiquette: the briefing *hands* you the truth, the
 API *rejects* malformed writes, and the manifest *is fetched* rather than
 remembered — so doing the right thing is the easy thing.
+
+## The method (the scientific contract)
+
+Discovery here is **not free-form analysis**. The dashboard, briefing, ranking, and
+discrimination matrix are all built around one epistemic loop — follow it in order.
+This is mirrored verbatim in the manifest's `method` block (the machine-readable
+copy every agent fetches on connect), and the briefing's `method_compliance` field
+re-checks it every turn.
+
+1. **Frame competing hypotheses (≥2)** that explain the goal via *different*
+   mechanisms. Each carries a statement, a mechanism, and an `origin` (how you
+   arrived at it). One unopposed hypothesis is an assumption, not a discovery.
+2. **Enumerate falsifiers.** For *each* hypothesis register the **set** of
+   predictions whose observed outcome would **kill** it — the full discriminating
+   set, not one token prediction. A hypothesis with no falsifier is inadmissible.
+   Every prediction needs a concrete `falsification_criterion`.
+3. **Record provenance.** Every prediction **must** carry an `origin` — *how* it was
+   produced (`derived_from_mechanism | discrimination_design | literature |
+   prior_result | agent_reasoning`) with reasoning and sources. A prediction nobody
+   can trace cannot be trusted or reproduced.
+4. **Design to discriminate.** Prefer measurables where the competing hypotheses
+   predict *different* outcomes; declare them in `discriminates`. The server folds
+   these into the cross-hypothesis discrimination matrix.
+5. **Gather method-compatible evidence** per prediction (records corpus, literature,
+   compute), gating on methodological compatibility before a record counts.
+6. **Render a verdict** per prediction (`supports | contradicts | neutral`) with
+   strength and explicit reasoning; move hypothesis confidence + `confidence_basis`.
+7. **Propose the single most discriminating next experiment.**
+
+**Non-negotiables:** every hypothesis falsifiable with ≥1 falsifying prediction;
+every prediction carries an `origin` *and* a `falsification_criterion`; evidence is
+method-gated; every decision is dual-written (dashboard event + MLflow mirror).
 
 ## Connect
 
@@ -82,6 +114,10 @@ The dashboard renders `compute_submitted` / `compute_running` predictions as
 
 - **`origin`** (how a hypothesis was formed):
   `{type: agent_reasoning|literature|prior_result|human, summary, reasoning, sources:[{record_id|doi|hypothesis}]}`.
+- **`prediction_origin`** (how a *falsifying prediction* was produced — **required on
+  every prediction**): `{type: derived_from_mechanism|discrimination_design|literature|prior_result|agent_reasoning, summary, reasoning, sources:[{record_id|doi}]}`.
+  Paired with `falsification_criterion` (the threshold/direction that refutes the
+  hypothesis) and `discriminates` ([{hypothesis_label, expected}]).
 - **MLflow runs** — post as a structured `event`
   (`{event_type: compute_running, detail: "<run_name> / <what_it_computed> / <status>", mlflow_run_url}`),
   not a bare URL, so the Compute ledger has substance.
