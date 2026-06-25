@@ -446,6 +446,21 @@ def init_discovery_tables():
         # the auto element-matched candidate set): {include:[record_id], exclude:[]}.
         cur.execute("ALTER TABLE hyp_projects ADD COLUMN IF NOT EXISTS "
                     "evidence_overrides JSONB")
+        # Project sharing: owner grants another portal identity read (or write)
+        # access, so it shows in that user's Discovery tab when they log in.
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS hyp_project_shares (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                project_id CHAR(26) NOT NULL REFERENCES hyp_projects(project_id),
+                identity TEXT NOT NULL,
+                access TEXT NOT NULL DEFAULT 'read',
+                granted_by TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE (project_id, identity)
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_shares_identity '
+                    'ON hyp_project_shares (identity)')
         conn.commit()
         cur.close()
         conn.close()

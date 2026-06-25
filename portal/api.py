@@ -911,6 +911,31 @@ def discovery_evidence_overrides(project_id):
     return jsonify({"ok": True}), 200
 
 
+@app.route("/portal/api/projects/<project_id>/share", methods=["POST"])
+@_require_auth
+def discovery_share_project(project_id):
+    """Owner grants another portal identity access (default read), so the project
+    shows in that user's Discovery tab when they log in."""
+    d = request.get_json(silent=True) or {}
+    if not d.get("identity"):
+        return jsonify({"error": "identity (the portal username to share with) is required"}), 400
+    ok = discovery.share_project(project_id, d["identity"],
+                                 access=d.get("access", "read"),
+                                 owner_identity=_disc_identity())
+    if not ok:
+        return jsonify({"error": "not found or not yours to share"}), 404
+    return jsonify({"ok": True}), 201
+
+
+@app.route("/portal/api/projects/<project_id>/share/<identity>", methods=["DELETE"])
+@_require_auth
+def discovery_unshare_project(project_id, identity):
+    ok = discovery.unshare_project(project_id, identity, owner_identity=_disc_identity())
+    if not ok:
+        return jsonify({"error": "not found or not yours"}), 404
+    return jsonify({"ok": True, "revoked": identity}), 200
+
+
 @app.route("/portal/api/projects/<project_id>", methods=["DELETE"])
 @_require_auth
 def discovery_delete_project(project_id):

@@ -100,7 +100,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.6-provisional",
+        "version": "0.7-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -176,6 +176,11 @@ def get_manifest() -> dict:
              "purpose": "Append a reasoning-transcript entry (one per step)."},
             {"m": "PUT", "path": "/projects/{id}/next_experiment",
              "purpose": "Propose the discriminating next experiment."},
+            {"m": "POST", "path": "/projects/{id}/share",
+             "purpose": "Owner shares the project (read) with another portal identity "
+                        "{identity, access}; it then appears in that user's tab."},
+            {"m": "DELETE", "path": "/projects/{id}/share/{identity}",
+             "purpose": "Revoke a share."},
         ],
         "per_turn_loop": [
             "GET /briefing", "reason", "write each move (hypotheses/predictions/"
@@ -289,6 +294,63 @@ def _project_of_hypothesis(cur, hypothesis_id):
     return row["project_id"] if row else None
 
 
+def _is_owner(cur, project_id, identity):
+    cur.execute("SELECT 1 FROM hyp_projects WHERE project_id=%s AND owner_identity=%s",
+                (project_id, identity))
+    return cur.fetchone() is not None
+
+
+def _can_read(cur, project_id, identity):
+    """Owner OR anyone the project is shared with."""
+    if _is_owner(cur, project_id, identity):
+        return True
+    cur.execute("SELECT 1 FROM hyp_project_shares WHERE project_id=%s AND identity=%s",
+                (project_id, identity))
+    return cur.fetchone() is not None
+
+
+def share_project(project_id, identity, *, access="read", owner_identity=None) -> bool:
+    """Owner-only: grant another portal identity access to this project."""
+    if not identity:
+        return False
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        if owner_identity is not None and not _is_owner(cur, project_id, owner_identity):
+            return False
+        cur.execute(
+            """INSERT INTO hyp_project_shares (project_id, identity, access, granted_by)
+               VALUES (%s,%s,%s,%s)
+               ON CONFLICT (project_id, identity)
+               DO UPDATE SET access=EXCLUDED.access""",
+            (project_id, identity.strip(), access if access in ("read", "write") else "read",
+             owner_identity))
+        _append_event(cur, project_id, "status_changed",
+                      f"Project shared with {identity.strip()} ({access})",
+                      actor=owner_identity)
+        conn.commit()
+        return True
+    finally:
+        cur.close()
+        conn.close()
+
+
+def unshare_project(project_id, identity, *, owner_identity=None) -> bool:
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        if owner_identity is not None and not _is_owner(cur, project_id, owner_identity):
+            return False
+        cur.execute("DELETE FROM hyp_project_shares WHERE project_id=%s AND identity=%s "
+                    "RETURNING id", (project_id, identity))
+        ok = cur.fetchone() is not None
+        conn.commit()
+        return ok
+    finally:
+        cur.close()
+        conn.close()
+
+
 # --- Projects --------------------------------------------------------------
 
 def create_project(owner_identity, title, goal=None, material_system=None,
@@ -312,20 +374,24 @@ def create_project(owner_identity, title, goal=None, material_system=None,
 
 
 def list_projects(owner_identity) -> list:
-    """Project cards for one owner, with hypothesis count + current leader."""
+    """Project cards visible to a user: ones they OWN plus ones SHARED with them.
+    Each row carries `is_owner` + `owner_identity` so the UI can mark shared ones."""
     conn = _conn()
     cur = conn.cursor()
     try:
         cur.execute(
             """SELECT p.project_id, p.title, p.goal, p.status, p.material_system,
-                      p.reaction, p.updated_at,
+                      p.reaction, p.updated_at, p.owner_identity,
+                      (p.owner_identity = %s) AS is_owner,
                       COUNT(h.hypothesis_id) AS n_hypotheses
                  FROM hyp_projects p
                  LEFT JOIN hyp_hypotheses h ON h.project_id = p.project_id
                 WHERE p.owner_identity = %s
+                   OR p.project_id IN (SELECT project_id FROM hyp_project_shares
+                                       WHERE identity = %s)
                 GROUP BY p.id
                 ORDER BY p.updated_at DESC""",
-            (owner_identity,))
+            (owner_identity, owner_identity, owner_identity))
         projects = cur.fetchall()
         for p in projects:
             cur.execute(
@@ -344,8 +410,8 @@ def list_projects(owner_identity) -> list:
 def get_project(project_id, owner_identity=None) -> dict | None:
     """Full project view: hypotheses (each with predictions), events, next_exp.
 
-    If owner_identity is given, returns None unless the project belongs to them
-    (page-level scoping; API scoping is enforced by the caller too)."""
+    `owner_identity` here is the REQUESTER. Returns None unless they can read the
+    project (owner OR shared-with). API scoping is enforced by the caller too."""
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -353,8 +419,11 @@ def get_project(project_id, owner_identity=None) -> dict | None:
         project = cur.fetchone()
         if project is None:
             return None
-        if owner_identity is not None and project["owner_identity"] != owner_identity:
+        if owner_identity is not None and not _can_read(cur, project_id, owner_identity):
             return None
+        cur.execute("SELECT identity, access FROM hyp_project_shares WHERE project_id=%s "
+                    "ORDER BY created_at", (project_id,))
+        project["shared_with"] = cur.fetchall()
         cur.execute(
             """SELECT * FROM hyp_hypotheses WHERE project_id=%s
                ORDER BY confidence DESC NULLS LAST, created_at""",
@@ -704,6 +773,7 @@ def delete_project(project_id, owner_identity=None, is_admin=False) -> bool:
         cur.execute("DELETE FROM hyp_hypothesis_relations WHERE project_id=%s", (project_id,))
         cur.execute("DELETE FROM hyp_events WHERE project_id=%s", (project_id,))
         cur.execute("DELETE FROM hyp_messages WHERE project_id=%s", (project_id,))
+        cur.execute("DELETE FROM hyp_project_shares WHERE project_id=%s", (project_id,))
         cur.execute("DELETE FROM hyp_hypotheses WHERE project_id=%s", (project_id,))
         cur.execute("DELETE FROM hyp_projects WHERE project_id=%s", (project_id,))
         conn.commit()

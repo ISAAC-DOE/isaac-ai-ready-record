@@ -1747,8 +1747,10 @@ elif page == "Discovery":
                         leadtxt = (f"Leader: {lead['label']} "
                                    f"(conf {float(lead['confidence'] or 0):.2f})"
                                    if lead else "No hypotheses yet")
+                        share_badge = ("" if p.get("is_owner", True)
+                                       else f" · 🔗 shared by {p.get('owner_identity')}")
                         st.caption(f"{p['n_hypotheses']} hypotheses · {leadtxt} · "
-                                   f"{p['status']}")
+                                   f"{p['status']}{share_badge}")
                     with cols[1]:
                         if st.button("Open", key=f"open_{p['project_id']}"):
                             st.session_state.discovery_project = p["project_id"]
@@ -1778,17 +1780,37 @@ elif page == "Discovery":
                     st.session_state.discovery_project = None
                     st.rerun()
             pid = st.session_state.discovery_project
+            _meta = discovery.get_project(pid, owner_identity=_DISC_OWNER)
+            _is_owner = bool(_meta) and _meta["project"]["owner_identity"] == _DISC_OWNER
             with top_r:
-                with st.popover("⋯ Manage"):
-                    st.caption("Delete this project and all its hypotheses, "
-                               "predictions, and history. Cannot be undone.")
-                    if st.button("🗑 Delete project", type="secondary"):
-                        if discovery.delete_project(pid, owner_identity=_DISC_OWNER,
-                                                    is_admin=user_is_admin):
-                            st.session_state.discovery_project = None
-                            st.rerun()
-                        else:
-                            st.error("Delete failed (not yours or not found).")
+                if not _is_owner and _meta:
+                    st.caption(f"🔗 shared by {_meta['project']['owner_identity']}")
+                elif _is_owner:
+                    with st.popover("⋯ Manage"):
+                        st.markdown("**Share (read-only) with another portal user**")
+                        for s in (_meta["project"].get("shared_with") or []):
+                            sc1, sc2 = st.columns([3, 1])
+                            sc1.caption(f"{s['identity']} · {s['access']}")
+                            if sc2.button("✕", key=f"unshare_{s['identity']}"):
+                                discovery.unshare_project(pid, s["identity"],
+                                                          owner_identity=_DISC_OWNER)
+                                st.rerun()
+                        with st.form(f"share_form_{pid}"):
+                            who = st.text_input("Portal username to share with",
+                                                placeholder="their login name")
+                            if st.form_submit_button("Share") and who.strip():
+                                discovery.share_project(pid, who.strip(),
+                                                        owner_identity=_DISC_OWNER)
+                                st.rerun()
+                        st.divider()
+                        st.caption("Delete this project and all its history — cannot be undone.")
+                        if st.button("🗑 Delete project", type="secondary"):
+                            if discovery.delete_project(pid, owner_identity=_DISC_OWNER,
+                                                        is_admin=user_is_admin):
+                                st.session_state.discovery_project = None
+                                st.rerun()
+                            else:
+                                st.error("Delete failed (not yours or not found).")
             # Live auto-refresh when the Streamlit build supports it; otherwise a
             # manual refresh button keeps it functional on older versions.
             if hasattr(st, "fragment"):
