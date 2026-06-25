@@ -2100,9 +2100,23 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                 if _integ:
                     st.markdown("##### 🧰 Integrations it can reach")
                     for _k, _v in _integ.items():
-                        _purpose = (_v.get("purpose") if isinstance(_v, dict)
-                                    else str(_v))
-                        st.markdown(f"- **{_k}** — {_purpose}")
+                        if not isinstance(_v, dict):
+                            st.markdown(f"- **{_k}** — {_v}")
+                            continue
+                        # Show a meaningful headline even when there's no `purpose`
+                        # key (e.g. literature_search describes itself via provider /
+                        # use_when), so the user sees WHAT it is and WHO provides it.
+                        _prov = _v.get("provider")
+                        _head = _v.get("purpose") or _v.get("use_when") or ""
+                        _title = f"**{_k}**" + (f" — via {_prov}" if _prov else "")
+                        st.markdown(f"- {_title}")
+                        if _head:
+                            st.caption(_head)
+                        # surface the call shape if present (literature proxy)
+                        _calls = [f"`{_v[_kk]}`" for _kk in ("submit", "poll")
+                                  if _v.get(_kk)]
+                        if _calls:
+                            st.caption("How the agent calls it: " + " · ".join(_calls))
 
                 st.markdown("##### 📦 The raw manifest (verbatim machine contract)")
                 st.caption("Exactly the JSON the agent parses — every field, vocabulary "
@@ -2218,4 +2232,4 @@ elif page == "About":
 # =============================================================================
 # FOOTER: Partner & DOE logos on every page
 # =============================================================================
-branding.render_footer()
+branding.render_footer(st.session_state.ui_theme)
