@@ -506,6 +506,22 @@ def init_discovery_tables():
         # Stored + surfaced now (gated later).
         cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
                     "evidence_independence JSONB")
+        # (4) Confidence as a first-class TIME SERIES (one row per change), so the
+        # "Belief River" reads real history instead of scraping event prose. Legacy
+        # projects are backfilled-on-read from their event log (see discovery.py).
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS hyp_confidence_snapshots (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                project_id CHAR(26) NOT NULL REFERENCES hyp_projects(project_id),
+                hypothesis_id CHAR(26) NOT NULL REFERENCES hyp_hypotheses(hypothesis_id),
+                confidence REAL,
+                basis TEXT,
+                source TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_conf_snap_project '
+                    'ON hyp_confidence_snapshots (project_id, created_at)')
 
         conn.commit()
         cur.close()

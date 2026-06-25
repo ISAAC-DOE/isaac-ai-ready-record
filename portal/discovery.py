@@ -695,6 +695,19 @@ def set_next_experiment(project_id, payload, actor=None) -> bool:
 
 # --- Hypotheses ------------------------------------------------------------
 
+def _snapshot_confidence(cur, project_id, hypothesis_id, confidence, *,
+                         basis=None, source="updated"):
+    """Append one row to the confidence time series. Called on every confidence
+    change so the Belief River reads real history (not scraped event prose)."""
+    if confidence is None:
+        return
+    cur.execute(
+        """INSERT INTO hyp_confidence_snapshots
+             (project_id, hypothesis_id, confidence, basis, source)
+           VALUES (%s,%s,%s,%s,%s)""",
+        (project_id, hypothesis_id, float(confidence), basis, source))
+
+
 def create_hypothesis(project_id, statement, *, label=None, hypothesis_type=None,
                       mechanism=None, origin=None, created_by=None) -> str | None:
     conn = _conn()
@@ -715,6 +728,8 @@ def create_hypothesis(project_id, statement, *, label=None, hypothesis_type=None
         _append_event(cur, project_id, "hypothesis_created",
                       f"Hypothesis {label or ''} added: {statement[:120]}",
                       hypothesis_id=hypothesis_id, actor=created_by)
+        # baseline point so the belief band is born at zero and grows with evidence
+        _snapshot_confidence(cur, project_id, hypothesis_id, 0.0, source="created")
         cur.execute("UPDATE hyp_projects SET updated_at=NOW() WHERE project_id=%s",
                     (project_id,))
         conn.commit()
@@ -753,6 +768,9 @@ def update_hypothesis(hypothesis_id, *, status=None, confidence=None,
         _append_event(cur, project_id, "status_changed",
                       f"Hypothesis updated: {', '.join(bits)}",
                       detail=confidence_basis, hypothesis_id=hypothesis_id, actor=actor)
+        if confidence is not None:
+            _snapshot_confidence(cur, project_id, hypothesis_id, confidence,
+                                 basis=confidence_basis, source="updated")
         cur.execute("UPDATE hyp_projects SET updated_at=NOW() WHERE project_id=%s",
                     (project_id,))
         conn.commit()
@@ -872,6 +890,65 @@ def _circularity_flag(ind) -> str | None:
     return None
 
 
+def _backfill_confidence_snapshots(cur, project_id):
+    """One-time migration for legacy projects with no snapshots: reconstruct the
+    confidence time series from the event log (the same 'confidence → N' the API
+    writes on every change) + a creation baseline + the current value, stamped
+    with the original event timestamps. Idempotent: only runs when zero snapshots
+    exist for the project."""
+    import re as _re
+    cur.execute("""SELECT hypothesis_id, confidence, created_at, updated_at
+                     FROM hyp_hypotheses WHERE project_id=%s""", (project_id,))
+    hyps = cur.fetchall()
+    valid = {h["hypothesis_id"] for h in hyps}
+    cur.execute("""SELECT hypothesis_id, summary, created_at FROM hyp_events
+                    WHERE project_id=%s ORDER BY created_at, id""", (project_id,))
+    events = cur.fetchall()
+    rows = [(project_id, h["hypothesis_id"], 0.0, "created", h["created_at"])
+            for h in hyps]
+    pat = _re.compile(r"confidence[^0-9]*([0-9]*\.?[0-9]+)")
+    for e in events:
+        hid = e.get("hypothesis_id")
+        if hid in valid and e.get("summary"):
+            m = pat.search(e["summary"])
+            if m:
+                rows.append((project_id, hid, float(m.group(1)), "backfill",
+                             e["created_at"]))
+    for h in hyps:
+        if h["confidence"] is not None:
+            rows.append((project_id, h["hypothesis_id"], float(h["confidence"]),
+                         "current", h["updated_at"] or h["created_at"]))
+    cur.executemany(
+        """INSERT INTO hyp_confidence_snapshots
+             (project_id, hypothesis_id, confidence, source, created_at)
+           VALUES (%s,%s,%s,%s,%s)""", rows)
+
+
+def get_confidence_history(project_id, owner_identity=None) -> list:
+    """The confidence time series for a project — one point per change, ordered.
+    Backfills legacy projects from their event log on first read. Returns
+    [{hypothesis_id, confidence, source, created_at}]. (Access is gated upstream
+    by the page/briefing that calls this.)"""
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT 1 FROM hyp_projects WHERE project_id=%s", (project_id,))
+        if cur.fetchone() is None:
+            return []
+        cur.execute("SELECT COUNT(*) AS n FROM hyp_confidence_snapshots "
+                    "WHERE project_id=%s", (project_id,))
+        if (cur.fetchone()["n"] or 0) == 0:
+            _backfill_confidence_snapshots(cur, project_id)
+            conn.commit()
+        cur.execute("""SELECT hypothesis_id, confidence, source, created_at
+                         FROM hyp_confidence_snapshots WHERE project_id=%s
+                        ORDER BY created_at, id""", (project_id,))
+        return cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+
 def refine_hypothesis(hypothesis_id, *, statement=None, mechanism=None,
                       confidence=None, change_note=None, change_type="refinement",
                       actor=None) -> int | None:
@@ -932,6 +1009,9 @@ def refine_hypothesis(hypothesis_id, *, statement=None, mechanism=None,
                       f"Hypothesis refined → v{new_v} "
                       f"({cur_row['label'] or hypothesis_id[:6]})",
                       detail=change_note, hypothesis_id=hypothesis_id, actor=actor)
+        if confidence is not None:
+            _snapshot_confidence(cur, project_id, hypothesis_id, confidence,
+                                 basis=change_note, source="refined")
         cur.execute("UPDATE hyp_projects SET updated_at=NOW() WHERE project_id=%s",
                     (project_id,))
         conn.commit()
@@ -1121,6 +1201,10 @@ def delete_project(project_id, owner_identity=None, is_admin=False) -> bool:
                             (SELECT hypothesis_id FROM hyp_hypotheses WHERE project_id=%s))""",
                     (project_id,))
         cur.execute("DELETE FROM hyp_predictions WHERE hypothesis_id IN "
+                    "(SELECT hypothesis_id FROM hyp_hypotheses WHERE project_id=%s)",
+                    (project_id,))
+        cur.execute("DELETE FROM hyp_confidence_snapshots WHERE project_id=%s", (project_id,))
+        cur.execute("DELETE FROM hyp_hypothesis_versions WHERE hypothesis_id IN "
                     "(SELECT hypothesis_id FROM hyp_hypotheses WHERE project_id=%s)",
                     (project_id,))
         cur.execute("DELETE FROM hyp_hypothesis_relations WHERE project_id=%s", (project_id,))
@@ -1527,6 +1611,8 @@ def get_context(project_id, owner_identity=None) -> dict | None:
         "next_experiment": data["next_experiment"],
         "n_history": len(history),
         "history": history,                 # ALL steps, chronological, full detail
+        "confidence_history": get_confidence_history(project_id,
+                                                     owner_identity=owner_identity),
         "briefing": get_briefing(project_id, owner_identity=owner_identity),
     }
 

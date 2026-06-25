@@ -1795,43 +1795,50 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                                "position, size and colour is a real value.")
 
                     # ---- The river of belief: confidence evolution over the run ----
-                    import re as _re
-                    _chrono = list(reversed(events))  # oldest -> newest
+                    # Real confidence history (first-class snapshots; legacy projects
+                    # are backfilled from the event log on first read).
                     _hmap = {h["hypothesis_id"]: h for h in hyps}
+
+                    def _epoch(_dt):
+                        return _dt.timestamp() if hasattr(_dt, "timestamp") else 0.0
+                    _snaps = discovery.get_confidence_history(pid, owner)
                     _traj = {hid: [] for hid in _hmap}
-                    _created = {}
-                    for _i, _e in enumerate(_chrono):
-                        _hid = _e.get("hypothesis_id")
-                        if _hid in _hmap:
-                            if _e["event_type"] == "hypothesis_created" and _hid not in _created:
-                                _created[_hid] = _i
-                                _traj[_hid].append((_i, 0.0))
-                            _mm = _re.search(r"confidence[^0-9]*([0-9]*\.?[0-9]+)",
-                                             _e.get("summary") or "")
-                            if _mm:
-                                _traj[_hid].append((_i, float(_mm.group(1))))
-                    _N = max(1, len(_chrono))
+                    for _sn in _snaps:
+                        _hid = _sn["hypothesis_id"]
+                        if _hid in _traj:
+                            _traj[_hid].append((_epoch(_sn["created_at"]),
+                                                float(_sn["confidence"] or 0)))
+                    # time axis: span of all snapshots (fallback to event span / now)
+                    _all_t = [t for pts in _traj.values() for (t, _c) in pts]
+                    _ev_t = [_epoch(e["created_at"]) for e in events
+                             if hasattr(e.get("created_at"), "timestamp")]
+                    _t0 = min(_all_t) if _all_t else (min(_ev_t) if _ev_t else 0.0)
+                    _t1 = max(_all_t + _ev_t) if (_all_t or _ev_t) else 1.0
+                    _span = (_t1 - _t0) or 1.0
+                    # ensure a current end-point per hypothesis
                     for _hid, _h in _hmap.items():
-                        _traj[_hid].append((_N - 1, float(_h["confidence"] or 0)))
-                        if not _traj[_hid] or _traj[_hid][0][0] > 0:
-                            _traj[_hid].insert(0, (_created.get(_hid, 0), 0.0))
+                        _traj[_hid].append((_t1, float(_h["confidence"] or 0)))
+                        _traj[_hid].sort()
                     _T = 48
                     _steps = []
                     for _s in range(_T):
-                        _ti = _s * (_N - 1) / (_T - 1) if (_T > 1 and _N > 1) else 0
+                        _ti = _t0 + _span * (_s / (_T - 1) if _T > 1 else 0)
                         _row = {"t": _s / (_T - 1) if _T > 1 else 0.0}
                         for _hid, _h in _hmap.items():
                             _c = 0.0
-                            for (_idx, _cv) in sorted(_traj[_hid]):
-                                if _idx <= _ti:
+                            _born = _traj[_hid][0][0] if _traj[_hid] else _t0
+                            for (_tt, _cv) in _traj[_hid]:
+                                if _tt <= _ti:
                                     _c = _cv
                                 else:
                                     break
-                            _row[_h["label"]] = _c
+                            # before a hypothesis exists, its band is absent (0)
+                            _row[_h["label"]] = _c if _ti >= _born else 0.0
                         _steps.append(_row)
-                    _markers = [{"t": _i / (_N - 1) if _N > 1 else 0.0}
-                                for _i, _e in enumerate(_chrono)
-                                if _e["event_type"] in ("prediction_evaluated", "compute_running",
+                    _markers = [{"t": (_epoch(e["created_at"]) - _t0) / _span}
+                                for e in events
+                                if hasattr(e.get("created_at"), "timestamp")
+                                and e["event_type"] in ("prediction_evaluated", "compute_running",
                                                         "compute_submitted", "evidence_ingested",
                                                         "next_experiment_proposed")]
                     st.markdown("**The river of belief** — how confidence in each mechanism "
