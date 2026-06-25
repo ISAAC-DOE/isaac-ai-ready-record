@@ -1513,6 +1513,58 @@ svg.call(d3.drag()
 """
             return tmpl.replace("__DATA__", data).replace("__PAL__", pal)
 
+        def _river_html(payload, theme="dark"):
+            dark = theme != "light"
+            pal = json.dumps({
+                "bg1": "#0c1226" if dark else "#eef3fa",
+                "bg2": "#070b16" if dark else "#dbe6f3",
+                "axis": "#5e7290" if dark else "#5a6e8a",
+                "grid": "#34456a" if dark else "#b7c5db",
+                "label": "#eef3ff" if dark else "#10243a",
+                "labshadow": "rgba(0,0,0,0.55)" if dark else "rgba(255,255,255,0.85)",
+            })
+            data = json.dumps(payload)
+            tmpl = r"""
+<html><head><script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>html,body{margin:0;overflow:hidden;}text{font-family:-apple-system,Segoe UI,Roboto,sans-serif;}</style></head>
+<body><svg id="r" width="100%" height="300"></svg><script>
+const D=__DATA__, P=__PAL__;
+document.body.style.background='linear-gradient(180deg,'+P.bg1+','+P.bg2+')';
+const el=document.getElementById('r'); const W=el.clientWidth||820,H=300,m={t:18,r:138,b:24,l:16};
+const svg=d3.select('#r').attr('width',W).attr('height',H);
+const SC={supported:'#ffca28',eliminated:'#6f6f6f',needs_more_data:'#ffa726',proposed:'#4aa3ff',superseded:'#5a5a5a'};
+const keys=D.hyps.map(function(h){return h.label;});
+const colorOf={}; D.hyps.forEach(function(h){colorOf[h.label]=SC[h.status]||'#90caf9';});
+if(!D.steps.length||!keys.length){svg.append('text').attr('x',16).attr('y',30).attr('fill',P.axis).attr('font-size',12).text('No confidence history yet.');}
+else{
+const stack=d3.stack().keys(keys).offset(d3.stackOffsetWiggle).order(d3.stackOrderInsideOut);
+const series=stack(D.steps);
+const x=d3.scaleLinear().domain([0,1]).range([m.l,W-m.r]);
+const y=d3.scaleLinear().domain([d3.min(series,function(s){return d3.min(s,function(d){return d[0];});}),
+                                 d3.max(series,function(s){return d3.max(s,function(d){return d[1];});})]).range([H-m.b,m.t]);
+const area=d3.area().x(function(d){return x(d.data.t);}).y0(function(d){return y(d[0]);}).y1(function(d){return y(d[1]);}).curve(d3.curveBasis);
+const defs=svg.append('defs');
+const gl=defs.append('filter').attr('id','rg').attr('x','-40%').attr('y','-40%').attr('width','180%').attr('height','180%');
+gl.append('feGaussianBlur').attr('stdDeviation','2.4');
+svg.append('g').selectAll('line').data(D.markers).join('line')
+ .attr('x1',function(d){return x(d.t);}).attr('x2',function(d){return x(d.t);}).attr('y1',m.t-4).attr('y2',H-m.b)
+ .attr('stroke',P.grid).attr('stroke-dasharray','2,4').attr('opacity',0.4);
+svg.append('g').selectAll('path').data(series).join('path')
+ .attr('d',area).attr('fill',function(s){return colorOf[s.key];}).attr('opacity',0.93)
+ .attr('stroke','#00000022').attr('stroke-width',0.4)
+ .attr('filter',function(s){return colorOf[s.key]==='#ffca28'?'url(#rg)':null;});
+svg.append('g').selectAll('text').data(series).join('text')
+ .attr('x',W-m.r+8).attr('y',function(s){var d=s[s.length-1];return y((d[0]+d[1])/2)+3;})
+ .attr('fill',P.label).attr('font-size',10.5).attr('font-weight',600)
+ .style('paint-order','stroke').style('stroke',P.labshadow).style('stroke-width','2.5px').style('stroke-linejoin','round')
+ .text(function(s){var h=D.hyps.find(function(z){return z.label===s.key;});return s.key+'  '+Math.round((h?h.conf:0)*100)+'%';});
+svg.append('text').attr('x',m.l).attr('y',H-7).attr('fill',P.axis).attr('font-size',10).text('run start');
+svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr('fill',P.axis).attr('font-size',10).text('now →');
+}
+</script></body></html>
+"""
+            return tmpl.replace("__DATA__", data).replace("__PAL__", pal)
+
         def _funnel(stages):
             n = len(stages)
             out = ["<div style='padding:4px 0'>"]
@@ -1674,6 +1726,59 @@ svg.call(d3.drag()
                                "hypothesis stars, each drawn toward the centre by its "
                                "confidence (`competes_with` ties push losers out). Every "
                                "position, size and colour is a real value.")
+
+                    # ---- The river of belief: confidence evolution over the run ----
+                    import re as _re
+                    _chrono = list(reversed(events))  # oldest -> newest
+                    _hmap = {h["hypothesis_id"]: h for h in hyps}
+                    _traj = {hid: [] for hid in _hmap}
+                    _created = {}
+                    for _i, _e in enumerate(_chrono):
+                        _hid = _e.get("hypothesis_id")
+                        if _hid in _hmap:
+                            if _e["event_type"] == "hypothesis_created" and _hid not in _created:
+                                _created[_hid] = _i
+                                _traj[_hid].append((_i, 0.0))
+                            _mm = _re.search(r"confidence[^0-9]*([0-9]*\.?[0-9]+)",
+                                             _e.get("summary") or "")
+                            if _mm:
+                                _traj[_hid].append((_i, float(_mm.group(1))))
+                    _N = max(1, len(_chrono))
+                    for _hid, _h in _hmap.items():
+                        _traj[_hid].append((_N - 1, float(_h["confidence"] or 0)))
+                        if not _traj[_hid] or _traj[_hid][0][0] > 0:
+                            _traj[_hid].insert(0, (_created.get(_hid, 0), 0.0))
+                    _T = 48
+                    _steps = []
+                    for _s in range(_T):
+                        _ti = _s * (_N - 1) / (_T - 1) if (_T > 1 and _N > 1) else 0
+                        _row = {"t": _s / (_T - 1) if _T > 1 else 0.0}
+                        for _hid, _h in _hmap.items():
+                            _c = 0.0
+                            for (_idx, _cv) in sorted(_traj[_hid]):
+                                if _idx <= _ti:
+                                    _c = _cv
+                                else:
+                                    break
+                            _row[_h["label"]] = _c
+                        _steps.append(_row)
+                    _markers = [{"t": _i / (_N - 1) if _N > 1 else 0.0}
+                                for _i, _e in enumerate(_chrono)
+                                if _e["event_type"] in ("prediction_evaluated", "compute_running",
+                                                        "compute_submitted", "evidence_ingested",
+                                                        "next_experiment_proposed")]
+                    st.markdown("**The river of belief** — how confidence in each mechanism "
+                                "evolved as evidence arrived")
+                    components.html(_river_html(
+                        {"steps": _steps,
+                         "hyps": [{"label": _h["label"], "status": _h["status"],
+                                   "conf": float(_h["confidence"] or 0)} for _h in hyps],
+                         "markers": _markers},
+                        st.session_state.ui_theme), height=320)
+                    st.caption("Each ribbon is a hypothesis; thickness = confidence over the "
+                               "run — the leader swells, eliminated mechanisms thin out. Dashed "
+                               "marks are where evidence or compute landed. On resume, new "
+                               "evidence extends the river: the discovery's evolution, live.")
 
             # ---- E: Evidence index (by descriptor) + discrimination matrix ----
             with tabE:
