@@ -2044,7 +2044,8 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
             projects = discovery.list_projects(_DISC_OWNER)
 
             # First-landing onboarding: how to point YOUR agent at the platform.
-            _gs = discovery.get_manifest().get("getting_started", {})
+            _manifest = discovery.get_manifest()
+            _gs = _manifest.get("getting_started", {})
             with st.expander("🔌 Connect your agent — start here",
                              expanded=(not projects)):
                 st.write(_gs.get("what", ""))
@@ -2056,6 +2057,59 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                 st.caption("Your agent reads the self-describing manifest and "
                            "configures itself — you don't need to know the API. "
                            "Get a token from the **API Keys** page.")
+
+            # Transparency: show EXACTLY what the agent is instructed with on connect.
+            # Rendered from the same get_manifest() the agent fetches — never a
+            # paraphrase, so what you read here is verbatim what the agent receives.
+            _man_url = _manifest.get("base_path", "") + "/discovery/manifest"
+            with st.expander("🔎 What the agent is told — the full operating manual"):
+                st.caption("Transparency: this is rendered live from the **same manifest "
+                           "your agent fetches** on connect (no auth needed to read it: "
+                           f"`GET {_man_url}`). Nothing the agent receives is hidden from "
+                           "you here.")
+                st.markdown(f"**{_manifest.get('name','')}** · manifest "
+                            f"`v{_manifest.get('version','')}`")
+
+                _method = _manifest.get("method", {})
+                if _method:
+                    st.markdown("##### 🧭 The method — the scientific contract it must follow")
+                    st.caption(_method.get("_what", ""))
+                    for _step in _method.get("loop", []):
+                        st.markdown(f"- {_step}")
+                    if _method.get("non_negotiables"):
+                        st.markdown("**Non-negotiables:**")
+                        for _nn in _method["non_negotiables"]:
+                            st.markdown(f"- {_nn}")
+
+                if _manifest.get("prime_directive"):
+                    st.markdown("##### ⚖️ Prime directive")
+                    for _pd in _manifest["prime_directive"]:
+                        st.markdown(f"- {_pd}")
+
+                if _manifest.get("resume_protocol"):
+                    st.markdown("##### 🔁 How a resuming agent rebuilds context")
+                    st.caption(_manifest["resume_protocol"])
+
+                _eps = _manifest.get("endpoints", [])
+                if _eps:
+                    st.markdown("##### 🔌 Endpoints it is given")
+                    st.table([{"method": e.get("m"), "path": e.get("path"),
+                               "purpose": e.get("purpose")} for e in _eps])
+
+                _integ = _manifest.get("integrations", {})
+                if _integ:
+                    st.markdown("##### 🧰 Integrations it can reach")
+                    for _k, _v in _integ.items():
+                        _purpose = (_v.get("purpose") if isinstance(_v, dict)
+                                    else str(_v))
+                        st.markdown(f"- **{_k}** — {_purpose}")
+
+                st.markdown("##### 📦 The raw manifest (verbatim machine contract)")
+                st.caption("Exactly the JSON the agent parses — every field, vocabulary "
+                           "and shape. The companion narrative is "
+                           "`portal/DISCOVERY_AGENT_PROTOCOL.md` in the repo.")
+                st.json(_manifest, expanded=False)
+                st.markdown(f"[Open the live manifest JSON ↗]({_man_url})")
 
             if not projects:
                 st.caption("No projects yet. Create one below, or connect your agent above.")
