@@ -1604,13 +1604,19 @@ elif page == "Discovery":
                                 st.markdown("Sources:")
                                 for s in org["sources"]:
                                     st.markdown(f"- {s}")
-                        elif org:
+                        elif isinstance(org, (list, dict)) and org:
                             st.json(org)
+                        elif org:
+                            st.write(str(org))
                         else:
                             st.caption("_Origin not documented yet (the agent fills this)._")
                         if h.get("mechanism"):
                             st.markdown("**Mechanism**")
-                            st.json(h["mechanism"], expanded=False)
+                            mech = h["mechanism"]
+                            if isinstance(mech, (list, dict)):
+                                st.json(mech, expanded=False)
+                            else:
+                                st.write(str(mech))
                         st.markdown("**Predictions & verification (audit trail)**")
                         if not h["predictions"]:
                             st.caption("_No predictions yet._")
