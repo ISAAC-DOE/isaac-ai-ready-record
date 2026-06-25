@@ -1642,6 +1642,7 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
             hyps = data["hypotheses"]
             events = data["events"]
             relations = data.get("relations", [])
+            _is_owner = proj.get("owner_identity") == owner
             _hlabel = {h["hypothesis_id"]: h["label"] for h in hyps}
             brief = discovery.get_briefing(pid, owner) or {}
 
@@ -1690,18 +1691,47 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
             for _lbl, _items in _issue_map:
                 if _items:
                     _issues.append((_lbl, _items))
-            if _issues:
-                with st.expander(f"🔬 Scientific rigor — {len(_issues)} open check(s)",
-                                 expanded=False):
-                    st.caption("Live audit against the manifest `method` + epistemic "
-                               "guardrails (use-novelty; hypothesis individuation). "
-                               "Advisory now — these are what make a claim auditable.")
-                    for _lbl, _items in _issues:
-                        _detail = (" — " + ", ".join(str(x) for x in _items[:6])
-                                   ) if _items else ""
-                        st.markdown(f"- **{_lbl}**{_detail}")
+            _rr = brief.get("rigor_review", {})
+            _crit = _rr.get("open_findings", []) or []
+            _n_checks = len(_issues) + len(_crit)
+            if _n_checks:
+                _hdr = f"🔬 Scientific rigor — {_n_checks} open"
+                if _rr.get("open_critical"):
+                    _hdr += f" ({_rr['open_critical']} critical)"
+                with st.expander(_hdr, expanded=bool(_rr.get("open_critical"))):
+                    if _issues:
+                        st.caption("**Automated checks** — live audit against the method "
+                                   "+ epistemic guardrails (use-novelty; individuation).")
+                        for _lbl, _items in _issues:
+                            _detail = (" — " + ", ".join(str(x) for x in _items[:6])
+                                       ) if _items else ""
+                            st.markdown(f"- **{_lbl}**{_detail}")
+                    if _crit:
+                        st.caption("**Independent critic findings** — raised by an "
+                                   "adversarial reviewer (a separate agent). Resolve "
+                                   "(fix/justify) or dismiss each.")
+                        _sev_icon = {"critical": "🔴", "major": "🟠", "minor": "🟡"}
+                        for _f in _crit:
+                            _ic = _sev_icon.get(_f.get("severity"), "•")
+                            _tgt = (f" · {_f.get('target_type')}:{_f.get('target_id')}"
+                                    if _f.get("target_id") else "")
+                            st.markdown(f"- {_ic} **[{_f.get('category')}]** "
+                                        f"{_f.get('summary')}{_tgt}")
+                            if _is_owner:
+                                _rc1, _rc2, _ = st.columns([1, 1, 4])
+                                if _rc1.button("Resolve", key=f"rfres_{_f['finding_id']}"):
+                                    discovery.resolve_rigor_finding(
+                                        _f["finding_id"], status="resolved",
+                                        actor=owner)
+                                    st.rerun()
+                                if _rc2.button("Dismiss", key=f"rfdis_{_f['finding_id']}"):
+                                    discovery.resolve_rigor_finding(
+                                        _f["finding_id"], status="dismissed",
+                                        actor=owner)
+                                    st.rerun()
             else:
-                st.caption("🔬 Scientific rigor — all method/guardrail checks clear.")
+                st.caption("🔬 Scientific rigor — all checks clear (and no open critic "
+                           "findings).")
 
             st.markdown("**Hypothesis ranking** — bar length = confidence, colour = status")
             st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],

@@ -83,6 +83,29 @@ here is specific to any one science.
    stay queryable — never overwrite a falsification. *Test:* if you can't name an
    observable on which old and new diverge, it's a refinement, not a new hypothesis.
 
+## Independent rigor review (the backstop)
+
+The automated checks above catch *missing* declarations. They cannot catch a
+declaration the working agent simply **omitted** — e.g. a model fit to the data it
+"confirms" with `evidence_independence` left blank. That needs a semantic read of
+the reasoning, so it's done by an **independent critic: a separate agent/session,
+not the one that did the work.**
+
+- **When:** before trusting any high-confidence conclusion (moving a hypothesis to
+  `supported`, or confidence > 0.7), and on request. Independence is the whole
+  point — don't critique your own pass.
+- **How:** spawn a fresh reviewer with `manifest.rigor_review.critic_prompt`. It
+  reads `/context`, hunts for use-novelty / individuation / falsifiability /
+  evidence-compatibility / confirmation-bias failures (inferring omitted
+  declarations from the prose), and POSTs each as a **finding**
+  (`POST /projects/{id}/rigor/findings` — summary, detail, category, severity,
+  target).
+- **Then:** the working agent reads `GET /projects/{id}/rigor/findings` and for
+  each either **fixes** it (and `PUT`s it to `resolved` with how) or justifies why
+  it holds; `dismissed` only for genuine non-issues. Open findings are surfaced live
+  in `briefing.rigor_review`; later, open **critical** findings will block
+  `supported`.
+
 ## Connect
 
 - Base URL: `https://isaac.slac.stanford.edu/portal/api`
