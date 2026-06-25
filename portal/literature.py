@@ -74,16 +74,60 @@ def submit(query: str, job: str = "literature") -> str | None:
     return d.get("task_id") or d.get("id") or d.get("trajectory_id")
 
 
+def _deep_find_str(obj, keys, minlen=60, depth=0):
+    """Find the first long string under any of `keys` at any depth — PaperQA3 puts
+    the answer inside environment_frame, not at the top level."""
+    if depth > 7:
+        return None
+    if isinstance(obj, dict):
+        for k in keys:
+            v = obj.get(k)
+            if isinstance(v, str) and len(v) >= minlen:
+                return v
+        for v in obj.values():
+            r = _deep_find_str(v, keys, minlen, depth + 1)
+            if r:
+                return r
+    elif isinstance(obj, list):
+        for v in obj:
+            r = _deep_find_str(v, keys, minlen, depth + 1)
+            if r:
+                return r
+    return None
+
+
+def _deep_find_list(obj, keys, depth=0):
+    if depth > 7:
+        return None
+    if isinstance(obj, dict):
+        for k in keys:
+            v = obj.get(k)
+            if isinstance(v, list) and v:
+                return v
+        for v in obj.values():
+            r = _deep_find_list(v, keys, depth + 1)
+            if r:
+                return r
+    elif isinstance(obj, list):
+        for v in obj:
+            if isinstance(v, (dict, list)):
+                r = _deep_find_list(v, keys, depth + 1)
+                if r:
+                    return r
+    return None
+
+
 def poll(task_id: str) -> dict:
     d = _with_relogin(lambda h: http_requests.get(
         f"{EDISON_API}/v0.1/trajectories/{task_id}", headers=h, timeout=60))
     status = str(d.get("status") or "").lower()
     done = status in ("success", "completed", "complete", "done", "failed", "error")
-    result = d.get("result") if isinstance(d.get("result"), dict) else {}
-    answer = (d.get("answer") or d.get("formatted_answer")
-              or result.get("answer") or result.get("formatted_answer"))
-    sources = (d.get("references") or d.get("sources")
-               or result.get("references") or result.get("sources"))
+    # The answer lives deep in environment_frame (or task_summary as a short form).
+    answer = (_deep_find_str(d, ["formatted_answer", "answer", "response"])
+              or (d.get("task_summary") if isinstance(d.get("task_summary"), str) else None))
+    sources = _deep_find_list(d, ["references", "sources", "contexts", "bib_entries"])
     return {"task_id": task_id, "status": status, "done": done,
-            "answer": answer, "sources": sources,
+            "answer": answer,
+            "task_summary": d.get("task_summary") if isinstance(d.get("task_summary"), str) else None,
+            "sources": sources,
             "raw_keys": sorted(d.keys())}  # to confirm field names on first live run
