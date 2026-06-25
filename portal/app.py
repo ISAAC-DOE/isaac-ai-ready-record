@@ -1449,14 +1449,23 @@ elif page == "Discovery":
                 "screened": "#33446a" if dark else "#a9bad4",
                 "evid": "#d6dee6" if dark else "#5f7081",
                 "relrest": "#7e8aa0" if dark else "#9aa7bd",
+                "tipbg": "rgba(16,22,40,0.96)" if dark else "rgba(255,255,255,0.98)",
+                "tiptext": "#eaf0ff" if dark else "#13243a",
+                "tipborder": "#2a3a5e" if dark else "#c2d0e4",
             })
             data = json.dumps(payload)
             tmpl = r"""
 <html><head><script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <style>html,body{margin:0;overflow:hidden;}text{font-family:-apple-system,Segoe UI,Roboto,sans-serif;}
-#c{cursor:grab;}#c:active{cursor:grabbing;}</style></head>
-<body><svg id="c" width="100%" height="580"></svg><script>
+#c{cursor:grab;}#c:active{cursor:grabbing;}
+#tt{position:fixed;pointer-events:none;opacity:0;transition:opacity .12s;max-width:300px;
+ font:12px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;padding:8px 10px;border-radius:8px;
+ box-shadow:0 4px 18px rgba(0,0,0,0.35);z-index:9;}
+#tt code{font-size:10px;opacity:.8;}</style></head>
+<body><div id="tt"></div><svg id="c" width="100%" height="580"></svg><script>
 const DATA=__DATA__, P=__PAL__;
+const tt=document.getElementById('tt');
+tt.style.background=P.tipbg; tt.style.color=P.tiptext; tt.style.border='1px solid '+P.tipborder;
 document.body.style.background='radial-gradient(circle at 50% 45%,'+P.bg1+','+P.bg2+')';
 const el=document.getElementById('c'); const W=el.clientWidth||820, H=580; const cx=W/2, cy=H/2-2;
 const svg=d3.select('#c').attr('width',W).attr('height',H);
@@ -1487,7 +1496,14 @@ const node=cont.append('g').selectAll('circle').data(nodes).join('circle')
  .attr('r',nR).attr('fill',nC).attr('opacity',nO)
  .attr('filter',function(d){return d.kind==='hyp'?'url(#g)':null;})
  .attr('stroke',function(d){return d.kind==='hyp'?'#0006':'none';}).attr('stroke-width',0.5);
-node.append('title').text(function(d){return d.label+(d.conf!=null?' ('+Math.round(d.conf*100)+'%)':'');});
+function showTip(e,d){if(!d.tip)return;tt.innerHTML=d.tip;tt.style.opacity=1;moveTip(e);}
+function moveTip(e){var x=e.clientX+14,y=e.clientY+14;
+ if(x+310>window.innerWidth)x=e.clientX-310;if(y+120>window.innerHeight)y=e.clientY-110;
+ tt.style.left=x+'px';tt.style.top=y+'px';}
+function hideTip(){tt.style.opacity=0;}
+node.on('mouseover',showTip).on('mousemove',moveTip).on('mouseout',hideTip)
+ .on('mouseenter',function(d){d3.select(this).attr('stroke',P.tiptext).attr('stroke-width',1.5);})
+ .on('mouseleave',function(d){d3.select(this).attr('stroke',function(d){return d.kind==='hyp'?'#0006':'none';}).attr('stroke-width',0.5);});
 const labLayer=svg.append('g');
 const lab=labLayer.selectAll('text').data(nodes.filter(function(d){return d.kind==='hyp';})).join('text')
  .attr('fill',P.label).attr('font-size',11.5).attr('font-weight',700).attr('text-anchor','middle')
@@ -1692,31 +1708,48 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                         corpus = database.count_records()
                     except Exception:
                         corpus = 0
+                    def _esc(s):
+                        return (str(s or "").replace("&", "&amp;").replace("<", "&lt;")
+                                .replace(">", "&gt;"))
                     _cnodes, _clinks = [], []
                     for _h in hyps:
+                        _tip = (f"<b>{_esc(_h['label'])}</b> · {_esc(_h['status'])} · "
+                                f"{round(float(_h['confidence'] or 0)*100)}%<br>"
+                                f"<span style='opacity:.85'>{_esc((_h.get('statement') or '')[:150])}</span>")
                         _cnodes.append({"id": _h["hypothesis_id"], "label": _h["label"] or "H",
                                         "kind": "hyp", "conf": float(_h["confidence"] or 0),
-                                        "status": _h["status"]})
+                                        "status": _h["status"], "tip": _tip})
                     for _h in hyps:
                         for _p in _h["predictions"]:
                             _pid = _p["prediction_id"]
+                            _ptip = (f"<b>{_esc(_p.get('descriptor_name'))}</b> "
+                                     f"<span style='opacity:.7'>(prediction · {_esc(_h['label'])})</span>"
+                                     f"<br>verdict: {_esc(_p.get('verdict') or '—')} "
+                                     f"({_esc(_p.get('strength') or '—')})"
+                                     f"<br>falsified if: {_esc((_p.get('falsification_criterion') or '—')[:120])}")
                             _cnodes.append({"id": _pid, "label": _p.get("descriptor_name") or "",
                                             "kind": "pred", "verdict": _p.get("verdict"),
-                                            "strength": _p.get("strength")})
+                                            "strength": _p.get("strength"), "tip": _ptip})
                             _clinks.append({"source": _pid, "target": _h["hypothesis_id"],
                                             "rel": "pred", "verdict": _p.get("verdict"),
                                             "strength": _p.get("strength")})
                             for _rid in (_p.get("evidence_record_ids") or [])[:6]:
                                 _enid = _rid + "|" + _pid
-                                _cnodes.append({"id": _enid, "label": _rid, "kind": "evid"})
+                                _mat = prov.get(_rid, {}).get("material", "")
+                                _etip = (f"<b>evidence record</b><br>{_esc(_mat[:60])}"
+                                         f"<br><code>{_esc(_rid)}</code>")
+                                _cnodes.append({"id": _enid, "label": _rid, "kind": "evid",
+                                                "tip": _etip})
                                 _clinks.append({"source": _enid, "target": _pid, "rel": "evid"})
                     for _r in relations:
                         _clinks.append({"source": _r["from_hypothesis_id"],
                                         "target": _r["to_hypothesis_id"], "rel": _r["relation_type"]})
                     # the dense screened-descriptor field — the outer-ring complexity
                     for _name, _v in list(ev_idx.items())[:200]:
-                        _cnodes.append({"id": "scr|" + _name, "label": _name,
-                                        "kind": "screened", "n": (_v or {}).get("n", 1)})
+                        _stip = (f"<b>screened descriptor</b><br>{_esc(_name)}"
+                                 f"<br>{(_v or {}).get('n', 1)} records in the corpus")
+                        _cnodes.append({"id": "scr|" + _name, "label": _name, "kind": "screened",
+                                        "n": (_v or {}).get("n", 1), "tip": _stip})
                     components.html(_constellation_html(
                         {"nodes": _cnodes, "links": _clinks,
                          "corpus": {"records": corpus or 0, "screened": n_desc, "cited": n_ev}},
@@ -1870,7 +1903,9 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                                 st.json(mech, expanded=False)
                             else:
                                 st.write(str(mech))
-                        st.markdown("**Predictions & verification (audit trail)**")
+                        st.markdown(f"**Falsifying predictions** "
+                                    f"({len(h['predictions'])}) — each would, if it failed, "
+                                    f"weaken this hypothesis")
                         if not h["predictions"]:
                             st.caption("_No predictions yet._")
                         for p in h["predictions"]:
@@ -1886,9 +1921,23 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                                 f"· evidence: {nev} · compute: {len(cr)} · `{ws}`")
                             if p.get("direction") or p.get("falsification_criterion"):
                                 st.caption(f"↳ expects **{p.get('direction') or '—'}**; "
-                                           f"falsified if: {p.get('falsification_criterion') or '—'}")
+                                           f"**falsified if:** {p.get('falsification_criterion') or '—'}")
+                            # how this prediction was produced (provenance)
+                            _po = p.get("origin")
+                            if isinstance(_po, dict) and _po:
+                                _bits = []
+                                if _po.get("type"):
+                                    _bits.append(f"`{_po['type']}`")
+                                if _po.get("summary"):
+                                    _bits.append(_po["summary"])
+                                st.caption("↳ **how produced:** " + " — ".join(_bits)
+                                           + (f"  ·  {_po['reasoning']}" if _po.get("reasoning") else "")
+                                           + ("  ·  sources: " + ", ".join(str(s) for s in _po["sources"])
+                                              if _po.get("sources") else ""))
+                            elif _po:
+                                st.caption(f"↳ **how produced:** {_po}")
                             if p.get("rationale"):
-                                st.caption(f"↳ **why:** {p['rationale']}")
+                                st.caption(f"↳ **verdict reasoning:** {p['rationale']}")
                             if nev:
                                 ev_txt = ", ".join(
                                     f"`{rid}`·{prov.get(rid, {}).get('material', '?')[:18]}"

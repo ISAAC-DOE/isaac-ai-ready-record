@@ -100,7 +100,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.9-provisional",
+        "version": "0.10-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -204,8 +204,11 @@ def get_manifest() -> dict:
             {"m": "PUT", "path": "/hypotheses/{id}",
              "purpose": "Update status / confidence / confidence_basis."},
             {"m": "POST", "path": "/hypotheses/{id}/predictions",
-             "purpose": "Add a prediction (descriptor_name, direction, falsification, "
-                        "output_quantity, discriminates:[{hypothesis_label,expected}])."},
+             "purpose": "Add a FALSIFYING prediction (descriptor_name, direction, "
+                        "falsification_criterion, output_quantity, "
+                        "discriminates:[{hypothesis_label,expected}], and `origin` = HOW "
+                        "this prediction was produced). Record every prediction that "
+                        "would falsify the hypothesis, each with its origin."},
             {"m": "POST", "path": "/hypotheses/{id}/relations",
              "purpose": "Link hypotheses {to_hypothesis_id, relation_type, note}."},
             {"m": "PUT", "path": "/predictions/{id}/status",
@@ -245,6 +248,12 @@ def get_manifest() -> dict:
             "origin": {"type": "agent_reasoning|literature|prior_result|human",
                        "summary": "str", "reasoning": "str",
                        "sources": "[{record_id|doi|hypothesis}]"},
+            "prediction_origin": {"_for": "how a FALSIFYING prediction was produced",
+                       "type": "derived_from_mechanism|discrimination_design|literature|"
+                                "prior_result|agent_reasoning",
+                       "summary": "str (one line: where it came from)",
+                       "reasoning": "str (why this measurable falsifies the hypothesis)",
+                       "sources": "[{record_id|doi}]"},
             "event": {"event_type": "(required, from event_types)",
                       "summary": "(REQUIRED, one line)", "detail": "(optional, long)",
                       "hypothesis_id": "optional", "evidence_record_ids": "optional",
@@ -610,7 +619,7 @@ def update_hypothesis(hypothesis_id, *, status=None, confidence=None,
 
 def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=None,
                       reference_condition=None, magnitude=None, output_quantity=None,
-                      falsification_criterion=None, discriminates=None,
+                      falsification_criterion=None, discriminates=None, origin=None,
                       actor=None) -> str | None:
     conn = _conn()
     cur = conn.cursor()
@@ -623,11 +632,12 @@ def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=N
             """INSERT INTO hyp_predictions
                  (prediction_id, hypothesis_id, label, descriptor_name, direction,
                   reference_condition, magnitude, output_quantity,
-                  falsification_criterion, discriminates)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                  falsification_criterion, discriminates, origin)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (prediction_id, hypothesis_id, label, descriptor_name, direction,
              reference_condition, magnitude, output_quantity, falsification_criterion,
-             json.dumps(discriminates) if discriminates is not None else None))
+             json.dumps(discriminates) if discriminates is not None else None,
+             json.dumps(origin) if origin is not None else None))
         _append_event(cur, project_id, "prediction_added",
                       f"Prediction added: {descriptor_name} ({direction or '?'})",
                       hypothesis_id=hypothesis_id, actor=actor)
