@@ -100,7 +100,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.11-provisional",
+        "version": "0.12-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -351,6 +351,11 @@ def get_manifest() -> dict:
                     "so they never diverge.",
             },
             "literature_search": {
+                "purpose": "Cited literature search over the published corpus. The "
+                    "portal proxies Edison Scientific (FutureHouse PaperQA3) so you get "
+                    "agentic, reference-backed answers with sources — without ever "
+                    "handling the Edison API key. Use it to ground a hypothesis origin "
+                    "or cross-check a prediction against prior work.",
                 "provider": "Edison Scientific (FutureHouse PaperQA3)",
                 "via": "portal_proxy — the portal holds the Edison key server-side; "
                     "you never see it.",
