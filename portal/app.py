@@ -1436,59 +1436,82 @@ elif page == "Discovery":
                 f"<div style='background:{color};width:{pct}%;height:14px;"
                 f"border-radius:4px'></div></div></div>")
 
-        def _constellation_html(payload):
+        def _constellation_html(payload, theme="dark"):
+            dark = theme != "light"
+            pal = json.dumps({
+                "bg1": "#0c1226" if dark else "#eef3fa",
+                "bg2": "#04050a" if dark else "#dbe6f3",
+                "ring": "#24324f" if dark else "#c6d3e4",
+                "ringlab": "#46587e" if dark else "#90a4c0",
+                "badge": "#8bbad2" if dark else "#3d6885",
+                "label": "#eef3ff" if dark else "#10243a",
+                "labshadow": "rgba(0,0,0,0.6)" if dark else "rgba(255,255,255,0.85)",
+                "screened": "#33446a" if dark else "#a9bad4",
+                "evid": "#d6dee6" if dark else "#5f7081",
+                "relrest": "#7e8aa0" if dark else "#9aa7bd",
+            })
             data = json.dumps(payload)
-            tmpl = """
+            tmpl = r"""
 <html><head><script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-<style>html,body{margin:0;background:radial-gradient(circle at 50% 46%,#0c1226,#05060b);}
-text{font-family:-apple-system,Segoe UI,Roboto,sans-serif;}</style></head>
-<body><svg id="c" width="100%" height="540"></svg><script>
-const DATA = __DATA__;
-const el=document.getElementById('c'); const W=el.clientWidth||760, H=540;
-const cx=W/2, cy=H/2-6;
-const svg=d3.select('#c').attr('viewBox','0 0 '+W+' '+H);
+<style>html,body{margin:0;overflow:hidden;}text{font-family:-apple-system,Segoe UI,Roboto,sans-serif;}
+#c{cursor:grab;}#c:active{cursor:grabbing;}</style></head>
+<body><svg id="c" width="100%" height="580"></svg><script>
+const DATA=__DATA__, P=__PAL__;
+document.body.style.background='radial-gradient(circle at 50% 45%,'+P.bg1+','+P.bg2+')';
+const el=document.getElementById('c'); const W=el.clientWidth||820, H=580; const cx=W/2, cy=H/2-2;
+const svg=d3.select('#c').attr('width',W).attr('height',H);
 const defs=svg.append('defs');
-const glow=defs.append('filter').attr('id','g').attr('x','-60%').attr('y','-60%').attr('width','220%').attr('height','220%');
-glow.append('feGaussianBlur').attr('stdDeviation','3').attr('result','b');
-const fm=glow.append('feMerge'); fm.append('feMergeNode').attr('in','b'); fm.append('feMergeNode').attr('in','SourceGraphic');
-const SC={supported:'#ffca28',eliminated:'#6a6a6a',needs_more_data:'#ffa726',proposed:'#4aa3ff',superseded:'#555'};
+const glow=defs.append('filter').attr('id','g').attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
+glow.append('feGaussianBlur').attr('stdDeviation','3.6').attr('result','b');
+const fm=glow.append('feMerge');fm.append('feMergeNode').attr('in','b');fm.append('feMergeNode').attr('in','SourceGraphic');
+const SC={supported:'#ffca28',eliminated:'#6f6f6f',needs_more_data:'#ffa726',proposed:'#4aa3ff',superseded:'#5a5a5a'};
 const VC={supports:'#26c6da',contradicts:'#ec407a',neutral:'#90a4ae',insufficient:'#5c6b7a'};
-function rT(d){return d.kind==='hyp'?55+(1-(d.conf||0))*150:d.kind==='pred'?255:345;}
-function nR(d){return d.kind==='hyp'?8+(d.conf||0)*22:d.kind==='pred'?({strong:7,moderate:5,weak:3}[d.strength]||4):2.4;}
-function nC(d){return d.kind==='hyp'?(SC[d.status]||'#90caf9'):d.kind==='pred'?(VC[d.verdict]||'#455a64'):'#cfd8dc';}
-[[55,'leading'],[255,'predictions'],[345,'evidence']].forEach(function(p){
- svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',p[0]).attr('fill','none').attr('stroke','#1d2a48').attr('stroke-dasharray','3,6');
- svg.append('text').attr('x',cx).attr('y',cy-p[0]-3).attr('fill','#3a4a6e').attr('font-size',10).attr('text-anchor','middle').text(p[1]);});
-svg.append('text').attr('x',14).attr('y',24).attr('fill','#7fb0c8').attr('font-size',12)
- .text(DATA.corpus.records+'  records   \\u2192   '+DATA.corpus.screened+'  descriptors screened   \\u2192   '+DATA.corpus.cited+'  cited as evidence');
+function rT(d){return d.kind==='hyp'?56+(1-(d.conf||0))*150:d.kind==='pred'?250:d.kind==='evid'?330:392;}
+function nR(d){return d.kind==='hyp'?8+(d.conf||0)*22:d.kind==='pred'?({strong:7,moderate:5,weak:3}[d.strength]||4):d.kind==='evid'?3:1.3+Math.min(3.4,Math.log((d.n||1)+1));}
+function nC(d){return d.kind==='hyp'?(SC[d.status]||'#90caf9'):d.kind==='pred'?(VC[d.verdict]||'#455a64'):d.kind==='evid'?P.evid:P.screened;}
+function nO(d){return d.kind==='screened'?0.45:d.kind==='evid'?0.85:(d.status==='eliminated'||d.status==='superseded')?0.45:1;}
+[[56,'leading'],[250,'predictions'],[330,'evidence'],[392,'screened']].forEach(function(p){
+ svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',p[0]).attr('fill','none').attr('stroke',P.ring).attr('stroke-dasharray','2,7').attr('opacity',0.7);
+ svg.append('text').attr('x',cx).attr('y',cy-p[0]-3).attr('fill',P.ringlab).attr('font-size',9).attr('text-anchor','middle').attr('opacity',0.85).text(p[1]);});
+svg.append('text').attr('x',16).attr('y',26).attr('fill',P.badge).attr('font-size',12).attr('font-weight',600)
+ .text(DATA.corpus.records.toLocaleString()+'  records   →   '+DATA.corpus.screened+'  descriptors screened   →   '+DATA.corpus.cited+'  cited');
 const nodes=DATA.nodes.map(function(d){return Object.assign({},d);});
 const links=DATA.links.map(function(d){return Object.assign({},d);});
-const link=svg.append('g').selectAll('line').data(links).join('line')
- .attr('stroke',function(d){return d.rel==='pred'?(VC[d.verdict]||'#37474f'):d.rel==='evid'?'#26324f':d.rel==='competes_with'?'#ef5350':d.rel==='co_operating'?'#66bb6a':'#7e8aa0';})
- .attr('stroke-opacity',function(d){return d.rel==='evid'?0.22:d.rel==='pred'?0.55:0.65;})
- .attr('stroke-width',function(d){return d.rel==='pred'?({strong:2.4,moderate:1.5,weak:0.8}[d.strength]||1):(d.rel==='competes_with'||d.rel==='co_operating')?1.7:0.6;})
+const cont=svg.append('g');
+const link=cont.append('g').selectAll('line').data(links).join('line')
+ .attr('stroke',function(d){return d.rel==='pred'?(VC[d.verdict]||'#37474f'):d.rel==='evid'?P.screened:d.rel==='competes_with'?'#ef5350':d.rel==='co_operating'?'#66bb6a':P.relrest;})
+ .attr('stroke-opacity',function(d){return d.rel==='evid'?0.2:d.rel==='pred'?0.5:0.6;})
+ .attr('stroke-width',function(d){return d.rel==='pred'?({strong:2.4,moderate:1.5,weak:0.8}[d.strength]||1):(d.rel==='competes_with'||d.rel==='co_operating')?1.6:0.6;})
  .attr('stroke-dasharray',function(d){return d.rel==='competes_with'?'4,3':null;});
-const node=svg.append('g').selectAll('circle').data(nodes).join('circle')
- .attr('r',nR).attr('fill',nC)
- .attr('opacity',function(d){return d.kind==='evid'?0.75:(d.status==='eliminated'||d.status==='superseded')?0.45:1;})
+const node=cont.append('g').selectAll('circle').data(nodes).join('circle')
+ .attr('r',nR).attr('fill',nC).attr('opacity',nO)
  .attr('filter',function(d){return d.kind==='hyp'?'url(#g)':null;})
- .attr('stroke','#0009').attr('stroke-width',0.5);
+ .attr('stroke',function(d){return d.kind==='hyp'?'#0006':'none';}).attr('stroke-width',0.5);
 node.append('title').text(function(d){return d.label+(d.conf!=null?' ('+Math.round(d.conf*100)+'%)':'');});
-const lab=svg.append('g').selectAll('text').data(nodes.filter(function(d){return d.kind==='hyp';})).join('text')
- .attr('fill','#eaf0ff').attr('font-size',11).attr('font-weight',700).attr('text-anchor','middle')
- .text(function(d){return d.label+' '+Math.round((d.conf||0)*100)+'%';});
+const labLayer=svg.append('g');
+const lab=labLayer.selectAll('text').data(nodes.filter(function(d){return d.kind==='hyp';})).join('text')
+ .attr('fill',P.label).attr('font-size',11.5).attr('font-weight',700).attr('text-anchor','middle')
+ .style('paint-order','stroke').style('stroke',P.labshadow).style('stroke-width','3px').style('stroke-linejoin','round')
+ .text(function(d){return d.label+'  '+Math.round((d.conf||0)*100)+'%';});
+let rot=0, ds=null;
+function rp(x,y){var a=rot*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a),dx=x-cx,dy=y-cy;return [cx+dx*ca-dy*sa, cy+dx*sa+dy*ca];}
+function placeLabels(){lab.attr('x',function(d){return rp(d.x,d.y)[0];}).attr('y',function(d){return rp(d.x,d.y)[1]-nR(d)-5;});}
 const sim=d3.forceSimulation(nodes)
- .force('link',d3.forceLink(links).id(function(d){return d.id;}).distance(function(d){return d.rel==='pred'?70:d.rel==='evid'?45:120;}).strength(function(d){return d.rel==='pred'?0.45:0.18;}))
- .force('charge',d3.forceManyBody().strength(-85))
- .force('r',d3.forceRadial(rT,cx,cy).strength(0.85))
- .force('collide',d3.forceCollide().radius(function(d){return nR(d)+2;}))
+ .force('link',d3.forceLink(links).id(function(d){return d.id;}).distance(function(d){return d.rel==='pred'?66:d.rel==='evid'?40:120;}).strength(function(d){return d.rel==='pred'?0.45:0.18;}))
+ .force('charge',d3.forceManyBody().strength(function(d){return d.kind==='screened'?-12:-72;}))
+ .force('r',d3.forceRadial(rT,cx,cy).strength(0.92))
+ .force('x',d3.forceX(cx).strength(0.045)).force('y',d3.forceY(cy).strength(0.045))
+ .force('collide',d3.forceCollide().radius(function(d){return nR(d)+(d.kind==='screened'?1.4:2.6);}))
  .on('tick',function(){
   link.attr('x1',function(d){return d.source.x;}).attr('y1',function(d){return d.source.y;}).attr('x2',function(d){return d.target.x;}).attr('y2',function(d){return d.target.y;});
   node.attr('cx',function(d){return d.x;}).attr('cy',function(d){return d.y;});
-  lab.attr('x',function(d){return d.x;}).attr('y',function(d){return d.y-nR(d)-4;});});
+  placeLabels();});
+svg.call(d3.drag()
+ .on('start',function(e){ds={a:Math.atan2(e.y-cy,e.x-cx),r:rot};})
+ .on('drag',function(e){if(!ds)return;rot=ds.r+(Math.atan2(e.y-cy,e.x-cx)-ds.a)*180/Math.PI;cont.attr('transform','rotate('+rot+','+cx+','+cy+')');placeLabels();}));
 </script></body></html>
 """
-            return tmpl.replace("__DATA__", data)
+            return tmpl.replace("__DATA__", data).replace("__PAL__", pal)
 
         def _funnel(stages):
             n = len(stages)
@@ -1602,93 +1625,55 @@ const sim=d3.forceSimulation(nodes)
             with tabImpact:
                 st.markdown("#### How the machine ranked these mechanisms")
                 st.caption("In a single autonomous run, the agent screened the ISAAC "
-                           "evidence corpus, posed competing mechanisms, tested "
-                           "falsifiable predictions against real data **and** fresh "
-                           "supercomputer calculations, and converged on a ranked, "
-                           "fully-auditable answer.")
-                preds_all = [p for h in hyps for p in h["predictions"]]
-                n_eval = sum(1 for p in preds_all if p.get("verdict"))
-                n_runs = sum(len(p.get("compute_runs") or []) for p in preds_all)
-                n_ev = len({rid for p in preds_all
-                            for rid in (p.get("evidence_record_ids") or [])})
-                n_desc = len(brief.get("evidence_index", {}))
-                leader = hyps[0] if hyps else None
-                try:
-                    corpus = database.count_records()
-                except Exception:
-                    corpus = 0
-
-                # Hero: the Convergent Constellation (radial force graph).
-                _cnodes, _clinks = [], []
-                for _h in hyps:
-                    _cnodes.append({"id": _h["hypothesis_id"], "label": _h["label"] or "H",
-                                    "kind": "hyp", "conf": float(_h["confidence"] or 0),
-                                    "status": _h["status"]})
-                for _h in hyps:
-                    for _p in _h["predictions"]:
-                        _pid = _p["prediction_id"]
-                        _cnodes.append({"id": _pid, "label": _p.get("descriptor_name") or "",
-                                        "kind": "pred", "verdict": _p.get("verdict"),
-                                        "strength": _p.get("strength")})
-                        _clinks.append({"source": _pid, "target": _h["hypothesis_id"],
-                                        "rel": "pred", "verdict": _p.get("verdict"),
-                                        "strength": _p.get("strength")})
-                        for _rid in (_p.get("evidence_record_ids") or [])[:6]:
-                            _enid = _rid + "|" + _pid
-                            _cnodes.append({"id": _enid, "label": _rid, "kind": "evid"})
-                            _clinks.append({"source": _enid, "target": _pid, "rel": "evid"})
-                for _r in relations:
-                    _clinks.append({"source": _r["from_hypothesis_id"],
-                                    "target": _r["to_hypothesis_id"],
-                                    "rel": _r["relation_type"]})
-                if hyps:
-                    components.html(_constellation_html({
-                        "nodes": _cnodes, "links": _clinks,
-                        "corpus": {"records": corpus or 0, "screened": n_desc, "cited": n_ev}}),
-                        height=560)
-                    st.caption("Force-directed convergence — evidence (rim) → predictions "
-                               "(mid) → hypotheses (core); a hypothesis is pulled toward the "
-                               "centre by its confidence, `competes_with` ties push losers "
-                               "out. Every position, size and colour is a real value.")
-
-                m = st.columns(6)
-                m[0].metric("Mechanisms", len(hyps))
-                m[1].metric("Predictions", len(preds_all))
-                m[2].metric("Evaluations", n_eval)
-                m[3].metric("Real compute jobs", n_runs)
-                m[4].metric("Reasoning steps", len(events))
-                m[5].metric("Leading mechanism",
-                            f"{float(leader['confidence'] or 0) * 100:.0f}%" if leader else "—")
-
-                st.markdown("**From a corpus of evidence to one answer**")
-                stages = [("ISAAC records", corpus or 0, "the searchable evidence corpus"),
-                          ("descriptors screened", n_desc, "element-matched, indexed by measurable"),
-                          ("evidence records weighed", n_ev, "directly cited in verdicts"),
-                          ("competing mechanisms", len(hyps), "assessed in parallel"),
-                          ("falsifiable predictions", len(preds_all), "each discriminating"),
-                          ("real DFT / MLIP jobs", n_runs, "run on Perlmutter / S3DF"),
-                          ("leading mechanism", 1, leader["label"] if leader else "")]
-                st.markdown(_funnel(stages), unsafe_allow_html=True)
-
-                st.markdown("**The verdict — five mechanisms, ranked by confidence**")
-                st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
-                                         h["status"]) for h in hyps)
-                            or "_pending_", unsafe_allow_html=True)
-
-                st.markdown("**The reasoning cascade** — decisions accumulating across the run")
-                _cat = {"hypothesis_created": "hypotheses", "prediction_added": "predictions",
-                        "prediction_evaluated": "evaluations", "compute_submitted": "compute",
-                        "compute_running": "compute", "next_experiment_proposed": "next experiment"}
-                _cum = {"hypotheses": 0, "predictions": 0, "evaluations": 0,
-                        "compute": 0, "next experiment": 0}
-                _rows = []
-                for e in reversed(events):  # chronological
-                    c = _cat.get(e["event_type"])
-                    if c:
-                        _cum[c] += 1
-                    _rows.append(dict(_cum))
-                if _rows:
-                    st.area_chart(pd.DataFrame(_rows))
+                           "evidence corpus, posed competing mechanisms, tested falsifiable "
+                           "predictions against real data **and** fresh supercomputer "
+                           "calculations, and converged on a ranked answer — the full detail "
+                           "is in the tabs to the right.")
+                if not hyps:
+                    st.caption("_No hypotheses yet._")
+                else:
+                    ev_idx = brief.get("evidence_index", {})
+                    n_desc = len(ev_idx)
+                    n_ev = len({rid for _h in hyps for _p in _h["predictions"]
+                                for rid in (_p.get("evidence_record_ids") or [])})
+                    try:
+                        corpus = database.count_records()
+                    except Exception:
+                        corpus = 0
+                    _cnodes, _clinks = [], []
+                    for _h in hyps:
+                        _cnodes.append({"id": _h["hypothesis_id"], "label": _h["label"] or "H",
+                                        "kind": "hyp", "conf": float(_h["confidence"] or 0),
+                                        "status": _h["status"]})
+                    for _h in hyps:
+                        for _p in _h["predictions"]:
+                            _pid = _p["prediction_id"]
+                            _cnodes.append({"id": _pid, "label": _p.get("descriptor_name") or "",
+                                            "kind": "pred", "verdict": _p.get("verdict"),
+                                            "strength": _p.get("strength")})
+                            _clinks.append({"source": _pid, "target": _h["hypothesis_id"],
+                                            "rel": "pred", "verdict": _p.get("verdict"),
+                                            "strength": _p.get("strength")})
+                            for _rid in (_p.get("evidence_record_ids") or [])[:6]:
+                                _enid = _rid + "|" + _pid
+                                _cnodes.append({"id": _enid, "label": _rid, "kind": "evid"})
+                                _clinks.append({"source": _enid, "target": _pid, "rel": "evid"})
+                    for _r in relations:
+                        _clinks.append({"source": _r["from_hypothesis_id"],
+                                        "target": _r["to_hypothesis_id"], "rel": _r["relation_type"]})
+                    # the dense screened-descriptor field — the outer-ring complexity
+                    for _name, _v in list(ev_idx.items())[:200]:
+                        _cnodes.append({"id": "scr|" + _name, "label": _name,
+                                        "kind": "screened", "n": (_v or {}).get("n", 1)})
+                    components.html(_constellation_html(
+                        {"nodes": _cnodes, "links": _clinks,
+                         "corpus": {"records": corpus or 0, "screened": n_desc, "cited": n_ev}},
+                        st.session_state.ui_theme), height=600)
+                    st.caption("**Drag to rotate.** The faint outer field is every descriptor "
+                               "screened; bright nodes are cited evidence → predictions → the "
+                               "hypothesis stars, each drawn toward the centre by its "
+                               "confidence (`competes_with` ties push losers out). Every "
+                               "position, size and colour is a real value.")
 
             # ---- E: Evidence index (by descriptor) + discrimination matrix ----
             with tabE:
