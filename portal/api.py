@@ -34,6 +34,7 @@ if str(_portal_dir) not in sys.path:
 import database  # noqa: E402  (same import style as app.py)
 import ontology  # noqa: E402
 import discovery  # noqa: E402  (isolated isaac_discovery data-access)
+import literature  # noqa: E402  (Edison literature gateway/proxy)
 
 # ---------------------------------------------------------------------------
 # Flask app setup
@@ -803,6 +804,39 @@ def delete_record(record_id):
 
 def _disc_identity():
     return (request.auth_info or {}).get("user")
+
+
+@app.route("/portal/api/literature/search", methods=["POST"])
+@_require_auth
+def literature_search():
+    """Literature gateway: submit a cited-literature query (Edison/PaperQA3). The
+    portal holds the Edison key server-side; agents use their normal portal token.
+    Async — returns a task_id; poll GET /literature/search/{task_id}."""
+    if not literature.is_configured():
+        return jsonify({"error": "literature gateway not configured "
+                                 "(EDISON_PLATFORM_API_KEY unset on the server)"}), 503
+    d = request.get_json(silent=True) or {}
+    if not d.get("query"):
+        return jsonify({"error": "query is required"}), 400
+    try:
+        task_id = literature.submit(d["query"], d.get("job", "literature"))
+    except Exception as exc:
+        logger.exception("Edison submit failed")
+        return jsonify({"error": f"literature submit failed: {exc}"}), 502
+    return jsonify({"task_id": task_id, "status": "submitted",
+                    "poll": f"/portal/api/literature/search/{task_id}"}), 202
+
+
+@app.route("/portal/api/literature/search/<task_id>", methods=["GET"])
+@_require_auth
+def literature_poll(task_id):
+    if not literature.is_configured():
+        return jsonify({"error": "literature gateway not configured"}), 503
+    try:
+        return jsonify(literature.poll(task_id)), 200
+    except Exception as exc:
+        logger.exception("Edison poll failed")
+        return jsonify({"error": f"literature poll failed: {exc}"}), 502
 
 
 @app.route("/portal/api/discovery/manifest", methods=["GET"])

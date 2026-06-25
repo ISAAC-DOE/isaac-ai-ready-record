@@ -100,7 +100,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.5-provisional",
+        "version": "0.6-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -229,18 +229,21 @@ def get_manifest() -> dict:
                     "MLflow mirrors for replay — write the dashboard FIRST, then mirror, "
                     "so they never diverge.",
             },
-            "literature_edison": {
-                "use": "the `edison-client` Python package (FutureHouse PaperQA3).",
-                "do_not": "DO NOT call `api.edisonsci.com` — that host is DEAD/retired "
-                    "(NXDOMAIN). It was migrated to the client below.",
-                "host": "platform.edisonscientific.com",
-                "auth": "env EDISON_API_KEY",
-                "snippet": "from edison_client import EdisonClient, JobNames; "
-                    "c = EdisonClient(api_key=os.environ['EDISON_API_KEY']); "
-                    "t = c.create_task({'name': JobNames.LITERATURE, 'query': '...'}); "
-                    "# poll c.get_task(t) until status success (~2-5 min)",
-                "job_types": ["LITERATURE", "LITERATURE_HIGH", "PRECEDENT",
-                              "ANALYSIS", "MOLECULES"],
+            "literature_search": {
+                "provider": "Edison Scientific (FutureHouse PaperQA3)",
+                "via": "portal_proxy — the portal holds the Edison key server-side; "
+                    "you never see it.",
+                "submit": "POST /literature/search {query, job} -> {task_id} (202). "
+                    "job ∈ literature | literature_high | precedent | analysis.",
+                "poll": "GET /literature/search/{task_id} -> {status, done, answer, "
+                    "sources}. Async: PaperQA3 takes ~2-5 min; poll until done.",
+                "auth": "your existing portal Bearer token (no Edison key needed).",
+                "use_when": "forming a hypothesis `origin`, or cross-checking a "
+                    "prediction against published work.",
+                "note": "The OLD api.edisonsci.com host is DECOMMISSIONED. Direct REST "
+                    "(only if the proxy is ever unavailable) is "
+                    "api.platform.edisonscientific.com with an api_key->JWT exchange at "
+                    "/auth/login. Prefer the proxy.",
             },
         },
         "vocabulary_is_normalized": "Verdicts and relation_types are accept-and-"
@@ -661,6 +664,9 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         "pending_compute": pending_compute,
         "discrimination_matrix": matrix,
         "evidence_index": _evidence_summary(evidence_index),
+        "literature": "For published-evidence cross-checks (Edison/PaperQA3): "
+                      "POST /portal/api/literature/search {query, job}, then poll "
+                      "GET /portal/api/literature/search/{task_id}.",
         "next_experiment": proj.get("next_experiment"),
         "recent_journal": [{"event_type": e["event_type"], "summary": e["summary"],
                             "at": (e["created_at"].isoformat()
