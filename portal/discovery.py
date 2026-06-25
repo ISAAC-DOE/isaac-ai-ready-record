@@ -107,7 +107,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.14-provisional",
+        "version": "0.15-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -119,7 +119,11 @@ def get_manifest() -> dict:
             "predictions that would kill it, every prediction with recorded provenance, "
             "resolved by discriminating evidence. This is the contract, not a suggestion.",
             "READ before you act: GET /projects/{id}/briefing at the start of every "
-            "turn; treat it as authoritative current state and reconcile to it.",
+            "turn; treat it as authoritative current state and reconcile to it. The "
+            "briefing is SELF-INSTRUCTING — its `recommended_actions` is your "
+            "prioritized to-do (derived from method_compliance + rigor_review), and "
+            "`method_compliance` is the live audit. You do NOT need a human to tell you "
+            "the next rigor step; the dashboard does. Work the actions until clear.",
             "WRITE after you act: every hypothesis, prediction, verdict, status "
             "change and compute run is an API write. If it is not on the dashboard, "
             "it did not happen — never hold project state only in your context.",
@@ -315,9 +319,21 @@ def get_manifest() -> dict:
                 "turn GET the project's /briefing and reconcile to it; write every "
                 "hypothesis, prediction, verdict and reasoning step back via the API — "
                 "if it isn't written to the dashboard, it didn't happen.\n\n"
+                "7. The briefing is SELF-INSTRUCTING: its `recommended_actions` is your "
+                "prioritized to-do and `method_compliance` + `rigor_review` are the live "
+                "rigor audit. You do NOT need a human to spell out the next step — work "
+                "the recommended_actions (declare evidence_independence, attach "
+                "discriminating observables, commission an independent rigor review for "
+                "high-confidence claims, resolve findings, …) until they clear.\n\n"
                 "Then tell me, in your own words, the current state and full history of "
                 "the project (or the workflow for a new one), and what to do next."
             ),
+            "minimal_human_prompt": "Reproducibility note: a human should NOT need to "
+                "give task-specific scientific instructions. The whole protocol — the "
+                "method, the guardrails, and the per-turn to-do — comes from this "
+                "manifest + the briefing. A sufficient human prompt is just: 'Connect to "
+                "ISAAC Discovery with this token, resume project <id> (or start one for "
+                "<goal>), and follow the manifest and the briefing's recommended_actions.'",
         },
         "object_model": "project -> hypotheses -> predictions; append-only events "
                         "journal; one next_experiment per project. evidence_record_ids "
@@ -1150,7 +1166,8 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     supported, eliminated = [], []
     matrix = []
     hyps_without_falsifier, preds_without_origin, preds_without_criterion = [], [], []
-    circular_confirmations = []
+    circular_confirmations, supports_without_independence = [], []
+    high_conf_hyps = []
     for h in hyps:
         ranking.append({"label": h["label"], "status": h["status"],
                         "confidence": h["confidence"], "statement": _oneline(h["statement"])})
@@ -1158,6 +1175,8 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             supported.append(h["label"])
         elif h["status"] == "eliminated":
             eliminated.append(h["label"])
+        if h["status"] == "supported" or (h["confidence"] or 0) >= 0.7:
+            high_conf_hyps.append(h["label"])
         if not h["predictions"]:
             hyps_without_falsifier.append(h["label"])
         for p in h["predictions"]:
@@ -1178,11 +1197,16 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             if ws == "evaluated":
                 nv = normalize_verdict(p.get("verdict"))
                 # Use-novelty: a 'supports' verdict whose evidence was fit to the
-                # very data it's tested against is circular — flag it.
+                # very data it's tested against is circular — flag it. And a
+                # 'supports' verdict with NO independence declaration at all is
+                # unverified for use-novelty (the agent must declare it — esp. for
+                # model-based evidence — so omitted circularity becomes visible).
                 if nv == "supports":
                     _cf = _circularity_flag(p.get("evidence_independence"))
                     if _cf:
                         circular_confirmations.append({"prediction": _ptag, "issue": _cf})
+                    elif not p.get("evidence_independence"):
+                        supports_without_independence.append(_ptag)
                 (validated if nv == "supports"
                  else invalidated if nv == "contradicts"
                  else open_q).append(item)
@@ -1202,7 +1226,12 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                 f"{_hlabel.get(r['from_hypothesis_id'], '?')} supersedes "
                 f"{_hlabel.get(r['to_hypothesis_id'], '?')}")
 
-    open_findings = list_rigor_findings(project_id, status="open")
+    all_findings = list_rigor_findings(project_id)
+    open_findings = [f for f in all_findings if f["status"] == "open"]
+    # A high-confidence claim with NO findings on record at all has never faced an
+    # independent critic — flag it so the agent commissions one (it doesn't depend
+    # on me telling it to; the platform does).
+    high_confidence_without_review = high_conf_hyps if not all_findings else []
     rigor_review = {
         "open_findings": [
             {"finding_id": f["finding_id"], "severity": f["severity"],
@@ -1210,16 +1239,62 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
              "target_type": f["target_type"], "target_id": f["target_id"]}
             for f in open_findings],
         "open_critical": sum(1 for f in open_findings if f["severity"] == "critical"),
+        "ever_reviewed": bool(all_findings),
         "_note": ("Open findings from an INDEPENDENT rigor critic. Resolve (fix or "
                   "justify) or dismiss each before trusting a high-confidence claim. "
-                  "If there are none and confidence is high, request a review "
-                  "(see manifest.rigor_review)."),
+                  "If a high-confidence claim has never been reviewed, commission one "
+                  "(see manifest.rigor_review) — a clean review can post one minor "
+                  "'survives' finding as its record."),
     }
 
     elements = extract_elements(proj.get("material_system"))
     ov = proj.get("evidence_overrides") or {}
     evidence_index = build_evidence_index(elements, include_ids=ov.get("include"),
                                           exclude_ids=ov.get("exclude"))
+
+    # Self-instructing: turn the gaps above into an explicit, prioritized to-do so
+    # the agent learns what to do next FROM THE BRIEFING, not from a bespoke human
+    # prompt. Every action is a generic method/rigor step — never a science answer.
+    recommended_actions = []
+    if open_findings:
+        recommended_actions.append(
+            f"Resolve {len(open_findings)} open rigor finding(s) "
+            f"({rigor_review['open_critical']} critical): fix or justify each, then "
+            f"PUT /rigor/findings/{{id}} resolved|dismissed.")
+    if high_confidence_without_review:
+        recommended_actions.append(
+            "Commission an INDEPENDENT rigor review for high-confidence claim(s) "
+            f"{high_confidence_without_review} — none has faced a critic yet "
+            "(manifest.rigor_review: spawn a separate reviewer with the critic_prompt).")
+    if circular_confirmations:
+        recommended_actions.append(
+            f"Fix {len(circular_confirmations)} circular confirmation(s): a model fit "
+            "to the data it's tested on can't 'support' — re-evaluate as neutral or "
+            "confirm on held-out data (use-novelty).")
+    if supports_without_independence:
+        recommended_actions.append(
+            f"Declare evidence_independence on {len(supports_without_independence)} "
+            "'supports' verdict(s) that lack it (what the model was fit to vs tested "
+            "against) so use-novelty can be checked.")
+    if supersedes_without_discriminator:
+        recommended_actions.append(
+            f"Attach a discriminating_observable to {len(supersedes_without_discriminator)} "
+            "supersession(s) — or, if it's only a refinement, make it a version via "
+            "/hypotheses/{id}/refine instead of a new node.")
+    if hyps_without_falsifier:
+        recommended_actions.append(
+            f"Add ≥1 falsifying prediction to hypotheses {hyps_without_falsifier}.")
+    if preds_without_origin:
+        recommended_actions.append(
+            f"Add origin provenance to {len(preds_without_origin)} prediction(s).")
+    if preds_without_criterion:
+        recommended_actions.append(
+            f"Add a falsification_criterion to {len(preds_without_criterion)} prediction(s).")
+    if len(hyps) < 2:
+        recommended_actions.append("Frame ≥2 competing hypotheses.")
+    if not proj.get("next_experiment"):
+        recommended_actions.append("Propose the discriminating next experiment "
+                                   "(PUT /next_experiment).")
 
     return {
         "project_id": project_id,
@@ -1236,15 +1311,19 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         "open_questions": open_q,
         "pending_compute": pending_compute,
         "discrimination_matrix": matrix,
+        "recommended_actions": recommended_actions,
         "method_compliance": {
-            "_what": "Live check against the manifest `method`. Close these gaps — they "
-                     "are not optional formatting, they are what makes a claim auditable.",
+            "_what": "Live check against the manifest `method` + epistemic_guardrails. "
+                     "Close these gaps — they are what make a claim auditable. The "
+                     "`recommended_actions` list above turns them into your to-do.",
             "enough_competing_hypotheses": len(hyps) >= 2,
             "hypotheses_without_falsifying_prediction": hyps_without_falsifier,
             "predictions_missing_origin_provenance": preds_without_origin,
             "predictions_missing_falsification_criterion": preds_without_criterion,
             "circular_confirmations": circular_confirmations,
+            "supports_without_independence_declaration": supports_without_independence,
             "supersessions_without_discriminating_observable": supersedes_without_discriminator,
+            "high_confidence_without_independent_review": high_confidence_without_review,
         },
         "rigor_review": rigor_review,
         "evidence_index": _evidence_summary(evidence_index),

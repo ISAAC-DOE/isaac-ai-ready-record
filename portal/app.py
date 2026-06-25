@@ -1732,6 +1732,14 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
             else:
                 st.caption("🔬 Scientific rigor — all checks clear (and no open critic "
                            "findings).")
+            _recs = brief.get("recommended_actions") or []
+            if _recs:
+                with st.expander(f"🧭 What the agent should do next — {len(_recs)} "
+                                 "action(s), from the briefing", expanded=False):
+                    st.caption("The platform derives this to-do from the live state; the "
+                               "agent reads it from the briefing — no human prompt needed.")
+                    for _a in _recs:
+                        st.markdown(f"- {_a}")
 
             st.markdown("**Hypothesis ranking** — bar length = confidence, colour = status")
             st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
