@@ -103,7 +103,9 @@ html, body, [class*="css"], .stMarkdown, .stButton, .stSelectbox, .stTextInput {
 
 /* Quiet the chrome; calmer measure + generous bottom rhythm */
 #MainMenu, footer, header [data-testid="stToolbar"] {{ visibility: hidden; }}
-.block-container {{ max-width: 1080px; padding: 2.4rem 2rem 4rem; }}
+/* The native header bar is hidden but still occupies ~3.75rem at the very top;
+   clear it so the first element (the logo) isn't clipped under it. */
+.block-container {{ max-width: 1080px; padding: 4rem 2rem 4rem; }}
 
 /* Brand logo sizing — theme legibility handled by swapping the asset itself
    (white art on dark, dark art on light), see render_header/render_footer. */
