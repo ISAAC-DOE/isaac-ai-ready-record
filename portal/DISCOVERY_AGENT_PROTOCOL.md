@@ -59,6 +59,30 @@ re-checks it every turn.
 every prediction carries an `origin` *and* a `falsification_criterion`; evidence is
 method-gated; every decision is dual-written (dashboard event + MLflow mirror).
 
+## Epistemic guardrails (domain-agnostic — they bite in any field)
+
+Two rules about the *logic of evidence*, tracked live in every briefing's
+`method_compliance` (advisory now, enforced later). They are generic — nothing
+here is specific to any one science.
+
+1. **Use-novelty (no double-counting).** A model/computation *fit* to a datum
+   cannot also *confirm* it — accommodation is not prediction. You may build and
+   tune models freely (that's how hypotheses are *generated*; such a result is a
+   *hypothesis generator* and earns no confidence by itself). But when a verdict
+   leans on a model, declare `evidence_independence` (what it was fit to vs tested
+   against). If those overlap, the honest verdict is **`neutral`/consistent**, not
+   `supports`. Real confirmation is the model's prediction on data it did **not**
+   see — the discriminating experiment.
+2. **Hypothesis individuation.** A hypothesis *is* its empirical content (what it
+   predicts and forbids), not its mechanism story. Only sharpening a parameter or
+   wording → **refine in place** (`PUT /hypotheses/{id}/refine`, a new *version* of
+   the same node; keeps its evidence + history). A claim that predicts
+   *differently* on some observable (different sign, ordering, or scale — not just a
+   tighter number) → a **new hypothesis** that `supersedes` the old and **must name
+   the discriminating observable**. The superseded node and its refuted predictions
+   stay queryable — never overwrite a falsification. *Test:* if you can't name an
+   observable on which old and new diverge, it's a refinement, not a new hypothesis.
+
 ## Connect
 
 - Base URL: `https://isaac.slac.stanford.edu/portal/api`

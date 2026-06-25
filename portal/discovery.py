@@ -100,7 +100,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.12-provisional",
+        "version": "0.13-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -157,9 +157,56 @@ def get_manifest() -> dict:
                 "Every prediction carries an `origin` (provenance) AND a "
                 "`falsification_criterion`.",
                 "Evidence is methodological-compatibility-gated before it counts.",
+                "USE-NOVELTY: a model/computation fit to a datum cannot also COUNT as "
+                "confirming that datum — accommodation is not prediction. Declare "
+                "evidence_independence on evaluate; confirmation comes only from data "
+                "the fit did not already see.",
+                "INDIVIDUATION: a hypothesis IS its predictions. Only sharpening a "
+                "parameter or wording → refine in place (a new VERSION). A claim that "
+                "predicts DIFFERENTLY on some observable → a new hypothesis that "
+                "`supersedes` the old, and must name that discriminating observable.",
                 "Every decision is dual-written: dashboard event (canonical) + MLflow "
                 "mirror (replay).",
             ],
+        },
+        "epistemic_guardrails": {
+            "_what": "Two domain-agnostic rigor rules the platform tracks for you "
+                "(surfaced in every briefing's `method_compliance`; advisory now, "
+                "enforced later). They apply in ANY field — they are about the logic of "
+                "evidence, not about any particular science.",
+            "use_novelty": {
+                "rule": "Evidence used to BUILD or fit a hypothesis/model cannot also "
+                    "CONFIRM it. A model tuned until it reproduces an observation you "
+                    "already had earns ~zero confirmatory weight from that observation — "
+                    "it was used twice. This is the no-double-counting / overfitting / "
+                    "Texas-sharpshooter rule.",
+                "you_may": "Build and tune models freely — that is how hypotheses and "
+                    "predictions are GENERATED. Label such a result a hypothesis "
+                    "generator; it earns no confidence by itself.",
+                "you_must": "When you render a verdict that leans on a model/computation, "
+                    "declare `evidence_independence`: what the model was fit to vs what "
+                    "you are testing it against. If they overlap, the honest verdict is "
+                    "'neutral'/'consistent', not 'supports'. Real confirmation = the "
+                    "model's prediction on data it did NOT see (the discriminating "
+                    "experiment).",
+            },
+            "hypothesis_individuation": {
+                "rule": "Distinguish refining a hypothesis from replacing it. A "
+                    "hypothesis is individuated by its EMPIRICAL CONTENT (what it "
+                    "predicts and forbids), not by its mechanism narrative.",
+                "refine_in_place": "Same predictions, just sharper (tighter parameter, "
+                    "clearer wording, updated narrative) → PUT /hypotheses/{id}/refine "
+                    "(bumps `version`, keeps the node + its evidence + its history).",
+                "new_hypothesis": "Predicts DIFFERENTLY on some realizable observable "
+                    "(different sign, ordering, or scale — not just a tighter number) → "
+                    "create a NEW hypothesis, then add_relation('supersedes', "
+                    "discriminating_observable=<the observable where they diverge>, "
+                    "retained_vs_abandoned=<what carried over vs was dropped>). The "
+                    "superseded node and its refuted predictions stay queryable — never "
+                    "overwrite a falsification.",
+                "test": "If you cannot name an observable on which the new and old "
+                    "predict differently, it is a refinement, not a new hypothesis.",
+            },
         },
         "resume_protocol": "To CONTINUE an existing project from a cold start (a "
             "fresh agent with no prior memory): GET /projects to find it, then GET "
@@ -259,6 +306,12 @@ def get_manifest() -> dict:
              "purpose": "Add a hypothesis (statement, label, origin, mechanism)."},
             {"m": "PUT", "path": "/hypotheses/{id}",
              "purpose": "Update status / confidence / confidence_basis."},
+            {"m": "PUT", "path": "/hypotheses/{id}/refine",
+             "purpose": "REFINE a hypothesis in place as a new VERSION (same empirical "
+                        "content, sharpened): {statement?, mechanism?, confidence?, "
+                        "change_note, change_type}. Use this instead of a new node when "
+                        "you are only tightening — keeps the node, its evidence and "
+                        "history. See epistemic_guardrails.hypothesis_individuation."},
             {"m": "POST", "path": "/hypotheses/{id}/predictions",
              "purpose": "Add a FALSIFYING prediction (descriptor_name, direction, "
                         "falsification_criterion, output_quantity, "
@@ -266,7 +319,11 @@ def get_manifest() -> dict:
                         "this prediction was produced). Record every prediction that "
                         "would falsify the hypothesis, each with its origin."},
             {"m": "POST", "path": "/hypotheses/{id}/relations",
-             "purpose": "Link hypotheses {to_hypothesis_id, relation_type, note}."},
+             "purpose": "Link hypotheses {to_hypothesis_id, relation_type, note}. For "
+                        "`supersedes` also pass {discriminating_observable, "
+                        "retained_vs_abandoned, change_type} — the observable on which "
+                        "the new hypothesis predicts differently is what makes it new "
+                        "rather than a refinement."},
             {"m": "PUT", "path": "/predictions/{id}/status",
              "purpose": "Advance the prediction work_status lane."},
             {"m": "POST", "path": "/predictions/{id}/runs",
@@ -279,9 +336,12 @@ def get_manifest() -> dict:
             {"m": "DELETE", "path": "/runs/{run_id}",
              "purpose": "Delete a compute run (e.g. a stray duplicate)."},
             {"m": "PUT", "path": "/predictions/{id}/evaluate",
-             "purpose": "Terminal: set verdict + strength + evidence + mlflow_run_url. "
-                        "GATE on methodological compatibility (output_quantity / "
-                        "functional / corrections) before trusting an evidence record."},
+             "purpose": "Terminal: set verdict + strength + evidence + mlflow_run_url + "
+                        "evidence_independence. GATE on methodological compatibility "
+                        "(output_quantity / functional / corrections) before trusting a "
+                        "record. If the supporting model was fit to the data you're "
+                        "testing against (declare it in evidence_independence), the "
+                        "honest verdict is 'neutral', not 'supports' (use-novelty)."},
             {"m": "POST", "path": "/projects/{id}/events",
              "purpose": "Append a reasoning-transcript entry (one per step)."},
             {"m": "PUT", "path": "/projects/{id}/next_experiment",
@@ -320,6 +380,32 @@ def get_manifest() -> dict:
                                 "descriptor": "str", "facility": "str", "method": "str",
                                 "rationale": "str",
                                 "predicted_outcomes": "[{hypothesis_label, expected}]"},
+            "evidence_independence": {"_for": "USE-NOVELTY on a prediction verdict — "
+                                "declare what the supporting model was fit to vs tested "
+                                "against, so circular confirmation is visible.",
+                                "model_was_fit": "bool",
+                                "parameters_fit_to": "[evidence_id] (data the model was "
+                                "tuned on)",
+                                "tested_against": "[evidence_id] (data the verdict leans "
+                                "on)",
+                                "roles": "[{evidence: id, role: built_from|tested_against}]",
+                                "_check": "if parameters_fit_to ∩ tested_against ≠ ∅, the "
+                                "match is a consistency check, not confirmation → verdict "
+                                "should be 'neutral'."},
+            "supersedes_relation": {"_for": "individuation — why the new hypothesis is "
+                                "new, not a refinement.",
+                                "discriminating_observable": "str (the realizable "
+                                "observable on which new vs old predict DIFFERENTLY — "
+                                "sign/ordering/scale, not just a tighter number)",
+                                "retained_vs_abandoned": "str (what carried over vs was "
+                                "dropped)",
+                                "change_type": "mechanism_change|scope_change "
+                                "(parameter_refinement → refine in place instead)"},
+            "refine": {"_for": "PUT /hypotheses/{id}/refine — a new VERSION of the SAME "
+                                "node (same empirical content, sharpened).",
+                                "statement": "str?", "mechanism": "obj?",
+                                "confidence": "float?", "change_note": "str",
+                                "change_type": "refinement|reparameterization|rewording"},
         },
         "auditability": "Record EVERY decision point in BOTH places (dual-write): "
             "(1) POST an `event` to the dashboard with a `detail` carrying the full "
@@ -711,7 +797,14 @@ def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=N
 
 def evaluate_prediction(prediction_id, verdict, *, strength=None,
                         evidence_record_ids=None, rationale=None,
-                        mlflow_run_url=None, actor=None) -> bool:
+                        mlflow_run_url=None, evidence_independence=None,
+                        actor=None) -> bool:
+    """Terminal verdict on a prediction. `evidence_independence` declares
+    USE-NOVELTY: which evidence was used to BUILD/fit the supporting model vs to
+    TEST it. {model_was_fit:bool, parameters_fit_to:[id], tested_against:[id],
+    roles:[{evidence,role:built_from|tested_against}]}. If the same data both
+    built and tested a model, a 'supports' verdict is circular — surfaced in
+    method_compliance now (not yet auto-downgraded)."""
     verdict = normalize_verdict(verdict)
     conn = _conn()
     cur = conn.cursor()
@@ -728,19 +821,121 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
         cur.execute(
             """UPDATE hyp_predictions
                   SET verdict=%s, strength=%s, evidence_record_ids=%s,
-                      rationale=%s, mlflow_run_url=%s, work_status='evaluated',
-                      updated_at=NOW()
+                      rationale=%s, mlflow_run_url=%s, evidence_independence=%s,
+                      work_status='evaluated', updated_at=NOW()
                 WHERE prediction_id=%s""",
             (verdict, strength, evidence_record_ids, rationale, mlflow_run_url,
-             prediction_id))
+             json.dumps(evidence_independence) if evidence_independence is not None
+             else None, prediction_id))
+        _circ = _circularity_flag(evidence_independence)
+        _detail = rationale
+        if _circ:
+            _detail = (f"{rationale + chr(10) if rationale else ''}"
+                       f"⚠ use-novelty: {_circ}")
         _append_event(cur, row["project_id"], "prediction_evaluated",
                       f"Prediction evaluated: {row['descriptor_name']} → "
                       f"{verdict} ({strength or '?'})",
-                      detail=rationale, hypothesis_id=row["hypothesis_id"],
+                      detail=_detail, hypothesis_id=row["hypothesis_id"],
                       evidence_record_ids=evidence_record_ids,
                       mlflow_run_url=mlflow_run_url, actor=actor)
         conn.commit()
         return True
+    finally:
+        cur.close()
+        conn.close()
+
+
+def _circularity_flag(ind) -> str | None:
+    """Return a human-readable use-novelty warning if the declared evidence
+    independence reveals double-counting (data used to BUILD a model also used
+    to TEST it), else None. Domain-agnostic — purely a set-intersection check."""
+    if not isinstance(ind, dict):
+        return None
+    fit = set(ind.get("parameters_fit_to") or [])
+    tested = set(ind.get("tested_against") or [])
+    overlap = fit & tested
+    if overlap:
+        return ("evidence used to fit the model is also being used to test it "
+                f"({', '.join(sorted(overlap))}) — counts as a consistency check, "
+                "not independent confirmation")
+    roles = ind.get("roles") or []
+    if isinstance(roles, list):
+        seen = {}
+        for r in roles:
+            if isinstance(r, dict) and r.get("evidence"):
+                seen.setdefault(r["evidence"], set()).add(r.get("role"))
+        dual = [e for e, rs in seen.items()
+                if {"built_from", "tested_against"} <= rs]
+        if dual:
+            return (f"evidence both built and tested the hypothesis "
+                    f"({', '.join(sorted(dual))})")
+    return None
+
+
+def refine_hypothesis(hypothesis_id, *, statement=None, mechanism=None,
+                      confidence=None, change_note=None, change_type="refinement",
+                      actor=None) -> int | None:
+    """Refine a hypothesis IN PLACE as a new VERSION (not a new node). Use this
+    when the empirical content is the same and you are only sharpening it (tighter
+    parameter, clearer wording, updated mechanism narrative). For a genuinely new
+    claim that predicts differently, create a new hypothesis + add_relation(
+    'supersedes', discriminating_observable=...). Snapshots the prior state into
+    hyp_hypothesis_versions and bumps `version`. Returns the new version number."""
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        project_id = _project_of_hypothesis(cur, hypothesis_id)
+        if project_id is None:
+            return None
+        cur.execute("""SELECT version, statement, mechanism, confidence, label
+                         FROM hyp_hypotheses WHERE hypothesis_id=%s""",
+                    (hypothesis_id,))
+        cur_row = cur.fetchone()
+        if cur_row is None:
+            return None
+        old_v = cur_row["version"] or 1
+        # snapshot the CURRENT (about-to-be-replaced) state as the old version
+        cur.execute(
+            """INSERT INTO hyp_hypothesis_versions
+                 (hypothesis_id, version, statement, mechanism, confidence,
+                  change_note, change_type, actor_identity)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (hypothesis_id, version) DO NOTHING""",
+            (hypothesis_id, old_v, cur_row["statement"],
+             json.dumps(cur_row["mechanism"]) if cur_row["mechanism"] is not None else None,
+             cur_row["confidence"], None, None, None))
+        new_v = old_v + 1
+        sets, vals = ["version=%s"], [new_v]
+        if statement is not None:
+            sets.append("statement=%s"); vals.append(statement)
+        if mechanism is not None:
+            sets.append("mechanism=%s"); vals.append(json.dumps(mechanism))
+        if confidence is not None:
+            sets.append("confidence=%s"); vals.append(confidence)
+        vals.append(hypothesis_id)
+        cur.execute(f"UPDATE hyp_hypotheses SET {', '.join(sets)}, updated_at=NOW() "
+                    f"WHERE hypothesis_id=%s", vals)
+        # record the NEW version row too (so history is complete + carries note)
+        cur.execute(
+            """INSERT INTO hyp_hypothesis_versions
+                 (hypothesis_id, version, statement, mechanism, confidence,
+                  change_note, change_type, actor_identity)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (hypothesis_id, version) DO NOTHING""",
+            (hypothesis_id, new_v,
+             statement if statement is not None else cur_row["statement"],
+             json.dumps(mechanism) if mechanism is not None else (
+                 json.dumps(cur_row["mechanism"]) if cur_row["mechanism"] is not None else None),
+             confidence if confidence is not None else cur_row["confidence"],
+             change_note, change_type, actor))
+        _append_event(cur, project_id, "status_changed",
+                      f"Hypothesis refined → v{new_v} "
+                      f"({cur_row['label'] or hypothesis_id[:6]})",
+                      detail=change_note, hypothesis_id=hypothesis_id, actor=actor)
+        cur.execute("UPDATE hyp_projects SET updated_at=NOW() WHERE project_id=%s",
+                    (project_id,))
+        conn.commit()
+        return new_v
     finally:
         cur.close()
         conn.close()
@@ -808,6 +1003,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     supported, eliminated = [], []
     matrix = []
     hyps_without_falsifier, preds_without_origin, preds_without_criterion = [], [], []
+    circular_confirmations = []
     for h in hyps:
         ranking.append({"label": h["label"], "status": h["status"],
                         "confidence": h["confidence"], "statement": _oneline(h["statement"])})
@@ -834,6 +1030,12 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                     "mlflow_run_url": p.get("mlflow_run_url")}
             if ws == "evaluated":
                 nv = normalize_verdict(p.get("verdict"))
+                # Use-novelty: a 'supports' verdict whose evidence was fit to the
+                # very data it's tested against is circular — flag it.
+                if nv == "supports":
+                    _cf = _circularity_flag(p.get("evidence_independence"))
+                    if _cf:
+                        circular_confirmations.append({"prediction": _ptag, "issue": _cf})
                 (validated if nv == "supports"
                  else invalidated if nv == "contradicts"
                  else open_q).append(item)
@@ -841,6 +1043,17 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                 pending_compute.append(item)
             else:
                 open_q.append(item)
+
+    # Individuation: a `supersedes` should declare the discriminating observable
+    # on which the new hypothesis predicts differently (else it may be a mere
+    # refinement that belongs in a version bump, not a new node).
+    _hlabel = {h["hypothesis_id"]: h["label"] for h in hyps}
+    supersedes_without_discriminator = []
+    for r in (data.get("relations") or []):
+        if r.get("relation_type") == "supersedes" and not r.get("discriminating_observable"):
+            supersedes_without_discriminator.append(
+                f"{_hlabel.get(r['from_hypothesis_id'], '?')} supersedes "
+                f"{_hlabel.get(r['to_hypothesis_id'], '?')}")
 
     elements = extract_elements(proj.get("material_system"))
     ov = proj.get("evidence_overrides") or {}
@@ -869,6 +1082,8 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "hypotheses_without_falsifying_prediction": hyps_without_falsifier,
             "predictions_missing_origin_provenance": preds_without_origin,
             "predictions_missing_falsification_criterion": preds_without_criterion,
+            "circular_confirmations": circular_confirmations,
+            "supersessions_without_discriminating_observable": supersedes_without_discriminator,
         },
         "evidence_index": _evidence_summary(evidence_index),
         "literature": "For published-evidence cross-checks (Edison/PaperQA3): "
@@ -945,7 +1160,14 @@ def add_event(project_id, event_type, summary, *, detail=None, hypothesis_id=Non
 # --- Hypothesis relations (the hypothesis graph) ---------------------------
 
 def add_relation(from_hypothesis_id, to_hypothesis_id, relation_type, *,
-                 note=None, actor=None) -> bool:
+                 note=None, discriminating_observable=None,
+                 retained_vs_abandoned=None, change_type=None, actor=None) -> bool:
+    """Link two hypotheses. For `supersedes`, the caller should declare the
+    DISCRIMINATING OBSERVABLE on which the new hypothesis predicts differently
+    from the one it replaces — that empirical difference is what makes it a new
+    hypothesis rather than a refinement (which should be a version bump instead,
+    see refine_hypothesis). Surfaced in the briefing's method_compliance; not
+    yet hard-gated."""
     relation_type = normalize_relation(relation_type)
     if relation_type not in RELATION_TYPES:
         return False
@@ -958,12 +1180,18 @@ def add_relation(from_hypothesis_id, to_hypothesis_id, relation_type, *,
             return False
         cur.execute(
             """INSERT INTO hyp_hypothesis_relations
-                 (project_id, from_hypothesis_id, to_hypothesis_id, relation_type, note)
-               VALUES (%s,%s,%s,%s,%s)""",
-            (project_id, from_hypothesis_id, to_hypothesis_id, relation_type, note))
+                 (project_id, from_hypothesis_id, to_hypothesis_id, relation_type,
+                  note, discriminating_observable, retained_vs_abandoned, change_type)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (project_id, from_hypothesis_id, to_hypothesis_id, relation_type, note,
+             discriminating_observable, retained_vs_abandoned, change_type))
+        _detail = note
+        if relation_type == "supersedes" and discriminating_observable:
+            _detail = (f"{note + chr(10) if note else ''}discriminating observable: "
+                       f"{discriminating_observable}")
         _append_event(cur, project_id, "status_changed",
                       f"Relation added: {relation_type}",
-                      detail=note, hypothesis_id=from_hypothesis_id, actor=actor)
+                      detail=_detail, hypothesis_id=from_hypothesis_id, actor=actor)
         conn.commit()
         return True
     finally:

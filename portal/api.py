@@ -1001,6 +1001,19 @@ def discovery_update_hypothesis(hypothesis_id):
     return jsonify({"ok": True}), 200
 
 
+@app.route("/portal/api/hypotheses/<hypothesis_id>/refine", methods=["PUT"])
+@_require_auth
+def discovery_refine_hypothesis(hypothesis_id):
+    d = request.get_json(silent=True) or {}
+    v = discovery.refine_hypothesis(
+        hypothesis_id, statement=d.get("statement"), mechanism=d.get("mechanism"),
+        confidence=d.get("confidence"), change_note=d.get("change_note"),
+        change_type=d.get("change_type", "refinement"), actor=_disc_identity())
+    if v is None:
+        return jsonify({"error": "hypothesis not found"}), 404
+    return jsonify({"ok": True, "version": v}), 200
+
+
 @app.route("/portal/api/hypotheses/<hypothesis_id>/predictions", methods=["POST"])
 @_require_auth
 def discovery_create_prediction(hypothesis_id):
@@ -1028,8 +1041,11 @@ def discovery_add_relation(hypothesis_id):
         return jsonify({"error": f"to_hypothesis_id required; relation_type one of "
                                  f"{sorted(discovery.RELATION_TYPES)} "
                                  f"(synonyms like co_operates_with are accepted)"}), 400
-    ok = discovery.add_relation(hypothesis_id, d["to_hypothesis_id"],
-                                rel, note=d.get("note"), actor=_disc_identity())
+    ok = discovery.add_relation(
+        hypothesis_id, d["to_hypothesis_id"], rel, note=d.get("note"),
+        discriminating_observable=d.get("discriminating_observable"),
+        retained_vs_abandoned=d.get("retained_vs_abandoned"),
+        change_type=d.get("change_type"), actor=_disc_identity())
     if not ok:
         return jsonify({"error": "hypothesis not found"}), 404
     return jsonify({"ok": True}), 201
@@ -1080,7 +1096,8 @@ def discovery_evaluate_prediction(prediction_id):
     ok = discovery.evaluate_prediction(
         prediction_id, d["verdict"], strength=d.get("strength"),
         evidence_record_ids=d.get("evidence_record_ids"), rationale=d.get("rationale"),
-        mlflow_run_url=d.get("mlflow_run_url"), actor=_disc_identity())
+        mlflow_run_url=d.get("mlflow_run_url"),
+        evidence_independence=d.get("evidence_independence"), actor=_disc_identity())
     if not ok:
         return jsonify({"error": "prediction not found"}), 404
     return jsonify({"ok": True}), 200

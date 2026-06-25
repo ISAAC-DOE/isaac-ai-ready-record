@@ -1669,6 +1669,40 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
             st.caption(f"⏳ **Pending** — {open_n} prediction(s) open · {running} compute "
                        f"running · {needs} hypothes(es) need more data")
 
+            # ---------- Scientific-rigor check (live, from method_compliance) -------
+            _mc = brief.get("method_compliance", {})
+            _issues = []
+            if not _mc.get("enough_competing_hypotheses", True):
+                _issues.append(("Needs ≥2 competing hypotheses", []))
+            _issue_map = [
+                ("Hypotheses with no falsifying prediction",
+                 _mc.get("hypotheses_without_falsifying_prediction")),
+                ("Predictions missing provenance (origin)",
+                 _mc.get("predictions_missing_origin_provenance")),
+                ("Predictions missing a falsification criterion",
+                 _mc.get("predictions_missing_falsification_criterion")),
+                ("⚠ Circular confirmations (model fit to the data it's tested on)",
+                 [c.get("prediction") if isinstance(c, dict) else c
+                  for c in (_mc.get("circular_confirmations") or [])]),
+                ("⚠ Supersessions with no discriminating observable (refinement vs new?)",
+                 _mc.get("supersessions_without_discriminating_observable")),
+            ]
+            for _lbl, _items in _issue_map:
+                if _items:
+                    _issues.append((_lbl, _items))
+            if _issues:
+                with st.expander(f"🔬 Scientific rigor — {len(_issues)} open check(s)",
+                                 expanded=False):
+                    st.caption("Live audit against the manifest `method` + epistemic "
+                               "guardrails (use-novelty; hypothesis individuation). "
+                               "Advisory now — these are what make a claim auditable.")
+                    for _lbl, _items in _issues:
+                        _detail = (" — " + ", ".join(str(x) for x in _items[:6])
+                                   ) if _items else ""
+                        st.markdown(f"- **{_lbl}**{_detail}")
+            else:
+                st.caption("🔬 Scientific rigor — all method/guardrail checks clear.")
+
             st.markdown("**Hypothesis ranking** — bar length = confidence, colour = status")
             st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
                                      h["status"]) for h in hyps) or "_No hypotheses yet._",
@@ -1866,15 +1900,24 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                         {"From": _hlabel.get(r["from_hypothesis_id"], "?"),
                          "Relation": r["relation_type"],
                          "To": _hlabel.get(r["to_hypothesis_id"], "?"),
+                         "Discriminating observable": r.get("discriminating_observable"),
                          "Note": r.get("note")} for r in relations]),
                         width='stretch', hide_index=True)
+                    st.caption("A `supersedes` should name the observable on which the "
+                               "new hypothesis predicts differently — that's what makes "
+                               "it a new hypothesis, not a refinement of the old one.")
                     st.divider()
                 if not hyps:
                     st.caption("_No hypotheses yet._")
                 for h in hyps:
+                    _ver = h.get("version") or 1
+                    _vtag = f" · v{_ver}" if _ver > 1 else ""
                     with st.expander(f"{h['label'] or 'H'} · {h['status']} · "
-                                     f"conf {float(h['confidence'] or 0):.2f}"):
+                                     f"conf {float(h['confidence'] or 0):.2f}{_vtag}"):
                         st.write(h["statement"])
+                        if _ver > 1:
+                            st.caption(f"Refined in place to version {_ver} "
+                                       "(same hypothesis, sharpened — not a new node).")
                         if h.get("confidence_basis"):
                             st.caption(f"Confidence basis: {h['confidence_basis']}")
                         st.markdown("**How it was formed / provenance**")

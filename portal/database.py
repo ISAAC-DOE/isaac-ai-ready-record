@@ -465,6 +465,48 @@ def init_discovery_tables():
         ''')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_shares_identity '
                     'ON hyp_project_shares (identity)')
+
+        # --- Scientific-rigor additions (manifest method v0.13) -------------
+        # (1) Hypothesis individuation: a hypothesis is its EMPIRICAL CONTENT.
+        # Refinements that only sharpen a parameter are VERSIONS of the same
+        # node (history below); a genuinely new claim that predicts differently
+        # is a new node linked by `supersedes`. `version` is the live count.
+        cur.execute("ALTER TABLE hyp_hypotheses ADD COLUMN IF NOT EXISTS "
+                    "version INT NOT NULL DEFAULT 1")
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS hyp_hypothesis_versions (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                hypothesis_id CHAR(26) NOT NULL REFERENCES hyp_hypotheses(hypothesis_id),
+                version INT NOT NULL,
+                statement TEXT,
+                mechanism JSONB,
+                confidence REAL,
+                change_note TEXT,
+                change_type TEXT,
+                actor_identity TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE (hypothesis_id, version)
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_versions_hyp '
+                    'ON hyp_hypothesis_versions (hypothesis_id, version)')
+        # (2) A `supersedes`/relation must be able to declare the DISCRIMINATING
+        # OBSERVABLE on which parent and child predict differently (the "extra
+        # predictive element" that makes the child a new hypothesis, not a
+        # refinement), plus what the change retained vs abandoned and its type.
+        cur.execute("ALTER TABLE hyp_hypothesis_relations ADD COLUMN IF NOT EXISTS "
+                    "discriminating_observable TEXT")
+        cur.execute("ALTER TABLE hyp_hypothesis_relations ADD COLUMN IF NOT EXISTS "
+                    "retained_vs_abandoned TEXT")
+        cur.execute("ALTER TABLE hyp_hypothesis_relations ADD COLUMN IF NOT EXISTS "
+                    "change_type TEXT")
+        # (3) Use-novelty / no double-counting: when a prediction is evaluated,
+        # declare the independence of the evidence used. {roles:[{evidence,role}],
+        # parameters_fit_to:[...], tested_against:[...], model_was_fit:bool}.
+        # Stored + surfaced now (gated later).
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
+                    "evidence_independence JSONB")
+
         conn.commit()
         cur.close()
         conn.close()
