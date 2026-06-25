@@ -1436,6 +1436,23 @@ elif page == "Discovery":
                 f"<div style='background:{color};width:{pct}%;height:14px;"
                 f"border-radius:4px'></div></div></div>")
 
+        def _funnel(stages):
+            n = len(stages)
+            out = ["<div style='padding:4px 0'>"]
+            for i, (label, count, sub) in enumerate(stages):
+                w = 96 - i * (70 / max(1, n - 1))
+                out.append(
+                    "<div style='display:flex;justify-content:center;margin:3px 0'>"
+                    f"<div style='width:{w:.0f}%;background:linear-gradient(90deg,"
+                    "#0d47a1,#42a5f5);border-radius:7px;padding:7px 12px;color:white;"
+                    "text-align:center;box-shadow:0 1px 5px rgba(0,0,0,0.35)'>"
+                    f"<span style='font-size:1.25em;font-weight:800'>{count:,}</span> "
+                    f"<span style='opacity:0.95'>{label}</span>"
+                    + (f"<div style='font-size:0.78em;opacity:0.85'>{sub}</div>" if sub else "")
+                    + "</div></div>")
+            out.append("</div>")
+            return "".join(out)
+
         def _fmt(ts):
             return ts.strftime("%Y-%m-%d %H:%M") if hasattr(ts, "strftime") else str(ts)
 
@@ -1523,9 +1540,67 @@ elif page == "Discovery":
                                    for rid in (p.get("evidence_record_ids") or [])})
             prov = discovery.resolve_record_summaries(evidence_ids)
 
-            tabA, tabB, tabE, tabC, tabJ = st.tabs([
-                "🧪 Hypotheses & provenance", "✅ Validation board",
+            tabImpact, tabA, tabB, tabE, tabC, tabJ = st.tabs([
+                "🌊 Decision journey", "🧪 Hypotheses & provenance", "✅ Validation board",
                 "🔎 Evidence & matrix", "📊 Compute ledger", "📓 Journal"])
+
+            # ---- Decision journey — the scale & complexity of the reasoning ----
+            with tabImpact:
+                st.markdown("#### How the machine ranked these mechanisms")
+                st.caption("In a single autonomous run, the agent screened the ISAAC "
+                           "evidence corpus, posed competing mechanisms, tested "
+                           "falsifiable predictions against real data **and** fresh "
+                           "supercomputer calculations, and converged on a ranked, "
+                           "fully-auditable answer.")
+                preds_all = [p for h in hyps for p in h["predictions"]]
+                n_eval = sum(1 for p in preds_all if p.get("verdict"))
+                n_runs = sum(len(p.get("compute_runs") or []) for p in preds_all)
+                n_ev = len({rid for p in preds_all
+                            for rid in (p.get("evidence_record_ids") or [])})
+                n_desc = len(brief.get("evidence_index", {}))
+                leader = hyps[0] if hyps else None
+                try:
+                    corpus = database.count_records()
+                except Exception:
+                    corpus = 0
+                m = st.columns(6)
+                m[0].metric("Mechanisms", len(hyps))
+                m[1].metric("Predictions", len(preds_all))
+                m[2].metric("Evaluations", n_eval)
+                m[3].metric("Real compute jobs", n_runs)
+                m[4].metric("Reasoning steps", len(events))
+                m[5].metric("Leading mechanism",
+                            f"{float(leader['confidence'] or 0) * 100:.0f}%" if leader else "—")
+
+                st.markdown("**From a corpus of evidence to one answer**")
+                stages = [("ISAAC records", corpus or 0, "the searchable evidence corpus"),
+                          ("descriptors screened", n_desc, "element-matched, indexed by measurable"),
+                          ("evidence records weighed", n_ev, "directly cited in verdicts"),
+                          ("competing mechanisms", len(hyps), "assessed in parallel"),
+                          ("falsifiable predictions", len(preds_all), "each discriminating"),
+                          ("real DFT / MLIP jobs", n_runs, "run on Perlmutter / S3DF"),
+                          ("leading mechanism", 1, leader["label"] if leader else "")]
+                st.markdown(_funnel(stages), unsafe_allow_html=True)
+
+                st.markdown("**The verdict — five mechanisms, ranked by confidence**")
+                st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
+                                         h["status"]) for h in hyps)
+                            or "_pending_", unsafe_allow_html=True)
+
+                st.markdown("**The reasoning cascade** — decisions accumulating across the run")
+                _cat = {"hypothesis_created": "hypotheses", "prediction_added": "predictions",
+                        "prediction_evaluated": "evaluations", "compute_submitted": "compute",
+                        "compute_running": "compute", "next_experiment_proposed": "next experiment"}
+                _cum = {"hypotheses": 0, "predictions": 0, "evaluations": 0,
+                        "compute": 0, "next experiment": 0}
+                _rows = []
+                for e in reversed(events):  # chronological
+                    c = _cat.get(e["event_type"])
+                    if c:
+                        _cum[c] += 1
+                    _rows.append(dict(_cum))
+                if _rows:
+                    st.area_chart(pd.DataFrame(_rows))
 
             # ---- E: Evidence index (by descriptor) + discrimination matrix ----
             with tabE:
