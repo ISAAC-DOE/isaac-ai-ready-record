@@ -1051,6 +1051,42 @@ def discovery_add_relation(hypothesis_id):
     return jsonify({"ok": True}), 201
 
 
+@app.route("/portal/api/projects/<project_id>/rigor/findings", methods=["GET"])
+@_require_auth
+def discovery_list_rigor_findings(project_id):
+    findings = discovery.list_rigor_findings(
+        project_id, status=request.args.get("status"))
+    return jsonify({"findings": findings}), 200
+
+
+@app.route("/portal/api/projects/<project_id>/rigor/findings", methods=["POST"])
+@_require_auth
+def discovery_create_rigor_finding(project_id):
+    d = request.get_json(silent=True) or {}
+    if not d.get("summary"):
+        return jsonify({"error": "summary is required"}), 400
+    fid = discovery.create_rigor_finding(
+        project_id, d["summary"], target_type=d.get("target_type"),
+        target_id=d.get("target_id"), category=d.get("category", "other"),
+        severity=d.get("severity", "major"), detail=d.get("detail"),
+        raised_by=_disc_identity())
+    if fid is None:
+        return jsonify({"error": "project not found"}), 404
+    return jsonify({"finding_id": fid}), 201
+
+
+@app.route("/portal/api/rigor/findings/<finding_id>", methods=["PUT"])
+@_require_auth
+def discovery_resolve_rigor_finding(finding_id):
+    d = request.get_json(silent=True) or {}
+    ok = discovery.resolve_rigor_finding(
+        finding_id, status=d.get("status", "resolved"),
+        resolution=d.get("resolution"), actor=_disc_identity())
+    if not ok:
+        return jsonify({"error": "finding not found or invalid status"}), 404
+    return jsonify({"ok": True}), 200
+
+
 @app.route("/portal/api/predictions/<prediction_id>/runs", methods=["POST"])
 @_require_auth
 def discovery_create_run(prediction_id):

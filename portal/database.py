@@ -522,6 +522,32 @@ def init_discovery_tables():
         ''')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_conf_snap_project '
                     'ON hyp_confidence_snapshots (project_id, created_at)')
+        # (5) Independent rigor-critic findings: an ADVERSARIAL reviewer (a separate
+        # agent, not the one doing the work) reads the project and records where it
+        # thinks a claim fails — esp. omitted declarations the deterministic
+        # method_compliance check can't see (a fit model used as confirmation with a
+        # blank evidence_independence). Addressable + resolvable; later gateable.
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS hyp_rigor_findings (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                finding_id CHAR(26) UNIQUE NOT NULL,
+                project_id CHAR(26) NOT NULL REFERENCES hyp_projects(project_id),
+                target_type TEXT,
+                target_id TEXT,
+                category TEXT,
+                severity TEXT NOT NULL DEFAULT 'major',
+                summary TEXT NOT NULL,
+                detail TEXT,
+                status TEXT NOT NULL DEFAULT 'open',
+                raised_by TEXT,
+                resolution TEXT,
+                resolved_by TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                resolved_at TIMESTAMPTZ
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_rigor_project '
+                    'ON hyp_rigor_findings (project_id, status)')
 
         conn.commit()
         cur.close()

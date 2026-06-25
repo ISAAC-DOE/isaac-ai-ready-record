@@ -62,6 +62,13 @@ RELATION_TYPES = {"supersedes", "derived_from", "competes_with", "co_operating"}
 # v1: a prediction has many compute runs; backends are data, not enum-locked.
 COMPUTE_STATUSES = {"queued", "running", "completed", "failed", "resubmitted"}
 
+# Independent rigor-critic findings. Categories name the generic epistemic failure;
+# severities order the response. Accept-and-normalize like the rest.
+RIGOR_CATEGORIES = {"use_novelty", "individuation", "falsifiability",
+                    "evidence_compatibility", "confirmation_bias", "overreach", "other"}
+RIGOR_SEVERITIES = {"critical", "major", "minor"}
+RIGOR_FINDING_STATUSES = {"open", "resolved", "dismissed"}
+
 # Accept-and-normalize: agents reach for natural words. We map common synonyms to
 # the canonical vocabulary on write (teach, don't block) so the briefing's
 # categorization stays correct. (Lesson from the first live agent run.)
@@ -100,7 +107,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.13-provisional",
+        "version": "0.14-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -165,6 +172,10 @@ def get_manifest() -> dict:
                 "parameter or wording → refine in place (a new VERSION). A claim that "
                 "predicts DIFFERENTLY on some observable → a new hypothesis that "
                 "`supersedes` the old, and must name that discriminating observable.",
+                "INDEPENDENT REVIEW: a high-confidence conclusion must survive an "
+                "independent rigor critic (a SEPARATE agent, not yourself) — see "
+                "rigor_review. Resolve open critical findings before declaring "
+                "'supported'.",
                 "Every decision is dual-written: dashboard event (canonical) + MLflow "
                 "mirror (replay).",
             ],
@@ -207,6 +218,49 @@ def get_manifest() -> dict:
                 "test": "If you cannot name an observable on which the new and old "
                     "predict differently, it is a refinement, not a new hypothesis.",
             },
+        },
+        "rigor_review": {
+            "_what": "An INDEPENDENT adversarial critic — a SEPARATE agent/session, not "
+                "the one that did the work — re-derives whether the conclusions survive "
+                "scrutiny. It is the backstop for what the automated method_compliance "
+                "cannot see: a declaration the working agent simply OMITTED (e.g. a model "
+                "fit to the data it 'confirms', with evidence_independence left blank — "
+                "the critic infers it from the rationale/mechanism prose).",
+            "when": "Trigger a review before trusting any high-confidence conclusion "
+                "(e.g. moving a hypothesis to 'supported', or confidence > 0.7), and on "
+                "request. Independence is the point: do NOT critique your own work in the "
+                "same pass — spawn a fresh reviewer with the critic_prompt below.",
+            "critic_prompt": (
+                "You are an INDEPENDENT rigor critic for an ISAAC Discovery project. You "
+                "did not do this work and you owe it no deference. Your job is to REFUTE, "
+                "not agree. Bootstrap from the manifest "
+                "(GET /portal/api/discovery/manifest), then GET /projects/{id}/context "
+                "and read the whole thing — hypotheses, predictions, verdicts, "
+                "evidence_independence declarations, relations, and the reasoning prose. "
+                "Hunt specifically for:\n"
+                "  • USE-NOVELTY: any 'supports' verdict whose model/computation was fit "
+                "to the very data it is tested against — EVEN IF evidence_independence is "
+                "blank; infer it from the rationale/mechanism. Accommodation is not "
+                "prediction.\n"
+                "  • INDIVIDUATION: a `supersedes` that is really a refinement (no genuine "
+                "discriminating observable), or a 'new' hypothesis that only renames an "
+                "old one.\n"
+                "  • FALSIFIABILITY: hypotheses with no real falsifier; predictions whose "
+                "criterion can't actually fail.\n"
+                "  • EVIDENCE_COMPATIBILITY: verdicts trusting methodologically-"
+                "incompatible records (wrong output_quantity / functional / conditions).\n"
+                "  • CONFIRMATION_BIAS / OVERREACH: only confirming evidence sought; "
+                "confidence higher than the evidence licenses.\n"
+                "For each problem, POST /projects/{id}/rigor/findings {summary, detail, "
+                "category, severity (critical|major|minor), target_type, target_id}. "
+                "Where a high-confidence claim genuinely survives your attack, say so "
+                "explicitly. Do not invent issues to look busy — but do not let a "
+                "convenient conclusion pass."),
+            "loop": "Working agent: after a review, GET /projects/{id}/rigor/findings, "
+                "then for each finding either FIX it (and PUT the finding to 'resolved' "
+                "with how) or justify why it holds; 'dismissed' only for genuine "
+                "non-issues. Surfaced live in briefing.rigor_review; later, open "
+                "critical findings will block 'supported'.",
         },
         "resume_protocol": "To CONTINUE an existing project from a cold start (a "
             "fresh agent with no prior memory): GET /projects to find it, then GET "
@@ -342,6 +396,19 @@ def get_manifest() -> dict:
                         "record. If the supporting model was fit to the data you're "
                         "testing against (declare it in evidence_independence), the "
                         "honest verdict is 'neutral', not 'supports' (use-novelty)."},
+            {"m": "POST", "path": "/projects/{id}/rigor/findings",
+             "purpose": "INDEPENDENT CRITIC records a rigor problem {summary, detail, "
+                        "category(use_novelty|individuation|falsifiability|"
+                        "evidence_compatibility|confirmation_bias|overreach), severity"
+                        "(critical|major|minor), target_type, target_id}. See "
+                        "rigor_review.critic_prompt."},
+            {"m": "GET", "path": "/projects/{id}/rigor/findings",
+             "purpose": "List rigor findings (?status=open). Working agent reads these "
+                        "and resolves each."},
+            {"m": "PUT", "path": "/rigor/findings/{finding_id}",
+             "purpose": "Close a finding {status: resolved|dismissed, resolution}. "
+                        "'resolved' = fixed or justified; 'dismissed' = not a real issue. "
+                        "Never deletes — keeps the audit trail."},
             {"m": "POST", "path": "/projects/{id}/events",
              "purpose": "Append a reasoning-transcript entry (one per step)."},
             {"m": "PUT", "path": "/projects/{id}/next_experiment",
@@ -1135,6 +1202,20 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                 f"{_hlabel.get(r['from_hypothesis_id'], '?')} supersedes "
                 f"{_hlabel.get(r['to_hypothesis_id'], '?')}")
 
+    open_findings = list_rigor_findings(project_id, status="open")
+    rigor_review = {
+        "open_findings": [
+            {"finding_id": f["finding_id"], "severity": f["severity"],
+             "category": f["category"], "summary": f["summary"],
+             "target_type": f["target_type"], "target_id": f["target_id"]}
+            for f in open_findings],
+        "open_critical": sum(1 for f in open_findings if f["severity"] == "critical"),
+        "_note": ("Open findings from an INDEPENDENT rigor critic. Resolve (fix or "
+                  "justify) or dismiss each before trusting a high-confidence claim. "
+                  "If there are none and confidence is high, request a review "
+                  "(see manifest.rigor_review)."),
+    }
+
     elements = extract_elements(proj.get("material_system"))
     ov = proj.get("evidence_overrides") or {}
     evidence_index = build_evidence_index(elements, include_ids=ov.get("include"),
@@ -1165,6 +1246,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "circular_confirmations": circular_confirmations,
             "supersessions_without_discriminating_observable": supersedes_without_discriminator,
         },
+        "rigor_review": rigor_review,
         "evidence_index": _evidence_summary(evidence_index),
         "literature": "For published-evidence cross-checks (Edison/PaperQA3): "
                       "POST /portal/api/literature/search {query, job}, then poll "
@@ -1204,6 +1286,7 @@ def delete_project(project_id, owner_identity=None, is_admin=False) -> bool:
                     "(SELECT hypothesis_id FROM hyp_hypotheses WHERE project_id=%s)",
                     (project_id,))
         cur.execute("DELETE FROM hyp_confidence_snapshots WHERE project_id=%s", (project_id,))
+        cur.execute("DELETE FROM hyp_rigor_findings WHERE project_id=%s", (project_id,))
         cur.execute("DELETE FROM hyp_hypothesis_versions WHERE hypothesis_id IN "
                     "(SELECT hypothesis_id FROM hyp_hypotheses WHERE project_id=%s)",
                     (project_id,))
@@ -1276,6 +1359,92 @@ def add_relation(from_hypothesis_id, to_hypothesis_id, relation_type, *,
         _append_event(cur, project_id, "status_changed",
                       f"Relation added: {relation_type}",
                       detail=_detail, hypothesis_id=from_hypothesis_id, actor=actor)
+        conn.commit()
+        return True
+    finally:
+        cur.close()
+        conn.close()
+
+
+# --- Independent rigor-critic findings -------------------------------------
+
+def create_rigor_finding(project_id, summary, *, target_type=None, target_id=None,
+                         category="other", severity="major", detail=None,
+                         raised_by=None) -> str | None:
+    """An independent critic records a place a claim fails rigor. Generic across
+    fields — the category names the epistemic failure (use_novelty / individuation
+    / falsifiability / evidence_compatibility / confirmation_bias / overreach)."""
+    cat = str(category or "other").strip().lower()
+    if cat not in RIGOR_CATEGORIES:
+        cat = "other"
+    sev = str(severity or "major").strip().lower()
+    if sev not in RIGOR_SEVERITIES:
+        sev = "major"
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT 1 FROM hyp_projects WHERE project_id=%s", (project_id,))
+        if cur.fetchone() is None:
+            return None
+        finding_id = new_ulid()
+        cur.execute(
+            """INSERT INTO hyp_rigor_findings
+                 (finding_id, project_id, target_type, target_id, category,
+                  severity, summary, detail, raised_by)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (finding_id, project_id, target_type, target_id, cat, sev, summary,
+             detail, raised_by))
+        _append_event(cur, project_id, "status_changed",
+                      f"Rigor finding [{sev}/{cat}]: {summary[:100]}",
+                      detail=detail, actor=raised_by)
+        conn.commit()
+        return finding_id
+    finally:
+        cur.close()
+        conn.close()
+
+
+def list_rigor_findings(project_id, *, status=None) -> list:
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        if status:
+            cur.execute("""SELECT * FROM hyp_rigor_findings WHERE project_id=%s
+                            AND status=%s ORDER BY created_at DESC""",
+                        (project_id, status))
+        else:
+            cur.execute("""SELECT * FROM hyp_rigor_findings WHERE project_id=%s
+                            ORDER BY created_at DESC""", (project_id,))
+        return cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def resolve_rigor_finding(finding_id, *, status="resolved", resolution=None,
+                          actor=None) -> bool:
+    """Close a finding — `resolved` (the agent fixed it / explained why it holds)
+    or `dismissed` (not a real issue). Keeps the audit trail; never deletes."""
+    status = str(status or "resolved").strip().lower()
+    if status not in RIGOR_FINDING_STATUSES:
+        return False
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT project_id, summary FROM hyp_rigor_findings "
+                    "WHERE finding_id=%s", (finding_id,))
+        row = cur.fetchone()
+        if row is None:
+            return False
+        cur.execute(
+            """UPDATE hyp_rigor_findings
+                  SET status=%s, resolution=%s, resolved_by=%s,
+                      resolved_at=CASE WHEN %s='open' THEN NULL ELSE NOW() END
+                WHERE finding_id=%s""",
+            (status, resolution, actor, status, finding_id))
+        _append_event(cur, row["project_id"], "status_changed",
+                      f"Rigor finding {status}: {row['summary'][:90]}",
+                      detail=resolution, actor=actor)
         conn.commit()
         return True
     finally:
