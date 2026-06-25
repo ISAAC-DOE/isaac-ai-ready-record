@@ -886,6 +886,18 @@ def discovery_briefing(project_id):
     return jsonify(brief), 200
 
 
+@app.route("/portal/api/projects/<project_id>/context", methods=["GET"])
+@_require_auth
+def discovery_context(project_id):
+    """One-shot RESUME bundle for a cold-starting agent: full state + the entire
+    reasoning history (every step, with detail) + the briefing, in a single call.
+    Use this to pick up an existing project you have no prior context for."""
+    ctx = discovery.get_context(project_id, owner_identity=_disc_identity())
+    if ctx is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(ctx), 200
+
+
 @app.route("/portal/api/projects/<project_id>/evidence", methods=["GET"])
 @_require_auth
 def discovery_evidence(project_id):

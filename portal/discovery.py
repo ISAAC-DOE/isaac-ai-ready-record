@@ -100,7 +100,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.8-provisional",
+        "version": "0.9-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -114,6 +114,14 @@ def get_manifest() -> dict:
             "it did not happen — never hold project state only in your context.",
             "One project = one ground truth. Do not fork reality in your head.",
         ],
+        "resume_protocol": "To CONTINUE an existing project from a cold start (a "
+            "fresh agent with no prior memory): GET /projects to find it, then GET "
+            "/projects/{id}/context — a single call returning the full current state "
+            "PLUS the entire step-by-step reasoning history (every hypothesis, "
+            "prediction, verdict, compute run, with detail) PLUS the briefing. Read it "
+            "all to reconstruct exactly how the project got here before you act. The "
+            "briefing alone is a per-turn digest, not the full history — use /context "
+            "to resume.",
         "auth": {"scheme": "Bearer", "header": "Authorization: Bearer <token>",
                  "obtain": "portal API Keys page; user must be in an allowed group"},
         "getting_started": {
@@ -138,15 +146,20 @@ def get_manifest() -> dict:
                 "   Read ALL of it and follow it exactly.\n\n"
                 "2. Authenticate every request with:\n"
                 "   Authorization: Bearer <PASTE_YOUR_PORTAL_API_TOKEN_HERE>\n\n"
-                "3. Verify access:\n"
+                "3. Verify access and list projects:\n"
                 "   GET https://isaac.slac.stanford.edu/portal/api/projects\n"
                 "   (the projects you own or that are shared with you).\n\n"
-                "4. Prime directive: the dashboard is the single source of truth. "
-                "Before acting on a project, GET its /briefing and reconcile to it; "
-                "write every hypothesis, prediction, verdict and reasoning step back "
-                "via the API — if it isn't written to the dashboard, it didn't happen.\n\n"
-                "Then tell me, in your own words, what the manifest says the workflow "
-                "is, and propose what discovery project we should start or continue."
+                "4. To CONTINUE an existing project (recommended for a fresh agent): "
+                "GET /projects/{id}/context — one call returns the FULL state + the "
+                "ENTIRE step-by-step reasoning history (with detail) + the briefing, so "
+                "you can reconstruct exactly where the project stands. To START a new "
+                "one: POST /projects.\n\n"
+                "5. Prime directive: the dashboard is the single source of truth. Each "
+                "turn GET the project's /briefing and reconcile to it; write every "
+                "hypothesis, prediction, verdict and reasoning step back via the API — "
+                "if it isn't written to the dashboard, it didn't happen.\n\n"
+                "Then tell me, in your own words, the current state and full history of "
+                "the project (or the workflow for a new one), and what to do next."
             ),
         },
         "object_model": "project -> hypotheses -> predictions; append-only events "
@@ -172,6 +185,11 @@ def get_manifest() -> dict:
             {"m": "GET", "path": "/projects/{id}/briefing",
              "purpose": "Curated ground-truth digest (incl. evidence-index summary, "
                         "discrimination matrix) — READ THIS FIRST each turn."},
+            {"m": "GET", "path": "/projects/{id}/context",
+             "purpose": "ONE-SHOT RESUME bundle: full state + the ENTIRE step-by-step "
+                        "reasoning history (every event, with detail) + the briefing. "
+                        "A fresh agent with no prior context calls this FIRST to fully "
+                        "reconstruct an existing project before continuing."},
             {"m": "GET", "path": "/projects/{id}/evidence",
              "purpose": "Exhaustive descriptor-keyed evidence index (element-matched "
                         "candidates, reaction annotated). ?descriptor=<name> to narrow. "
@@ -1162,6 +1180,40 @@ def get_evidence(project_id, owner_identity=None, descriptor=None) -> dict | Non
     if descriptor:
         index = {descriptor: index.get(descriptor, [])}
     return {"project_id": project_id, "elements": elems, "evidence_index": index}
+
+
+def get_context(project_id, owner_identity=None) -> dict | None:
+    """ONE-SHOT complete context for a COLD-STARTING agent resuming a project it
+    has never seen: full current state + the ENTIRE step-by-step reasoning history
+    (every event, with detail, chronological — not the briefing's recent slice) +
+    the curated briefing (which carries the evidence-index summary and the
+    discrimination matrix). Read-access enforced via get_project."""
+    data = get_project(project_id, owner_identity=owner_identity)
+    if data is None:
+        return None
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        # FULL history (no 200 cap), oldest -> newest, with detail.
+        cur.execute("SELECT * FROM hyp_events WHERE project_id=%s "
+                    "ORDER BY created_at ASC LIMIT 5000", (project_id,))
+        history = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    return {
+        "resume_note": "Complete project context for a fresh agent. Read the full "
+            "state and the entire `history` below to reconstruct how the project got "
+            "here, then follow the prime directive: GET /briefing each turn, write "
+            "every step back. If it isn't on the dashboard, it didn't happen.",
+        "project": data["project"],
+        "hypotheses": data["hypotheses"],   # each with predictions + compute_runs
+        "relations": data["relations"],
+        "next_experiment": data["next_experiment"],
+        "n_history": len(history),
+        "history": history,                 # ALL steps, chronological, full detail
+        "briefing": get_briefing(project_id, owner_identity=owner_identity),
+    }
 
 
 # --- Provenance (READ-ONLY against the records DB) -------------------------
