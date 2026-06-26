@@ -107,7 +107,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.23-provisional",
+        "version": "0.24-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -659,6 +659,16 @@ def get_manifest() -> dict:
                     "metrics}); a compute/model-backed verdict MUST carry an "
                     "mlflow_run_url. And query isaac_data_sources for an EXISTING result "
                     "before spending a calculation.",
+                "persist_results_as_records": "CLOSE THE LOOP — when a calculation "
+                    "produces a reusable value (an adsorption energy, a barrier, a "
+                    "relaxed structure), PERSIST it into ISAAC so it never has to be "
+                    "recomputed: build a schema-valid computational record, dry-run it "
+                    "with POST /portal/api/validate, then POST /portal/api/records. Mark "
+                    "provenance clearly AGENT-COMPUTED (method/functional or MLIP model, "
+                    "params, the MLflow run, this project_id). Then cite the new "
+                    "record_id as evidence. This is how the repository compounds — your "
+                    "calc becomes everyone's data, and the next agent looks it up instead "
+                    "of recomputing.",
                 "your_specific_tools": "The EXACT binaries, HPC submission paths, API "
                     "endpoints and credentials available to you depend on WHERE you run "
                     "and WHO runs you (e.g. an S3DF session with FairChem + a NERSC/IRI "
