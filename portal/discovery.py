@@ -107,7 +107,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.16-provisional",
+        "version": "0.17-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -239,6 +239,12 @@ def get_manifest() -> dict:
                 "confidence — RUN the discriminating experiment instead. The platform "
                 "redirects recommended_actions to the experiment; it never freezes your "
                 "confidences (you keep updating them on real evidence).",
+            "register_the_decider_as_a_prediction": "The discriminating experiment must "
+                "be a FIRST-CLASS unrun prediction (descriptor + discriminates naming "
+                "each survivor's expected outcome) owned by a survivor — not only a "
+                "next_experiment note. Then it is a tracked falsifier and convergence "
+                "reads it directly. (briefing flags clusters whose decider lives only "
+                "in next_experiment.)",
             "idempotence": "A rigor pass over UNCHANGED evidence should be a no-op — do "
                 "not re-deduct confidence for a flaw already corrected. Confidence "
                 "moves on new evidence / new hypotheses / corrected assumptions, not on "
@@ -522,7 +528,9 @@ def get_manifest() -> dict:
             "step to MLflow (see integrations.experiment_tracking). Put the decision "
             "logic in each prediction's `rationale` (method-compat check + direction + "
             "magnitude-vs-falsification + replication). One-line summaries are not "
-            "enough — if it isn't recorded in full, it can't be audited.",
+            "enough — if it isn't recorded in full, it can't be audited. Any verdict "
+            "that leaned on COMPUTE or a fitted MODEL MUST carry an mlflow_run_url (the "
+            "replay trace); the briefing flags compute/model verdicts that lack one.",
         "integrations": {
             "experiment_tracking_mlflow": {
                 "purpose": "MLflow is the unified experiment-replay trace — it logs "
@@ -1265,10 +1273,16 @@ def compute_convergence(hyps, relations, next_experiment=None) -> dict:
         blocking = [(p.get("label") or p.get("descriptor_name")) for p in disc_unrun][:3]
         if nx_blocks and next_experiment.get("descriptor"):
             blocking.append("next_experiment: " + str(next_experiment["descriptor"]))
+        # the decisive test exists only as a project next_experiment, not as a
+        # first-class unrun discriminating prediction owned by a survivor — so it
+        # isn't a tracked falsifier. Nudge the agent to register it.
+        blocker_only_in_next_experiment = (state == "blocked_on_experiment"
+                                            and nx_blocks and not disc_unrun)
         out_clusters.append({
             "survivors": sorted(slabels),
             "state": state,
             "blocking_experiments": blocking,
+            "blocker_only_in_next_experiment": blocker_only_in_next_experiment,
             "_reads": {
                 "blocked_on_experiment": "Survivors are observationally identical on "
                     "current data — re-auditing will NOT separate them; only the "
@@ -1324,7 +1338,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     matrix = []
     hyps_without_falsifier, preds_without_origin, preds_without_criterion = [], [], []
     circular_confirmations, supports_without_independence = [], []
-    high_conf_hyps = []
+    high_conf_hyps, preds_missing_mlflow = [], []
     for h in hyps:
         ranking.append({"label": h["label"], "status": h["status"],
                         "confidence": h["confidence"], "statement": _oneline(h["statement"])})
@@ -1342,6 +1356,15 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                 preds_without_origin.append(_ptag)
             if not p.get("falsification_criterion"):
                 preds_without_criterion.append(_ptag)
+            # Auditability: a verdict that leaned on COMPUTE or a fitted MODEL must
+            # carry an mlflow_run_url (the replay trace). Pure-data verdicts are not
+            # flagged — only the compute/model-backed ones that should be traceable.
+            _ind = p.get("evidence_independence") or {}
+            _model_backed = bool(p.get("compute_runs")) or (
+                isinstance(_ind, dict) and _ind.get("model_was_fit"))
+            if (p.get("work_status") == "evaluated" and _model_backed
+                    and not p.get("mlflow_run_url")):
+                preds_missing_mlflow.append(_ptag)
             if p.get("discriminates"):
                 matrix.append({"prediction": p.get("label") or p.get("descriptor_name"),
                                "descriptor": p.get("descriptor_name"),
@@ -1432,10 +1455,21 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                 f"RUN the discriminating experiment ({', '.join(_c['blocking_experiments']) or 'registered'}) "
                 f"to separate {_c['survivors']} — they are observationally identical on "
                 "current data, so further auditing won't resolve them; the experiment will.")
+            if _c.get("blocker_only_in_next_experiment"):
+                recommended_actions.append(
+                    f"Register the discriminating experiment for {_c['survivors']} as a "
+                    "first-class UNRUN prediction (descriptor + discriminates naming each "
+                    "survivor's expected outcome) on one of them — right now the decisive "
+                    "test lives only in next_experiment, so it isn't a tracked falsifier.")
         elif _c["state"] == "no_discriminating_test":
             recommended_actions.append(
                 f"DESIGN a discriminating experiment for {_c['survivors']} — they are "
                 "observationally identical and no registered test separates them.")
+    if preds_missing_mlflow:
+        recommended_actions.append(
+            f"Attach an mlflow_run_url to {len(preds_missing_mlflow)} compute/model-backed "
+            "verdict(s) missing it — the MLflow run is the replay trace (dual-write: "
+            "dashboard + MLflow).")
     if open_findings:
         recommended_actions.append(
             f"Resolve {len(open_findings)} open rigor finding(s) "
@@ -1505,6 +1539,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "supports_without_independence_declaration": supports_without_independence,
             "supersessions_without_discriminating_observable": supersedes_without_discriminator,
             "high_confidence_without_independent_review": high_confidence_without_review,
+            "compute_verdicts_missing_mlflow_trace": preds_missing_mlflow,
         },
         "rigor_review": rigor_review,
         "evidence_index": _evidence_summary(evidence_index),

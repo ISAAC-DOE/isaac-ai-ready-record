@@ -1702,6 +1702,12 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                   for c in (_mc.get("circular_confirmations") or [])]),
                 ("⚠ Supersessions with no discriminating observable (refinement vs new?)",
                  _mc.get("supersessions_without_discriminating_observable")),
+                ("Supports verdicts missing a use-novelty (evidence_independence) declaration",
+                 _mc.get("supports_without_independence_declaration")),
+                ("High-confidence claims never independently reviewed",
+                 _mc.get("high_confidence_without_independent_review")),
+                ("Compute/model verdicts missing an MLflow replay trace",
+                 _mc.get("compute_verdicts_missing_mlflow_trace")),
             ]
             for _lbl, _items in _issue_map:
                 if _items:
