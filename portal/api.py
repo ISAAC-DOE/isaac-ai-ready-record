@@ -823,7 +823,22 @@ def literature_search():
     except Exception as exc:
         logger.exception("Edison submit failed")
         return jsonify({"error": f"literature submit failed: {exc}"}), 502
+    # If the caller ties this to a project, auto-record it as RESUMABLE pending work
+    # so the dashboard shows the project has a literature query in flight — no extra
+    # call needed. Resolve it (PUT) when the answer is ingested.
+    async_task_id = None
+    if d.get("project_id") and task_id:
+        try:
+            async_task_id = discovery.create_async_task(
+                d["project_id"], "literature", external_ref=task_id,
+                summary=("lit: " + d["query"][:80]),
+                poll_hint=f"/portal/api/literature/search/{task_id}",
+                hypothesis_id=d.get("hypothesis_id"),
+                prediction_id=d.get("prediction_id"), submitted_by=_disc_identity())
+        except Exception:
+            logger.exception("async-task record failed (non-fatal)")
     return jsonify({"task_id": task_id, "status": "submitted",
+                    "async_task_id": async_task_id,
                     "poll": f"/portal/api/literature/search/{task_id}"}), 202
 
 
@@ -1096,6 +1111,40 @@ def discovery_resolve_rigor_finding(finding_id):
         resolution=d.get("resolution"), actor=_disc_identity())
     if not ok:
         return jsonify({"error": "finding not found or invalid status"}), 404
+    return jsonify({"ok": True}), 200
+
+
+@app.route("/portal/api/projects/<project_id>/async", methods=["GET"])
+@_require_auth
+def discovery_list_async(project_id):
+    return jsonify({"tasks": discovery.list_async_tasks(
+        project_id, status=request.args.get("status"))}), 200
+
+
+@app.route("/portal/api/projects/<project_id>/async", methods=["POST"])
+@_require_auth
+def discovery_create_async(project_id):
+    d = request.get_json(silent=True) or {}
+    if not d.get("kind"):
+        return jsonify({"error": "kind is required (literature|compute|external)"}), 400
+    tid = discovery.create_async_task(
+        project_id, d["kind"], external_ref=d.get("external_ref"),
+        summary=d.get("summary"), poll_hint=d.get("poll_hint"),
+        hypothesis_id=d.get("hypothesis_id"), prediction_id=d.get("prediction_id"),
+        submitted_by=_disc_identity())
+    if tid is None:
+        return jsonify({"error": "project not found"}), 404
+    return jsonify({"task_id": tid}), 201
+
+
+@app.route("/portal/api/async/<task_id>", methods=["PUT"])
+@_require_auth
+def discovery_resolve_async(task_id):
+    d = request.get_json(silent=True) or {}
+    ok = discovery.resolve_async_task(task_id, status=d.get("status", "done"),
+                                      actor=_disc_identity())
+    if not ok:
+        return jsonify({"error": "task not found or invalid status"}), 404
     return jsonify({"ok": True}), 200
 
 

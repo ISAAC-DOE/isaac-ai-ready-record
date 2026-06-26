@@ -107,7 +107,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.19-provisional",
+        "version": "0.20-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -307,7 +307,10 @@ def get_manifest() -> dict:
             "prediction, verdict, compute run, with detail) PLUS the briefing. Read it "
             "all to reconstruct exactly how the project got here before you act. The "
             "briefing alone is a per-turn digest, not the full history — use /context "
-            "to resume.",
+            "to resume. FIRST thing on resume: check briefing.pending_work — async "
+            "steps a prior turn started (a literature query, a submitted calc) but "
+            "couldn't await. Poll & ingest each, then PUT /async/{id} done. That is "
+            "usually the whole reason to resume.",
         "auth": {"scheme": "Bearer", "header": "Authorization: Bearer <token>",
                  "obtain": "portal API Keys page; user must be in an allowed group"},
         "getting_started": {
@@ -481,6 +484,17 @@ def get_manifest() -> dict:
              "purpose": "Close a finding {status: resolved|dismissed, resolution}. "
                         "'resolved' = fixed or justified; 'dismissed' = not a real issue. "
                         "Never deletes — keeps the audit trail."},
+            {"m": "POST", "path": "/projects/{id}/async",
+             "purpose": "Record RESUMABLE pending work you started but can't await this "
+                        "turn {kind: literature|compute|external, external_ref, summary, "
+                        "poll_hint, prediction_id?}. Makes the dashboard show the project "
+                        "has steps worth coming back for. (A literature search auto-"
+                        "records one if you pass project_id to /literature/search.)"},
+            {"m": "GET", "path": "/projects/{id}/async",
+             "purpose": "List async tasks (?status=pending). Reconcile these on resume."},
+            {"m": "PUT", "path": "/async/{task_id}",
+             "purpose": "Resolve a task {status: ready|done|failed} once you've polled/"
+                        "ingested it. 'done' = reconciled."},
             {"m": "POST", "path": "/projects/{id}/events",
              "purpose": "Append a reasoning-transcript entry (one per step)."},
             {"m": "PUT", "path": "/projects/{id}/next_experiment",
@@ -586,8 +600,10 @@ def get_manifest() -> dict:
                 "provider": "Edison Scientific (FutureHouse PaperQA3)",
                 "via": "portal_proxy — the portal holds the Edison key server-side; "
                     "you never see it.",
-                "submit": "POST /literature/search {query, job} -> {task_id} (202). "
-                    "job ∈ literature | literature_high | precedent | analysis.",
+                "submit": "POST /literature/search {query, job, project_id?} -> {task_id} "
+                    "(202). job ∈ literature | literature_high | precedent | analysis. "
+                    "Pass project_id to auto-record it as resumable pending_work so the "
+                    "dashboard shows the query is in flight.",
                 "poll": "GET /literature/search/{task_id} -> {status, done, answer, "
                     "sources}. Async: PaperQA3 takes ~2-5 min; poll until done.",
                 "auth": "your existing portal Bearer token (no Edison key needed).",
@@ -1502,6 +1518,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
 
     convergence = compute_convergence(hyps, data.get("relations"),
                                       next_experiment=proj.get("next_experiment"))
+    pending_work = get_pending_work(project_id)
 
     elements = extract_elements(proj.get("material_system"))
     ov = proj.get("evidence_overrides") or {}
@@ -1512,6 +1529,12 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     # the agent learns what to do next FROM THE BRIEFING, not from a bespoke human
     # prompt. Every action is a generic method/rigor step — never a science answer.
     recommended_actions = []
+    if pending_work["items"]:
+        recommended_actions.append(
+            f"RECONCILE {pending_work['count']} pending external step(s) you started "
+            "but didn't await (literature query / submitted compute): poll each and "
+            "ingest the result (resolve the async task / evaluate the prediction). "
+            "This is the main reason to resume the project.")
     # Convergence redirect FIRST: when survivors are observationally identical, the
     # next move is an EXPERIMENT, not another audit (the safe version of 'freeze' —
     # we redirect the decision, never touch the confidences).
@@ -1599,6 +1622,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         "pending_compute": pending_compute,
         "discrimination_matrix": matrix,
         "convergence": convergence,
+        "pending_work": pending_work,
         "recommended_actions": recommended_actions,
         "method_compliance": {
             "_what": "Live check against the manifest `method` + epistemic_guardrails. "
@@ -1656,6 +1680,7 @@ def delete_project(project_id, owner_identity=None, is_admin=False) -> bool:
                     (project_id,))
         cur.execute("DELETE FROM hyp_confidence_snapshots WHERE project_id=%s", (project_id,))
         cur.execute("DELETE FROM hyp_rigor_findings WHERE project_id=%s", (project_id,))
+        cur.execute("DELETE FROM hyp_async_tasks WHERE project_id=%s", (project_id,))
         cur.execute("DELETE FROM hyp_hypothesis_versions WHERE hypothesis_id IN "
                     "(SELECT hypothesis_id FROM hyp_hypotheses WHERE project_id=%s)",
                     (project_id,))
@@ -1865,6 +1890,137 @@ def resolve_rigor_finding(finding_id, *, status="resolved", resolution=None,
     finally:
         cur.close()
         conn.close()
+
+
+# --- Async tasks (resumable pending work the agent kicked off) -------------
+
+def create_async_task(project_id, kind, *, external_ref=None, summary=None,
+                      poll_hint=None, hypothesis_id=None, prediction_id=None,
+                      submitted_by=None) -> str | None:
+    """Record async work started but not awaited this turn (an Edison literature
+    query, a submitted calculation) so the dashboard shows the project has
+    RESUMABLE pending steps. Idempotent on (project_id, kind, external_ref)."""
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT 1 FROM hyp_projects WHERE project_id=%s", (project_id,))
+        if cur.fetchone() is None:
+            return None
+        if external_ref:
+            cur.execute("""SELECT task_id FROM hyp_async_tasks
+                            WHERE project_id=%s AND kind=%s AND external_ref=%s""",
+                        (project_id, kind, external_ref))
+            row = cur.fetchone()
+            if row:
+                return row["task_id"]
+        task_id = new_ulid()
+        cur.execute(
+            """INSERT INTO hyp_async_tasks
+                 (task_id, project_id, kind, external_ref, summary, poll_hint,
+                  hypothesis_id, prediction_id, submitted_by)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (task_id, project_id, kind, external_ref, summary, poll_hint,
+             hypothesis_id, prediction_id, submitted_by))
+        _append_event(cur, project_id, "status_changed",
+                      f"Async {kind} started (resumable): {(summary or external_ref or '')[:80]}",
+                      detail=poll_hint, hypothesis_id=hypothesis_id, actor=submitted_by)
+        conn.commit()
+        return task_id
+    finally:
+        cur.close()
+        conn.close()
+
+
+def list_async_tasks(project_id, *, status=None) -> list:
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        if status:
+            cur.execute("""SELECT * FROM hyp_async_tasks WHERE project_id=%s
+                            AND status=%s ORDER BY created_at DESC""",
+                        (project_id, status))
+        else:
+            cur.execute("""SELECT * FROM hyp_async_tasks WHERE project_id=%s
+                            ORDER BY created_at DESC""", (project_id,))
+        return cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def resolve_async_task(task_id, *, status="done", actor=None) -> bool:
+    """Mark a pending task resolved (done = reconciled/ingested; ready = the
+    external result is available to ingest; failed = gave up)."""
+    status = str(status or "done").strip().lower()
+    if status not in ("pending", "ready", "done", "failed"):
+        return False
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT project_id, kind, summary FROM hyp_async_tasks "
+                    "WHERE task_id=%s", (task_id,))
+        row = cur.fetchone()
+        if row is None:
+            return False
+        cur.execute(
+            """UPDATE hyp_async_tasks SET status=%s,
+                 resolved_at=CASE WHEN %s IN ('done','failed') THEN NOW() ELSE resolved_at END
+               WHERE task_id=%s""", (status, status, task_id))
+        if status in ("done", "failed"):
+            _append_event(cur, row["project_id"], "status_changed",
+                          f"Async {row['kind']} {status}: {(row['summary'] or '')[:80]}",
+                          actor=actor)
+        conn.commit()
+        return True
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_pending_work(project_id) -> dict:
+    """Aggregate RESUMABLE pending work for the dashboard: async tasks the agent
+    started (literature/compute/external) plus compute runs still queued/running.
+    This is what tells a user 'come back and resume — these will be ready'."""
+    items = []
+    for t in list_async_tasks(project_id):
+        if t["status"] in ("pending", "ready"):
+            items.append({"kind": t["kind"], "ref": t["external_ref"],
+                          "summary": t["summary"], "status": t["status"],
+                          "poll_hint": t.get("poll_hint"),
+                          "started_at": (t["created_at"].isoformat()
+                                         if hasattr(t["created_at"], "isoformat")
+                                         else str(t["created_at"]))})
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT r.backend, r.engine, r.slurm_job_id, r.status, r.created_at,
+                      r.mlflow_run_url
+                 FROM hyp_compute_runs r
+                 JOIN hyp_predictions p ON p.prediction_id = r.prediction_id
+                 JOIN hyp_hypotheses h ON h.hypothesis_id = p.hypothesis_id
+                WHERE h.project_id=%s AND r.status IN ('queued','running')
+                ORDER BY r.created_at DESC""", (project_id,))
+        for r in cur.fetchall():
+            items.append({"kind": "compute", "ref": r.get("slurm_job_id"),
+                          "summary": f"{r.get('backend') or ''} {r.get('engine') or ''}".strip()
+                                     or "compute run",
+                          "status": r["status"], "poll_hint": r.get("mlflow_run_url"),
+                          "started_at": (r["created_at"].isoformat()
+                                         if hasattr(r["created_at"], "isoformat")
+                                         else str(r["created_at"]))})
+    finally:
+        cur.close()
+        conn.close()
+    return {
+        "items": items,
+        "count": len(items),
+        "resumable": bool(items),
+        "_note": ("External steps were started but not yet reconciled. If you resume "
+                  "this project with an agent after they complete, it can poll and "
+                  "ingest the results — worth doing. Nothing here = the project is "
+                  "fully reconciled, nothing pending."),
+    }
 
 
 # --- Compute runs (many per prediction; real lifecycle) --------------------
@@ -2197,6 +2353,7 @@ def get_context(project_id, owner_identity=None) -> dict | None:
         "history": history,                 # ALL steps, chronological, full detail
         "confidence_history": get_confidence_history(project_id,
                                                      owner_identity=owner_identity),
+        "pending_work": get_pending_work(project_id),  # resumable loose threads
         "briefing": get_briefing(project_id, owner_identity=owner_identity),
     }
 
