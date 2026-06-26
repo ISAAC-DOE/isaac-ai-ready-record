@@ -1854,43 +1854,49 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                     def _epoch(_dt):
                         return _dt.timestamp() if hasattr(_dt, "timestamp") else 0.0
                     _snaps = discovery.get_confidence_history(pid, owner)
-                    _traj = {hid: [] for hid in _hmap}
+                    # Per-hypothesis confidence as a step function over real time.
+                    _snap_by_h = {hid: [] for hid in _hmap}
                     for _sn in _snaps:
-                        _hid = _sn["hypothesis_id"]
-                        if _hid in _traj:
-                            _traj[_hid].append((_epoch(_sn["created_at"]),
-                                                float(_sn["confidence"] or 0)))
-                    # time axis: span of all snapshots (fallback to event span / now)
-                    _all_t = [t for pts in _traj.values() for (t, _c) in pts]
-                    _ev_t = [_epoch(e["created_at"]) for e in events
-                             if hasattr(e.get("created_at"), "timestamp")]
-                    _t0 = min(_all_t) if _all_t else (min(_ev_t) if _ev_t else 0.0)
-                    _t1 = max(_all_t + _ev_t) if (_all_t or _ev_t) else 1.0
-                    _span = (_t1 - _t0) or 1.0
-                    # ensure a current end-point per hypothesis
-                    for _hid, _h in _hmap.items():
-                        _traj[_hid].append((_t1, float(_h["confidence"] or 0)))
-                        _traj[_hid].sort()
-                    _T = 48
+                        if _sn["hypothesis_id"] in _snap_by_h:
+                            _snap_by_h[_sn["hypothesis_id"]].append(
+                                (_epoch(_sn["created_at"]), float(_sn["confidence"] or 0)))
+                    for _hid in _snap_by_h:
+                        _snap_by_h[_hid].sort()
+
+                    def _conf_at(_hid, _t):
+                        # last snapshot value at-or-before _t; None => hypothesis not
+                        # yet born at that point (band absent, so it grows in on birth)
+                        _c = None
+                        for (_st, _cv) in _snap_by_h[_hid]:
+                            if _st <= _t:
+                                _c = _cv
+                            else:
+                                break
+                        return _c
+
+                    # x-axis is ORDINAL over every change (events + confidence
+                    # snapshots), NOT wall-clock — so runs days apart don't squash the
+                    # within-session changes, and the river advances on every change.
+                    _chrono = [e for e in reversed(events)
+                               if hasattr(e.get("created_at"), "timestamp")]
+                    _ev_times = [_epoch(e["created_at"]) for e in _chrono]
+                    _snap_times = [t for pts in _snap_by_h.values() for (t, _c) in pts]
+                    _ticks = sorted(set(_ev_times) | set(_snap_times))
+                    if not _ticks:
+                        _ticks = [0.0]
+                    _N = len(_ticks)
                     _steps = []
-                    for _s in range(_T):
-                        _ti = _t0 + _span * (_s / (_T - 1) if _T > 1 else 0)
-                        _row = {"t": _s / (_T - 1) if _T > 1 else 0.0}
+                    for _i, _t in enumerate(_ticks):
+                        _row = {"t": _i / (_N - 1) if _N > 1 else 0.0}
                         for _hid, _h in _hmap.items():
-                            _c = 0.0
-                            _born = _traj[_hid][0][0] if _traj[_hid] else _t0
-                            for (_tt, _cv) in _traj[_hid]:
-                                if _tt <= _ti:
-                                    _c = _cv
-                                else:
-                                    break
-                            # before a hypothesis exists, its band is absent (0)
-                            _row[_h["label"]] = _c if _ti >= _born else 0.0
+                            _cv = _conf_at(_hid, _t)
+                            _row[_h["label"]] = _cv if _cv is not None else 0.0
                         _steps.append(_row)
-                    _markers = [{"t": (_epoch(e["created_at"]) - _t0) / _span}
-                                for e in events
-                                if hasattr(e.get("created_at"), "timestamp")
-                                and e["event_type"] in ("prediction_evaluated", "compute_running",
+                    _tick_index = {round(_t, 6): _i for _i, _t in enumerate(_ticks)}
+                    _markers = [{"t": _tick_index.get(round(_epoch(e["created_at"]), 6), 0)
+                                 / (_N - 1) if _N > 1 else 0.0}
+                                for e in _chrono
+                                if e["event_type"] in ("prediction_evaluated", "compute_running",
                                                         "compute_submitted", "evidence_ingested",
                                                         "next_experiment_proposed")]
                     st.markdown("**The river of belief** — how confidence in each mechanism "
