@@ -67,14 +67,19 @@ Two rules about the *logic of evidence*, tracked live in every briefing's
 `method_compliance` (advisory now, enforced later). They are generic — nothing
 here is specific to any one science.
 
-1. **Use-novelty (no double-counting).** A model/computation *fit* to a datum
-   cannot also *confirm* it — accommodation is not prediction. You may build and
-   tune models freely (that's how hypotheses are *generated*; such a result is a
-   *hypothesis generator* and earns no confidence by itself). But when a verdict
-   leans on a model, declare `evidence_independence` (what it was fit to vs tested
-   against). If those overlap, the honest verdict is **`neutral`/consistent**, not
-   `supports`. Real confirmation is the model's prediction on data it did **not**
-   see — the discriminating experiment.
+1. **Use-novelty — accommodation, NOT inspiration.** A model with a *free parameter
+   tuned* to reproduce a datum cannot also *confirm* it (accommodation). But a
+   **standing/literature mechanism that a data trend merely *inspired*** is **not**
+   accommodation — it had no knob fit to that datum, so the datum genuinely tests it.
+   **Do not down-grade a strong trend to `neutral` just because it motivated the
+   hypothesis** — that throws away your best evidence. What grants weight is
+   **discrimination**: an observation predicted by *this* hypothesis and *not* its
+   rivals is strong support (even if it inspired it); one all rivals also predict is
+   *weak* — non-discriminating, not circular. Set `strength` by discrimination. A
+   hypothesis carries a `grounding` (`standing_prior` | `ad_hoc`, default `ad_hoc`):
+   the accommodation discount fires only on `ad_hoc` + genuine fitted-parameter
+   overlap (`evidence_independence`); a `standing_prior` with overlap is a consistency
+   check, kept but capped at *weak*, never zeroed.
 2. **Hypothesis individuation.** A hypothesis *is* its empirical content (what it
    predicts and forbids), not its mechanism story. Only sharpening a parameter or
    wording → **refine in place** (`PUT /hypotheses/{id}/refine`, a new *version* of

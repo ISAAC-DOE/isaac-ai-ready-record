@@ -34,8 +34,8 @@ def _pred(verdict=None, strength=None, work_status="evaluated",
 _CIRCULAR = {"parameters_fit_to": ["R1", "R2"], "tested_against": ["R2", "R3"]}
 
 
-def _h(*preds):
-    return {"predictions": list(preds)}
+def _h(*preds, grounding=None):
+    return {"predictions": list(preds), "grounding": grounding}
 
 
 def _sigmoid(x):
@@ -219,6 +219,34 @@ def test_circular_support_does_not_confirm():
     assert circ["n_decisive"] == 0
     assert circ["breakdown"]["circular_discounted"] == 1
     assert circ["breakdown"]["supports"] == 1           # still recorded as a support
+
+
+def test_circular_support_ad_hoc_is_zeroed():
+    # default grounding (unset → ad_hoc): fitted-parameter overlap = accommodation → 0
+    s = compute_hypothesis_score(_h(_pred("supports", "strong",
+                                          evidence_independence=_CIRCULAR)))
+    assert s["computed_confidence"] == 0.5
+    assert s["breakdown"]["circular_discounted"] == 1
+    assert s["breakdown"]["circular_softened"] == 0
+
+
+def test_circular_support_standing_prior_is_softened_not_zeroed():
+    # a STANDING-PRIOR (literature) hypothesis with the same overlap is a consistency
+    # check — kept but capped at weak, NOT zeroed (it was not built to fit this data)
+    s = compute_hypothesis_score(_h(_pred("supports", "strong",
+                                          evidence_independence=_CIRCULAR),
+                                    grounding="standing_prior"))
+    assert s["computed_confidence"] == round(_sigmoid(0.3), 3)   # capped at weak
+    assert s["breakdown"]["circular_softened"] == 1
+    assert s["breakdown"]["circular_discounted"] == 0
+    assert s["n_decisive"] == 1
+
+
+def test_non_circular_support_unaffected_by_grounding():
+    # grounding only gates the accommodation discount; a clean support is full either way
+    for g in (None, "ad_hoc", "standing_prior"):
+        s = compute_hypothesis_score(_h(_pred("supports", "strong"), grounding=g))
+        assert s["computed_confidence"] == round(_sigmoid(1.0), 3), g
 
 
 def test_clean_support_still_confirms():
