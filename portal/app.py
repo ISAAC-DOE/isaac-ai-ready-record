@@ -1435,6 +1435,12 @@ elif page == "Discovery":
             pct = max(0, min(100, int(round(c * 100))))
             dead = status in ("eliminated", "superseded")
             op = 0.45 if dead else 1.0
+            # The confidence bar is a LEVEL (0–1), not a verdict — so every bar uses the
+            # SAME neutral blue. Hypothesis identity stays on the colored dot + title
+            # (matching the constellation); a per-hypothesis red/amber bar would read as
+            # "warning/wrong" when it only means "lower confidence". Eliminated/superseded
+            # hypotheses get a muted grey fill instead.
+            bar_fill = "#5b7f8a" if dead else "#4f86d6"
             _sc = ""
             if score is not None:
                 _n = score.get("n_decisive", score.get("n_scored", 0))
@@ -1451,12 +1457,12 @@ elif page == "Discovery":
                 f"<div style='font-size:0.85em'>"
                 f"<span style='display:inline-block;width:9px;height:9px;border-radius:50%;"
                 f"background:{color};margin-right:7px;vertical-align:middle'></span>"
-                f"<b>{label or ''}</b> "
+                f"<b style='color:{color}'>{label or ''}</b> "
                 f"<span style='color:#888'>{(statement or '')[:74]}</span> "
                 f"<span style='float:right;color:#888'>{status} · {c:.2f}{_sc}</span></div>"
                 f"<div style='background:#88888822;border-radius:4px;height:12px;"
                 f"width:100%;margin-top:3px'>"
-                f"<div style='background:{color};width:{pct}%;height:12px;"
+                f"<div style='background:{bar_fill};width:{pct}%;height:12px;"
                 f"border-radius:4px'></div></div></div>")
 
         def _constellation_html(payload, theme="dark"):
