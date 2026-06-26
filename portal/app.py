@@ -1706,6 +1706,12 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                     f"<b>resume this project with an agent</b> to poll &amp; ingest the "
                     f"results — it's worth coming back for.</div>{_rows}</div>",
                     unsafe_allow_html=True)
+            else:
+                # Positive confirmation so the absence isn't ambiguous (no banner used
+                # to be indistinguishable from 'feature not working').
+                st.caption("✓ No pending external steps — this project is fully "
+                           "reconciled (no literature query or calculation left "
+                           "awaiting a result).")
 
             settled = brief.get("settled", {"supported": [], "eliminated": []})
             c1, c2, c3, c4, c5 = st.columns(5)
