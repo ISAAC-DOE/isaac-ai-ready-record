@@ -107,7 +107,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.17-provisional",
+        "version": "0.18-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -361,6 +361,23 @@ def get_manifest() -> dict:
                 "manifest + the briefing. A sufficient human prompt is just: 'Connect to "
                 "ISAAC Discovery with this token, resume project <id> (or start one for "
                 "<goal>), and follow the manifest and the briefing's recommended_actions.'",
+        },
+        "reproducibility_mode": {
+            "_what": "Two ways to run, kept distinct so a RECALLED result is never "
+                "mistaken for an independent reproduction.",
+            "independent": "A from-scratch / reproducibility run. Treat it as a "
+                "genuinely BLANK agent: derive every hypothesis, number and conclusion "
+                "ONLY from the ISAAC data and your own organic queries this run. Do NOT "
+                "reuse, recall, or reference hypotheses/values/lessons from any prior "
+                "project or session — if you find yourself 'remembering' an answer, "
+                "re-derive it from the data or don't use it. For a true independent run "
+                "the human should start a NEW agent session (not continue one that has "
+                "seen prior runs).",
+            "continued": "A capability run that intentionally builds on a prior "
+                "project's lessons. Fine — but its convergence is NOT independent "
+                "evidence; report it as a continuation.",
+            "default": "If the human says 'from scratch' / 'fresh' / 'new project', "
+                "treat it as INDEPENDENT.",
         },
         "object_model": "project -> hypotheses -> predictions; append-only events "
                         "journal; one next_experiment per project. evidence_record_ids "
