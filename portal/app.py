@@ -1785,6 +1785,10 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                     _issues.append((_lbl, _items))
             if _mc.get("dataset_of_interest_undeclared"):
                 _issues.append(("No dataset of interest declared — scope not anchored", []))
+            if _mc.get("shared_premise_unaudited"):
+                _issues.append(("⚠ Shared premise unaudited — survivors share an untested "
+                                "assumption; state & test it, and add a "
+                                "'none-of-the-above' residual hypothesis", []))
             _rr = brief.get("rigor_review", {})
             _crit = _rr.get("open_findings", []) or []
             _n_checks = len(_issues) + len(_crit)
