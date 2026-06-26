@@ -107,7 +107,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.21-provisional",
+        "version": "0.22-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -517,7 +517,10 @@ def get_manifest() -> dict:
             "GET /briefing", "reason", "write each move (hypotheses/predictions/"
             "evaluate/status)", "POST /events per step", "PUT /next_experiment"],
         "compute_loop": [
-            "submit NERSC/DFT/MLIP/microkinetics job",
+            "FIRST query isaac_data_sources (+ literature) for an EXISTING value — don't "
+            "recompute what's archived",
+            "submit the calc using YOUR environment's tools (MLIP e.g. FairChem UMA to "
+            "screen; DFT e.g. VASP@NERSC to confirm) — see integrations.compute",
             "PUT /predictions/{id}/status {work_status:'compute_submitted', mlflow_run_url}",
             "PUT ... {work_status:'compute_running'} when it starts",
             "PUT /predictions/{id}/evaluate with verdict + evidence + final mlflow_run_url"],
@@ -578,6 +581,50 @@ def get_manifest() -> dict:
             "that leaned on COMPUTE or a fitted MODEL MUST carry an mlflow_run_url (the "
             "replay trace); the briefing flags compute/model verdicts that lack one.",
         "integrations": {
+            "isaac_data_sources": {
+                "purpose": "ISAAC is itself a primary KNOWLEDGE SOURCE — query it BEFORE "
+                    "computing anything from scratch. It holds EXPERIMENTAL records "
+                    "(performance, characterization) AND COMPUTATIONAL records: DFT slabs "
+                    "with adsorbates (e.g. Cu(100) + CO/OH/CHO), adsorption energies, "
+                    "activation barriers, band gaps, XANES, ... Look up a value that's "
+                    "already archived instead of recomputing it, and cite the record as "
+                    "evidence.",
+                "how": "GET /portal/api/records?limit=N&offset=N (+ GET /records/{id} for "
+                    "full data). Filter by material/elements, "
+                    "context.electrochemistry.reaction, record_domain "
+                    "(performance|characterization|simulation), and descriptor names "
+                    "(adsorption_energy, activation_barrier, faradaic_efficiency.*, "
+                    "xanes.*, band_gap, ...). The full corpus is large — page or filter; "
+                    "don't assume the first 500 are all of it.",
+                "external_reference_dbs": "If your environment can reach them, also "
+                    "consult external DBs for prior values — e.g. Catalysis Hub "
+                    "(adsorption energies, reaction energetics), Materials Project "
+                    "(formation/stability). Treat as analog evidence; check method "
+                    "compatibility (functional/output_quantity) before trusting.",
+            },
+            "compute": {
+                "purpose": "Run the calculations your hypotheses need. The platform does "
+                    "NOT run them — it RECORDS and replays them (compute_run + MLflow). "
+                    "Use whatever tools your ENVIRONMENT provides.",
+                "tiers": "MLIP / ML-potentials (FAST screening — e.g. FairChem UMA) for "
+                    "adsorption energies / trends across many candidates; DFT (ACCURATE — "
+                    "e.g. VASP) via your HPC path (e.g. NERSC) for the key numbers a "
+                    "verdict rests on; microkinetics / reaction-diffusion / transport "
+                    "models for rates and length scales. Screen with MLIP, confirm the "
+                    "decisive ones with DFT.",
+                "record_it": "Register each as a compute_run (POST /predictions/{id}/runs "
+                    "{backend, engine, resource, slurm_job_id, mlflow_run_url, params, "
+                    "metrics}); a compute/model-backed verdict MUST carry an "
+                    "mlflow_run_url. And query isaac_data_sources for an EXISTING result "
+                    "before spending a calculation.",
+                "your_specific_tools": "The EXACT binaries, HPC submission paths, API "
+                    "endpoints and credentials available to you depend on WHERE you run "
+                    "and WHO runs you (e.g. an S3DF session with FairChem + a NERSC/IRI "
+                    "submission API) — they are NOT in this generic manifest. Use the "
+                    "tools configured in your session; if your operator gave you a "
+                    "capabilities profile, follow it; always record what you used so the "
+                    "run is reproducible.",
+            },
             "experiment_tracking_mlflow": {
                 "purpose": "MLflow is the unified experiment-replay trace — it logs "
                     "the COMPUTE *and*, now, the full REASONING, so an MLflow run is a "
