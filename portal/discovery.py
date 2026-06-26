@@ -107,7 +107,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.18-provisional",
+        "version": "0.19-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -239,6 +239,13 @@ def get_manifest() -> dict:
                 "confidence — RUN the discriminating experiment instead. The platform "
                 "redirects recommended_actions to the experiment; it never freezes your "
                 "confidences (you keep updating them on real evidence).",
+            "equivalence_classes_no_false_precision": "When survivors are observationally "
+                "identical on current data they are NON-IDENTIFIABLE — report them as ONE "
+                "equivalence class, never as a 0.48-vs-0.45 ranking. Any confidence gap "
+                "between them is FALSE PRECISION the data cannot justify (briefing flags "
+                "it in convergence.equivalence_classes / method_compliance). Equalize "
+                "their confidence, or declare an explicit prior/parsimony basis for the "
+                "gap — do not present the difference as a finding.",
             "register_the_decider_as_a_prediction": "The discriminating experiment must "
                 "be a FIRST-CLASS unrun prediction (descriptor + discriminates naming "
                 "each survivor's expected outcome) owned by a survivor — not only a "
@@ -1249,7 +1256,10 @@ def compute_convergence(hyps, relations, next_experiment=None) -> dict:
     # member of that cluster (else a third hypothesis's test that merely NAMES the
     # members — who may AGREE against it — would be mistaken for a discriminator).
     all_preds = [(h["label"], p) for h in hyps for p in h["predictions"]]
+    conf_of = {h["label"]: float(h["confidence"] or 0) for h in hyps}
     out_clusters = []
+    equivalence_classes = []
+    false_precision = []
     worst = "decided"  # decided < resolving < blocked_on_experiment < no_test
     rank = {"decided": 0, "resolving": 1,
             "blocked_on_experiment": 2, "no_discriminating_test": 3}
@@ -1295,15 +1305,52 @@ def compute_convergence(hyps, relations, next_experiment=None) -> dict:
         # isn't a tracked falsifier. Nudge the agent to register it.
         blocker_only_in_next_experiment = (state == "blocked_on_experiment"
                                             and nx_blocks and not disc_unrun)
+        # EQUIVALENCE CLASS: when survivors are observationally identical on current
+        # data they are NON-IDENTIFIABLE — a single equivalence class, not a ranking.
+        # Reporting different confidences for them (0.48 vs 0.45) is FALSE PRECISION:
+        # no current datum can justify the gap. Flag it.
+        observationally_identical = state in ("blocked_on_experiment",
+                                              "no_discriminating_test")
+        members = sorted(({"label": l, "confidence": conf_of.get(l, 0)}
+                          for l in slabels), key=lambda m: -m["confidence"])
+        spread = round((max(m["confidence"] for m in members)
+                        - min(m["confidence"] for m in members)) if members else 0.0, 3)
+        # any >=0.03 gap between observationally-identical (non-identifiable) rivals
+        # is unjustified by the data — false precision.
+        is_false_precision = observationally_identical and spread >= 0.03
+        if observationally_identical:
+            equivalence_classes.append({
+                "members": [m["label"] for m in members],
+                "member_confidence": {m["label"]: m["confidence"] for m in members},
+                "confidence_spread": round(spread, 3),
+                "false_precision": is_false_precision,
+                "note": ("These survivors are OBSERVATIONALLY IDENTICAL on current data "
+                         "(non-identifiable) — report them as ONE equivalence class, not "
+                         "a ranking. " + ("Their confidences differ by "
+                         f"{round(spread, 2)}, which the data CANNOT justify — equalize "
+                         "them (or declare an explicit prior/parsimony basis) and don't "
+                         "present the gap as a finding." if is_false_precision
+                         else "Their confidences are (correctly) ~equal.")),
+            })
+            if is_false_precision:
+                false_precision.append(
+                    f"{sorted(slabels)} differ by {round(spread, 2)} but are "
+                    "observationally identical")
         out_clusters.append({
             "survivors": sorted(slabels),
             "state": state,
+            "observationally_identical": observationally_identical,
+            "equivalence_class": observationally_identical,
+            "members": members,
+            "confidence_spread": round(spread, 3),
+            "false_precision": is_false_precision,
             "blocking_experiments": blocking,
             "blocker_only_in_next_experiment": blocker_only_in_next_experiment,
             "_reads": {
                 "blocked_on_experiment": "Survivors are observationally identical on "
                     "current data — re-auditing will NOT separate them; only the "
-                    "registered experiment will. Run it.",
+                    "registered experiment will. Run it. Report them as one equivalence "
+                    "class, not a 0.xx-vs-0.yy ranking.",
                 "no_discriminating_test": "Survivors are observationally identical and "
                     "NO registered test separates them — design a discriminating "
                     "experiment (this is worse than 'one experiment away').",
@@ -1316,6 +1363,8 @@ def compute_convergence(hyps, relations, next_experiment=None) -> dict:
                 "blocked_on_experiment": 0.2, "no_discriminating_test": 0.8}[worst]
     return {
         "contested_clusters": out_clusters,
+        "equivalence_classes": equivalence_classes,
+        "false_precision": false_precision,
         "decision_distance": distance,
         "headline": {
             "decided": "No contested survivor set — converged.",
@@ -1478,6 +1527,13 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                     "first-class UNRUN prediction (descriptor + discriminates naming each "
                     "survivor's expected outcome) on one of them — right now the decisive "
                     "test lives only in next_experiment, so it isn't a tracked falsifier.")
+            if _c.get("false_precision"):
+                recommended_actions.append(
+                    f"FALSE PRECISION: {_c['survivors']} are observationally identical "
+                    f"yet carry confidences differing by {_c['confidence_spread']} — the "
+                    "data can't justify the gap. Equalize them (or declare an explicit "
+                    "prior/parsimony basis) and report them as ONE equivalence class, not "
+                    "a ranking.")
         elif _c["state"] == "no_discriminating_test":
             recommended_actions.append(
                 f"DESIGN a discriminating experiment for {_c['survivors']} — they are "
@@ -1557,6 +1613,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "supersessions_without_discriminating_observable": supersedes_without_discriminator,
             "high_confidence_without_independent_review": high_confidence_without_review,
             "compute_verdicts_missing_mlflow_trace": preds_missing_mlflow,
+            "false_precision_in_equivalence_class": convergence.get("false_precision", []),
         },
         "rigor_review": rigor_review,
         "evidence_index": _evidence_summary(evidence_index),

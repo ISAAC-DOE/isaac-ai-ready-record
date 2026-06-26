@@ -1701,8 +1701,19 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                     if _cl["state"] in ("blocked_on_experiment", "no_discriminating_test"):
                         _be = (" → " + ", ".join(_cl["blocking_experiments"])
                                if _cl.get("blocking_experiments") else "")
-                        st.caption(f"Contested: {', '.join(_cl['survivors'])} — "
-                                   f"{_cl['_reads']}{_be}")
+                        if _cl.get("equivalence_class"):
+                            _mc_str = ", ".join(f"{m['label']} {m['confidence']:.2f}"
+                                                for m in _cl.get("members", []))
+                            st.caption(f"⚖️ **Equivalence class** {{{', '.join(_cl['survivors'])}}} "
+                                       f"— observationally identical on current data, so "
+                                       f"this is ONE class, not a ranking{_be}")
+                            if _cl.get("false_precision"):
+                                st.caption(f"⚠ **False precision** — reported as "
+                                           f"{_mc_str}, but the data can't justify the "
+                                           f"{_cl['confidence_spread']:.2f} gap.")
+                        else:
+                            st.caption(f"Contested: {', '.join(_cl['survivors'])} — "
+                                       f"{_cl['_reads']}{_be}")
 
             # ---------- Scientific-rigor check (live, from method_compliance) -------
             _mc = brief.get("method_compliance", {})
@@ -1727,6 +1738,8 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                  _mc.get("high_confidence_without_independent_review")),
                 ("Compute/model verdicts missing an MLflow replay trace",
                  _mc.get("compute_verdicts_missing_mlflow_trace")),
+                ("⚠ False precision (different confidence for observationally-identical rivals)",
+                 _mc.get("false_precision_in_equivalence_class")),
             ]
             for _lbl, _items in _issue_map:
                 if _items:
