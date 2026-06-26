@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.39-provisional",
+        "version": "0.40-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -188,6 +188,23 @@ def get_manifest() -> dict:
             "first_turn": "Enumerate which of these you can reach, report it to your "
                 "operator, and ask about anything missing you'd want — so they can wire it "
                 "up. The point: every agent should reach all the ISAAC goodies it can.",
+            "compose_dont_dismiss": "A tool whose raw output does NOT directly answer your "
+                "question is almost never useless — it is usually a COMPONENT at one "
+                "scale/altitude that you COMPOSE into the answer. Before you conclude 'this "
+                "tool only gives a number I can't act on' and set it aside, ask: (1) what is "
+                "this tool legitimately good at — its KERNEL role? (2) can I SWEEP its inputs "
+                "across a range to map a response surface instead of taking one point? (3) "
+                "can I COUPLE its output to a model that supplies what it OMITS — a local "
+                "kernel fed by a transport / spatial / temporal field; a per-site number "
+                "integrated over a distribution / geometry; a fast screen feeding a precise "
+                "calc; one tool's output as another's input? The DECISIVE prediction often "
+                "lives in the COMPOSITION of two tools that each answer the wrong question "
+                "alone — a local rate law plus a transport field yields a spatial prediction "
+                "neither gives by itself, and the emergent shape of that composite (a peak, "
+                "a length scale, a threshold) is frequently the very thing that discriminates "
+                "your hypotheses. So a tool at the wrong altitude is not a dead end — it is "
+                "ONE LAYER of a multi-scale model you assemble. Reach for the composition "
+                "before you discard the tool.",
         },
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -854,6 +871,11 @@ def get_manifest() -> dict:
             "recompute what's archived",
             "submit the calc using YOUR environment's tools (MLIP e.g. FairChem UMA to "
             "screen; DFT e.g. VASP@NERSC to confirm) — see integrations.compute",
+            "if a tool's raw output is at the WRONG ALTITUDE for your question (a single "
+            "number, the wrong scale), COMPOSE it — sweep its inputs, couple it to a "
+            "transport/spatial model, integrate it over geometry — don't discard it. See "
+            "isaac_ecosystem.compose_dont_dismiss; the discriminator often lives in the "
+            "composite's emergent shape.",
             "PUT /predictions/{id}/status {work_status:'compute_submitted', mlflow_run_url}",
             "PUT ... {work_status:'compute_running'} when it starts",
             "PUT /predictions/{id}/evaluate with verdict + evidence + final mlflow_run_url"],
