@@ -1489,8 +1489,9 @@ const links=DATA.links.map(function(d){return Object.assign({},d);});
 const cont=svg.append('g');
 const link=cont.append('g').selectAll('line').data(links).join('line')
  .attr('stroke',function(d){return d.rel==='pred'?(VC[d.verdict]||'#37474f'):d.rel==='evid'?P.screened:d.rel==='competes_with'?'#ef5350':d.rel==='co_operating'?'#66bb6a':P.relrest;})
- .attr('stroke-opacity',function(d){return d.rel==='evid'?0.2:d.rel==='pred'?0.5:0.6;})
- .attr('stroke-width',function(d){return d.rel==='pred'?({strong:2.4,moderate:1.5,weak:0.8}[d.strength]||1):(d.rel==='competes_with'||d.rel==='co_operating')?1.6:0.6;})
+ .attr('stroke-opacity',function(d){return d.rel==='evid'?0.42:d.rel==='pred'?0.72:0.78;})
+ .attr('stroke-width',function(d){return d.rel==='pred'?({strong:2.8,moderate:1.9,weak:1.2}[d.strength]||1.4):(d.rel==='competes_with'||d.rel==='co_operating')?1.8:1.1;})
+ .attr('stroke-linecap','round')
  .attr('stroke-dasharray',function(d){return d.rel==='competes_with'?'4,3':null;});
 const node=cont.append('g').selectAll('circle').data(nodes).join('circle')
  .attr('r',nR).attr('fill',nC).attr('opacity',nO)
