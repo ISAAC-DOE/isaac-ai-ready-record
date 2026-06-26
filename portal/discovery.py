@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.40-provisional",
+        "version": "0.41-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -3323,6 +3323,12 @@ def _threat_of(sc, frag):
                 "if": ks["descriptor"],
                 "drop": {"from": sc["computed_confidence"], "to": ks["confidence_if_removed"]},
                 "then": ("drops below reliable" if not ks["reliable_if_removed"] else "shifts")}
+    # reliable + robust but NOT yet decisive (0.2<c<0.8): the real threat is an unruled-out
+    # rival mechanism that explains the same evidence — the discriminating experiment settles it.
+    if 0.2 < (sc["computed_confidence"] or 0.0) < 0.8:
+        return {"kind": "rival_open",
+                "note": "robust to single-verdict removal, but a rival mechanism could explain "
+                        "the same pattern — only the discriminating experiment settles it"}
     return {"kind": "robust", "note": "survives removal of any single verdict"}
 
 
@@ -3354,14 +3360,19 @@ def _compose_headline(scored, established, contested):
         seen.add(e["label"])
     live = [(h, sc) for h, sc in scored
             if (h.get("status") or "proposed") not in ("eliminated", "superseded")]
-    if len(units) < 3 and live:                 # 2. an unreliable front-runner, honestly degraded
-        h, sc = max(live, key=lambda x: x[1]["computed_confidence"])
-        if h.get("label") not in seen and not sc["reliable"]:
+    if len(units) < 3 and live:                 # 2. the front-runner — ALWAYS surface it if not
+        h, sc = max(live, key=lambda x: x[1]["computed_confidence"])   # already an established result
+        if h.get("label") not in seen:
             f = _frag(h)
-            units.append({"hypothesis": h.get("label"),
-                          "claim": f"{h.get('label')} is the front-runner (UNRELIABLE — not an answer)",
+            if not sc["reliable"]:
+                claim = f"{h.get('label')} is the front-runner (UNRELIABLE — not an answer)"
+            else:
+                # reliable but NOT 'established' (0.2 < conf < 0.8): leaning, not yet decisive.
+                lean = "supported" if sc["computed_confidence"] >= 0.5 else "refuted"
+                claim = f"{h.get('label')} is the leading hypothesis (leaning {lean}, not yet decisive)"
+            units.append({"hypothesis": h.get("label"), "claim": claim,
                           "because": _load_bearing_verdicts(h), "unless": _threat_of(sc, f),
-                          "confidence": sc["computed_confidence"], "reliable": False,
+                          "confidence": sc["computed_confidence"], "reliable": sc["reliable"],
                           "fragile": f["fragile"]})
             seen.add(h.get("label"))
     if len(units) < 3 and contested:            # 3. a contested cluster + its decider
@@ -3379,7 +3390,8 @@ def _compose_headline(scored, established, contested):
     # the fail-loud banner fires only when something was actually DEGRADED (a front-runner /
     # fragile / unreliable claim) — a thin-but-real 'supported' does not trip it.
     degraded = any(("front-runner" in u["claim"] or "UNRELIABLE" in u["claim"]
-                    or "FRAGILE" in u["claim"]) for u in units)
+                    or "FRAGILE" in u["claim"] or "leading hypothesis" in u["claim"])
+                   for u in units)
     top = units[0] if units else None
     if not top:
         one_liner = "No hypotheses framed yet — frame ≥2 competing mechanisms."

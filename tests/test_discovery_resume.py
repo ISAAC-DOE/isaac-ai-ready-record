@@ -207,3 +207,19 @@ def test_headline_unit_conclusions_equal_ledger_truth():
         # 'refuted'/'supported' claims must match the ledger's decided status
         if truth in ("refuted", "supported"):
             assert truth in unit["claim"]
+
+
+def test_headline_surfaces_reliable_leaning_leader():
+    # THE bug from the live run: a reliable front-runner below 0.8 (e.g. 0.75) fell through
+    # every branch → empty 'No hypotheses framed yet' headline. It must surface as the
+    # 'leading hypothesis (leaning), not yet decisive'.
+    h = _hp("H1", preds=[_p("supports", "moderate", ev=["a"]),
+                         _p("supports", "moderate", ev=["b"])])
+    sc = _scored(h)
+    assert 0.5 < sc[0][1]["computed_confidence"] < 0.8 and sc[0][1]["reliable"]
+    hl = _compose_headline(sc, [], [])
+    assert len(hl["units"]) == 1
+    assert "leading hypothesis" in hl["units"][0]["claim"]
+    assert hl["verdict"] == "undetermined"
+    assert "_fail_loud" in hl
+    assert "No hypotheses framed yet" not in hl["one_liner"]
