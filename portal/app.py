@@ -1766,12 +1766,84 @@ function drawMission(pp,k){
  ctx.fillStyle='#8aa0c4';ctx.font='9px IBM Plex Mono,monospace';ctx.fillText('total belief mass over time',16,H-8);
 }
 
+// ---------- LIVING ORGANISM (the hero) ----------
+function lerp(a,b,t){return a+(b-a)*t;}
+function shade(hex,amt){try{var c=hex.replace('#','');var r=parseInt(c.substr(0,2),16),g=parseInt(c.substr(2,2),16),bl=parseInt(c.substr(4,2),16);
+ r=Math.max(0,Math.min(255,r+amt*255));g=Math.max(0,Math.min(255,g+amt*255));bl=Math.max(0,Math.min(255,bl+amt*255));
+ return 'rgb('+(r|0)+','+(g|0)+','+(bl|0)+')';}catch(e){return hex;}}
+let ORG=null;
+function initOrg(){const cx=W/2,cy=H*0.62,n=D.hyps.length;
+ ORG={cx:cx,cy:cy,t:0,lastK:-1,parts:[],motes:[],
+  br:D.hyps.map(function(h,i){var spread=Math.PI*0.95;
+   var ang=-Math.PI/2+(n>1?(i/(n-1)-0.5):0)*spread+Math.sin(i*12.9)*0.05;
+   return {h:h,i:i,ang:ang,grow:0,thick:0,pulse:0,ph:i*1.7,len:Math.min(W,H)*0.42};})};
+ for(var m=0;m<70;m++)ORG.motes.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.5+0.3,s:0.08+Math.random()*0.25});}
+function branchTip(b){var r=b.len*b.grow;var sway=Math.sin(ORG.t*1.1+b.ph)*16*b.grow;
+ var dead=(b.h.status==='eliminated'||b.h.status==='superseded');
+ return {x:ORG.cx+Math.cos(b.ang)*r+Math.cos(b.ang+1.57)*sway,
+         y:ORG.cy+Math.sin(b.ang)*r+Math.sin(b.ang+1.57)*sway+(dead?40:0)};}
+function spawnNutrients(ev){var b=(ev.hi>=0&&ORG.br[ev.hi])?ORG.br[ev.hi]:null;
+ var col=clsColor(ev.cls);var cnt=Math.min(18,5+(ev.recN||1)*2);
+ for(var i=0;i<cnt;i++){var a=Math.random()*6.283,rr=Math.min(W,H)*0.6;
+  ORG.parts.push({x:ORG.cx+Math.cos(a)*rr,y:ORG.cy+Math.sin(a)*rr*0.7,b:b,col:col,life:1,
+   sp:0.012+Math.random()*0.022,sd:Math.random()*6.283});}}
+function drawBranch(b,cs){
+ var dead=(b.h.status==='eliminated'||b.h.status==='superseded');
+ var steps=18,half=[],half2=[];var perpx=Math.cos(b.ang+1.57),perpy=Math.sin(b.ang+1.57);
+ var maxW=4+30*b.thick;
+ for(var s=0;s<=steps;s++){var f=s/steps;var r=b.len*b.grow*f;
+  var curl=Math.sin(b.ph)*18*f*f;var sway=Math.sin(ORG.t*1.1+b.ph+f*2.2)*(4+10*f)*b.grow;
+  var off=curl+sway;var droop=dead?f*f*40:0;
+  var x=ORG.cx+Math.cos(b.ang)*r+perpx*off, y=ORG.cy+Math.sin(b.ang)*r+perpy*off+droop;
+  var w=maxW*(1-0.75*f)+0.6;
+  half.push([x+perpx*w*0.5,y+perpy*w*0.5]);half2.push([x-perpx*w*0.5,y-perpy*w*0.5]);}
+ ctx.beginPath();ctx.moveTo(half[0][0],half[0][1]);
+ for(var i=1;i<half.length;i++)ctx.lineTo(half[i][0],half[i][1]);
+ for(i=half2.length-1;i>=0;i--)ctx.lineTo(half2[i][0],half2[i][1]);ctx.closePath();
+ var tip=half[half.length-1];
+ var grd=ctx.createLinearGradient(ORG.cx,ORG.cy,tip[0],tip[1]);
+ grd.addColorStop(0,dead?'#2a2f3a':shade(b.h.color,-0.32));grd.addColorStop(1,dead?'#3a4150':b.h.color);
+ ctx.fillStyle=grd;ctx.globalAlpha=dead?0.4:0.92;
+ if(b.pulse>0.05||b.thick>0.45){ctx.save();ctx.shadowBlur=14*(b.pulse*1.6+b.thick);ctx.shadowColor=b.h.color;ctx.fill();ctx.restore();}else ctx.fill();
+ ctx.globalAlpha=1;
+ var tp=branchTip(b),bud=3+8*b.thick;
+ ctx.save();ctx.shadowBlur=12+22*b.pulse;ctx.shadowColor=b.h.color;
+ ctx.beginPath();ctx.arc(tp.x,tp.y,bud,0,6.283);ctx.fillStyle=dead?'#444c5c':b.h.color;ctx.globalAlpha=dead?0.5:1;ctx.fill();ctx.restore();ctx.globalAlpha=1;
+ var np=b.h.preds||0;for(var l=0;l<Math.min(np,5);l++){var lf=0.4+0.5*(l/Math.max(1,np));var lr=b.len*b.grow*lf;
+  var side=(l%2?1:-1);var lx=ORG.cx+Math.cos(b.ang)*lr+perpx*(side*(6+6*b.thick)),ly=ORG.cy+Math.sin(b.ang)*lr+perpy*(side*(6+6*b.thick));
+  ctx.beginPath();ctx.arc(lx,ly,2+2*b.thick,0,6.283);ctx.fillStyle=dead?'#3a4150':b.h.color;ctx.globalAlpha=dead?0.4:0.7;ctx.fill();ctx.globalAlpha=1;}}
+function drawOrganism(pp,k){
+ if(!ORG||ORG.br.length!==D.hyps.length)initOrg();
+ ORG.t+=0.016;
+ var g=ctx.createRadialGradient(W/2,H*0.5,30,W/2,H*0.5,Math.max(W,H)*0.75);
+ g.addColorStop(0,'#0b1224');g.addColorStop(1,'#05070d');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ ctx.fillStyle='rgba(150,180,230,0.10)';
+ ORG.motes.forEach(function(m){m.y-=m.s;if(m.y<0){m.y=H;m.x=Math.random()*W;}ctx.beginPath();ctx.arc(m.x,m.y,m.r,0,6.283);ctx.fill();});
+ if(playing&&k>ORG.lastK){for(var j=ORG.lastK+1;j<=k;j++){var e=D.events[j];if(e&&(e.recN>0||['evidence','literature','compute','verdict'].indexOf(e.cls)>=0))spawnNutrients(e);}}
+ ORG.lastK=k;
+ var cs=confAt(k);
+ ORG.br.forEach(function(b){var cr=(D.hypCreatedAt&&D.hypCreatedAt[b.h.label]!=null)?D.hypCreatedAt[b.h.label]:0;
+  b.grow=lerp(b.grow,(k>=cr)?1:0,0.05);b.thick=lerp(b.thick,(cs[b.i]||0),0.07);b.pulse*=0.92;});
+ ORG.br.slice().sort(function(a,b){return a.thick-b.thick;}).forEach(function(b){if(b.grow>0.02)drawBranch(b,cs);});
+ var cor=8+4*Math.sin(ORG.t*2);ctx.save();ctx.shadowBlur=32;ctx.shadowColor=P.accent;
+ ctx.beginPath();ctx.arc(ORG.cx,ORG.cy,cor,0,6.283);ctx.fillStyle='#d6f2f4';ctx.fill();ctx.restore();
+ ORG.parts=ORG.parts.filter(function(pt){var tgt=pt.b?branchTip(pt.b):{x:ORG.cx,y:ORG.cy};
+  pt.x=lerp(pt.x,tgt.x,pt.sp);pt.y=lerp(pt.y,tgt.y,pt.sp);var d=Math.hypot(pt.x-tgt.x,pt.y-tgt.y);
+  var wob=Math.sin(ORG.t*3+pt.sd)*2;ctx.globalAlpha=Math.min(0.9,pt.life);ctx.fillStyle=pt.col;ctx.shadowBlur=8;ctx.shadowColor=pt.col;
+  ctx.beginPath();ctx.arc(pt.x+wob,pt.y+wob,2.2,0,6.283);ctx.fill();ctx.shadowBlur=0;ctx.globalAlpha=1;
+  if(d<10){if(pt.b)pt.b.pulse=1;return false;}return true;});
+ ORG.br.forEach(function(b){if(b.grow<0.4)return;var tp=branchTip(b);var v=cs[b.i]||0;
+  var dead=(b.h.status==='eliminated'||b.h.status==='superseded');
+  ctx.fillStyle=dead?'rgba(150,160,180,0.5)':b.h.color;ctx.font='11px IBM Plex Mono,monospace';ctx.textAlign='center';
+  ctx.fillText(b.h.label.slice(0,16),tp.x,tp.y-20);ctx.fillStyle='#e7eefc';ctx.fillText(Math.round(v*100)+'%',tp.x,tp.y-6);ctx.textAlign='left';});}
+
 function drawCaption(k){const e=D.events[k];if(!e){cap.textContent='';return;}
  cap.innerHTML='<span style="color:'+clsColor(e.cls)+'">['+e.cls+']</span> '+
    (e.s.replace(/</g,'&lt;'))+'<span style="color:#7f8aa3"> &nbsp;'+(k+1)+'/'+N+'</span>';}
 
 function draw(){const k=evIndex(p);
- if(MODE==='matrix')drawMatrix(p,k);
+ if(MODE==='organism')drawOrganism(p,k);
+ else if(MODE==='matrix')drawMatrix(p,k);
  else if(MODE==='constellation')drawConstellation(p,k);
  else if(MODE==='river')drawRiver(p,k);
  else drawMission(p,k);
@@ -2082,7 +2154,9 @@ requestAnimationFrame(loop);
 
                 _chrono = [e for e in reversed(events)]
                 _rhyps = [{"label": h["label"], "color": _hcolor.get(h["label"], "#C97A3C"),
-                           "status": h["status"]} for h in hyps]
+                           "status": h["status"], "preds": len(h["predictions"])}
+                          for h in hyps]
+                _lab2idx = {h["label"]: _j for _j, h in enumerate(hyps)}
                 # confidence at each event (snapshot ≤ event time), and creation index
                 _rsnaps = discovery.get_confidence_history(pid, owner)
                 _rsb = {h["label"]: [] for h in hyps}
@@ -2120,7 +2194,8 @@ requestAnimationFrame(loop);
                     _t = _ep(_e["created_at"]) if hasattr(_e.get("created_at"), "timestamp") else _i
                     _revents.append({"cls": _ecls(_et, _e.get("summary")),
                                      "s": (_e.get("summary") or "")[:120],
-                                     "recN": len(_recs)})
+                                     "recN": len(_recs),
+                                     "hi": _lab2idx.get(_lab) if _lab is not None else -1})
                     _confseries.append([round(_conf_at_t(h["label"], _t), 3) for h in hyps])
                     _touched.append(_cum)
                 # glyph pool for the matrix rain / record grid: record ids + descriptors
@@ -2137,17 +2212,19 @@ requestAnimationFrame(loop);
                 else:
                     _mode_label = st.radio(
                         "Cinematic style", options=[
+                            "🌱 Living organism — the discovery grows & prunes itself",
                             "🟩 Matrix — reasoning rain + live log",
                             "🕸️ Constellation — the network self-assembles",
                             "🌊 Belief river — confidence flows in",
                             "🛰️ Mission control — multi-panel replay"],
                         horizontal=True, key=f"replaymode_{pid}", label_visibility="collapsed")
-                    _mode = ({"🟩": "matrix", "🕸️": "constellation",
-                              "🌊": "river", "🛰️": "mission"}).get(_mode_label[:1], "matrix")
+                    _mode = ({"🌱": "organism", "🟩": "matrix", "🕸️": "constellation",
+                              "🌊": "river", "🛰️": "mission"}).get(_mode_label[:1], "organism")
                     components.html(_replay_html(_replay_payload, st.session_state.ui_theme,
-                                                 _mode), height=580)
-                    st.caption(f"{len(_revents)} timeline steps · 4 styles to assess — tell "
-                               "me which you like and I'll refine it (or blend them).")
+                                                 _mode), height=600)
+                    st.caption(f"{len(_revents)} timeline steps · the 🌱 Living organism is "
+                               "the reworked hero — hit ▶ and let it grow. Tell me what to "
+                               "push further.")
 
             # ---- Decision journey — the scale & complexity of the reasoning ----
             with tabImpact:
