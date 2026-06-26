@@ -1415,25 +1415,37 @@ elif page == "Discovery":
         if "discovery_project" not in st.session_state:
             st.session_state.discovery_project = None
 
-        _STATUS_COLORS = {
-            "supported": "#2e7d32", "needs_more_data": "#f9a825",
-            "eliminated": "#c62828", "proposed": "#90a4ae",
-            "superseded": "#607d8b",
-        }
+        # ONE autumn/fall palette, assigned per HYPOTHESIS (by identity, not status),
+        # and used IDENTICALLY across the ranking bars, the constellation dots, and
+        # the belief river — so a given hypothesis is the same colour everywhere.
+        # Ordered so the first few are maximally distinct (hue + lightness varied);
+        # deliberately avoids the cool cyan/pink used for evidence verdicts.
+        _HYP_PALETTE = ["#E8941F", "#5F7A34", "#B5462B", "#D8B02A", "#7A4A2B",
+                        "#C97A3C", "#8C6E2A", "#9C3B30"]
+
+        def _hyp_colors(hyps):
+            return {h["label"]: _HYP_PALETTE[i % len(_HYP_PALETTE)]
+                    for i, h in enumerate(hyps)}
+
         _VERDICT_ICON = {"supports": "✅", "contradicts": "❌",
                          "neutral": "➖", "insufficient": "❓"}
 
-        def _bar(label, statement, confidence, status):
+        def _bar(label, statement, confidence, status, color):
             c = float(confidence or 0.0)
-            color = _STATUS_COLORS.get(status, "#90a4ae")
             pct = max(0, min(100, int(round(c * 100))))
+            dead = status in ("eliminated", "superseded")
+            op = 0.45 if dead else 1.0
             return (
-                f"<div style='margin:4px 0'>"
-                f"<div style='font-size:0.85em'><b>{label or ''}</b> "
-                f"<span style='color:#666'>{(statement or '')[:90]}</span> "
-                f"<span style='float:right;color:#666'>{status} · {c:.2f}</span></div>"
-                f"<div style='background:#eee;border-radius:4px;height:14px;width:100%'>"
-                f"<div style='background:{color};width:{pct}%;height:14px;"
+                f"<div style='margin:5px 0;opacity:{op}'>"
+                f"<div style='font-size:0.85em'>"
+                f"<span style='display:inline-block;width:9px;height:9px;border-radius:50%;"
+                f"background:{color};margin-right:7px;vertical-align:middle'></span>"
+                f"<b>{label or ''}</b> "
+                f"<span style='color:#888'>{(statement or '')[:88]}</span> "
+                f"<span style='float:right;color:#888'>{status} · {c:.2f}</span></div>"
+                f"<div style='background:#88888822;border-radius:4px;height:12px;"
+                f"width:100%;margin-top:3px'>"
+                f"<div style='background:{color};width:{pct}%;height:12px;"
                 f"border-radius:4px'></div></div></div>")
 
         def _constellation_html(payload, theme="dark"):
@@ -1477,7 +1489,7 @@ const SC={supported:'#ffca28',eliminated:'#6f6f6f',needs_more_data:'#ffa726',pro
 const VC={supports:'#26c6da',contradicts:'#ec407a',neutral:'#90a4ae',insufficient:'#5c6b7a'};
 function rT(d){return d.kind==='hyp'?56+(1-(d.conf||0))*150:d.kind==='pred'?250:d.kind==='evid'?330:392;}
 function nR(d){return d.kind==='hyp'?8+(d.conf||0)*22:d.kind==='pred'?({strong:7,moderate:5,weak:3}[d.strength]||4):d.kind==='evid'?3:1.3+Math.min(3.4,Math.log((d.n||1)+1));}
-function nC(d){return d.kind==='hyp'?(SC[d.status]||'#90caf9'):d.kind==='pred'?(VC[d.verdict]||'#455a64'):d.kind==='evid'?P.evid:P.screened;}
+function nC(d){return d.kind==='hyp'?(d.color||SC[d.status]||'#90caf9'):d.kind==='pred'?(VC[d.verdict]||'#455a64'):d.kind==='evid'?P.evid:P.screened;}
 function nO(d){return d.kind==='screened'?0.45:d.kind==='evid'?0.85:(d.status==='eliminated'||d.status==='superseded')?0.45:1;}
 [[56,'leading'],[250,'predictions'],[330,'evidence'],[392,'screened']].forEach(function(p){
  svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',p[0]).attr('fill','none').attr('stroke',P.ring).attr('stroke-dasharray','2,7').attr('opacity',0.7);
@@ -1549,9 +1561,11 @@ const D=__DATA__, P=__PAL__;
 document.body.style.background='linear-gradient(180deg,'+P.bg1+','+P.bg2+')';
 const el=document.getElementById('r'); const W=el.clientWidth||820,H=300,m={t:18,r:138,b:24,l:16};
 const svg=d3.select('#r').attr('width',W).attr('height',H);
-const SC={supported:'#ffca28',eliminated:'#6f6f6f',needs_more_data:'#ffa726',proposed:'#4aa3ff',superseded:'#5a5a5a'};
 const keys=D.hyps.map(function(h){return h.label;});
-const colorOf={}; D.hyps.forEach(function(h){colorOf[h.label]=SC[h.status]||'#90caf9';});
+const colorOf={}, deadOf={}, leadOf={};
+D.hyps.forEach(function(h){colorOf[h.label]=h.color||'#C97A3C';
+ deadOf[h.label]=(h.status==='eliminated'||h.status==='superseded');
+ leadOf[h.label]=!!h.lead;});
 if(!D.steps.length||!keys.length){svg.append('text').attr('x',16).attr('y',30).attr('fill',P.axis).attr('font-size',12).text('No confidence history yet.');}
 else{
 const stack=d3.stack().keys(keys).offset(d3.stackOffsetWiggle).order(d3.stackOrderInsideOut);
@@ -1567,12 +1581,13 @@ svg.append('g').selectAll('line').data(D.markers).join('line')
  .attr('x1',function(d){return x(d.t);}).attr('x2',function(d){return x(d.t);}).attr('y1',m.t-4).attr('y2',H-m.b)
  .attr('stroke',P.grid).attr('stroke-dasharray','2,4').attr('opacity',0.4);
 svg.append('g').selectAll('path').data(series).join('path')
- .attr('d',area).attr('fill',function(s){return colorOf[s.key];}).attr('opacity',0.93)
+ .attr('d',area).attr('fill',function(s){return colorOf[s.key];})
+ .attr('opacity',function(s){return deadOf[s.key]?0.5:0.95;})
  .attr('stroke','#00000022').attr('stroke-width',0.4)
- .attr('filter',function(s){return colorOf[s.key]==='#ffca28'?'url(#rg)':null;});
+ .attr('filter',function(s){return leadOf[s.key]?'url(#rg)':null;});
 svg.append('g').selectAll('text').data(series).join('text')
  .attr('x',W-m.r+8).attr('y',function(s){var d=s[s.length-1];return y((d[0]+d[1])/2)+3;})
- .attr('fill',P.label).attr('font-size',10.5).attr('font-weight',600)
+ .attr('fill',function(s){return deadOf[s.key]?P.axis:colorOf[s.key];}).attr('font-size',10.5).attr('font-weight',700)
  .style('paint-order','stroke').style('stroke',P.labshadow).style('stroke-width','2.5px').style('stroke-linejoin','round')
  .text(function(s){var h=D.hyps.find(function(z){return z.label===s.key;});return s.key+'  '+Math.round((h?h.conf:0)*100)+'%';});
 svg.append('text').attr('x',m.l).attr('y',H-7).attr('fill',P.axis).attr('font-size',10).text('run start');
@@ -1645,6 +1660,10 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
             relations = data.get("relations", [])
             _is_owner = proj.get("owner_identity") == owner
             _hlabel = {h["hypothesis_id"]: h["label"] for h in hyps}
+            _hcolor = _hyp_colors(hyps)   # one autumn colour per hypothesis, used everywhere
+            _alive = [h for h in hyps if h["status"] not in ("eliminated", "superseded")]
+            _leader_label = (max(_alive, key=lambda h: float(h["confidence"] or 0))["label"]
+                             if _alive else None)
             brief = discovery.get_briefing(pid, owner) or {}
 
             # ---------- BRIEFING HEADER (the universal-truth digest) ----------
@@ -1762,9 +1781,12 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                     for _a in _recs:
                         st.markdown(f"- {_a}")
 
-            st.markdown("**Hypothesis ranking** — bar length = confidence, colour = status")
+            st.markdown("**Hypothesis ranking** — bar length = confidence; each "
+                        "hypothesis keeps its colour across all the plots below "
+                        "(faded = eliminated)")
             st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
-                                     h["status"]) for h in hyps) or "_No hypotheses yet._",
+                                     h["status"], _hcolor.get(h["label"], "#C97A3C"))
+                                for h in hyps) or "_No hypotheses yet._",
                         unsafe_allow_html=True)
 
             with st.expander("🧭 Briefing — exactly what the agent reads as ground truth"):
@@ -1811,7 +1833,9 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                                 f"<span style='opacity:.85'>{_esc((_h.get('statement') or '')[:150])}</span>")
                         _cnodes.append({"id": _h["hypothesis_id"], "label": _h["label"] or "H",
                                         "kind": "hyp", "conf": float(_h["confidence"] or 0),
-                                        "status": _h["status"], "tip": _tip})
+                                        "status": _h["status"],
+                                        "color": _hcolor.get(_h["label"], "#C97A3C"),
+                                        "tip": _tip})
                     for _h in hyps:
                         for _p in _h["predictions"]:
                             _pid = _p["prediction_id"]
@@ -1911,7 +1935,9 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                     components.html(_river_html(
                         {"steps": _steps,
                          "hyps": [{"label": _h["label"], "status": _h["status"],
-                                   "conf": float(_h["confidence"] or 0)} for _h in hyps],
+                                   "conf": float(_h["confidence"] or 0),
+                                   "color": _hcolor.get(_h["label"], "#C97A3C"),
+                                   "lead": _h["label"] == _leader_label} for _h in hyps],
                          "markers": _markers},
                         st.session_state.ui_theme), height=320)
                     st.caption("Each ribbon is a hypothesis; thickness = confidence over the "
