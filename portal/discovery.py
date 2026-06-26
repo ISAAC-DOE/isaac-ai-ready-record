@@ -72,7 +72,7 @@ COMPUTE_STATUSES = {"queued", "running", "completed", "failed", "resubmitted"}
 RIGOR_CATEGORIES = {"use_novelty", "individuation", "falsifiability",
                     "evidence_compatibility", "confirmation_bias", "overreach",
                     "shared_premise", "grounding_misclassification",
-                    "transferability", "other"}
+                    "transferability", "novelty_penalty", "other"}
 RIGOR_SEVERITIES = {"critical", "major", "minor"}
 RIGOR_FINDING_STATUSES = {"open", "resolved", "dismissed"}
 # A "residual" hypothesis is the explicit NONE-OF-THE-ABOVE / the-shared-premise-is-
@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.36-provisional",
+        "version": "0.37-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -310,14 +310,19 @@ def get_manifest() -> dict:
                     "'weak'. Declare the contrast in the prediction's `discriminates`.",
                 "grounding_gates_the_discount": "Each hypothesis carries a `grounding`: "
                     "'standing_prior' (an established/literature mechanism that exists "
-                    "independently of this dataset) or 'ad_hoc' (introduced or "
-                    "parameterised FROM this dataset to fit it; default if unset). The "
-                    "accommodation discount in the score applies ONLY to ad_hoc hypotheses "
-                    "with genuine fitted-parameter overlap. A standing_prior with such "
-                    "overlap is a consistency check — kept but capped at 'weak', never "
-                    "zeroed. grounding='standing_prior' is a CLAIM you must justify (cite "
-                    "the literature/established source in `origin`); the rigor critic "
-                    "audits it.",
+                    "independently of this dataset) or 'ad_hoc' (introduced FROM this "
+                    "dataset; default if unset). IMPORTANT: ad_hoc is NOT a defect — every "
+                    "genuinely NEW discovery starts ad_hoc (there is no prior literature to "
+                    "cite yet). The accommodation discount is PER-VERDICT and fires ONLY on "
+                    "a verdict whose evidence_independence shows fitted-parameter overlap "
+                    "(tested on the same data the model was fit to). An ad_hoc hypothesis's "
+                    "verdicts on OUT-OF-SAMPLE evidence (data it did not fit) earn FULL, "
+                    "reliability-bearing credit — a novel mechanism that predicts new data "
+                    "correctly is exactly how discovery works, and use-novelty REWARDS it. "
+                    "So ad_hoc is penalised only for testing on its own fit data, never for "
+                    "being new. (A standing_prior with fitted overlap is kept but capped at "
+                    "weak.) grounding='standing_prior' is a CLAIM you must justify (cite the "
+                    "source in `origin`); the rigor critic audits both directions.",
                 "you_may": "Build and tune models freely — that is how predictions are "
                     "GENERATED. A purely tuned fit is a hypothesis generator; it earns no "
                     "confidence BY ITSELF until tested on data it did not see.",
@@ -516,6 +521,14 @@ def get_manifest() -> dict:
                 "literature source, or really parameterised from this dataset, is "
                 "mis-grounded (category grounding_misclassification) — it should be ad_hoc "
                 "and face the discount.\n"
+                "  • NOVELTY-PENALTY (protect the outlier — category novelty_penalty): an "
+                "ad_hoc hypothesis's 'supports' on genuinely OUT-OF-SAMPLE evidence "
+                "(parameters_fit_to ∩ tested_against = ∅) that was suppressed to "
+                "neutral/insufficient, or a novel hypothesis talked down, BECAUSE it is "
+                "new / ad_hoc / disagrees with the literature. A novel outlier denied "
+                "credit it earned on held-out data is a discovery being strangled by "
+                "conformity. Disagreement-with-consensus is NEVER a valid reason to "
+                "discount an out-of-sample verdict — re-instate it at full strength.\n"
                 "  • TRANSFERABILITY (the Cu-Ag lesson): a verdict leaning on evidence from "
                 "a DIFFERENT material / reaction / mechanism class (an analog) that is NOT "
                 "marked cross_system, OR whose borrowed claim is mechanistically invalid "
@@ -783,7 +796,8 @@ def get_manifest() -> dict:
              "purpose": "INDEPENDENT CRITIC records a rigor problem {summary, detail, "
                         "category(use_novelty|individuation|falsifiability|"
                         "evidence_compatibility|confirmation_bias|overreach|"
-                        "shared_premise|grounding_misclassification|other), severity"
+                        "shared_premise|grounding_misclassification|transferability|"
+                        "novelty_penalty|other), severity"
                         "(critical|major|minor), target_type, target_id}. See "
                         "rigor_review.critic_prompt."},
             {"m": "GET", "path": "/projects/{id}/rigor/findings",
@@ -1954,6 +1968,48 @@ def compute_hypothesis_score(h) -> dict:
     }
 
 
+def compute_fragility(h) -> dict:
+    """CONTINGENCY / leave-one-out scan: how load-bearing is each piece of evidence?
+    For each evaluated DECISIVE (supports/contradicts) verdict, recompute confidence with
+    that verdict demoted to 'insufficient' and report the swing. The KEYSTONE is the
+    verdict whose removal moves confidence MOST (by construction it is the most
+    load-bearing one — a correlated/attenuated verdict barely moves it). A hypothesis is
+    FRAGILE if removing the keystone flips its reliability, swings confidence ≥0.15, or
+    the keystone is a cross-system/borrowed leg. This makes 'what is this conclusion
+    load-bearing on' VISIBLE *before* the evidence is ever retracted — the Cu-Ag lesson
+    (a borrowed analog drove a hypothesis to 0.83; the fragility would have read
+    '0.83 → 0.60 if the borrowed leg falls' on the headline, not as a post-mortem)."""
+    base = compute_hypothesis_score(h)
+    base_conf = base["computed_confidence"]
+    preds = h.get("predictions", []) or []
+    per = []
+    for i, p in enumerate(preds):
+        if p.get("work_status") != "evaluated":
+            continue
+        if normalize_verdict(p.get("verdict")) not in ("supports", "contradicts"):
+            continue
+        alt_preds = list(preds)
+        alt_preds[i] = {**dict(p), "verdict": "insufficient"}
+        alt = compute_hypothesis_score({**h, "predictions": alt_preds})
+        per.append({
+            "descriptor": p.get("descriptor_name"),
+            "verdict": normalize_verdict(p.get("verdict")),
+            "cross_system": bool(p.get("cross_system")),
+            "confidence_if_removed": alt["computed_confidence"],
+            "reliable_if_removed": alt["reliable"],
+            "swing": round(base_conf - alt["computed_confidence"], 3),
+        })
+    if not per:
+        return {"base_confidence": base_conf, "reliable": base["reliable"],
+                "keystone": None, "fragile": False, "per_evidence": []}
+    keystone = max(per, key=lambda d: abs(d["swing"]))
+    fragile = (abs(keystone["swing"]) >= 0.15
+               or (base["reliable"] and not keystone["reliable_if_removed"])
+               or keystone["cross_system"])
+    return {"base_confidence": base_conf, "reliable": base["reliable"],
+            "keystone": keystone, "fragile": fragile, "per_evidence": per}
+
+
 def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
     """Recompute a hypothesis's confidence FROM its prediction verdicts and persist
     it (the platform owns confidence; the agent never authors it). Called on every
@@ -2008,10 +2064,13 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     unreliable_scores = []
     for h in hyps:
         _score = compute_hypothesis_score(h)
+        _frag = compute_fragility(h)
         ranking.append({"label": h["label"], "status": h["status"],
                         "confidence": h["confidence"],
                         "computed_confidence": _score["computed_confidence"],
                         "n_scored": _score["n_scored"], "reliable": _score["reliable"],
+                        "fragile": _frag["fragile"],
+                        "hinges_on": (_frag["keystone"] or {}).get("descriptor"),
                         "statement": _oneline(h["statement"])})
         if h["status"] == "supported":
             supported.append(h["label"])
@@ -3125,11 +3184,24 @@ def _resume_synthesis(data, briefing, pending_work, history) -> dict:
     leader = None
     if live:
         h, sc = max(live, key=lambda x: x[1]["computed_confidence"])
+        _frag = compute_fragility({"predictions": h.get("predictions", []),
+                                   "grounding": h.get("grounding")})
+        _ks = _frag.get("keystone")
         leader = {"label": h.get("label"), "confidence": sc["computed_confidence"],
-                  "reliable": sc["reliable"],
-                  "caveat": None if sc["reliable"] else
-                  "front-runner but UNRELIABLE (<2 independent decisive verdicts) — "
-                  "UNDETERMINED, not an established answer."}
+                  "reliable": sc["reliable"], "fragile": _frag["fragile"],
+                  # the 'UNLESS' of the punchline: the one removal that moves it most
+                  "hinges_on": None if not _ks else {
+                      "evidence": _ks["descriptor"], "verdict": _ks["verdict"],
+                      "cross_system": _ks["cross_system"],
+                      "confidence_if_removed": _ks["confidence_if_removed"],
+                      "then": ("drops below reliable" if sc["reliable"]
+                               and not _ks["reliable_if_removed"] else "shifts")},
+                  "caveat": ("front-runner but UNRELIABLE (<2 independent decisive "
+                             "verdicts) — UNDETERMINED, not an established answer."
+                             if not sc["reliable"] else
+                             (f"reliable but FRAGILE — hinges on '{_ks['descriptor']}'; "
+                              f"remove it and confidence → {_ks['confidence_if_removed']}."
+                              if _frag["fragile"] and _ks else None))}
     established, decided = [], set()
     for h, sc in scored:
         c = sc["computed_confidence"]

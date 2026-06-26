@@ -20,7 +20,7 @@ from pathlib import Path
 PORTAL = Path(__file__).resolve().parent.parent / "portal"
 sys.path.insert(0, str(PORTAL))
 
-from discovery import compute_hypothesis_score, _STRENGTH_W  # noqa: E402
+from discovery import compute_hypothesis_score, compute_fragility, _STRENGTH_W  # noqa: E402
 
 
 def _pred(verdict=None, strength=None, work_status="evaluated",
@@ -379,6 +379,55 @@ def test_in_system_still_establishes_normally():
     ))
     assert s["n_decisive"] == 2 and s["reliable"] is True
     assert s["breakdown"]["cross_system_attenuated"] == 0
+
+
+# --- Symmetric use-novelty: a novel (ad_hoc) outlier earns full out-of-sample credit -
+
+def test_adhoc_out_of_sample_gets_full_credit():
+    # a NOVEL (ad_hoc) hypothesis tested on data it did NOT fit (no parameter overlap)
+    # earns full, reliability-bearing credit — use-novelty must not penalise newness.
+    oos1 = {"model_was_fit": True, "parameters_fit_to": ["A"], "tested_against": ["B"]}
+    oos2 = {"model_was_fit": True, "parameters_fit_to": ["A"], "tested_against": ["C"]}
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_independence=oos1),
+        _pred("supports", "strong", evidence_independence=oos2),
+        grounding="ad_hoc"))
+    assert s["reliable"] is True and s["n_decisive"] == 2
+    assert s["breakdown"]["circular_discounted"] == 0   # out-of-sample → no discount
+
+
+# --- Fragility / contingency (leave-one-out) -----------------------------------
+
+def test_fragility_flags_load_bearing_keystone():
+    # reliable on exactly 2 independent supports — pull either and it drops to 1
+    # decisive (unreliable). That's fragile, and the keystone is named.
+    f = compute_fragility(_h(
+        _pred("supports", "strong", evidence_record_ids=["A"]),
+        _pred("supports", "strong", evidence_record_ids=["B"]),
+    ))
+    assert f["reliable"] is True
+    assert f["fragile"] is True
+    assert f["keystone"] is not None
+    assert f["keystone"]["reliable_if_removed"] is False
+
+
+def test_fragility_robust_when_overdetermined():
+    # 3 independent supports — removing one still leaves 2 decisive; not fragile
+    f = compute_fragility(_h(
+        _pred("supports", "strong", evidence_record_ids=["A"]),
+        _pred("supports", "strong", evidence_record_ids=["B"]),
+        _pred("supports", "strong", evidence_record_ids=["C"]),
+    ))
+    assert f["reliable"] is True
+    assert f["fragile"] is False
+
+
+def test_fragility_flags_a_borrowed_keystone():
+    # a hypothesis whose mover is a cross-system/borrowed leg is fragile by construction
+    f = compute_fragility(_h(_pred("supports", "strong", cross_system=True,
+                                   evidence_record_ids=["A"])))
+    assert f["keystone"]["cross_system"] is True
+    assert f["fragile"] is True
 
 
 def test_coverage_and_conflict_math():
