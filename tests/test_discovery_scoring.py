@@ -23,8 +23,15 @@ sys.path.insert(0, str(PORTAL))
 from discovery import compute_hypothesis_score, _STRENGTH_W  # noqa: E402
 
 
-def _pred(verdict=None, strength=None, work_status="evaluated"):
-    return {"verdict": verdict, "strength": strength, "work_status": work_status}
+def _pred(verdict=None, strength=None, work_status="evaluated",
+          evidence_record_ids=None, evidence_independence=None):
+    return {"verdict": verdict, "strength": strength, "work_status": work_status,
+            "evidence_record_ids": evidence_record_ids,
+            "evidence_independence": evidence_independence}
+
+
+# evidence_independence that is CIRCULAR (model fit to the data it's tested on)
+_CIRCULAR = {"parameters_fit_to": ["R1", "R2"], "tested_against": ["R2", "R3"]}
 
 
 def _h(*preds):
@@ -199,6 +206,64 @@ def test_return_contract_keys_present():
                 "n_blocked", "coverage", "conflict", "breakdown", "reliable", "note"):
         assert key in s, key
     assert s["n_scored"] == s["n_decisive"]  # back-compat alias must track
+
+
+# --- Item 1: evidence independence / use-novelty enforced in the math ----------
+
+def test_circular_support_does_not_confirm():
+    # a 'supports' whose model was fit to the data it's tested on is circular → 0,
+    # not decisive: same score as no evidence at all.
+    circ = compute_hypothesis_score(_h(_pred("supports", "strong",
+                                              evidence_independence=_CIRCULAR)))
+    assert circ["computed_confidence"] == 0.5           # contributed nothing
+    assert circ["n_decisive"] == 0
+    assert circ["breakdown"]["circular_discounted"] == 1
+    assert circ["breakdown"]["supports"] == 1           # still recorded as a support
+
+
+def test_clean_support_still_confirms():
+    # control: identical support WITHOUT circularity moves belief normally
+    clean = compute_hypothesis_score(_h(_pred("supports", "strong",
+                                              evidence_independence={"model_was_fit": False})))
+    assert clean["computed_confidence"] == round(_sigmoid(1.0), 3)
+    assert clean["n_decisive"] == 1
+
+
+def test_correlated_supports_do_not_double_count():
+    # two strong supports resting on the SAME record: the second is attenuated to 0.3×
+    # and does not add to the independent-decisive count.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=["RX"]),
+        _pred("supports", "strong", evidence_record_ids=["RX"]),
+    ))
+    assert s["computed_confidence"] == round(_sigmoid(1.0 + 0.3 * 1.0), 3)
+    assert s["n_decisive"] == 1                          # only ONE independent decisive
+    assert s["reliable"] is False                        # can't fake reliability with shared data
+    assert s["breakdown"]["correlated_attenuated"] == 1
+
+
+def test_independent_supports_each_count():
+    # same two supports but on DIFFERENT records: both full weight, both decisive
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=["RX"]),
+        _pred("supports", "strong", evidence_record_ids=["RY"]),
+    ))
+    assert s["computed_confidence"] == round(_sigmoid(2.0), 3)
+    assert s["n_decisive"] == 2
+    assert s["reliable"] is True
+    assert s["breakdown"]["correlated_attenuated"] == 0
+
+
+def test_opposite_directions_on_same_record_are_not_correlated():
+    # a support and a contradiction sharing a record are a CONFLICT, not redundancy —
+    # both count in full (dedup is within-direction only)
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "moderate", evidence_record_ids=["RX"]),
+        _pred("contradicts", "moderate", evidence_record_ids=["RX"]),
+    ))
+    assert s["breakdown"]["correlated_attenuated"] == 0
+    assert s["n_decisive"] == 2
+    assert s["computed_confidence"] == round(_sigmoid(0.6 - 0.6 * 1.25), 3)
 
 
 def test_coverage_and_conflict_math():

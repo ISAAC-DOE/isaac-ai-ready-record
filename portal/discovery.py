@@ -126,7 +126,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.29-provisional",
+        "version": "0.30-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -362,6 +362,15 @@ def get_manifest() -> dict:
             "report": "The score ships with its decomposition — n_decisive, the "
                 "supports/contradicts/neutral/insufficient/blocked breakdown, coverage, "
                 "and a conflict measure — never a bare number.",
+            "evidence_independence_enforced": "Use-novelty is now in the MATH, not just "
+                "flagged. A 'supports' whose evidence_independence shows the model was FIT "
+                "to the data it's TESTED on is CIRCULAR — it scores 0 and is NOT decisive "
+                "(a consistency check, not confirmation; declare evidence_independence so "
+                "this is visible). And CORRELATED same-direction verdicts that rest on "
+                "evidence_record_ids already counted are attenuated to 0.3× and don't add "
+                "to the independent-decisive count — you cannot confirm a hypothesis twice "
+                "with the same data, nor manufacture 'reliability' by stacking predictions "
+                "on one result. Reliability needs ≥2 INDEPENDENT decisive verdicts.",
             "failed_compute_never_penalizes": "A computation that crashes or does not "
                 "converge is NOT evidence and NOT a verdict — it produced no measurement. "
                 "Set the prediction's work_status='compute_failed' (a failed compute run "
@@ -1596,6 +1605,18 @@ def compute_convergence(hyps, relations, next_experiment=None) -> dict:
 # --- Prediction-based confidence scoring -----------------------------------
 
 _STRENGTH_W = {"strong": 1.0, "moderate": 0.6, "weak": 0.3}
+# Correlated evidence is not independent: a same-direction decisive verdict that
+# rests on records ALREADY counted contributes only a fraction (you can't confirm a
+# hypothesis twice with the same data, nor manufacture 'reliability' by stacking
+# predictions on one result).
+_CORRELATION_ATTENUATION = 0.3
+
+
+def _evidence_key(p):
+    """The set of evidence record IDs a verdict rests on (for independence/dedup).
+    Empty → unknown provenance, treated as independent (we can't prove overlap)."""
+    ids = p.get("evidence_record_ids") or []
+    return frozenset(str(x) for x in ids if x)
 
 
 def compute_hypothesis_score(h) -> dict:
@@ -1611,14 +1632,25 @@ def compute_hypothesis_score(h) -> dict:
       • blocked     → 0 and EXCLUDED from belief (SCHEMA GATE: the comparison is
                       methodologically incompatible / ill-posed — not a measurement, so
                       it can't move belief; it only lowers COVERAGE)
-    confidence = sigmoid(Σ). strength ∈ {strong:1.0, moderate:0.6, weak:0.3}; an
+    EVIDENCE INDEPENDENCE (use-novelty) is enforced in the math, not just flagged:
+      • a 'supports' whose evidence_independence shows the model was FIT to the data
+        it's TESTED on is CIRCULAR — it's a consistency check, not confirmation. It
+        contributes 0 and does NOT count as decisive (discounted_circular).
+      • CORRELATED same-direction verdicts (sharing evidence_record_ids already
+        counted) are attenuated to {_atten}× and don't add to n_decisive — you can't
+        confirm twice with the same data, nor fake reliability by stacking predictions
+        on one result.
+    confidence = sigmoid(Σ). strength ∈ {{strong:1.0, moderate:0.6, weak:0.3}}; an
     omitted/unknown strength is treated as WEAK (the conservative tier). A score from
-    <2 DECISIVE (supports/contradicts) verdicts is UNRELIABLE — you cannot
+    <2 INDEPENDENT DECISIVE (supports/contradicts) verdicts is UNRELIABLE — you cannot
     validate/falsify a hypothesis on one verdict; that is why a hypothesis needs a SET
-    of distinct, structured predictions."""
-    logit, n_decisive, strong_contra = 0.0, 0, False
-    bd = {"supports": 0, "contradicts": 0, "neutral": 0,
-          "insufficient": 0, "blocked": 0, "unevaluated": 0}
+    of distinct, structured predictions on independent evidence.""".format(
+        _atten=_CORRELATION_ATTENUATION)
+    bd = {"supports": 0, "contradicts": 0, "neutral": 0, "insufficient": 0,
+          "blocked": 0, "unevaluated": 0, "circular_discounted": 0,
+          "correlated_attenuated": 0}
+    logit = 0.0
+    decisive = []   # (direction:+1/-1, strength_weight, evidence_key) — survives to pass 2
     for p in h.get("predictions", []):
         if p.get("work_status") != "evaluated":
             bd["unevaluated"] += 1
@@ -1628,17 +1660,41 @@ def compute_hypothesis_score(h) -> dict:
         # verdict should move belief the LEAST, never a magic mid-value.
         sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), _STRENGTH_W["weak"])
         if v == "supports":
-            logit += sw; n_decisive += 1; bd["supports"] += 1
+            bd["supports"] += 1
+            if _circularity_flag(p.get("evidence_independence")):
+                bd["circular_discounted"] += 1        # use-novelty: consistency, not confirmation
+                continue                              # 0 contribution, not decisive
+            decisive.append((+1, sw, _evidence_key(p)))
         elif v == "contradicts":
-            logit -= sw * 1.25; n_decisive += 1; bd["contradicts"] += 1
-            if sw >= 1.0:
-                strong_contra = True
+            bd["contradicts"] += 1
+            decisive.append((-1, sw, _evidence_key(p)))
         elif v == "neutral":
             logit -= 0.20; bd["neutral"] += 1          # mild evidence against
         elif v == "blocked":
             bd["blocked"] += 1                         # SCHEMA GATE — no belief shift
         else:
             bd["insufficient"] += 1                    # tested, didn't resolve
+    # Pass 2 — independence/dedup, per direction. Strongest-first greedy: the first
+    # verdict resting on a given record counts in full; later same-direction verdicts
+    # whose evidence overlaps what's already counted are attenuated and don't add to
+    # the independent-decisive count that drives reliability.
+    n_decisive, strong_contra = 0, False
+    for direction in (+1, -1):
+        claimed = set()
+        same = sorted([d for d in decisive if d[0] == direction],
+                      key=lambda d: -d[1])
+        for _dir, sw, ev in same:
+            independent = (not ev) or not (ev & claimed)
+            weight = sw if independent else sw * _CORRELATION_ATTENUATION
+            if independent:
+                n_decisive += 1
+                if ev:
+                    claimed |= ev
+                if direction < 0 and sw >= 1.0:
+                    strong_contra = True
+            else:
+                bd["correlated_attenuated"] += 1
+            logit += direction * weight * (1.25 if direction < 0 else 1.0)
     computed = 1.0 / (1.0 + math.exp(-logit))
     if strong_contra:
         computed = min(computed, 0.15)
@@ -1660,14 +1716,19 @@ def compute_hypothesis_score(h) -> dict:
         "reliable": reliable,
         "note": ("Computed from the prediction verdicts (the ONLY source of "
                  "confidence). "
-                 + ("UNRELIABLE — fewer than 2 DECISIVE (supports/contradicts) "
-                    "verdicts; you can't validate/falsify a hypothesis on one. Add "
-                    "more predictions on DISTINCT descriptors."
+                 + ("UNRELIABLE — fewer than 2 INDEPENDENT DECISIVE (supports/"
+                    "contradicts) verdicts; you can't validate/falsify a hypothesis on "
+                    "one. Add more predictions on DISTINCT descriptors / independent "
+                    "evidence."
                     if not reliable else
-                    f"{n_decisive} decisive ({bd['supports']}+/{bd['contradicts']}−)"
+                    f"{n_decisive} independent decisive ({bd['supports']}+/{bd['contradicts']}−)"
                     + (f", {bd['neutral']} neutral" if bd['neutral'] else "")
                     + (f", {bd['blocked']} blocked (schema gate)" if bd['blocked'] else "")
-                    + ".")),
+                    + ".")
+                 + (f" {bd['circular_discounted']} circular 'supports' discounted "
+                    "(use-novelty)." if bd['circular_discounted'] else "")
+                 + (f" {bd['correlated_attenuated']} correlated verdict(s) attenuated "
+                    "(shared evidence)." if bd['correlated_attenuated'] else "")),
     }
 
 
@@ -1675,8 +1736,9 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
     """Recompute a hypothesis's confidence FROM its prediction verdicts and persist
     it (the platform owns confidence; the agent never authors it). Called on every
     prediction-evaluation change. Returns the new confidence."""
-    cur.execute("""SELECT verdict, strength, work_status FROM hyp_predictions
-                     WHERE hypothesis_id=%s""", (hypothesis_id,))
+    cur.execute("""SELECT verdict, strength, work_status, evidence_independence,
+                          evidence_record_ids
+                     FROM hyp_predictions WHERE hypothesis_id=%s""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]
     score = compute_hypothesis_score({"predictions": preds})
     conf = score["computed_confidence"]
