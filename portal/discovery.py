@@ -21,6 +21,7 @@ Discovery page and the /portal/api/* discovery endpoints call.
 
 import json
 import logging
+import math
 import re
 import secrets
 import time
@@ -120,7 +121,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.26-provisional",
+        "version": "0.27-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -319,6 +320,24 @@ def get_manifest() -> dict:
                 "not re-deduct confidence for a flaw already corrected. Confidence "
                 "moves on new evidence / new hypotheses / corrected assumptions, not on "
                 "how many times you looked.",
+        },
+        "scoring_model": {
+            "_what": "A hypothesis's confidence should be COMPUTED from its prediction "
+                "verdicts, not authored. The platform aggregates a transparent heuristic "
+                "(briefing.ranking[].computed_confidence) so the number is accountable to "
+                "the falsification record.",
+            "how": "Log-odds: each EVALUATED prediction shifts belief by its strength "
+                "(strong 1.0 / moderate 0.6 / weak 0.3); supports +, contradicts − (and "
+                "contradictions weigh ~1.25× — falsification is more decisive than "
+                "confirmation); a STRONG contradiction of a falsifier ~ falsified. "
+                "neutral/insufficient don't move it. confidence = sigmoid(Σ).",
+            "why_a_single_prediction_fails": "With <2 SCORED (supports/contradicts) "
+                "predictions the score is UNRELIABLE — you cannot validate or falsify a "
+                "hypothesis on one verdict, and a lone prediction barely moves the score "
+                "off the 0.5 prior. This is WHY each hypothesis needs a SET of distinct, "
+                "structured predictions (briefing flags unreliable_scores). Build the set, "
+                "then let the score follow the evidence — and reconcile your authored "
+                "confidence with the computed one.",
         },
         "rigor_review": {
             "_what": "An INDEPENDENT adversarial critic — a SEPARATE agent/session, not "
@@ -1559,6 +1578,58 @@ def compute_convergence(hyps, relations, next_experiment=None) -> dict:
     }
 
 
+# --- Prediction-based confidence scoring -----------------------------------
+
+_STRENGTH_W = {"strong": 1.0, "moderate": 0.6, "weak": 0.3}
+
+
+def compute_hypothesis_score(h) -> dict:
+    """Transparent HEURISTIC confidence aggregated from a hypothesis's EVALUATED
+    predictions — so a score is COMPUTED from the falsification record, not authored.
+    Log-odds: each supports/contradicts prediction shifts belief by its strength;
+    contradictions weigh more (falsification is more decisive than confirmation), and
+    a strong contradiction of a falsifier ~ falsified. A score from <2 scored
+    predictions is UNRELIABLE — you cannot reliably validate/falsify a hypothesis on
+    a single prediction, which is exactly why a hypothesis needs a SET."""
+    logit, n_scored, strong_contra = 0.0, 0, False
+    bd = {"supports": 0, "contradicts": 0, "neutral": 0,
+          "insufficient": 0, "unevaluated": 0}
+    for p in h.get("predictions", []):
+        if p.get("work_status") != "evaluated":
+            bd["unevaluated"] += 1
+            continue
+        v = normalize_verdict(p.get("verdict"))
+        sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), 0.5)
+        if v == "supports":
+            logit += sw * 0.95; n_scored += 1; bd["supports"] += 1
+        elif v == "contradicts":
+            logit -= sw * 1.25 * 0.95; n_scored += 1; bd["contradicts"] += 1
+            if sw >= 1.0:
+                strong_contra = True
+        elif v == "neutral":
+            bd["neutral"] += 1
+        else:
+            bd["insufficient"] += 1
+    computed = 1.0 / (1.0 + math.exp(-logit))
+    if strong_contra:
+        computed = min(computed, 0.15)
+    reliable = n_scored >= 2
+    return {
+        "computed_confidence": round(computed, 3),
+        "n_scored": n_scored,
+        "n_predictions": len(h.get("predictions", [])),
+        "breakdown": bd,
+        "reliable": reliable,
+        "note": ("Heuristic confidence aggregated from the prediction verdicts. "
+                 + ("UNRELIABLE — fewer than 2 SCORED (supports/contradicts) "
+                    "predictions; a single prediction can't validate or falsify a "
+                    "hypothesis. Add more, on DISTINCT descriptors."
+                    if not reliable else
+                    f"from {n_scored} scored ({bd['supports']} support / "
+                    f"{bd['contradicts']} contradict).")),
+    }
+
+
 # --- Briefing (the curated "universal truth" digest the agent reads first) --
 
 def get_briefing(project_id, owner_identity=None) -> dict | None:
@@ -1584,9 +1655,14 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     circular_confirmations, supports_without_independence = [], []
     high_conf_hyps, preds_missing_mlflow = [], []
     hyps_below_min_preds, preds_missing_structure, hyps_single_descriptor = [], [], []
+    unreliable_scores, authored_far_from_computed = [], []
     for h in hyps:
+        _score = compute_hypothesis_score(h)
         ranking.append({"label": h["label"], "status": h["status"],
-                        "confidence": h["confidence"], "statement": _oneline(h["statement"])})
+                        "confidence": h["confidence"],
+                        "computed_confidence": _score["computed_confidence"],
+                        "n_scored": _score["n_scored"], "reliable": _score["reliable"],
+                        "statement": _oneline(h["statement"])})
         if h["status"] == "supported":
             supported.append(h["label"])
         elif h["status"] == "eliminated":
@@ -1594,6 +1670,17 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         if h["status"] == "supported" or (h["confidence"] or 0) >= 0.7:
             high_conf_hyps.append(h["label"])
         _live = h["status"] not in ("eliminated", "superseded")
+        # A score from <2 scored predictions is unreliable; a residual is exempt
+        # (it's deliberately a catch-all, not pinned by predictions yet).
+        if _live and not is_residual_hypothesis(h) and not _score["reliable"]:
+            unreliable_scores.append(f"{h['label']} ({_score['n_scored']} scored)")
+        # When the score IS reliable but the agent's authored confidence diverges
+        # a lot from what the predictions support, surface it (don't overwrite).
+        if _live and _score["reliable"] and \
+                abs(float(h["confidence"] or 0) - _score["computed_confidence"]) > 0.25:
+            authored_far_from_computed.append(
+                f"{h['label']} (authored {float(h['confidence'] or 0):.2f} vs "
+                f"computed {_score['computed_confidence']:.2f})")
         if not h["predictions"]:
             hyps_without_falsifier.append(h["label"])
         # A hypothesis needs a SET of falsifying predictions, not one token — and the
@@ -1823,12 +1910,24 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     if hyps_without_falsifier:
         recommended_actions.append(
             f"Add ≥1 falsifying prediction to hypotheses {hyps_without_falsifier}.")
-    if hyps_below_min_preds:
+    if unreliable_scores:
+        recommended_actions.append(
+            f"UNRELIABLE SCORE: {unreliable_scores} have <2 scored predictions — you "
+            "cannot reliably validate/falsify them, and the confidence can't be computed "
+            "from a single verdict. STRONGLY add more predictions (distinct descriptors) "
+            "so the score aggregates over a real set. (briefing.ranking shows the "
+            "computed_confidence vs your authored one.)")
+    elif hyps_below_min_preds:
         recommended_actions.append(
             f"Build out the prediction SET for {hyps_below_min_preds} — each hypothesis "
             f"needs ≥{MIN_PREDICTIONS_PER_HYPOTHESIS} falsifying predictions (aim for "
             "3-4), spanning DIFFERENT measurables (descriptors), not one token "
             "prediction. A richer falsifier set is what separates rivals.")
+    if authored_far_from_computed:
+        recommended_actions.append(
+            f"Your authored confidence diverges from what the predictions support for "
+            f"{authored_far_from_computed} — reconcile: either the verdicts justify a "
+            "different number, or your confidence is not grounded in the evidence.")
     if hyps_single_descriptor:
         recommended_actions.append(
             f"Diversify the descriptors for {hyps_single_descriptor} — all their "
@@ -1881,6 +1980,8 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "hypotheses_below_min_predictions": hyps_below_min_preds,
             "hypotheses_with_single_descriptor": hyps_single_descriptor,
             "predictions_missing_structured_fields": preds_missing_structure,
+            "unreliable_scores_too_few_predictions": unreliable_scores,
+            "authored_confidence_far_from_computed": authored_far_from_computed,
             "predictions_missing_origin_provenance": preds_without_origin,
             "predictions_missing_falsification_criterion": preds_without_criterion,
             "circular_confirmations": circular_confirmations,
