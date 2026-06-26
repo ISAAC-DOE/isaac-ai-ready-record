@@ -107,7 +107,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.15-provisional",
+        "version": "0.16-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -222,6 +222,27 @@ def get_manifest() -> dict:
                 "test": "If you cannot name an observable on which the new and old "
                     "predict differently, it is a refinement, not a new hypothesis.",
             },
+        },
+        "progress_model": {
+            "_what": "How to read progress. Progress is NOT 'the leader stays high "
+                "confidence' — it is DISTANCE TO A DECISION. Two rivals that are "
+                "observationally identical on all current data are a SETTLED phenomenon "
+                "with an open sub-mechanism, not 'everything is weak'.",
+            "convergence": "briefing.convergence reports contested clusters of surviving "
+                "hypotheses and whether existing evidence can still separate them. A "
+                "cluster is `blocked_on_experiment` (observationally identical, but a "
+                "discriminating test is registered/unrun) or `no_discriminating_test` "
+                "(identical and no test designed — worse). decision_distance summarizes "
+                "it (0 = decided, 0.2 = one experiment away, 0.8 = no test designed).",
+            "do_not_re_audit_to_resolve": "When survivors are observationally identical, "
+                "re-auditing the SAME data will not separate them and only erodes "
+                "confidence — RUN the discriminating experiment instead. The platform "
+                "redirects recommended_actions to the experiment; it never freezes your "
+                "confidences (you keep updating them on real evidence).",
+            "idempotence": "A rigor pass over UNCHANGED evidence should be a no-op — do "
+                "not re-deduct confidence for a flaw already corrected. Confidence "
+                "moves on new evidence / new hypotheses / corrected assumptions, not on "
+                "how many times you looked.",
         },
         "rigor_review": {
             "_what": "An INDEPENDENT adversarial critic — a SEPARATE agent/session, not "
@@ -393,7 +414,12 @@ def get_manifest() -> dict:
                         "`supersedes` also pass {discriminating_observable, "
                         "retained_vs_abandoned, change_type} — the observable on which "
                         "the new hypothesis predicts differently is what makes it new "
-                        "rather than a refinement."},
+                        "rather than a refinement. UPSERT on (from,to,relation_type): "
+                        "re-posting UPDATES in place (e.g. to attach the observable to "
+                        "an earlier bare row), never duplicates."},
+            {"m": "DELETE", "path": "/hypotheses/{id}/relations",
+             "purpose": "Remove a relation {to_hypothesis_id, relation_type} — e.g. a "
+                        "stray duplicate or one added in error."},
             {"m": "PUT", "path": "/predictions/{id}/status",
              "purpose": "Advance the prediction work_status lane."},
             {"m": "POST", "path": "/predictions/{id}/runs",
@@ -1144,6 +1170,122 @@ def set_prediction_status(prediction_id, work_status, *, mlflow_run_url=None,
         conn.close()
 
 
+# --- Convergence / saturation (representation fix: progress != leader confidence) -
+
+def _prediction_discriminates(p, survivor_labels) -> bool:
+    """True if this prediction's declared `discriminates` separates >=2 of the given
+    survivors (names them with DIFFERING expected outcomes). Domain-agnostic: it
+    reads only the discriminates graph, never the science."""
+    disc = p.get("discriminates") or []
+    touch = [(d.get("hypothesis_label"), d.get("expected")) for d in disc
+             if isinstance(d, dict) and d.get("hypothesis_label") in survivor_labels]
+    labels = {lbl for lbl, _ in touch}
+    expectations = {exp for _, exp in touch}
+    return len(labels) >= 2 and len(expectations) >= 2
+
+
+def compute_convergence(hyps, relations, next_experiment=None) -> dict:
+    """Detect contested clusters of SURVIVING hypotheses and whether the existing
+    evidence can still separate them — so the platform can report 'settled
+    phenomenon, one experiment away' instead of letting honest low confidence read
+    as regression. Computed purely from state; never freezes confidence (we freeze
+    the DECISION, not the posterior — auditing won't separate observationally
+    identical rivals, only an experiment will)."""
+    alive = {h["hypothesis_id"]: h for h in hyps
+             if h["status"] not in ("eliminated", "superseded")}
+    label = {h["hypothesis_id"]: h["label"] for h in hyps}
+
+    # contested clusters = connected components of competes_with among survivors
+    adj = {hid: set() for hid in alive}
+    for r in relations or []:
+        if r.get("relation_type") in ("competes_with", "co_operating"):
+            a, b = r.get("from_hypothesis_id"), r.get("to_hypothesis_id")
+            if a in alive and b in alive:
+                adj[a].add(b)
+                adj[b].add(a)
+    seen, clusters = set(), []
+    for hid in alive:
+        if hid in seen:
+            continue
+        comp, stack = [], [hid]
+        while stack:
+            x = stack.pop()
+            if x in seen:
+                continue
+            seen.add(x)
+            comp.append(x)
+            stack.extend(adj[x] - seen)
+        if len(comp) >= 2:
+            clusters.append(comp)
+
+    all_preds = [p for h in hyps for p in h["predictions"]]
+    out_clusters = []
+    worst = "decided"  # decided < resolving < blocked_on_experiment < no_test
+    rank = {"decided": 0, "resolving": 1,
+            "blocked_on_experiment": 2, "no_discriminating_test": 3}
+    for comp in clusters:
+        slabels = {label[x] for x in comp}
+        disc_run = [p for p in all_preds
+                    if p.get("work_status") == "evaluated"
+                    and _prediction_discriminates(p, slabels)]
+        disc_unrun = [p for p in all_preds
+                      if p.get("work_status") != "evaluated"
+                      and _prediction_discriminates(p, slabels)]
+        # a pre-registered next_experiment can also be the blocking discriminator
+        nx_blocks = False
+        if next_experiment:
+            po = next_experiment.get("predicted_outcomes") or []
+            nx = [(d.get("hypothesis_label"), d.get("expected")) for d in po
+                  if isinstance(d, dict) and d.get("hypothesis_label") in slabels]
+            nx_blocks = (len({l for l, _ in nx}) >= 2 and len({e for _, e in nx}) >= 2)
+
+        if disc_run:
+            state = "resolving"   # a discriminating test has a verdict; survivors should separate
+        elif disc_unrun or nx_blocks:
+            state = "blocked_on_experiment"  # observationally identical, but a test is designed
+        else:
+            state = "no_discriminating_test"  # observationally identical AND no test — worse
+        if rank[state] > rank[worst]:
+            worst = state
+        blocking = [(p.get("label") or p.get("descriptor_name")) for p in disc_unrun][:3]
+        if nx_blocks and next_experiment.get("descriptor"):
+            blocking.append("next_experiment: " + str(next_experiment["descriptor"]))
+        out_clusters.append({
+            "survivors": sorted(slabels),
+            "state": state,
+            "blocking_experiments": blocking,
+            "_reads": {
+                "blocked_on_experiment": "Survivors are observationally identical on "
+                    "current data — re-auditing will NOT separate them; only the "
+                    "registered experiment will. Run it.",
+                "no_discriminating_test": "Survivors are observationally identical and "
+                    "NO registered test separates them — design a discriminating "
+                    "experiment (this is worse than 'one experiment away').",
+                "resolving": "A discriminating experiment has a verdict; the split "
+                    "should be resolving.",
+            }.get(state, ""),
+        })
+
+    distance = {"decided": 0.0, "resolving": 0.1,
+                "blocked_on_experiment": 0.2, "no_discriminating_test": 0.8}[worst]
+    return {
+        "contested_clusters": out_clusters,
+        "decision_distance": distance,
+        "headline": {
+            "decided": "No contested survivor set — converged.",
+            "resolving": "A discriminating experiment is in; the contested set is resolving.",
+            "blocked_on_experiment": "Settled phenomenon — decision is ONE pre-registered "
+                "experiment away. Stop auditing the same data; run the experiment.",
+            "no_discriminating_test": "Contested survivors with NO test that separates "
+                "them — design a discriminating experiment.",
+        }[worst],
+        "_note": "Progress here is distance-to-a-decision, not leader confidence. Two "
+                 "rivals that are observationally identical on current data are a "
+                 "SETTLED phenomenon with an open sub-mechanism — not 'everything weak'. "
+                 "Confidence is never frozen; the DECISION is what's blocked.",
+    }
+
+
 # --- Briefing (the curated "universal truth" digest the agent reads first) --
 
 def get_briefing(project_id, owner_identity=None) -> dict | None:
@@ -1219,12 +1361,19 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     # on which the new hypothesis predicts differently (else it may be a mere
     # refinement that belongs in a version bump, not a new node).
     _hlabel = {h["hypothesis_id"]: h["label"] for h in hyps}
-    supersedes_without_discriminator = []
+    # Tolerant check: a (from,to) supersession is OK as long as AT LEAST ONE of its
+    # rows carries the observable (robust to legacy duplicate rows, and cleared by
+    # the upsert re-post). Flag only pairs where NO row has it.
+    _sup_pairs, _sup_has_obs = {}, set()
     for r in (data.get("relations") or []):
-        if r.get("relation_type") == "supersedes" and not r.get("discriminating_observable"):
-            supersedes_without_discriminator.append(
-                f"{_hlabel.get(r['from_hypothesis_id'], '?')} supersedes "
-                f"{_hlabel.get(r['to_hypothesis_id'], '?')}")
+        if r.get("relation_type") == "supersedes":
+            key = (r["from_hypothesis_id"], r["to_hypothesis_id"])
+            _sup_pairs[key] = (f"{_hlabel.get(key[0], '?')} supersedes "
+                               f"{_hlabel.get(key[1], '?')}")
+            if r.get("discriminating_observable"):
+                _sup_has_obs.add(key)
+    supersedes_without_discriminator = [lbl for key, lbl in _sup_pairs.items()
+                                        if key not in _sup_has_obs]
 
     all_findings = list_rigor_findings(project_id)
     open_findings = [f for f in all_findings if f["status"] == "open"]
@@ -1247,6 +1396,9 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                   "'survives' finding as its record."),
     }
 
+    convergence = compute_convergence(hyps, data.get("relations"),
+                                      next_experiment=proj.get("next_experiment"))
+
     elements = extract_elements(proj.get("material_system"))
     ov = proj.get("evidence_overrides") or {}
     evidence_index = build_evidence_index(elements, include_ids=ov.get("include"),
@@ -1256,6 +1408,19 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     # the agent learns what to do next FROM THE BRIEFING, not from a bespoke human
     # prompt. Every action is a generic method/rigor step — never a science answer.
     recommended_actions = []
+    # Convergence redirect FIRST: when survivors are observationally identical, the
+    # next move is an EXPERIMENT, not another audit (the safe version of 'freeze' —
+    # we redirect the decision, never touch the confidences).
+    for _c in convergence["contested_clusters"]:
+        if _c["state"] == "blocked_on_experiment":
+            recommended_actions.append(
+                f"RUN the discriminating experiment ({', '.join(_c['blocking_experiments']) or 'registered'}) "
+                f"to separate {_c['survivors']} — they are observationally identical on "
+                "current data, so further auditing won't resolve them; the experiment will.")
+        elif _c["state"] == "no_discriminating_test":
+            recommended_actions.append(
+                f"DESIGN a discriminating experiment for {_c['survivors']} — they are "
+                "observationally identical and no registered test separates them.")
     if open_findings:
         recommended_actions.append(
             f"Resolve {len(open_findings)} open rigor finding(s) "
@@ -1311,6 +1476,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         "open_questions": open_q,
         "pending_compute": pending_compute,
         "discrimination_matrix": matrix,
+        "convergence": convergence,
         "recommended_actions": recommended_actions,
         "method_compliance": {
             "_what": "Live check against the manifest `method` + epistemic_guardrails. "
@@ -1424,13 +1590,33 @@ def add_relation(from_hypothesis_id, to_hypothesis_id, relation_type, *,
         proj_to = _project_of_hypothesis(cur, to_hypothesis_id)
         if project_id is None or proj_to is None:
             return False
+        # UPSERT on (from, to, relation_type): re-posting a relation UPDATES it in
+        # place (e.g. to attach a discriminating_observable) rather than spawning a
+        # duplicate row. COALESCE keeps existing values when a field isn't re-sent.
         cur.execute(
-            """INSERT INTO hyp_hypothesis_relations
-                 (project_id, from_hypothesis_id, to_hypothesis_id, relation_type,
-                  note, discriminating_observable, retained_vs_abandoned, change_type)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (project_id, from_hypothesis_id, to_hypothesis_id, relation_type, note,
-             discriminating_observable, retained_vs_abandoned, change_type))
+            """SELECT id FROM hyp_hypothesis_relations
+                WHERE from_hypothesis_id=%s AND to_hypothesis_id=%s
+                  AND relation_type=%s""",
+            (from_hypothesis_id, to_hypothesis_id, relation_type))
+        existing = cur.fetchone()
+        if existing:
+            cur.execute(
+                """UPDATE hyp_hypothesis_relations SET
+                     note=COALESCE(%s, note),
+                     discriminating_observable=COALESCE(%s, discriminating_observable),
+                     retained_vs_abandoned=COALESCE(%s, retained_vs_abandoned),
+                     change_type=COALESCE(%s, change_type)
+                   WHERE id=%s""",
+                (note, discriminating_observable, retained_vs_abandoned, change_type,
+                 existing["id"]))
+        else:
+            cur.execute(
+                """INSERT INTO hyp_hypothesis_relations
+                     (project_id, from_hypothesis_id, to_hypothesis_id, relation_type,
+                      note, discriminating_observable, retained_vs_abandoned, change_type)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (project_id, from_hypothesis_id, to_hypothesis_id, relation_type, note,
+                 discriminating_observable, retained_vs_abandoned, change_type))
         _detail = note
         if relation_type == "supersedes" and discriminating_observable:
             _detail = (f"{note + chr(10) if note else ''}discriminating observable: "
@@ -1440,6 +1626,32 @@ def add_relation(from_hypothesis_id, to_hypothesis_id, relation_type, *,
                       detail=_detail, hypothesis_id=from_hypothesis_id, actor=actor)
         conn.commit()
         return True
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_relation(from_hypothesis_id, to_hypothesis_id, relation_type, *,
+                    actor=None) -> int:
+    """Remove relation row(s) matching (from, to, relation_type) — e.g. to clear a
+    stray duplicate or a relation added in error. Returns the number deleted."""
+    relation_type = normalize_relation(relation_type)
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        project_id = _project_of_hypothesis(cur, from_hypothesis_id)
+        cur.execute(
+            """DELETE FROM hyp_hypothesis_relations
+                WHERE from_hypothesis_id=%s AND to_hypothesis_id=%s
+                  AND relation_type=%s""",
+            (from_hypothesis_id, to_hypothesis_id, relation_type))
+        n = cur.rowcount
+        if n and project_id:
+            _append_event(cur, project_id, "status_changed",
+                          f"Relation removed: {relation_type} ({n})",
+                          hypothesis_id=from_hypothesis_id, actor=actor)
+        conn.commit()
+        return n
     finally:
         cur.close()
         conn.close()
