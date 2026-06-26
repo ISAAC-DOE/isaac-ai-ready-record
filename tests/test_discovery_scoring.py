@@ -24,10 +24,10 @@ from discovery import compute_hypothesis_score, _STRENGTH_W  # noqa: E402
 
 
 def _pred(verdict=None, strength=None, work_status="evaluated",
-          evidence_record_ids=None, evidence_independence=None):
+          evidence_record_ids=None, evidence_independence=None, margin=None):
     return {"verdict": verdict, "strength": strength, "work_status": work_status,
             "evidence_record_ids": evidence_record_ids,
-            "evidence_independence": evidence_independence}
+            "evidence_independence": evidence_independence, "margin": margin}
 
 
 # evidence_independence that is CIRCULAR (model fit to the data it's tested on)
@@ -264,6 +264,50 @@ def test_opposite_directions_on_same_record_are_not_correlated():
     assert s["breakdown"]["correlated_attenuated"] == 0
     assert s["n_decisive"] == 2
     assert s["computed_confidence"] == round(_sigmoid(0.6 - 0.6 * 1.25), 3)
+
+
+# --- Item 2: per-verdict sharpness (margin) ------------------------------------
+
+def test_margin_none_is_backward_compatible():
+    # omitting margin === today's tier-only behaviour
+    assert (compute_hypothesis_score(_h(_pred("supports", "moderate")))["computed_confidence"]
+            == round(_sigmoid(0.6), 3))
+
+
+def test_decisive_margin_weighs_more_than_marginal():
+    sharp = compute_hypothesis_score(_h(_pred("supports", "moderate", margin=1.0)))
+    blunt = compute_hypothesis_score(_h(_pred("supports", "moderate", margin=0.0)))
+    # 1.3x vs 0.7x the tier weight
+    assert sharp["computed_confidence"] == round(_sigmoid(0.6 * 1.3), 3)
+    assert blunt["computed_confidence"] == round(_sigmoid(0.6 * 0.7), 3)
+    assert sharp["computed_confidence"] > blunt["computed_confidence"]
+
+
+def test_marginal_strong_contradiction_does_not_auto_falsify():
+    # a STRONG contradiction barely past the threshold (margin<0.5) is strong
+    # evidence-against but NOT an automatic kill → the ≤0.15 cap must NOT fire
+    s = compute_hypothesis_score(_h(
+        _pred("contradicts", "strong", margin=0.1),
+        _pred("supports", "weak"),
+    ))
+    assert s["computed_confidence"] > 0.15
+    # contribution: -1.0*1.25*(0.7+0.06) + 0.3 = -0.95 + 0.3
+    expected = _sigmoid(-(1.0 * 1.25 * (0.7 + 0.6 * 0.1)) + 0.3)
+    assert s["computed_confidence"] == round(expected, 3)
+
+
+def test_decisive_strong_contradiction_still_falsifies():
+    s = compute_hypothesis_score(_h(
+        _pred("contradicts", "strong", margin=0.9),
+        _pred("supports", "strong"),
+    ))
+    assert s["computed_confidence"] <= 0.15   # decisive breach → hard cap fires
+
+
+def test_unqualified_strong_contradiction_keeps_old_cap():
+    # no margin → old behaviour: strong contradiction caps
+    s = compute_hypothesis_score(_h(_pred("contradicts", "strong"), _pred("contradicts", "moderate")))
+    assert s["computed_confidence"] <= 0.15
 
 
 def test_coverage_and_conflict_math():

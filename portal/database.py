@@ -530,6 +530,11 @@ def init_discovery_tables():
         # Stored + surfaced now (gated later).
         cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
                     "evidence_independence JSONB")
+        # margin ∈ [0,1] — per-verdict CONTRADICTION SHARPNESS: how decisively the
+        # observation diverged PAST the prediction's falsification threshold (1 = far
+        # past / unambiguous, 0 = right at the line). Refines the coarse strength tier
+        # and gates the strong-contradiction falsification cap. Optional/back-compat.
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS margin REAL")
         # (4) Confidence as a first-class TIME SERIES (one row per change), so the
         # "Belief River" reads real history instead of scraping event prose. Legacy
         # projects are backfilled-on-read from their event log (see discovery.py).
