@@ -149,6 +149,11 @@ the records DB — referenced read-only, never written from here.
   the platform computes it from the prediction verdicts).
 - **Prediction `work_status`** (drives the Validation board):
   `awaiting_evidence → more_work_pending → compute_submitted → compute_running → evaluated`.
+  Plus `compute_failed` — a crashed / non-converged calc. It is **not** a verdict and
+  leaves confidence **untouched** (the prediction is simply unevaluated); it surfaces in
+  `pending_work` + `recommended_actions` as a re-run to-do. A failed compute run auto-sets
+  it. **Never** record a tool failure as `insufficient`/`contradicts` — the score reflects
+  the evidence you have, not what you tried and couldn't get.
 - **Prediction `verdict`** (the scientific outcome, set at `evaluated`):
   `supports | contradicts | neutral | insufficient | blocked`, with `strength` `strong|moderate|weak`.
 

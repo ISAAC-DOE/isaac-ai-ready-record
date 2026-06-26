@@ -40,17 +40,20 @@ EVENT_TYPES = {
     "hypothesis_created", "prediction_added", "prediction_evaluated",
     "ranking_updated", "status_changed", "next_experiment_proposed",
     "evidence_ingested", "agent_message", "project_created",
-    "compute_submitted", "compute_running",
+    "compute_submitted", "compute_running", "compute_failed",
 }
 
 # Prediction workflow lifecycle (distinct from `verdict`, the scientific
 # outcome). Drives the Validation board (Section B). Order = pipeline order.
+# `compute_failed` is a PENDING side-state: a requested computation crashed / did
+# not converge. It is NOT a verdict and does NOT move confidence — the prediction
+# is simply not yet evaluated, and it surfaces as a to-do to re-run next cycle.
 WORK_STATUSES = {
     "awaiting_evidence", "more_work_pending", "compute_submitted",
-    "compute_running", "evaluated",
+    "compute_running", "compute_failed", "evaluated",
 }
 WORK_STATUS_ORDER = ["awaiting_evidence", "more_work_pending", "compute_submitted",
-                     "compute_running", "evaluated"]
+                     "compute_running", "compute_failed", "evaluated"]
 
 # Hypothesis status + prediction verdict vocabularies (documented for agents;
 # not hard-enforced yet while the reasoning loop is still being learned).
@@ -123,7 +126,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.28-provisional",
+        "version": "0.29-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -359,6 +362,14 @@ def get_manifest() -> dict:
             "report": "The score ships with its decomposition — n_decisive, the "
                 "supports/contradicts/neutral/insufficient/blocked breakdown, coverage, "
                 "and a conflict measure — never a bare number.",
+            "failed_compute_never_penalizes": "A computation that crashes or does not "
+                "converge is NOT evidence and NOT a verdict — it produced no measurement. "
+                "Set the prediction's work_status='compute_failed' (a failed compute run "
+                "auto-sets it); the score is UNCHANGED — confidence reflects the evidence "
+                "you actually have, not what you tried and couldn't get. The failed calc "
+                "becomes a re-run to-do (briefing.failed_compute + recommended_actions / "
+                "pending_work) for the next cycle. Do NOT downgrade a hypothesis because a "
+                "tool failed, and never log the failure as insufficient/contradicts.",
         },
         "rigor_review": {
             "_what": "An INDEPENDENT adversarial critic — a SEPARATE agent/session, not "
@@ -589,7 +600,13 @@ def get_manifest() -> dict:
              "purpose": "Remove a relation {to_hypothesis_id, relation_type} — e.g. a "
                         "stray duplicate or one added in error."},
             {"m": "PUT", "path": "/predictions/{id}/status",
-             "purpose": "Advance the prediction work_status lane."},
+             "purpose": "Advance the prediction work_status lane. A crashed / "
+                        "non-converged computation → work_status='compute_failed': it is "
+                        "NOT a verdict, leaves confidence untouched, and surfaces in "
+                        "pending_work + recommended_actions as a re-run to-do. (A failed "
+                        "compute run auto-sets this on its prediction too.) NEVER record a "
+                        "tool failure as insufficient/contradicts — the score reflects the "
+                        "evidence you actually have, not what you tried and couldn't get."},
             {"m": "POST", "path": "/predictions/{id}/runs",
              "purpose": "Register a compute run {backend, engine, resource, "
                         "slurm_job_id, mlflow_run_url, status, params, metrics}. "
@@ -1374,8 +1391,10 @@ def refine_hypothesis(hypothesis_id, *, statement=None, mechanism=None,
 def set_prediction_status(prediction_id, work_status, *, mlflow_run_url=None,
                           actor=None) -> bool:
     """Advance a prediction through its workflow lifecycle (compute_submitted /
-    compute_running / more_work_pending / awaiting_evidence). Use evaluate() to
-    reach the terminal 'evaluated' state with a verdict."""
+    compute_running / compute_failed / more_work_pending / awaiting_evidence). Use
+    evaluate() to reach the terminal 'evaluated' state with a verdict. 'compute_failed'
+    marks a crashed/non-converged calc: it is NOT a verdict and leaves confidence
+    untouched (the prediction is simply unevaluated) — it becomes a to-do to re-run."""
     if work_status not in WORK_STATUSES:
         return False
     conn = _conn()
@@ -1399,6 +1418,7 @@ def set_prediction_status(prediction_id, work_status, *, mlflow_run_url=None,
                         (work_status, prediction_id))
         etype = ("compute_submitted" if work_status == "compute_submitted"
                  else "compute_running" if work_status == "compute_running"
+                 else "compute_failed" if work_status == "compute_failed"
                  else "status_changed")
         _append_event(cur, row["project_id"], etype,
                       f"Prediction {row['descriptor_name']} → {work_status}",
@@ -1691,6 +1711,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         return (s.split(":", 1)[0] if ":" in s[:60] else s)[:90]
 
     ranking, validated, invalidated, open_q, pending_compute = [], [], [], [], []
+    failed_compute = []
     supported, eliminated = [], []
     matrix = []
     hyps_without_falsifier, preds_without_origin, preds_without_criterion = [], [], []
@@ -1775,6 +1796,8 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                  else open_q).append(item)
             elif ws in ("compute_submitted", "compute_running"):
                 pending_compute.append(item)
+            elif ws == "compute_failed":
+                failed_compute.append(item)        # crashed calc — a re-run to-do, NOT a verdict
             else:
                 open_q.append(item)
 
@@ -1878,6 +1901,14 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "but didn't await (literature query / submitted compute): poll each and "
             "ingest the result (resolve the async task / evaluate the prediction). "
             "This is the main reason to resume the project.")
+    if failed_compute:
+        _ftags = [f"{i['hypothesis_label']}/{i.get('descriptor') or '?'}" for i in failed_compute][:6]
+        recommended_actions.append(
+            f"RE-RUN {len(failed_compute)} FAILED computation(s) ({', '.join(_ftags)}): the "
+            "calc crashed / did not converge, so the prediction is unevaluated. This did "
+            "NOT change any score (confidence stays on the evidence you actually have) — "
+            "fix and resubmit it next cycle, or replace it with method-compatible evidence. "
+            "Do NOT record a failed calc as a verdict (insufficient/contradicts).")
     # Convergence redirect FIRST: when survivors are observationally identical, the
     # next move is an EXPERIMENT, not another audit (the safe version of 'freeze' —
     # we redirect the decision, never touch the confidences).
@@ -1988,6 +2019,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         "invalidated_predictions": invalidated,
         "open_questions": open_q,
         "pending_compute": pending_compute,
+        "failed_compute": failed_compute,   # crashed/non-converged calcs — re-run to-dos, no score effect
         "discrimination_matrix": matrix,
         "convergence": convergence,
         "pending_work": pending_work,
@@ -2376,13 +2408,15 @@ def get_pending_work(project_id) -> dict:
                  FROM hyp_compute_runs r
                  JOIN hyp_predictions p ON p.prediction_id = r.prediction_id
                  JOIN hyp_hypotheses h ON h.hypothesis_id = p.hypothesis_id
-                WHERE h.project_id=%s AND r.status IN ('queued','running')
+                WHERE h.project_id=%s AND r.status IN ('queued','running','failed')
                 ORDER BY r.created_at DESC""", (project_id,))
         _seen_pred = set()
         for r in cur.fetchall():
+            _engine = f"{r.get('backend') or ''} {r.get('engine') or ''}".strip() or "compute run"
+            _summary = (f"{_engine} FAILED — re-run (does not affect any score)"
+                        if r["status"] == "failed" else _engine)
             items.append({"kind": "compute", "ref": r.get("slurm_job_id"),
-                          "summary": f"{r.get('backend') or ''} {r.get('engine') or ''}".strip()
-                                     or "compute run",
+                          "summary": _summary,
                           "status": r["status"], "poll_hint": r.get("mlflow_run_url"),
                           "started_at": (r["created_at"].isoformat()
                                          if hasattr(r["created_at"], "isoformat")
@@ -2395,12 +2429,14 @@ def get_pending_work(project_id) -> dict:
                  FROM hyp_predictions p
                  JOIN hyp_hypotheses h ON h.hypothesis_id = p.hypothesis_id
                 WHERE h.project_id=%s
-                  AND p.work_status IN ('compute_submitted','compute_running')
+                  AND p.work_status IN ('compute_submitted','compute_running','compute_failed')
                 ORDER BY p.updated_at DESC""", (project_id,))
         for r in cur.fetchall():
+            _failed = r["work_status"] == "compute_failed"
             items.append({"kind": "compute", "ref": None,
-                          "summary": f"prediction '{r.get('descriptor_name') or '?'}' "
-                                     f"awaiting result",
+                          "summary": (f"prediction '{r.get('descriptor_name') or '?'}' "
+                                      + ("computation FAILED — re-run (no score effect)"
+                                         if _failed else "awaiting result")),
                           "status": r["work_status"], "poll_hint": r.get("mlflow_run_url"),
                           "started_at": (r["updated_at"].isoformat()
                                          if hasattr(r["updated_at"], "isoformat")
@@ -2518,7 +2554,19 @@ def update_compute_run(run_id, *, status=None, metrics=None, mlflow_run_url=None
         vals.append(run_id)
         cur.execute(f"UPDATE hyp_compute_runs SET {', '.join(sets)}, updated_at=NOW() "
                     f"WHERE run_id=%s", vals)
-        etype = "compute_running" if status == "running" else "status_changed"
+        # A failed run flips its (still-in-flight, un-evaluated) prediction to the
+        # compute_failed pending state — never to a verdict. This guarantees a
+        # crashed/non-converged calc does NOT move confidence and becomes a re-run
+        # to-do, without the agent having to remember to do it by hand.
+        if status == "failed":
+            cur.execute(
+                "UPDATE hyp_predictions SET work_status='compute_failed', updated_at=NOW() "
+                "WHERE prediction_id=%s AND work_status IN "
+                "('compute_submitted','compute_running','awaiting_evidence','more_work_pending')",
+                (row["prediction_id"],))
+        etype = ("compute_running" if status == "running"
+                 else "compute_failed" if status == "failed"
+                 else "status_changed")
         _append_event(cur, row["project_id"], etype,
                       f"Compute run {status or 'updated'} for {row['descriptor_name']}",
                       detail=note, hypothesis_id=row["hypothesis_id"],
