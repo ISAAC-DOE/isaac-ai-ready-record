@@ -2010,6 +2010,16 @@ requestAnimationFrame(loop);
             st.caption(f"⏳ **Pending** — {open_n} prediction(s) open · {running} compute "
                        f"running{_failed_txt} · {needs} hypothes(es) need more data")
 
+            # ---------- THE PUNCHLINE — lead with the answer (what we can say NOW) ----------
+            _hl = brief.get("headline") or {}
+            if _hl.get("units"):
+                _v = _hl.get("verdict", "undetermined")
+                _vicon = {"supported": "✅", "contested": "⚖️",
+                          "undetermined": "🔍", "no_result_yet": "🔍"}.get(_v, "🔍")
+                st.markdown(f"#### {_vicon} {_hl.get('one_liner', '')}")
+                if _hl.get("_fail_loud"):
+                    st.caption("⚠ " + _hl["_fail_loud"])
+
             # ---------- Convergence: progress = distance to a decision, not leader conf ----
             _conv = brief.get("convergence", {})
             if _conv.get("contested_clusters"):
@@ -2079,8 +2089,12 @@ requestAnimationFrame(loop);
             if _n_checks:
                 _hdr = f"🔬 Scientific rigor — {_n_checks} open"
                 if _rr.get("open_critical"):
-                    _hdr += f" ({_rr['open_critical']} critical)"
-                with st.expander(_hdr, expanded=bool(_rr.get("open_critical"))):
+                    _hdr = (f"⚠ 🔬 Scientific rigor — {_rr['open_critical']} CRITICAL"
+                            f" · {_n_checks} open total")
+                _hdr += "  · click to review"
+                # COLLAPSED by default — the audit is important but it should not bury the
+                # ranking/answer above the fold. The header carries the critical count.
+                with st.expander(_hdr, expanded=False):
                     if _issues:
                         st.caption("**Automated checks** — live audit against the method "
                                    "+ epistemic guardrails (use-novelty; individuation).")

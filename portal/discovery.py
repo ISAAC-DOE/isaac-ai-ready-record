@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.41-provisional",
+        "version": "0.42-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -2162,6 +2162,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     ranking, validated, invalidated, open_q, pending_compute = [], [], [], [], []
     failed_compute = []
     supported, eliminated = [], []
+    scored = []   # (h, score) — reused to compose the headline punchline
     matrix = []
     hyps_without_falsifier, preds_without_origin, preds_without_criterion = [], [], []
     circular_confirmations, supports_without_independence = [], []
@@ -2170,6 +2171,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     unreliable_scores = []
     for h in hyps:
         _score = compute_hypothesis_score(h)
+        scored.append((h, _score))
         _frag = compute_fragility(h)
         ranking.append({"label": h["label"], "status": h["status"],
                         "confidence": h["confidence"],
@@ -2297,6 +2299,27 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     pending_work = get_pending_work(project_id)
     dataset_coverage = compute_dataset_coverage(project_id, hyps, proj.get("dataset"))
 
+    # HEADLINE punchline — the 30-second "X because Y unless Z", composed from the SAME
+    # scored data + convergence, so the dashboard can lead with the answer.
+    _hl_established, _hl_decided = [], set()
+    for _h, _sc in scored:
+        _c = _sc["computed_confidence"]
+        if _sc["reliable"] and _c <= 0.2:
+            _hl_established.append({"label": _h["label"], "conclusion": "refuted"})
+            _hl_decided.add(_h["label"])
+        elif _sc["reliable"] and _c >= 0.8:
+            _hl_established.append({"label": _h["label"], "conclusion": "supported"})
+            _hl_decided.add(_h["label"])
+    _hl_contested = []
+    for _cl in convergence.get("contested_clusters", []):
+        _mem = [m for m in (_cl.get("survivors")
+                            or [x.get("label") for x in _cl.get("members", [])])
+                if m not in _hl_decided]
+        if len(_mem) >= 2:
+            _hl_contested.append({"members": _mem, "state": _cl.get("state"),
+                                  "discriminating_test": _cl.get("blocking_experiments")})
+    headline = _compose_headline(scored, _hl_established, _hl_contested)
+
     # SHARED-PREMISE AUDIT: when ≥2 survivors are observationally identical
     # (an equivalence class), they are likely explaining the same phenomenon via a
     # COMMON premise. If that premise is never itself tested — and there is no
@@ -2324,7 +2347,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                   "every survivor takes for granted is the most dangerous blind spot."),
     }
 
-    elements = extract_elements(proj.get("material_system"))
+    elements = project_elements(proj)   # material_system, or fall back to dataset records
     ov = proj.get("evidence_overrides") or {}
     evidence_index = build_evidence_index(elements, include_ids=ov.get("include"),
                                           exclude_ids=ov.get("exclude"))
@@ -2333,6 +2356,12 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     # the agent learns what to do next FROM THE BRIEFING, not from a bespoke human
     # prompt. Every action is a generic method/rigor step — never a science answer.
     recommended_actions = []
+    if not extract_elements(proj.get("material_system")):
+        recommended_actions.append(
+            "Set material_system (PUT /projects/{id} {material_system:'<e.g. Cu-Au>'}) — "
+            "the descriptor-keyed EVIDENCE INDEX (and the constellation's record field) is "
+            "built from its elements. Unset → the index falls back to your dataset records "
+            "but is best set explicitly so evidence lookups and the visual are complete.")
     if not dataset_coverage.get("declared"):
         recommended_actions.append(
             "Declare the project's DATASET OF INTEREST (PUT /projects/{id}/dataset "
@@ -2465,6 +2494,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         "reaction": proj.get("reaction"),
         "elements": elements,
         "as_of": _now_iso(),
+        "headline": headline,
         "ranking": ranking,
         "settled": {"supported": supported, "eliminated": eliminated},
         "validated_predictions": validated,
@@ -3058,6 +3088,22 @@ def extract_elements(text) -> list:
     return out
 
 
+def project_elements(proj) -> list:
+    """The elements that key a project's evidence index. Prefer `material_system`; if it
+    is unset/unparseable, FALL BACK to the materials of the declared dataset-of-interest
+    records — so a project that forgot to set material_system still gets a populated
+    evidence index (and a non-empty constellation) instead of silently going dark."""
+    elements = extract_elements(proj.get("material_system"))
+    if elements:
+        return elements
+    ds_ids = ((proj.get("dataset") or {}).get("record_ids")) or []
+    if ds_ids:
+        summ = resolve_record_summaries(ds_ids[:60])
+        mats = " ".join((s or {}).get("material") or "" for s in summ.values())
+        return extract_elements(mats)
+    return elements
+
+
 def _elements_from_composition(comp) -> set:
     """Element symbols from composition KEYS by WHOLE-TOKEN match (split on
     non-letters), so `Cu_geometric_area_fraction` -> {Cu} but `CO_producing_metal`
@@ -3268,7 +3314,7 @@ def get_evidence(project_id, owner_identity=None, descriptor=None) -> dict | Non
     if data is None:
         return None
     proj = data["project"]
-    elems = extract_elements(proj.get("material_system"))
+    elems = project_elements(proj)   # material_system, or fall back to dataset records
     ov = proj.get("evidence_overrides") or {}
     index = build_evidence_index(elems, include_ids=ov.get("include"),
                                  exclude_ids=ov.get("exclude"))
