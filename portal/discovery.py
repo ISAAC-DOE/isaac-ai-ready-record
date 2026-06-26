@@ -65,9 +65,20 @@ COMPUTE_STATUSES = {"queued", "running", "completed", "failed", "resubmitted"}
 # Independent rigor-critic findings. Categories name the generic epistemic failure;
 # severities order the response. Accept-and-normalize like the rest.
 RIGOR_CATEGORIES = {"use_novelty", "individuation", "falsifiability",
-                    "evidence_compatibility", "confirmation_bias", "overreach", "other"}
+                    "evidence_compatibility", "confirmation_bias", "overreach",
+                    "shared_premise", "other"}
 RIGOR_SEVERITIES = {"critical", "major", "minor"}
 RIGOR_FINDING_STATUSES = {"open", "resolved", "dismissed"}
+# A "residual" hypothesis is the explicit NONE-OF-THE-ABOVE / the-shared-premise-is-
+# -wrong alternative. Carrying one (with nonzero mass) is what lets a premise common
+# to all surviving rivals actually FAIL. Marked via hypothesis_type.
+RESIDUAL_HYPOTHESIS_TYPES = {"residual", "null", "none_of_the_above", "noneoftheabove",
+                             "shared_premise_false", "alternative_mechanism"}
+
+
+def is_residual_hypothesis(h) -> bool:
+    return (str(h.get("hypothesis_type") or "").strip().lower().replace("-", "_")
+            in RESIDUAL_HYPOTHESIS_TYPES)
 
 # Accept-and-normalize: agents reach for natural words. We map common synonyms to
 # the canonical vocabulary on write (teach, don't block) so the briefing's
@@ -107,7 +118,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.24-provisional",
+        "version": "0.25-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -258,6 +269,20 @@ def get_manifest() -> dict:
                 "test": "If you cannot name an observable on which the new and old "
                     "predict differently, it is a refinement, not a new hypothesis.",
             },
+            "shared_premise_audit": {
+                "rule": "Audit the COMMON FOUNDATION of your surviving hypotheses, not "
+                    "just each hypothesis. When ≥2 rivals are observationally identical, "
+                    "they usually share a mechanistic premise and only contest its "
+                    "sub-parameters — that shared premise is the most dangerous blind "
+                    "spot, because it is unaudited and hides inside their agreement. If "
+                    "it is wrong, the whole equivalence class collapses.",
+                "do": "State the shared premise explicitly. Decide: TESTED or ASSUMED? If "
+                    "assumed, frame it as its OWN falsifiable hypothesis with a "
+                    "discriminating test. And ALWAYS carry an explicit NONE-OF-THE-ABOVE "
+                    "residual hypothesis (hypothesis_type='residual') with nonzero "
+                    "confidence — without it, the shared premise can never lose, which is "
+                    "not falsifiable. Surfaced in briefing.shared_premise_audit.",
+            },
         },
         "progress_model": {
             "_what": "How to read progress. Progress is NOT 'the leader stays high "
@@ -325,6 +350,13 @@ def get_manifest() -> dict:
                 "incompatible records (wrong output_quantity / functional / conditions).\n"
                 "  • CONFIRMATION_BIAS / OVERREACH: only confirming evidence sought; "
                 "confidence higher than the evidence licenses.\n"
+                "  • SHARED_PREMISE (the deepest one): a mechanistic assumption common to "
+                "ALL surviving hypotheses that has never itself been tested. If every "
+                "rival takes premise X for granted (and the contest is only over X's "
+                "sub-parameters), then X is unaudited and the whole set collapses if X is "
+                "wrong — this blind spot hides INSIDE agreement. Demand it be framed as "
+                "its own falsifiable hypothesis with a discriminating test, and that an "
+                "explicit NONE-OF-THE-ABOVE residual carries nonzero mass.\n"
                 "For each problem, POST /projects/{id}/rigor/findings {summary, detail, "
                 "category, severity (critical|major|minor), target_type, target_id}. "
                 "Where a high-confidence claim genuinely survives your attack, say so "
@@ -486,6 +518,12 @@ def get_manifest() -> dict:
                         "change_note, change_type}. Use this instead of a new node when "
                         "you are only tightening — keeps the node, its evidence and "
                         "history. See epistemic_guardrails.hypothesis_individuation."},
+            {"m": "POST", "path": "/projects/{id}/hypotheses",
+             "purpose": "Add a hypothesis {statement, label, hypothesis_type, mechanism, "
+                        "origin}. Set hypothesis_type='residual' for an explicit "
+                        "NONE-OF-THE-ABOVE / the-shared-premise-is-wrong alternative — "
+                        "carry one whenever you have an equivalence class so the common "
+                        "premise can fail (see epistemic_guardrails.shared_premise_audit)."},
             {"m": "POST", "path": "/hypotheses/{id}/predictions",
              "purpose": "Add a FALSIFYING prediction (descriptor_name, direction, "
                         "falsification_criterion, output_quantity, "
@@ -1628,6 +1666,33 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     pending_work = get_pending_work(project_id)
     dataset_coverage = compute_dataset_coverage(project_id, hyps, proj.get("dataset"))
 
+    # SHARED-PREMISE AUDIT: when ≥2 survivors are observationally identical
+    # (an equivalence class), they are likely explaining the same phenomenon via a
+    # COMMON premise. If that premise is never itself tested — and there is no
+    # explicit NONE-OF-THE-ABOVE residual hypothesis that could make it fail — the
+    # whole set sits on an unaudited foundation (the most dangerous blind spot,
+    # because it hides inside agreement). Generic: triggered purely by the
+    # equivalence-class state + absence of a residual-typed hypothesis.
+    _has_equiv_class = any(len(ec.get("members", [])) >= 2
+                           for ec in convergence.get("equivalence_classes", []))
+    _live_residual = [h["label"] for h in hyps
+                      if h["status"] not in ("eliminated", "superseded")
+                      and is_residual_hypothesis(h)]
+    shared_premise_audit = {
+        "equivalence_class_present": _has_equiv_class,
+        "has_residual_hypothesis": bool(_live_residual),
+        "residual_hypotheses": _live_residual,
+        "unaudited": _has_equiv_class and not _live_residual,
+        "_note": ("When your surviving rivals are observationally identical they "
+                  "probably share a common premise (a mechanism they all assume). "
+                  "Audit it: (1) state the shared premise explicitly; (2) is it TESTED "
+                  "or merely ASSUMED? — if assumed, frame it as its own falsifiable "
+                  "hypothesis with a discriminating test; (3) carry an explicit "
+                  "NONE-OF-THE-ABOVE residual hypothesis (hypothesis_type='residual') "
+                  "with nonzero confidence, so the shared premise CAN fail. A premise "
+                  "every survivor takes for granted is the most dangerous blind spot."),
+    }
+
     elements = extract_elements(proj.get("material_system"))
     ov = proj.get("evidence_overrides") or {}
     evidence_index = build_evidence_index(elements, include_ids=ov.get("include"),
@@ -1683,6 +1748,14 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             recommended_actions.append(
                 f"DESIGN a discriminating experiment for {_c['survivors']} — they are "
                 "observationally identical and no registered test separates them.")
+    if shared_premise_audit["unaudited"]:
+        recommended_actions.append(
+            "SHARED-PREMISE AUDIT: your observationally-identical survivors likely share "
+            "a common premise (a mechanism they all assume). State it, decide if it is "
+            "TESTED or only ASSUMED (if assumed, frame it as its own falsifiable "
+            "hypothesis with a discriminating test), and add an explicit NONE-OF-THE-"
+            "ABOVE residual hypothesis (hypothesis_type='residual') so the shared premise "
+            "can actually fail — otherwise the whole set rests on an unaudited foundation.")
     if preds_missing_mlflow:
         recommended_actions.append(
             f"Attach an mlflow_run_url to {len(preds_missing_mlflow)} compute/model-backed "
@@ -1764,7 +1837,9 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "dataset_records_unused": [r.get("material") or r.get("record_id")
                                        for r in dataset_coverage.get("unused_records", [])],
             "dataset_of_interest_undeclared": not dataset_coverage.get("declared"),
+            "shared_premise_unaudited": shared_premise_audit["unaudited"],
         },
+        "shared_premise_audit": shared_premise_audit,
         "rigor_review": rigor_review,
         "evidence_index": _evidence_summary(evidence_index),
         "literature": "For published-evidence cross-checks (Edison/PaperQA3): "
