@@ -1022,11 +1022,13 @@ def discovery_create_hypothesis(project_id):
 @_require_auth
 def discovery_update_hypothesis(hypothesis_id):
     d = request.get_json(silent=True) or {}
+    # NOTE: confidence is COMPUTED from prediction verdicts, never set here. Only
+    # status is accepted; any confidence/confidence_basis in the body is ignored.
     ok = discovery.update_hypothesis(
-        hypothesis_id, status=d.get("status"), confidence=d.get("confidence"),
-        confidence_basis=d.get("confidence_basis"), actor=_disc_identity())
+        hypothesis_id, status=d.get("status"), actor=_disc_identity())
     if not ok:
-        return jsonify({"error": "not found or no fields to update"}), 404
+        return jsonify({"error": "not found, or no status to update "
+                                 "(confidence is computed, not set)"}), 404
     return jsonify({"ok": True}), 200
 
 
@@ -1036,7 +1038,7 @@ def discovery_refine_hypothesis(hypothesis_id):
     d = request.get_json(silent=True) or {}
     v = discovery.refine_hypothesis(
         hypothesis_id, statement=d.get("statement"), mechanism=d.get("mechanism"),
-        confidence=d.get("confidence"), change_note=d.get("change_note"),
+        change_note=d.get("change_note"),
         change_type=d.get("change_type", "refinement"), actor=_disc_identity())
     if v is None:
         return jsonify({"error": "hypothesis not found"}), 404

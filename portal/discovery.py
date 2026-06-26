@@ -56,7 +56,7 @@ WORK_STATUS_ORDER = ["awaiting_evidence", "more_work_pending", "compute_submitte
 # not hard-enforced yet while the reasoning loop is still being learned).
 HYPOTHESIS_STATUSES = ["proposed", "supported", "eliminated", "needs_more_data",
                        "superseded"]
-VERDICTS = ["supports", "contradicts", "neutral", "insufficient"]
+VERDICTS = ["supports", "contradicts", "neutral", "insufficient", "blocked"]
 
 # v1: hypotheses form a graph, not a list.
 RELATION_TYPES = {"supersedes", "derived_from", "competes_with", "co_operating"}
@@ -91,7 +91,9 @@ VERDICT_SYNONYMS = {
     "rejects": "contradicts", "contradict": "contradicts", "against": "contradicts",
     "support": "supports", "supported": "supports", "confirms": "supports",
     "inconclusive": "neutral", "ambiguous": "neutral", "mixed": "neutral",
-    "no_data": "insufficient", "incompatible": "insufficient", "none": "insufficient",
+    "no_data": "insufficient", "none": "insufficient",
+    "incompatible": "blocked", "not_comparable": "blocked", "incomparable": "blocked",
+    "schema_blocked": "blocked", "not_evaluable": "blocked", "ill_posed": "blocked",
 }
 RELATION_SYNONYMS = {
     "co_operates_with": "co_operating", "cooperates_with": "co_operating",
@@ -121,7 +123,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.27-provisional",
+        "version": "0.28-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -207,9 +209,10 @@ def get_manifest() -> dict:
                 "literature via the proxy, compute via NERSC/MLflow), GATING on "
                 "methodological compatibility (output_quantity / functional / corrections) "
                 "before a record is allowed to count.",
-                "6. RENDER a verdict per prediction (supports | contradicts | neutral) with "
-                "a strength and EXPLICIT reasoning via /evaluate; update hypothesis "
-                "confidence + confidence_basis; let the ranking move.",
+                "6. RENDER a verdict per prediction (supports | contradicts | neutral | "
+                "insufficient | blocked) with a strength and EXPLICIT reasoning via "
+                "/evaluate. You do NOT set confidence — the platform COMPUTES it from "
+                "your verdicts (see scoring_model) and the ranking moves automatically.",
                 "7. PROPOSE the single most discriminating next experiment via "
                 "/next_experiment.",
             ],
@@ -299,17 +302,17 @@ def get_manifest() -> dict:
                 "(identical and no test designed — worse). decision_distance summarizes "
                 "it (0 = decided, 0.2 = one experiment away, 0.8 = no test designed).",
             "do_not_re_audit_to_resolve": "When survivors are observationally identical, "
-                "re-auditing the SAME data will not separate them and only erodes "
-                "confidence — RUN the discriminating experiment instead. The platform "
-                "redirects recommended_actions to the experiment; it never freezes your "
-                "confidences (you keep updating them on real evidence).",
-            "equivalence_classes_no_false_precision": "When survivors are observationally "
-                "identical on current data they are NON-IDENTIFIABLE — report them as ONE "
-                "equivalence class, never as a 0.48-vs-0.45 ranking. Any confidence gap "
-                "between them is FALSE PRECISION the data cannot justify (briefing flags "
-                "it in convergence.equivalence_classes / method_compliance). Equalize "
-                "their confidence, or declare an explicit prior/parsimony basis for the "
-                "gap — do not present the difference as a finding.",
+                "re-auditing the SAME data will not separate them — RUN the "
+                "discriminating experiment instead. The platform redirects "
+                "recommended_actions to the experiment. (Confidence isn't authored — it "
+                "is computed from your verdicts — so re-auditing without new verdicts "
+                "doesn't move it anyway.)",
+            "equivalence_classes": "When survivors are observationally identical on "
+                "current data they are NON-IDENTIFIABLE — report them as ONE equivalence "
+                "class (convergence.equivalence_classes), decided only by the experiment. "
+                "Their computed confidences may differ if their own verdicts differ; "
+                "that's grounded in evidence, not authored — there is no false-precision "
+                "penalty to manage.",
             "register_the_decider_as_a_prediction": "The discriminating experiment must "
                 "be a FIRST-CLASS unrun prediction (descriptor + discriminates naming "
                 "each survivor's expected outcome) owned by a survivor — not only a "
@@ -322,22 +325,39 @@ def get_manifest() -> dict:
                 "how many times you looked.",
         },
         "scoring_model": {
-            "_what": "A hypothesis's confidence should be COMPUTED from its prediction "
-                "verdicts, not authored. The platform aggregates a transparent heuristic "
-                "(briefing.ranking[].computed_confidence) so the number is accountable to "
-                "the falsification record.",
-            "how": "Log-odds: each EVALUATED prediction shifts belief by its strength "
-                "(strong 1.0 / moderate 0.6 / weak 0.3); supports +, contradicts − (and "
-                "contradictions weigh ~1.25× — falsification is more decisive than "
-                "confirmation); a STRONG contradiction of a falsifier ~ falsified. "
-                "neutral/insufficient don't move it. confidence = sigmoid(Σ).",
-            "why_a_single_prediction_fails": "With <2 SCORED (supports/contradicts) "
-                "predictions the score is UNRELIABLE — you cannot validate or falsify a "
-                "hypothesis on one verdict, and a lone prediction barely moves the score "
-                "off the 0.5 prior. This is WHY each hypothesis needs a SET of distinct, "
-                "structured predictions (briefing flags unreliable_scores). Build the set, "
-                "then let the score follow the evidence — and reconcile your authored "
-                "confidence with the computed one.",
+            "_what": "THE single, canonical way a hypothesis is evaluated. Confidence is "
+                "COMPUTED by the platform from the hypothesis's prediction VERDICTS — you "
+                "NEVER author or set a confidence number. You move confidence by "
+                "evaluating predictions (PUT /predictions/{id}/evaluate); the platform "
+                "recomputes and stores it. The stored confidence (briefing.ranking[]) IS "
+                "the computed score.",
+            "how": "Score evidence against each prediction → a verdict + strength, then "
+                "aggregate in log-odds: SUPPORTS +strength · CONTRADICTS −strength×1.25 "
+                "(falsification is more decisive than confirmation) · a STRONG "
+                "contradiction of a falsifier ~ falsified (≤0.15) · NEUTRAL a small "
+                "negative (a test that ran and found NO predicted effect is mild evidence "
+                "against) · INSUFFICIENT 0 (tested, didn't resolve) · BLOCKED 0 and "
+                "EXCLUDED (schema gate, below). strength = strong 1.0 / moderate 0.6 / "
+                "weak 0.3. confidence = sigmoid(Σ). A new hypothesis starts at the 0.5 "
+                "prior.",
+            "schema_gate": "When evidence is NOT validly comparable to a prediction "
+                "(different output_quantity, units without a declared transform, "
+                "different functional / electrolyte / potential / reference state, a DFT "
+                "energy vs an experimental selectivity, …), verdict=BLOCKED — refuse the "
+                "comparison rather than guess. Blocked evidence does NOT move belief; it "
+                "only lowers COVERAGE (fewer valid tests). Convert-then-compare first if "
+                "the mismatch is reconcilable. A block must cite the specific failing "
+                "dimension and be SYMMETRIC (don't block contradicting evidence on a "
+                "basis you'd accept supporting evidence).",
+            "why_a_single_prediction_fails": "With <2 DECISIVE (supports/contradicts) "
+                "verdicts the score is UNRELIABLE — you cannot validate or falsify a "
+                "hypothesis on one verdict, and a lone prediction barely moves off the "
+                "0.5 prior. This is WHY each hypothesis needs a SET of distinct, "
+                "structured predictions (briefing flags unreliable_scores). Build the "
+                "set; the score follows the evidence.",
+            "report": "The score ships with its decomposition — n_decisive, the "
+                "supports/contradicts/neutral/insufficient/blocked breakdown, coverage, "
+                "and a conflict measure — never a bare number.",
         },
         "rigor_review": {
             "_what": "An INDEPENDENT adversarial critic — a SEPARATE agent/session, not "
@@ -532,13 +552,15 @@ def get_manifest() -> dict:
             {"m": "POST", "path": "/projects/{id}/hypotheses",
              "purpose": "Add a hypothesis (statement, label, origin, mechanism)."},
             {"m": "PUT", "path": "/hypotheses/{id}",
-             "purpose": "Update status / confidence / confidence_basis."},
+             "purpose": "Update a hypothesis's STATUS only {status}. Confidence is NOT "
+                        "set here — it is COMPUTED from the prediction verdicts (see "
+                        "scoring_model). Any confidence sent is ignored."},
             {"m": "PUT", "path": "/hypotheses/{id}/refine",
              "purpose": "REFINE a hypothesis in place as a new VERSION (same empirical "
-                        "content, sharpened): {statement?, mechanism?, confidence?, "
-                        "change_note, change_type}. Use this instead of a new node when "
-                        "you are only tightening — keeps the node, its evidence and "
-                        "history. See epistemic_guardrails.hypothesis_individuation."},
+                        "content, sharpened): {statement?, mechanism?, change_note, "
+                        "change_type}. Keeps the node, its evidence and history. "
+                        "Confidence is computed, not refined. See "
+                        "epistemic_guardrails.hypothesis_individuation."},
             {"m": "POST", "path": "/projects/{id}/hypotheses",
              "purpose": "Add a hypothesis {statement, label, hypothesis_type, mechanism, "
                         "origin}. Set hypothesis_type='residual' for an explicit "
@@ -577,11 +599,13 @@ def get_manifest() -> dict:
             {"m": "DELETE", "path": "/runs/{run_id}",
              "purpose": "Delete a compute run (e.g. a stray duplicate)."},
             {"m": "PUT", "path": "/predictions/{id}/evaluate",
-             "purpose": "Terminal: set verdict + strength + evidence + mlflow_run_url + "
-                        "evidence_independence. GATE on methodological compatibility "
-                        "(output_quantity / functional / corrections) before trusting a "
-                        "record. If the supporting model was fit to the data you're "
-                        "testing against (declare it in evidence_independence), the "
+             "purpose": "Terminal: set verdict (supports|contradicts|neutral|insufficient"
+                        "|blocked) + strength (weak|moderate|strong) + evidence + "
+                        "mlflow_run_url + evidence_independence. THIS is what moves the "
+                        "hypothesis's confidence — the platform recomputes & stores it "
+                        "from all the verdicts (scoring_model). Use verdict='blocked' when "
+                        "the evidence isn't validly comparable (schema gate). If the "
+                        "supporting model was fit to the data you're testing against, the "
                         "honest verdict is 'neutral', not 'supports' (use-novelty)."},
             {"m": "POST", "path": "/projects/{id}/rigor/findings",
              "purpose": "INDEPENDENT CRITIC records a rigor problem {summary, detail, "
@@ -682,9 +706,10 @@ def get_manifest() -> dict:
                                 "change_type": "mechanism_change|scope_change "
                                 "(parameter_refinement → refine in place instead)"},
             "refine": {"_for": "PUT /hypotheses/{id}/refine — a new VERSION of the SAME "
-                                "node (same empirical content, sharpened).",
+                                "node (same empirical content, sharpened). Confidence is "
+                                "computed from verdicts, not refined.",
                                 "statement": "str?", "mechanism": "obj?",
-                                "confidence": "float?", "change_note": "str",
+                                "change_note": "str",
                                 "change_type": "refinement|reparameterization|rewording"},
         },
         "auditability": "Record EVERY decision point in BOTH places (dual-write): "
@@ -1058,16 +1083,16 @@ def create_hypothesis(project_id, statement, *, label=None, hypothesis_type=None
         cur.execute(
             """INSERT INTO hyp_hypotheses
                  (hypothesis_id, project_id, label, statement, hypothesis_type,
-                  mechanism, origin, created_by)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                  mechanism, origin, confidence, created_by)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (hypothesis_id, project_id, label, statement, hypothesis_type,
              json.dumps(mechanism) if mechanism is not None else None,
-             json.dumps(origin) if origin is not None else None, created_by))
+             json.dumps(origin) if origin is not None else None, 0.5, created_by))
         _append_event(cur, project_id, "hypothesis_created",
                       f"Hypothesis {label or ''} added: {statement[:120]}",
                       hypothesis_id=hypothesis_id, actor=created_by)
-        # baseline point so the belief band is born at zero and grows with evidence
-        _snapshot_confidence(cur, project_id, hypothesis_id, 0.0, source="created")
+        # born at the 0.5 PRIOR (no evidence yet); evidence moves it via evaluate
+        _snapshot_confidence(cur, project_id, hypothesis_id, 0.5, source="created")
         cur.execute("UPDATE hyp_projects SET updated_at=NOW() WHERE project_id=%s",
                     (project_id,))
         conn.commit()
@@ -1077,16 +1102,12 @@ def create_hypothesis(project_id, statement, *, label=None, hypothesis_type=None
         conn.close()
 
 
-def update_hypothesis(hypothesis_id, *, status=None, confidence=None,
-                      confidence_basis=None, actor=None) -> bool:
-    sets, vals = [], []
-    if status is not None:
-        sets.append("status=%s"); vals.append(status)
-    if confidence is not None:
-        sets.append("confidence=%s"); vals.append(confidence)
-    if confidence_basis is not None:
-        sets.append("confidence_basis=%s"); vals.append(confidence_basis)
-    if not sets:
+def update_hypothesis(hypothesis_id, *, status=None, actor=None, **_ignored) -> bool:
+    """Update a hypothesis's STATUS only. Confidence is NOT settable here — it is
+    COMPUTED from the prediction verdicts (see compute_hypothesis_score) and stored
+    by evaluate_prediction. Any confidence/confidence_basis passed in is ignored
+    (kept in the signature only so legacy callers don't error)."""
+    if status is None:
         return False
     conn = _conn()
     cur = conn.cursor()
@@ -1094,21 +1115,11 @@ def update_hypothesis(hypothesis_id, *, status=None, confidence=None,
         project_id = _project_of_hypothesis(cur, hypothesis_id)
         if project_id is None:
             return False
-        vals.append(hypothesis_id)
-        cur.execute(
-            f"UPDATE hyp_hypotheses SET {', '.join(sets)}, updated_at=NOW() "
-            f"WHERE hypothesis_id=%s", vals)
-        bits = []
-        if status is not None:
-            bits.append(f"status → {status}")
-        if confidence is not None:
-            bits.append(f"confidence → {confidence:.2f}")
+        cur.execute("UPDATE hyp_hypotheses SET status=%s, updated_at=NOW() "
+                    "WHERE hypothesis_id=%s", (status, hypothesis_id))
         _append_event(cur, project_id, "status_changed",
-                      f"Hypothesis updated: {', '.join(bits)}",
-                      detail=confidence_basis, hypothesis_id=hypothesis_id, actor=actor)
-        if confidence is not None:
-            _snapshot_confidence(cur, project_id, hypothesis_id, confidence,
-                                 basis=confidence_basis, source="updated")
+                      f"Hypothesis status → {status}",
+                      hypothesis_id=hypothesis_id, actor=actor)
         cur.execute("UPDATE hyp_projects SET updated_at=NOW() WHERE project_id=%s",
                     (project_id,))
         conn.commit()
@@ -1194,6 +1205,9 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                       detail=_detail, hypothesis_id=row["hypothesis_id"],
                       evidence_record_ids=evidence_record_ids,
                       mlflow_run_url=mlflow_run_url, actor=actor)
+        # CANONICAL: confidence is recomputed from the verdicts and stored here —
+        # this is the ONLY thing that moves a hypothesis's confidence.
+        _recompute_and_store_confidence(cur, row["hypothesis_id"], actor=actor)
         conn.commit()
         return True
     finally:
@@ -1288,8 +1302,8 @@ def get_confidence_history(project_id, owner_identity=None) -> list:
 
 
 def refine_hypothesis(hypothesis_id, *, statement=None, mechanism=None,
-                      confidence=None, change_note=None, change_type="refinement",
-                      actor=None) -> int | None:
+                      change_note=None, change_type="refinement",
+                      actor=None, **_ignored) -> int | None:
     """Refine a hypothesis IN PLACE as a new VERSION (not a new node). Use this
     when the empirical content is the same and you are only sharpening it (tighter
     parameter, clearer wording, updated mechanism narrative). For a genuinely new
@@ -1325,8 +1339,7 @@ def refine_hypothesis(hypothesis_id, *, statement=None, mechanism=None,
             sets.append("statement=%s"); vals.append(statement)
         if mechanism is not None:
             sets.append("mechanism=%s"); vals.append(json.dumps(mechanism))
-        if confidence is not None:
-            sets.append("confidence=%s"); vals.append(confidence)
+        # confidence is NOT refined here — it is computed from the prediction verdicts.
         vals.append(hypothesis_id)
         cur.execute(f"UPDATE hyp_hypotheses SET {', '.join(sets)}, updated_at=NOW() "
                     f"WHERE hypothesis_id=%s", vals)
@@ -1341,15 +1354,12 @@ def refine_hypothesis(hypothesis_id, *, statement=None, mechanism=None,
              statement if statement is not None else cur_row["statement"],
              json.dumps(mechanism) if mechanism is not None else (
                  json.dumps(cur_row["mechanism"]) if cur_row["mechanism"] is not None else None),
-             confidence if confidence is not None else cur_row["confidence"],
+             cur_row["confidence"],  # carried, never refined — confidence is computed from verdicts
              change_note, change_type, actor))
         _append_event(cur, project_id, "status_changed",
                       f"Hypothesis refined → v{new_v} "
                       f"({cur_row['label'] or hypothesis_id[:6]})",
                       detail=change_note, hypothesis_id=hypothesis_id, actor=actor)
-        if confidence is not None:
-            _snapshot_confidence(cur, project_id, hypothesis_id, confidence,
-                                 basis=change_note, source="refined")
         cur.execute("UPDATE hyp_projects SET updated_at=NOW() WHERE project_id=%s",
                     (project_id,))
         conn.commit()
@@ -1392,6 +1402,8 @@ def set_prediction_status(prediction_id, work_status, *, mlflow_run_url=None,
                       f"Prediction {row['descriptor_name']} → {work_status}",
                       hypothesis_id=row["hypothesis_id"],
                       mlflow_run_url=mlflow_run_url, actor=actor)
+        # moving OUT of 'evaluated' changes the score → recompute
+        _recompute_and_store_confidence(cur, row["hypothesis_id"], actor=actor)
         conn.commit()
         return True
     finally:
@@ -1456,7 +1468,6 @@ def compute_convergence(hyps, relations, next_experiment=None) -> dict:
     conf_of = {h["label"]: float(h["confidence"] or 0) for h in hyps}
     out_clusters = []
     equivalence_classes = []
-    false_precision = []
     worst = "decided"  # decided < resolving < blocked_on_experiment < no_test
     rank = {"decided": 0, "resolving": 1,
             "blocked_on_experiment": 2, "no_discriminating_test": 3}
@@ -1503,44 +1514,27 @@ def compute_convergence(hyps, relations, next_experiment=None) -> dict:
         blocker_only_in_next_experiment = (state == "blocked_on_experiment"
                                             and nx_blocks and not disc_unrun)
         # EQUIVALENCE CLASS: when survivors are observationally identical on current
-        # data they are NON-IDENTIFIABLE — a single equivalence class, not a ranking.
-        # Reporting different confidences for them (0.48 vs 0.45) is FALSE PRECISION:
-        # no current datum can justify the gap. Flag it.
+        # data they are NON-IDENTIFIABLE — report them as ONE equivalence class, not a
+        # ranking. (Confidence is now COMPUTED from each one's verdicts, so any spread
+        # is grounded in the evidence — there is no 'false precision' to penalise.)
         observationally_identical = state in ("blocked_on_experiment",
                                               "no_discriminating_test")
         members = sorted(({"label": l, "confidence": conf_of.get(l, 0)}
                           for l in slabels), key=lambda m: -m["confidence"])
-        spread = round((max(m["confidence"] for m in members)
-                        - min(m["confidence"] for m in members)) if members else 0.0, 3)
-        # any >=0.03 gap between observationally-identical (non-identifiable) rivals
-        # is unjustified by the data — false precision.
-        is_false_precision = observationally_identical and spread >= 0.03
         if observationally_identical:
             equivalence_classes.append({
                 "members": [m["label"] for m in members],
                 "member_confidence": {m["label"]: m["confidence"] for m in members},
-                "confidence_spread": round(spread, 3),
-                "false_precision": is_false_precision,
-                "note": ("These survivors are OBSERVATIONALLY IDENTICAL on current data "
-                         "(non-identifiable) — report them as ONE equivalence class, not "
-                         "a ranking. " + ("Their confidences differ by "
-                         f"{round(spread, 2)}, which the data CANNOT justify — equalize "
-                         "them (or declare an explicit prior/parsimony basis) and don't "
-                         "present the gap as a finding." if is_false_precision
-                         else "Their confidences are (correctly) ~equal.")),
+                "note": ("OBSERVATIONALLY IDENTICAL on current data (non-identifiable) — "
+                         "no registered test discriminates them, so report them as ONE "
+                         "equivalence class. Only the experiment resolves which is right."),
             })
-            if is_false_precision:
-                false_precision.append(
-                    f"{sorted(slabels)} differ by {round(spread, 2)} but are "
-                    "observationally identical")
         out_clusters.append({
             "survivors": sorted(slabels),
             "state": state,
             "observationally_identical": observationally_identical,
             "equivalence_class": observationally_identical,
             "members": members,
-            "confidence_spread": round(spread, 3),
-            "false_precision": is_false_precision,
             "blocking_experiments": blocking,
             "blocker_only_in_next_experiment": blocker_only_in_next_experiment,
             "_reads": {
@@ -1561,7 +1555,6 @@ def compute_convergence(hyps, relations, next_experiment=None) -> dict:
     return {
         "contested_clusters": out_clusters,
         "equivalence_classes": equivalence_classes,
-        "false_precision": false_precision,
         "decision_distance": distance,
         "headline": {
             "decided": "No contested survivor set — converged.",
@@ -1584,16 +1577,24 @@ _STRENGTH_W = {"strong": 1.0, "moderate": 0.6, "weak": 0.3}
 
 
 def compute_hypothesis_score(h) -> dict:
-    """Transparent HEURISTIC confidence aggregated from a hypothesis's EVALUATED
-    predictions — so a score is COMPUTED from the falsification record, not authored.
-    Log-odds: each supports/contradicts prediction shifts belief by its strength;
-    contradictions weigh more (falsification is more decisive than confirmation), and
-    a strong contradiction of a falsifier ~ falsified. A score from <2 scored
-    predictions is UNRELIABLE — you cannot reliably validate/falsify a hypothesis on
-    a single prediction, which is exactly why a hypothesis needs a SET."""
-    logit, n_scored, strong_contra = 0.0, 0, False
+    """THE single, canonical way a hypothesis is evaluated. Confidence is COMPUTED
+    (never authored) by aggregating the verdicts of the hypothesis's evaluated
+    predictions, in log-odds:
+      • supports    → +strength               (confirmation)
+      • contradicts → −strength × 1.25         (falsification is more decisive)
+      • a STRONG contradiction of a falsifier ~ falsified (confidence capped ≤0.15)
+      • neutral     → a SMALL negative (a test that ran and found NO predicted effect
+                      is mild evidence against — distinct from 'no test')
+      • insufficient→ 0 (not enough data — no shift, but it IS a test that didn't resolve)
+      • blocked     → 0 and EXCLUDED from belief (SCHEMA GATE: the comparison is
+                      methodologically incompatible / ill-posed — not a measurement, so
+                      it can't move belief; it only lowers COVERAGE)
+    confidence = sigmoid(Σ). A score from <2 DECISIVE (supports/contradicts) verdicts
+    is UNRELIABLE — you cannot validate/falsify a hypothesis on one verdict; that is
+    why a hypothesis needs a SET of distinct, structured predictions."""
+    logit, n_decisive, strong_contra = 0.0, 0, False
     bd = {"supports": 0, "contradicts": 0, "neutral": 0,
-          "insufficient": 0, "unevaluated": 0}
+          "insufficient": 0, "blocked": 0, "unevaluated": 0}
     for p in h.get("predictions", []):
         if p.get("work_status") != "evaluated":
             bd["unevaluated"] += 1
@@ -1601,33 +1602,68 @@ def compute_hypothesis_score(h) -> dict:
         v = normalize_verdict(p.get("verdict"))
         sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), 0.5)
         if v == "supports":
-            logit += sw * 0.95; n_scored += 1; bd["supports"] += 1
+            logit += sw * 0.95; n_decisive += 1; bd["supports"] += 1
         elif v == "contradicts":
-            logit -= sw * 1.25 * 0.95; n_scored += 1; bd["contradicts"] += 1
+            logit -= sw * 1.25 * 0.95; n_decisive += 1; bd["contradicts"] += 1
             if sw >= 1.0:
                 strong_contra = True
         elif v == "neutral":
-            bd["neutral"] += 1
+            logit -= 0.20; bd["neutral"] += 1          # mild evidence against
+        elif v == "blocked":
+            bd["blocked"] += 1                         # SCHEMA GATE — no belief shift
         else:
-            bd["insufficient"] += 1
+            bd["insufficient"] += 1                    # tested, didn't resolve
     computed = 1.0 / (1.0 + math.exp(-logit))
     if strong_contra:
         computed = min(computed, 0.15)
-    reliable = n_scored >= 2
+    reliable = n_decisive >= 2
+    n_tested = bd["supports"] + bd["contradicts"] + bd["neutral"] + bd["insufficient"]
+    n_total = len(h.get("predictions", []))
+    coverage = round(n_tested / n_total, 2) if n_total else 0.0
+    conflict = (min(bd["supports"], bd["contradicts"])
+                / max(1, bd["supports"] + bd["contradicts"]))
     return {
         "computed_confidence": round(computed, 3),
-        "n_scored": n_scored,
-        "n_predictions": len(h.get("predictions", [])),
+        "n_decisive": n_decisive,
+        "n_scored": n_decisive,   # back-compat alias
+        "n_predictions": n_total,
+        "n_blocked": bd["blocked"],
+        "coverage": coverage,
+        "conflict": round(conflict, 2),
         "breakdown": bd,
         "reliable": reliable,
-        "note": ("Heuristic confidence aggregated from the prediction verdicts. "
-                 + ("UNRELIABLE — fewer than 2 SCORED (supports/contradicts) "
-                    "predictions; a single prediction can't validate or falsify a "
-                    "hypothesis. Add more, on DISTINCT descriptors."
+        "note": ("Computed from the prediction verdicts (the ONLY source of "
+                 "confidence). "
+                 + ("UNRELIABLE — fewer than 2 DECISIVE (supports/contradicts) "
+                    "verdicts; you can't validate/falsify a hypothesis on one. Add "
+                    "more predictions on DISTINCT descriptors."
                     if not reliable else
-                    f"from {n_scored} scored ({bd['supports']} support / "
-                    f"{bd['contradicts']} contradict).")),
+                    f"{n_decisive} decisive ({bd['supports']}+/{bd['contradicts']}−)"
+                    + (f", {bd['neutral']} neutral" if bd['neutral'] else "")
+                    + (f", {bd['blocked']} blocked (schema gate)" if bd['blocked'] else "")
+                    + ".")),
     }
+
+
+def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
+    """Recompute a hypothesis's confidence FROM its prediction verdicts and persist
+    it (the platform owns confidence; the agent never authors it). Called on every
+    prediction-evaluation change. Returns the new confidence."""
+    cur.execute("""SELECT verdict, strength, work_status FROM hyp_predictions
+                     WHERE hypothesis_id=%s""", (hypothesis_id,))
+    preds = [dict(r) for r in cur.fetchall()]
+    score = compute_hypothesis_score({"predictions": preds})
+    conf = score["computed_confidence"]
+    cur.execute("SELECT project_id FROM hyp_hypotheses WHERE hypothesis_id=%s",
+                (hypothesis_id,))
+    row = cur.fetchone()
+    if row is None:
+        return conf
+    cur.execute("UPDATE hyp_hypotheses SET confidence=%s, updated_at=NOW() "
+                "WHERE hypothesis_id=%s", (conf, hypothesis_id))
+    _snapshot_confidence(cur, row["project_id"], hypothesis_id, conf,
+                         basis=score["note"], source="computed")
+    return conf
 
 
 # --- Briefing (the curated "universal truth" digest the agent reads first) --
@@ -1655,7 +1691,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     circular_confirmations, supports_without_independence = [], []
     high_conf_hyps, preds_missing_mlflow = [], []
     hyps_below_min_preds, preds_missing_structure, hyps_single_descriptor = [], [], []
-    unreliable_scores, authored_far_from_computed = [], []
+    unreliable_scores = []
     for h in hyps:
         _score = compute_hypothesis_score(h)
         ranking.append({"label": h["label"], "status": h["status"],
@@ -1670,17 +1706,10 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         if h["status"] == "supported" or (h["confidence"] or 0) >= 0.7:
             high_conf_hyps.append(h["label"])
         _live = h["status"] not in ("eliminated", "superseded")
-        # A score from <2 scored predictions is unreliable; a residual is exempt
+        # A score from <2 decisive predictions is unreliable; a residual is exempt
         # (it's deliberately a catch-all, not pinned by predictions yet).
         if _live and not is_residual_hypothesis(h) and not _score["reliable"]:
-            unreliable_scores.append(f"{h['label']} ({_score['n_scored']} scored)")
-        # When the score IS reliable but the agent's authored confidence diverges
-        # a lot from what the predictions support, surface it (don't overwrite).
-        if _live and _score["reliable"] and \
-                abs(float(h["confidence"] or 0) - _score["computed_confidence"]) > 0.25:
-            authored_far_from_computed.append(
-                f"{h['label']} (authored {float(h['confidence'] or 0):.2f} vs "
-                f"computed {_score['computed_confidence']:.2f})")
+            unreliable_scores.append(f"{h['label']} ({_score['n_decisive']} decisive)")
         if not h["predictions"]:
             hyps_without_falsifier.append(h["label"])
         # A hypothesis needs a SET of falsifying predictions, not one token — and the
@@ -1858,13 +1887,6 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                     "first-class UNRUN prediction (descriptor + discriminates naming each "
                     "survivor's expected outcome) on one of them — right now the decisive "
                     "test lives only in next_experiment, so it isn't a tracked falsifier.")
-            if _c.get("false_precision"):
-                recommended_actions.append(
-                    f"FALSE PRECISION: {_c['survivors']} are observationally identical "
-                    f"yet carry confidences differing by {_c['confidence_spread']} — the "
-                    "data can't justify the gap. Equalize them (or declare an explicit "
-                    "prior/parsimony basis) and report them as ONE equivalence class, not "
-                    "a ranking.")
         elif _c["state"] == "no_discriminating_test":
             recommended_actions.append(
                 f"DESIGN a discriminating experiment for {_c['survivors']} — they are "
@@ -1912,22 +1934,16 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             f"Add ≥1 falsifying prediction to hypotheses {hyps_without_falsifier}.")
     if unreliable_scores:
         recommended_actions.append(
-            f"UNRELIABLE SCORE: {unreliable_scores} have <2 scored predictions — you "
-            "cannot reliably validate/falsify them, and the confidence can't be computed "
-            "from a single verdict. STRONGLY add more predictions (distinct descriptors) "
-            "so the score aggregates over a real set. (briefing.ranking shows the "
-            "computed_confidence vs your authored one.)")
+            f"UNRELIABLE SCORE: {unreliable_scores} have <2 DECISIVE verdicts — their "
+            "computed confidence is barely off the 0.5 prior and can't reliably "
+            "validate/falsify them. STRONGLY add more predictions (on distinct "
+            "descriptors) and evaluate them, so the score aggregates over a real set.")
     elif hyps_below_min_preds:
         recommended_actions.append(
             f"Build out the prediction SET for {hyps_below_min_preds} — each hypothesis "
             f"needs ≥{MIN_PREDICTIONS_PER_HYPOTHESIS} falsifying predictions (aim for "
             "3-4), spanning DIFFERENT measurables (descriptors), not one token "
             "prediction. A richer falsifier set is what separates rivals.")
-    if authored_far_from_computed:
-        recommended_actions.append(
-            f"Your authored confidence diverges from what the predictions support for "
-            f"{authored_far_from_computed} — reconcile: either the verdicts justify a "
-            "different number, or your confidence is not grounded in the evidence.")
     if hyps_single_descriptor:
         recommended_actions.append(
             f"Diversify the descriptors for {hyps_single_descriptor} — all their "
@@ -1981,7 +1997,6 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "hypotheses_with_single_descriptor": hyps_single_descriptor,
             "predictions_missing_structured_fields": preds_missing_structure,
             "unreliable_scores_too_few_predictions": unreliable_scores,
-            "authored_confidence_far_from_computed": authored_far_from_computed,
             "predictions_missing_origin_provenance": preds_without_origin,
             "predictions_missing_falsification_criterion": preds_without_criterion,
             "circular_confirmations": circular_confirmations,
@@ -1989,7 +2004,6 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "supersessions_without_discriminating_observable": supersedes_without_discriminator,
             "high_confidence_without_independent_review": high_confidence_without_review,
             "compute_verdicts_missing_mlflow_trace": preds_missing_mlflow,
-            "false_precision_in_equivalence_class": convergence.get("false_precision", []),
             "dataset_records_unused": [r.get("material") or r.get("record_id")
                                        for r in dataset_coverage.get("unused_records", [])],
             "dataset_of_interest_undeclared": not dataset_coverage.get("declared"),
