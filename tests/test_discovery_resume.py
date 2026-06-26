@@ -40,9 +40,21 @@ def test_reliable_high_is_supported():
     assert _true_status_from_ranking(r, set()) == "supported"
 
 
-def test_contested_membership_wins():
-    r = {"label": "H", "status": "proposed", "computed_confidence": 0.85, "reliable": True}
-    assert _true_status_from_ranking(r, {"H"}) == "contested"
+def test_decided_wins_over_contested_membership():
+    # a reliably-DECIDED hypothesis is refuted/supported even if still a nominal cluster
+    # member — this is the Run-11 fix (H-INTERFACE was refuted but showed 'contested').
+    refuted = {"label": "H", "status": "proposed", "computed_confidence": 0.15, "reliable": True}
+    assert _true_status_from_ranking(refuted, {"H"}) == "refuted"
+    supported = {"label": "H", "status": "proposed", "computed_confidence": 0.85, "reliable": True}
+    assert _true_status_from_ranking(supported, {"H"}) == "supported"
+
+
+def test_undecided_member_is_contested():
+    # an UNDECIDED member (reliable but mid-confidence, or unreliable) in a cluster → contested
+    mid = {"label": "H", "status": "proposed", "computed_confidence": 0.34, "reliable": True}
+    assert _true_status_from_ranking(mid, {"H"}) == "contested"
+    unreliable = {"label": "H", "status": "proposed", "computed_confidence": 0.6, "reliable": False}
+    assert _true_status_from_ranking(unreliable, {"H"}) == "contested"
 
 
 def test_eliminated_status_is_refuted():
@@ -100,3 +112,19 @@ def test_synthesis_surfaces_tried_and_failed_and_open_loops():
     assert syn["open_loops"]["next_experiment"] == "CORR rescue"
     assert syn["recent_reasoning"] == ["why we pivoted"]
     assert "how_to_read_this" in syn and "UNDETERMINED" in syn["how_to_read_this"]
+
+
+def test_decided_member_dropped_from_contested():
+    # H1 is reliably refuted; even if convergence lists it in a contested cluster, the
+    # synthesis must NOT show it as still_contested (no double-listing with established).
+    syn = _resume_synthesis(
+        _data(),
+        {"convergence": {"contested_clusters": [
+            {"survivors": ["H1", "H2"], "state": "blocked_on_experiment",
+             "blocking_experiments": ["CORR rescue"]}]},
+         "recommended_actions": []},
+        {"items": []}, [])
+    assert any(e["label"] == "H1" and e["conclusion"] == "refuted" for e in syn["established"])
+    # cluster had {H1(decided), H2}; H1 dropped → only H2 left → <2 → no contested entry
+    contested_labels = {m for c in syn["still_contested"] for m in c["members"]}
+    assert "H1" not in contested_labels

@@ -150,7 +150,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.34-provisional",
+        "version": "0.35-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -3089,20 +3089,28 @@ def _resume_synthesis(data, briefing, pending_work, history) -> dict:
                   "caveat": None if sc["reliable"] else
                   "front-runner but UNRELIABLE (<2 independent decisive verdicts) — "
                   "UNDETERMINED, not an established answer."}
-    established = []
+    established, decided = [], set()
     for h, sc in scored:
         c = sc["computed_confidence"]
         if sc["reliable"] and c <= 0.2:
             established.append({"label": h.get("label"), "conclusion": "refuted",
                                 "confidence": c, "n_decisive": sc["n_decisive"]})
+            decided.add(h.get("label"))
         elif sc["reliable"] and c >= 0.8:
             established.append({"label": h.get("label"), "conclusion": "supported",
                                 "confidence": c, "n_decisive": sc["n_decisive"]})
+            decided.add(h.get("label"))
     conv = (briefing or {}).get("convergence", {}) or {}
-    contested = [{"members": cl.get("survivors") or [m.get("label") for m in cl.get("members", [])],
-                  "state": cl.get("state"),
-                  "discriminating_test": cl.get("blocking_experiments")}
-                 for cl in conv.get("contested_clusters", [])]
+    contested = []
+    for cl in conv.get("contested_clusters", []):
+        # a DECIDED member (reliably refuted/supported) is no longer contested — drop it,
+        # so a hypothesis never appears in BOTH `established` and `still_contested`.
+        members = [m for m in (cl.get("survivors")
+                               or [x.get("label") for x in cl.get("members", [])])
+                   if m not in decided]
+        if len(members) >= 2:
+            contested.append({"members": members, "state": cl.get("state"),
+                              "discriminating_test": cl.get("blocking_experiments")})
     failed_compute, blocked, running = [], [], []
     for h in hyps:
         for p in h.get("predictions", []):
@@ -3211,17 +3219,21 @@ def _canon_resume_status(s) -> str:
 
 def _true_status_from_ranking(r, contested_labels) -> str:
     """The platform's ground-truth standing for a hypothesis, in the resume vocabulary.
-    'leading' is deliberately NOT a true status — a front-runner that isn't reliable is
-    UNDETERMINED, the distinction a resuming agent most often gets wrong."""
+    DECIDED (reliably refuted/supported) wins over contested-membership: a hypothesis the
+    evidence has settled is 'refuted'/'supported' even if it's still a nominal member of a
+    competes_with cluster — only the UNDECIDED members are 'contested'. (This keeps
+    resume_check consistent with synthesis.established.) And 'leading' is deliberately NOT
+    a true status — a front-runner that isn't reliable is UNDETERMINED, the distinction a
+    resuming agent most often gets wrong."""
     if (r.get("status") or "") in ("eliminated", "superseded"):
         return "refuted"
-    if r.get("label") in contested_labels:
-        return "contested"
     c = r.get("computed_confidence", r.get("confidence")) or 0.0
     if r.get("reliable") and c <= 0.2:
-        return "refuted"
+        return "refuted"               # decided against — wins over cluster membership
     if r.get("reliable") and c >= 0.8:
-        return "supported"
+        return "supported"             # decided for
+    if r.get("label") in contested_labels:
+        return "contested"             # live AND undecided, in a contest it can't yet win
     return "undetermined"
 
 
