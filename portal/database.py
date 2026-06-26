@@ -548,6 +548,30 @@ def init_discovery_tables():
         ''')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_rigor_project '
                     'ON hyp_rigor_findings (project_id, status)')
+        # (6) Async work the agent KICKED OFF but couldn't await this turn (an Edison
+        # literature query, a submitted calculation) — so the dashboard can show a
+        # project has RESUMABLE pending steps that, once finished, are worth coming
+        # back for. kind: literature | compute | external. status: pending | ready |
+        # done | failed.
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS hyp_async_tasks (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                task_id CHAR(26) UNIQUE NOT NULL,
+                project_id CHAR(26) NOT NULL REFERENCES hyp_projects(project_id),
+                kind TEXT NOT NULL DEFAULT 'external',
+                external_ref TEXT,
+                summary TEXT,
+                poll_hint TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                hypothesis_id CHAR(26),
+                prediction_id CHAR(26),
+                submitted_by TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                resolved_at TIMESTAMPTZ
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_async_project '
+                    'ON hyp_async_tasks (project_id, status)')
 
         conn.commit()
         cur.close()

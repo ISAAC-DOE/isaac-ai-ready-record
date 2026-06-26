@@ -105,13 +105,13 @@ if user_is_admin:
     # Insert Admin Review after Ontology Editor
     PAGES.insert(2, "Admin Review")
 
-# Discovery page (hypothesis-reasoning workbench) — feature-gated: only shown when
-# the isolated discovery DB is configured AND either the global DISCOVERY_ENABLED
-# flag is set or the viewer is an admin. Lets us merge to main and demo to a
-# limited audience before flipping it on for everyone.
-if database.is_discovery_db_configured() and (
-        os.environ.get("DISCOVERY_ENABLED", "").lower() in ("1", "true", "yes", "on")
-        or user_is_admin):
+# Discovery page (hypothesis-reasoning workbench) — visible to ANY authenticated
+# portal user when the isolated discovery DB is configured, so projects can be
+# shared with non-admin teammates (each user sees their own + projects shared with
+# them; per-project access control is enforced in discovery.py). Set DISCOVERY_HIDDEN
+# to hide it again if ever needed.
+if database.is_discovery_db_configured() and \
+        os.environ.get("DISCOVERY_HIDDEN", "").lower() not in ("1", "true", "yes", "on"):
     PAGES.insert(PAGES.index("About"), "Discovery")
 
 # --- Top navigation bar: hamburger menu + theme toggle + DB status + user info ---
@@ -1675,6 +1675,37 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                 f"status: {proj.get('status')}"]))
             if meta:
                 st.caption(meta)
+
+            # ---------- RESUMABLE pending work — the first thing you should see ----
+            _pw = brief.get("pending_work", {})
+            if _pw.get("items"):
+                _n = _pw["count"]
+                _accent = branding.palette(st.session_state.ui_theme)["accent"]
+                _rows = ""
+                _now = datetime.now(timezone.utc)
+                for _it in _pw["items"]:
+                    _age = ""
+                    try:
+                        _t = datetime.fromisoformat(str(_it.get("started_at")).replace("Z", "+00:00"))
+                        _hrs = (_now - _t).total_seconds() / 3600.0
+                        _age = (f"{int(_hrs)}h ago" if _hrs >= 1
+                                else f"{int(_hrs*60)}m ago")
+                    except Exception:
+                        pass
+                    _kind_icon = {"literature": "📚", "compute": "🖥️"}.get(_it.get("kind"), "⏳")
+                    _rows += (f"<div style='margin:3px 0'>{_kind_icon} "
+                              f"<b>{_it.get('kind')}</b> · {(_it.get('summary') or _it.get('ref') or '')[:70]} "
+                              f"<span style='opacity:.7'>· {_it.get('status')} · {_age}</span></div>")
+                st.markdown(
+                    f"<div style='border:1px solid {_accent}; border-left:4px solid {_accent};"
+                    f"border-radius:10px; padding:12px 16px; margin:6px 0 4px;'>"
+                    f"<div style='font-weight:700; color:{_accent}'>⏳ Resumable — "
+                    f"{_n} pending step(s) started but not yet reconciled</div>"
+                    f"<div style='font-size:0.86em; opacity:.85; margin:4px 0 6px'>"
+                    f"An agent kicked these off and couldn't wait. Once they finish, "
+                    f"<b>resume this project with an agent</b> to poll &amp; ingest the "
+                    f"results — it's worth coming back for.</div>{_rows}</div>",
+                    unsafe_allow_html=True)
 
             settled = brief.get("settled", {"supported": [], "eliminated": []})
             c1, c2, c3, c4, c5 = st.columns(5)
