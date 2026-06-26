@@ -155,7 +155,9 @@ the records DB — referenced read-only, never written from here.
   it. **Never** record a tool failure as `insufficient`/`contradicts` — the score reflects
   the evidence you have, not what you tried and couldn't get.
 - **Prediction `verdict`** (the scientific outcome, set at `evaluated`):
-  `supports | contradicts | neutral | insufficient | blocked`, with `strength` `strong|moderate|weak`.
+  `supports | contradicts | neutral | insufficient | blocked`, with `strength` `strong|moderate|weak`
+  and an optional `margin` `0–1` (sharpness: how decisively the observation diverged past
+  the falsification threshold — refines the tier and gates the strong-contradiction kill).
 
 `work_status` and `verdict` are **orthogonal**: one says where in the pipeline a
 prediction is, the other says what it concluded.

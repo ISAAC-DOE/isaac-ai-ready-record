@@ -126,7 +126,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.30-provisional",
+        "version": "0.31-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -371,6 +371,14 @@ def get_manifest() -> dict:
                 "to the independent-decisive count — you cannot confirm a hypothesis twice "
                 "with the same data, nor manufacture 'reliability' by stacking predictions "
                 "on one result. Reliability needs ≥2 INDEPENDENT decisive verdicts.",
+            "sharpness": "Optional per-verdict `margin` ∈ [0,1] expresses HOW DECISIVELY "
+                "the observation diverged past the prediction's falsification threshold "
+                "(1 = far past / unambiguous, 0 = right at the line). It refines the coarse "
+                "strength tier (contribution scales 0.7×..1.3×) and gates the "
+                "strong-contradiction falsification cap: a STRONG contradiction only counts "
+                "as a kill (≤0.15) when the breach is decisive (margin omitted or ≥0.5) — a "
+                "barely-past-threshold strong contradiction is strong evidence-against, not "
+                "an automatic falsification. Omit margin and the strength tier alone is used.",
             "failed_compute_never_penalizes": "A computation that crashes or does not "
                 "converge is NOT evidence and NOT a verdict — it produced no measurement. "
                 "Set the prediction's work_status='compute_failed' (a failed compute run "
@@ -627,8 +635,10 @@ def get_manifest() -> dict:
              "purpose": "Delete a compute run (e.g. a stray duplicate)."},
             {"m": "PUT", "path": "/predictions/{id}/evaluate",
              "purpose": "Terminal: set verdict (supports|contradicts|neutral|insufficient"
-                        "|blocked) + strength (weak|moderate|strong) + evidence + "
-                        "mlflow_run_url + evidence_independence. THIS is what moves the "
+                        "|blocked) + strength (weak|moderate|strong) + optional margin "
+                        "(0-1 sharpness: how decisively the observation diverged past the "
+                        "falsification threshold) + evidence + mlflow_run_url + "
+                        "evidence_independence. THIS is what moves the "
                         "hypothesis's confidence — the platform recomputes & stores it "
                         "from all the verdicts (scoring_model). Use verdict='blocked' when "
                         "the evidence isn't validly comparable (schema gate). If the "
@@ -1193,14 +1203,25 @@ def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=N
 def evaluate_prediction(prediction_id, verdict, *, strength=None,
                         evidence_record_ids=None, rationale=None,
                         mlflow_run_url=None, evidence_independence=None,
-                        actor=None) -> bool:
+                        margin=None, actor=None) -> bool:
     """Terminal verdict on a prediction. `evidence_independence` declares
     USE-NOVELTY: which evidence was used to BUILD/fit the supporting model vs to
     TEST it. {model_was_fit:bool, parameters_fit_to:[id], tested_against:[id],
     roles:[{evidence,role:built_from|tested_against}]}. If the same data both
-    built and tested a model, a 'supports' verdict is circular — surfaced in
-    method_compliance now (not yet auto-downgraded)."""
+    built and tested a model, a 'supports' verdict is CIRCULAR — the score discounts
+    it automatically (use-novelty enforced in compute_hypothesis_score).
+
+    `margin` ∈ [0,1] is the verdict's SHARPNESS: how decisively the observation
+    diverged past the prediction's falsification threshold (1 = far past / unambiguous,
+    0 = right at the line). It refines the coarse strength tier and gates the
+    strong-contradiction falsification cap. Optional — omit and the strength tier
+    alone is used."""
     verdict = normalize_verdict(verdict)
+    if margin is not None:
+        try:
+            margin = max(0.0, min(1.0, float(margin)))
+        except (TypeError, ValueError):
+            margin = None
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -1217,11 +1238,11 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
             """UPDATE hyp_predictions
                   SET verdict=%s, strength=%s, evidence_record_ids=%s,
                       rationale=%s, mlflow_run_url=%s, evidence_independence=%s,
-                      work_status='evaluated', updated_at=NOW()
+                      margin=%s, work_status='evaluated', updated_at=NOW()
                 WHERE prediction_id=%s""",
             (verdict, strength, evidence_record_ids, rationale, mlflow_run_url,
              json.dumps(evidence_independence) if evidence_independence is not None
-             else None, prediction_id))
+             else None, margin, prediction_id))
         _circ = _circularity_flag(evidence_independence)
         _detail = rationale
         if _circ:
@@ -1619,6 +1640,20 @@ def _evidence_key(p):
     return frozenset(str(x) for x in ids if x)
 
 
+def _margin_factor(margin):
+    """Per-verdict SHARPNESS multiplier. margin ∈ [0,1] = how decisively the
+    observation diverged past the falsification threshold (1 = far past, 0 = right at
+    the line). Maps to 0.7×..1.3× so a decisive divergence weighs more than a marginal
+    one OF THE SAME strength tier. Omitted (None) → 1.0 (tier alone, back-compat)."""
+    if margin is None:
+        return 1.0
+    try:
+        m = max(0.0, min(1.0, float(margin)))
+    except (TypeError, ValueError):
+        return 1.0
+    return 0.7 + 0.6 * m
+
+
 def compute_hypothesis_score(h) -> dict:
     """THE single, canonical way a hypothesis is evaluated. Confidence is COMPUTED
     (never authored) by aggregating the verdicts of the hypothesis's evaluated
@@ -1640,6 +1675,11 @@ def compute_hypothesis_score(h) -> dict:
         counted) are attenuated to {_atten}× and don't add to n_decisive — you can't
         confirm twice with the same data, nor fake reliability by stacking predictions
         on one result.
+    SHARPNESS (optional per-verdict `margin` ∈ [0,1]): how decisively the observation
+    diverged past the falsification threshold. Scales the contribution 0.7×..1.3×
+    within the strength tier, and a STRONG contradiction only triggers the falsification
+    cap when its breach is decisive (margin None or ≥0.5) — a barely-past-threshold
+    strong contradiction is strong evidence-against, not an automatic kill.
     confidence = sigmoid(Σ). strength ∈ {{strong:1.0, moderate:0.6, weak:0.3}}; an
     omitted/unknown strength is treated as WEAK (the conservative tier). A score from
     <2 INDEPENDENT DECISIVE (supports/contradicts) verdicts is UNRELIABLE — you cannot
@@ -1659,15 +1699,16 @@ def compute_hypothesis_score(h) -> dict:
         # omitted/unknown strength → weak (the conservative tier): an unqualified
         # verdict should move belief the LEAST, never a magic mid-value.
         sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), _STRENGTH_W["weak"])
+        _m = p.get("margin")
         if v == "supports":
             bd["supports"] += 1
             if _circularity_flag(p.get("evidence_independence")):
                 bd["circular_discounted"] += 1        # use-novelty: consistency, not confirmation
                 continue                              # 0 contribution, not decisive
-            decisive.append((+1, sw, _evidence_key(p)))
+            decisive.append((+1, sw, _evidence_key(p), _m))
         elif v == "contradicts":
             bd["contradicts"] += 1
-            decisive.append((-1, sw, _evidence_key(p)))
+            decisive.append((-1, sw, _evidence_key(p), _m))
         elif v == "neutral":
             logit -= 0.20; bd["neutral"] += 1          # mild evidence against
         elif v == "blocked":
@@ -1683,14 +1724,19 @@ def compute_hypothesis_score(h) -> dict:
         claimed = set()
         same = sorted([d for d in decisive if d[0] == direction],
                       key=lambda d: -d[1])
-        for _dir, sw, ev in same:
+        for _dir, sw, ev, margin in same:
             independent = (not ev) or not (ev & claimed)
-            weight = sw if independent else sw * _CORRELATION_ATTENUATION
+            base = sw if independent else sw * _CORRELATION_ATTENUATION
+            weight = base * _margin_factor(margin)     # SHARPNESS: refine within the tier
             if independent:
                 n_decisive += 1
                 if ev:
                     claimed |= ev
-                if direction < 0 and sw >= 1.0:
+                # A STRONG contradiction falsifies (hard cap) only when the breach is
+                # DECISIVE: unqualified (no margin) keeps the old behaviour; an
+                # explicitly MARGINAL strong contradiction (margin<0.5, barely past the
+                # line) is strong evidence-against but not an automatic kill.
+                if direction < 0 and sw >= 1.0 and (margin is None or margin >= 0.5):
                     strong_contra = True
             else:
                 bd["correlated_attenuated"] += 1
@@ -1737,7 +1783,7 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
     it (the platform owns confidence; the agent never authors it). Called on every
     prediction-evaluation change. Returns the new confidence."""
     cur.execute("""SELECT verdict, strength, work_status, evidence_independence,
-                          evidence_record_ids
+                          evidence_record_ids, margin
                      FROM hyp_predictions WHERE hypothesis_id=%s""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]
     score = compute_hypothesis_score({"predictions": preds})
