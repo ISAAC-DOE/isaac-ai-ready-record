@@ -1228,7 +1228,8 @@ def discovery_evaluate_prediction(prediction_id):
         evidence_record_ids=d.get("evidence_record_ids"), rationale=d.get("rationale"),
         mlflow_run_url=d.get("mlflow_run_url"),
         evidence_independence=d.get("evidence_independence"),
-        margin=d.get("margin"), actor=_disc_identity())
+        margin=d.get("margin"), cross_system=d.get("cross_system"),
+        actor=_disc_identity())
     if not ok:
         return jsonify({"error": "prediction not found"}), 404
     return jsonify({"ok": True}), 200

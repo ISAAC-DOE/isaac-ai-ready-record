@@ -24,10 +24,12 @@ from discovery import compute_hypothesis_score, _STRENGTH_W  # noqa: E402
 
 
 def _pred(verdict=None, strength=None, work_status="evaluated",
-          evidence_record_ids=None, evidence_independence=None, margin=None):
+          evidence_record_ids=None, evidence_independence=None, margin=None,
+          cross_system=None):
     return {"verdict": verdict, "strength": strength, "work_status": work_status,
             "evidence_record_ids": evidence_record_ids,
-            "evidence_independence": evidence_independence, "margin": margin}
+            "evidence_independence": evidence_independence, "margin": margin,
+            "cross_system": cross_system}
 
 
 # evidence_independence that is CIRCULAR (model fit to the data it's tested on)
@@ -336,6 +338,47 @@ def test_unqualified_strong_contradiction_keeps_old_cap():
     # no margin → old behaviour: strong contradiction caps
     s = compute_hypothesis_score(_h(_pred("contradicts", "strong"), _pred("contradicts", "moderate")))
     assert s["computed_confidence"] <= 0.15
+
+
+# --- Cross-system / borrowed-analog evidence (the Cu-Ag lesson) ----------------
+
+def test_cross_system_cannot_make_a_hypothesis_reliable():
+    # the Cu-Ag scenario: two strong supports, but BOTH borrowed from another system.
+    # They may nudge confidence up, but cannot make the hypothesis 'reliable'.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", cross_system=True, evidence_record_ids=["A"]),
+        _pred("supports", "strong", cross_system=True, evidence_record_ids=["B"]),
+    ))
+    assert s["n_decisive"] == 0            # neither counts toward reliability
+    assert s["reliable"] is False
+    assert s["breakdown"]["cross_system_attenuated"] == 2
+    assert s["computed_confidence"] > 0.5  # still suggestive (capped weak each)
+
+
+def test_cross_system_is_capped_at_weak():
+    strong_xsys = compute_hypothesis_score(_h(_pred("supports", "strong", cross_system=True)))
+    weak_insys = compute_hypothesis_score(_h(_pred("supports", "weak")))
+    # a 'strong' cross-system support contributes no more than a weak in-system one
+    assert strong_xsys["computed_confidence"] == weak_insys["computed_confidence"]
+
+
+def test_cross_system_contradiction_never_falsifies():
+    # a strong cross-system contradiction must NOT trip the ≤0.15 falsification cap
+    s = compute_hypothesis_score(_h(
+        _pred("contradicts", "strong", cross_system=True),
+        _pred("supports", "weak"),
+    ))
+    assert s["computed_confidence"] > 0.15
+
+
+def test_in_system_still_establishes_normally():
+    # control: the same two strong supports, in-system → reliable as before
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=["A"]),
+        _pred("supports", "strong", evidence_record_ids=["B"]),
+    ))
+    assert s["n_decisive"] == 2 and s["reliable"] is True
+    assert s["breakdown"]["cross_system_attenuated"] == 0
 
 
 def test_coverage_and_conflict_math():

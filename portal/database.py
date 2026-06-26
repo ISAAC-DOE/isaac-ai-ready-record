@@ -541,6 +541,12 @@ def init_discovery_tables():
         # past / unambiguous, 0 = right at the line). Refines the coarse strength tier
         # and gates the strong-contradiction falsification cap. Optional/back-compat.
         cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS margin REAL")
+        # cross_system — true if the verdict's evidence is a borrowed ANALOG from a
+        # different material / reaction / mechanism class. Such evidence can SUGGEST but
+        # never ESTABLISH: capped at weak, excluded from the reliability count (the Cu-Ag
+        # lesson — a borrowed analog must not drive a hypothesis to 'reliable').
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
+                    "cross_system BOOLEAN")
         # (4) Confidence as a first-class TIME SERIES (one row per change), so the
         # "Belief River" reads real history instead of scraping event prose. Legacy
         # projects are backfilled-on-read from their event log (see discovery.py).

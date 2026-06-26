@@ -71,7 +71,8 @@ COMPUTE_STATUSES = {"queued", "running", "completed", "failed", "resubmitted"}
 # severities order the response. Accept-and-normalize like the rest.
 RIGOR_CATEGORIES = {"use_novelty", "individuation", "falsifiability",
                     "evidence_compatibility", "confirmation_bias", "overreach",
-                    "shared_premise", "grounding_misclassification", "other"}
+                    "shared_premise", "grounding_misclassification",
+                    "transferability", "other"}
 RIGOR_SEVERITIES = {"critical", "major", "minor"}
 RIGOR_FINDING_STATUSES = {"open", "resolved", "dismissed"}
 # A "residual" hypothesis is the explicit NONE-OF-THE-ABOVE / the-shared-premise-is-
@@ -150,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.35-provisional",
+        "version": "0.36-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -458,6 +459,17 @@ def get_manifest() -> dict:
                 "as a kill (≤0.15) when the breach is decisive (margin omitted or ≥0.5) — a "
                 "barely-past-threshold strong contradiction is strong evidence-against, not "
                 "an automatic falsification. Omit margin and the strength tier alone is used.",
+            "cross_system_can_suggest_not_establish": "Evidence borrowed from a DIFFERENT "
+                "material / reaction / mechanism class (an analog) — mark the verdict "
+                "cross_system=true. Phenomenological similarity is NOT mechanistic identity "
+                "(a trend that looks the same may arise from a different mechanism), and a "
+                "borrowed result may be irreproducible or even argue the OPPOSITE mechanism "
+                "in its source. So cross_system evidence is capped at WEAK, contributes a "
+                "little, but does NOT count toward n_decisive and never falsifies: it can "
+                "SUGGEST a direction but never make a hypothesis 'reliable'. Reliability "
+                "must be earned IN-SYSTEM. (The Cu-Ag lesson — a borrowed analog drove a "
+                "hypothesis to a false 0.83 'reliable'; this prevents that.) Check the "
+                "source's actual claim before borrowing; the rigor critic audits it.",
             "failed_compute_never_penalizes": "A computation that crashes or does not "
                 "converge is NOT evidence and NOT a verdict — it produced no measurement. "
                 "Set the prediction's work_status='compute_failed' (a failed compute run "
@@ -504,6 +516,13 @@ def get_manifest() -> dict:
                 "literature source, or really parameterised from this dataset, is "
                 "mis-grounded (category grounding_misclassification) — it should be ad_hoc "
                 "and face the discount.\n"
+                "  • TRANSFERABILITY (the Cu-Ag lesson): a verdict leaning on evidence from "
+                "a DIFFERENT material / reaction / mechanism class (an analog) that is NOT "
+                "marked cross_system, OR whose borrowed claim is mechanistically invalid "
+                "(e.g. the source paper argues the OPPOSITE mechanism, or its numbers are "
+                "irreproducible). Phenomenological similarity is NOT mechanistic identity. "
+                "Demand the cross_system flag + a transferability basis, or block it "
+                "(category transferability).\n"
                 "  • INDIVIDUATION: a `supersedes` that is really a refinement (no genuine "
                 "discriminating observable), or a 'new' hypothesis that only renames an "
                 "old one.\n"
@@ -750,8 +769,10 @@ def get_manifest() -> dict:
             {"m": "PUT", "path": "/predictions/{id}/evaluate",
              "purpose": "Terminal: set verdict (supports|contradicts|neutral|insufficient"
                         "|blocked) + strength (weak|moderate|strong) + optional margin "
-                        "(0-1 sharpness: how decisively the observation diverged past the "
-                        "falsification threshold) + evidence + mlflow_run_url + "
+                        "(0-1 sharpness) + cross_system=true if the evidence is a borrowed "
+                        "ANALOG from a different material/reaction/mechanism class (it then "
+                        "SUGGESTS but cannot ESTABLISH — capped weak, excluded from "
+                        "reliability) + evidence + mlflow_run_url + "
                         "evidence_independence. THIS is what moves the "
                         "hypothesis's confidence — the platform recomputes & stores it "
                         "from all the verdicts (scoring_model). Use verdict='blocked' when "
@@ -1323,7 +1344,7 @@ def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=N
 def evaluate_prediction(prediction_id, verdict, *, strength=None,
                         evidence_record_ids=None, rationale=None,
                         mlflow_run_url=None, evidence_independence=None,
-                        margin=None, actor=None) -> bool:
+                        margin=None, cross_system=None, actor=None) -> bool:
     """Terminal verdict on a prediction. `evidence_independence` declares
     USE-NOVELTY: which evidence was used to BUILD/fit the supporting model vs to
     TEST it. {model_was_fit:bool, parameters_fit_to:[id], tested_against:[id],
@@ -1358,11 +1379,12 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
             """UPDATE hyp_predictions
                   SET verdict=%s, strength=%s, evidence_record_ids=%s,
                       rationale=%s, mlflow_run_url=%s, evidence_independence=%s,
-                      margin=%s, work_status='evaluated', updated_at=NOW()
+                      margin=%s, cross_system=%s, work_status='evaluated', updated_at=NOW()
                 WHERE prediction_id=%s""",
             (verdict, strength, evidence_record_ids, rationale, mlflow_run_url,
              json.dumps(evidence_independence) if evidence_independence is not None
-             else None, margin, prediction_id))
+             else None, margin,
+             bool(cross_system) if cross_system is not None else None, prediction_id))
         _circ = _circularity_flag(evidence_independence)
         _detail = rationale
         if _circ:
@@ -1803,6 +1825,11 @@ def compute_hypothesis_score(h) -> dict:
     within the strength tier, and a STRONG contradiction only triggers the falsification
     cap when its breach is decisive (margin None or ≥0.5) — a barely-past-threshold
     strong contradiction is strong evidence-against, not an automatic kill.
+    CROSS-SYSTEM (optional per-verdict `cross_system`=true): evidence borrowed from a
+    DIFFERENT material / reaction / mechanism class (an analog). It can SUGGEST but never
+    ESTABLISH — capped at weak, contributes a little, but does NOT count toward n_decisive
+    and never trips the falsification cap. A hypothesis cannot become 'reliable' on
+    borrowed analogs alone (the Cu-Ag lesson). The rigor critic audits transferability.
     confidence = sigmoid(Σ). strength ∈ {{strong:1.0, moderate:0.6, weak:0.3}}; an
     omitted/unknown strength is treated as WEAK (the conservative tier). A score from
     <2 INDEPENDENT DECISIVE (supports/contradicts) verdicts is UNRELIABLE — you cannot
@@ -1811,10 +1838,11 @@ def compute_hypothesis_score(h) -> dict:
         _atten=_CORRELATION_ATTENUATION)
     bd = {"supports": 0, "contradicts": 0, "neutral": 0, "insufficient": 0,
           "blocked": 0, "unevaluated": 0, "circular_discounted": 0,
-          "circular_softened": 0, "correlated_attenuated": 0}
+          "circular_softened": 0, "correlated_attenuated": 0,
+          "cross_system_attenuated": 0}
     hyp_grounding = _grounding(h)   # gates the accommodation discount (standing_prior vs ad_hoc)
     logit = 0.0
-    decisive = []   # (direction:+1/-1, strength_weight, evidence_key) — survives to pass 2
+    decisive = []   # (direction, strength_weight, evidence_key, margin, cross_system)
     for p in h.get("predictions", []):
         if p.get("work_status") != "evaluated":
             bd["unevaluated"] += 1
@@ -1824,6 +1852,7 @@ def compute_hypothesis_score(h) -> dict:
         # verdict should move belief the LEAST, never a magic mid-value.
         sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), _STRENGTH_W["weak"])
         _m = p.get("margin")
+        _xsys = bool(p.get("cross_system"))   # evidence from a DIFFERENT system/mechanism class
         if v == "supports":
             bd["supports"] += 1
             if _circularity_flag(p.get("evidence_independence")):
@@ -1834,14 +1863,14 @@ def compute_hypothesis_score(h) -> dict:
                 # capped at weak (not strong independent confirmation).
                 if hyp_grounding == "standing_prior":
                     bd["circular_softened"] += 1
-                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m))
+                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m, _xsys))
                 else:
                     bd["circular_discounted"] += 1    # 0 contribution, not decisive
             else:
-                decisive.append((+1, sw, _evidence_key(p), _m))
+                decisive.append((+1, sw, _evidence_key(p), _m, _xsys))
         elif v == "contradicts":
             bd["contradicts"] += 1
-            decisive.append((-1, sw, _evidence_key(p), _m))
+            decisive.append((-1, sw, _evidence_key(p), _m, _xsys))
         elif v == "neutral":
             logit -= 0.20; bd["neutral"] += 1          # mild evidence against
         elif v == "blocked":
@@ -1857,7 +1886,17 @@ def compute_hypothesis_score(h) -> dict:
         claimed = set()
         same = sorted([d for d in decisive if d[0] == direction],
                       key=lambda d: -d[1])
-        for _dir, sw, ev, margin in same:
+        for _dir, sw, ev, margin, xsys in same:
+            if xsys:
+                # CROSS-SYSTEM / borrowed-analog evidence (a different material / reaction /
+                # mechanism class): it can SUGGEST but never ESTABLISH. Capped at weak,
+                # contributes a little, but does NOT count toward n_decisive (reliability)
+                # and never trips the falsification cap. This is the Cu-Ag lesson: a
+                # borrowed analog must not drive a hypothesis to 'reliable'.
+                bd["cross_system_attenuated"] += 1
+                logit += direction * min(sw, _STRENGTH_W["weak"]) * _margin_factor(margin) \
+                    * (1.25 if direction < 0 else 1.0)
+                continue
             independent = (not ev) or not (ev & claimed)
             base = sw if independent else sw * _CORRELATION_ATTENUATION
             weight = base * _margin_factor(margin)     # SHARPNESS: refine within the tier
@@ -1909,7 +1948,9 @@ def compute_hypothesis_score(h) -> dict:
                  + (f" {bd['circular_softened']} standing-prior 'supports' softened to "
                     "weak (consistency check)." if bd['circular_softened'] else "")
                  + (f" {bd['correlated_attenuated']} correlated verdict(s) attenuated "
-                    "(shared evidence)." if bd['correlated_attenuated'] else "")),
+                    "(shared evidence)." if bd['correlated_attenuated'] else "")
+                 + (f" {bd['cross_system_attenuated']} cross-system/analog verdict(s) — "
+                    "suggestive only, not reliability-bearing." if bd['cross_system_attenuated'] else "")),
     }
 
 
@@ -1918,7 +1959,7 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
     it (the platform owns confidence; the agent never authors it). Called on every
     prediction-evaluation change. Returns the new confidence."""
     cur.execute("""SELECT verdict, strength, work_status, evidence_independence,
-                          evidence_record_ids, margin
+                          evidence_record_ids, margin, cross_system
                      FROM hyp_predictions WHERE hypothesis_id=%s""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]
     cur.execute("SELECT project_id, grounding FROM hyp_hypotheses WHERE hypothesis_id=%s",
