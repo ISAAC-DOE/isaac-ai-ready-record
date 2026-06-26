@@ -1430,19 +1430,29 @@ elif page == "Discovery":
         _VERDICT_ICON = {"supports": "✅", "contradicts": "❌",
                          "neutral": "➖", "insufficient": "❓"}
 
-        def _bar(label, statement, confidence, status, color):
+        def _bar(label, statement, confidence, status, color, score=None):
             c = float(confidence or 0.0)
             pct = max(0, min(100, int(round(c * 100))))
             dead = status in ("eliminated", "superseded")
             op = 0.45 if dead else 1.0
+            _sc = ""
+            if score is not None:
+                _cc = score.get("computed_confidence")
+                _n = score.get("n_scored", 0)
+                if not score.get("reliable") and not dead:
+                    _sc = (f" <span style='color:#e0726a'>· ⚠ {_n} scored pred"
+                           f"{'s' if _n != 1 else ''} — score unreliable</span>")
+                else:
+                    _sc = (f" <span style='color:#888'>· computed {_cc:.2f} "
+                           f"(n={_n})</span>")
             return (
                 f"<div style='margin:5px 0;opacity:{op}'>"
                 f"<div style='font-size:0.85em'>"
                 f"<span style='display:inline-block;width:9px;height:9px;border-radius:50%;"
                 f"background:{color};margin-right:7px;vertical-align:middle'></span>"
                 f"<b>{label or ''}</b> "
-                f"<span style='color:#888'>{(statement or '')[:88]}</span> "
-                f"<span style='float:right;color:#888'>{status} · {c:.2f}</span></div>"
+                f"<span style='color:#888'>{(statement or '')[:74]}</span> "
+                f"<span style='float:right;color:#888'>{status} · {c:.2f}{_sc}</span></div>"
                 f"<div style='background:#88888822;border-radius:4px;height:12px;"
                 f"width:100%;margin-top:3px'>"
                 f"<div style='background:{color};width:{pct}%;height:12px;"
@@ -2024,8 +2034,12 @@ requestAnimationFrame(loop);
             _issue_map = [
                 ("Hypotheses with no falsifying prediction",
                  _mc.get("hypotheses_without_falsifying_prediction")),
+                ("⚠ UNRELIABLE score — <2 scored predictions (can't validate/falsify)",
+                 _mc.get("unreliable_scores_too_few_predictions")),
                 ("Hypotheses with too FEW predictions (need a set ≥2, aim 3-4)",
                  _mc.get("hypotheses_below_min_predictions")),
+                ("Authored confidence diverges from the computed (prediction-based) score",
+                 _mc.get("authored_confidence_far_from_computed")),
                 ("Hypotheses whose predictions all use ONE descriptor (impoverished)",
                  _mc.get("hypotheses_with_single_descriptor")),
                 ("Predictions missing structured fields (direction/reference/magnitude)",
@@ -2109,11 +2123,12 @@ requestAnimationFrame(loop);
                     for _a in _recs:
                         st.markdown(f"- {_a}")
 
-            st.markdown("**Hypothesis ranking** — bar length = confidence; each "
-                        "hypothesis keeps its colour across all the plots below "
-                        "(faded = eliminated)")
+            st.markdown("**Hypothesis ranking** — bar = authored confidence; "
+                        "*computed* = the score aggregated from the predictions "
+                        "(⚠ unreliable when <2 scored predictions)")
             st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
-                                     h["status"], _hcolor.get(h["label"], "#C97A3C"))
+                                     h["status"], _hcolor.get(h["label"], "#C97A3C"),
+                                     score=discovery.compute_hypothesis_score(h))
                                 for h in hyps) or "_No hypotheses yet._",
                         unsafe_allow_html=True)
 
