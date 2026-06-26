@@ -1504,10 +1504,11 @@ glow.append('feGaussianBlur').attr('stdDeviation','3.6').attr('result','b');
 const fm=glow.append('feMerge');fm.append('feMergeNode').attr('in','b');fm.append('feMergeNode').attr('in','SourceGraphic');
 const SC={supported:'#ffca28',eliminated:'#6f6f6f',needs_more_data:'#ffa726',proposed:'#4aa3ff',superseded:'#5a5a5a'};
 const VC={supports:'#26c6da',contradicts:'#ec407a',neutral:'#90a4ae',insufficient:'#5c6b7a',blocked:'#7e6a4e'};
-function rT(d){return d.kind==='hyp'?56+(1-(d.conf||0))*150:d.kind==='pred'?250:d.kind==='evid'?330:392;}
-function nR(d){return d.kind==='hyp'?8+(d.conf||0)*22:d.kind==='pred'?({strong:7,moderate:5,weak:3}[d.strength]||4):d.kind==='evid'?3:1.3+Math.min(3.4,Math.log((d.n||1)+1));}
-function nC(d){return d.kind==='hyp'?(d.color||SC[d.status]||'#90caf9'):d.kind==='pred'?(VC[d.verdict]||'#455a64'):d.kind==='evid'?P.evid:P.screened;}
-function nO(d){return d.kind==='screened'?0.45:d.kind==='evid'?0.85:(d.status==='eliminated'||d.status==='superseded')?0.45:1;}
+const CALC='#ab47bc';
+function rT(d){return d.kind==='hyp'?56+(1-(d.conf||0))*150:d.kind==='pred'?250:(d.kind==='evid'||d.kind==='calc')?330:392;}
+function nR(d){return d.kind==='hyp'?8+(d.conf||0)*22:d.kind==='pred'?({strong:7,moderate:5,weak:3}[d.strength]||4):d.kind==='calc'?4.5:d.kind==='evid'?3:1.3+Math.min(3.4,Math.log((d.n||1)+1));}
+function nC(d){return d.kind==='hyp'?(d.color||SC[d.status]||'#90caf9'):d.kind==='pred'?(VC[d.verdict]||'#455a64'):d.kind==='calc'?CALC:d.kind==='evid'?P.evid:P.screened;}
+function nO(d){return d.kind==='screened'?0.45:d.kind==='evid'?0.85:d.kind==='calc'?0.95:(d.status==='eliminated'||d.status==='superseded')?0.45:1;}
 [[56,'leading'],[250,'predictions'],[330,'evidence'],[392,'screened']].forEach(function(p){
  svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',p[0]).attr('fill','none').attr('stroke',P.ring).attr('stroke-dasharray','2,7').attr('opacity',0.7);
  svg.append('text').attr('x',cx).attr('y',cy-p[0]-3).attr('fill',P.ringlab).attr('font-size',9).attr('text-anchor','middle').attr('opacity',0.85).text(p[1]);});
@@ -1517,9 +1518,9 @@ const nodes=DATA.nodes.map(function(d){return Object.assign({},d);});
 const links=DATA.links.map(function(d){return Object.assign({},d);});
 const cont=svg.append('g');
 const link=cont.append('g').selectAll('line').data(links).join('line')
- .attr('stroke',function(d){return d.rel==='pred'?(VC[d.verdict]||'#37474f'):d.rel==='evid'?P.screened:d.rel==='competes_with'?'#ef5350':d.rel==='co_operating'?'#66bb6a':P.relrest;})
- .attr('stroke-opacity',function(d){return d.rel==='evid'?0.42:d.rel==='pred'?0.72:0.78;})
- .attr('stroke-width',function(d){return d.rel==='pred'?({strong:2.8,moderate:1.9,weak:1.2}[d.strength]||1.4):(d.rel==='competes_with'||d.rel==='co_operating')?1.8:1.1;})
+ .attr('stroke',function(d){return d.rel==='pred'?(VC[d.verdict]||'#37474f'):d.rel==='calc'?'#ab47bc':d.rel==='evid'?P.screened:d.rel==='competes_with'?'#ef5350':d.rel==='co_operating'?'#66bb6a':P.relrest;})
+ .attr('stroke-opacity',function(d){return d.rel==='evid'?0.42:d.rel==='calc'?0.6:d.rel==='pred'?0.72:0.78;})
+ .attr('stroke-width',function(d){return d.rel==='pred'?({strong:2.8,moderate:1.9,weak:1.2}[d.strength]||1.4):d.rel==='calc'?1.6:(d.rel==='competes_with'||d.rel==='co_operating')?1.8:1.1;})
  .attr('stroke-linecap','round')
  .attr('stroke-dasharray',function(d){return d.rel==='competes_with'?'4,3':null;});
 const node=cont.append('g').selectAll('circle').data(nodes).join('circle')
@@ -2071,6 +2072,8 @@ requestAnimationFrame(loop);
                  _mc.get("high_confidence_without_independent_review")),
                 ("Compute/model verdicts missing an MLflow replay trace",
                  _mc.get("compute_verdicts_missing_mlflow_trace")),
+                ("⚠ Decisive verdicts NOT cited to data (no record, no compute — unauditable)",
+                 _mc.get("decisive_verdicts_uncited_to_data")),
                 ("📊 Declared-dataset records UNUSED (may break a confound)",
                  _mc.get("dataset_records_unused")),
             ]
@@ -2311,6 +2314,16 @@ requestAnimationFrame(loop);
                                 _cnodes.append({"id": _enid, "label": _rid, "kind": "evid",
                                                 "tip": _etip})
                                 _clinks.append({"source": _enid, "target": _pid, "rel": "evid"})
+                            # COMPUTE provenance — a verdict grounded in a calc (UMA/VASP)
+                            # is real evidence too; draw it so it isn't invisible.
+                            for _ci, _cr in enumerate((_p.get("compute_runs") or [])[:4]):
+                                _eng = _cr.get("engine") or _cr.get("backend") or "compute"
+                                _cid = f"calc{_ci}|{_pid}"
+                                _ctip = (f"<b>computation</b><br>{_esc(_eng)}"
+                                         f"<br>status: {_esc(_cr.get('status') or '?')}")
+                                _cnodes.append({"id": _cid, "label": _eng, "kind": "calc",
+                                                "tip": _ctip})
+                                _clinks.append({"source": _cid, "target": _pid, "rel": "calc"})
                     for _r in relations:
                         _clinks.append({"source": _r["from_hypothesis_id"],
                                         "target": _r["to_hypothesis_id"], "rel": _r["relation_type"]})
@@ -2325,10 +2338,13 @@ requestAnimationFrame(loop);
                          "corpus": {"records": corpus or 0, "screened": n_desc, "cited": n_ev}},
                         st.session_state.ui_theme), height=600)
                     st.caption("**Drag to rotate.** The faint outer field is every descriptor "
-                               "screened; bright nodes are cited evidence → predictions → the "
-                               "hypothesis stars, each drawn toward the centre by its "
-                               "confidence (`competes_with` ties push losers out). Every "
-                               "position, size and colour is a real value.")
+                               "screened; bright nodes are cited evidence (grey) and "
+                               "computations (purple) → predictions → the hypothesis stars, "
+                               "each drawn toward the centre by its confidence "
+                               "(`competes_with` ties push losers out). A prediction with NO "
+                               "grey/purple node is a verdict not yet cited to data — attach "
+                               "its evidence_record_ids / compute_run. Every position, size "
+                               "and colour is a real value.")
 
                     # ---- The river of belief: confidence evolution over the run ----
                     # Real confidence history (first-class snapshots; legacy projects
