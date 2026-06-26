@@ -1597,6 +1597,196 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
 """
             return tmpl.replace("__DATA__", data).replace("__PAL__", pal)
 
+        # ---- Replay Studio: a data-driven "video" of the whole discovery, four
+        # cinematic modes, all driven by the project's own event timeline + the
+        # confidence snapshots. Self-contained canvas animation with play/scrub. ----
+        def _replay_html(payload, theme="dark", mode="matrix"):
+            dark = theme != "light"
+            pal = json.dumps({
+                "bg": "#05070d" if dark else "#0a0e14",  # cinema is always dark-ish
+                "ink": "#e7eefc", "dim": "#7f8aa3",
+                "accent": "#5EC8C0", "rain": "#39d98a" if mode == "matrix" else "#5EC8C0",
+                "hi": "#ffd479", "panel": "rgba(255,255,255,0.05)",
+                "cls": {"hypothesis": "#E8941F", "prediction": "#7AD0FF",
+                        "verdict": "#26c6da", "evidence": "#9aa7bd",
+                        "compute": "#b48cff", "literature": "#ffd479",
+                        "experiment": "#66e0a3", "rigor": "#ff7a90",
+                        "update": "#8aa0c4", "other": "#8aa0c4"},
+            })
+            data = json.dumps(payload)
+            tmpl = r"""
+<html><head><style>
+html,body{margin:0;background:__BGC__;overflow:hidden;
+ font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;}
+#wrap{position:relative;width:100%;height:524px;background:__BGC__;}
+#cv{display:block;width:100%;height:524px;}
+#cap{position:absolute;left:18px;right:18px;bottom:14px;color:#dfe7f7;
+ font-size:13px;line-height:1.4;text-shadow:0 1px 6px #000;pointer-events:none;}
+#ctl{height:42px;display:flex;align-items:center;gap:12px;padding:2px 14px;
+ background:#0a0e16;border-top:1px solid #1d2738;}
+#play{cursor:pointer;border:1px solid #2a3a5e;background:#111a2b;color:#cfe;
+ width:34px;height:26px;border-radius:6px;font-size:13px;}
+#scrub{flex:1;accent-color:#5EC8C0;}
+#tl{color:#7f8aa3;font-size:11px;min-width:74px;text-align:right;}
+select{background:#111a2b;color:#cfe;border:1px solid #2a3a5e;border-radius:6px;
+ font-size:11px;padding:2px;}
+</style></head><body>
+<div id="wrap"><canvas id="cv"></canvas><div id="cap"></div></div>
+<div id="ctl">
+ <button id="play">▶</button>
+ <input id="scrub" type="range" min="0" max="1000" value="0">
+ <span id="tl">0 / 0</span>
+ <select id="spd"><option value="1">1×</option><option value="2">2×</option>
+  <option value="0.5">0.5×</option><option value="4">4×</option></select>
+</div>
+<script>
+const D=__DATA__, P=__PAL__, MODE="__MODE__";
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const cap=document.getElementById('cap'), playB=document.getElementById('play');
+const scrub=document.getElementById('scrub'), tl=document.getElementById('tl'), spd=document.getElementById('spd');
+let W=0,H=0,DPR=Math.min(2,window.devicePixelRatio||1);
+function size(){W=cv.clientWidth;H=cv.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+new ResizeObserver(size).observe(cv); size();
+const N=Math.max(1,D.events.length);
+let p=0, playing=false, speed=1, tick=0;
+function clsColor(c){return P.cls[c]||P.cls.other;}
+function evIndex(pp){return Math.min(N-1,Math.floor(pp*N));}
+// matrix rain state
+let cols=[], glyphs=(D.pool&&D.pool.length?D.pool:['ISAAC']);
+function initRain(){const step=14;cols=[];for(let x=0;x<W;x+=step){cols.push({x:x,y:Math.random()*-H,ch:rch(),v:1+Math.random()*2});}}
+function rch(){const g=glyphs[(Math.random()*glyphs.length)|0];return g.charAt((Math.random()*g.length)|0)||'0';}
+function confAt(k){return (D.confSeries&&D.confSeries[k])?D.confSeries[k]:(D.confSeries?D.confSeries[D.confSeries.length-1]:[]);}
+
+// ---------- MATRIX ----------
+function drawMatrix(pp,k){
+ ctx.fillStyle='rgba(5,7,13,0.20)';ctx.fillRect(0,0,W,H);
+ if(!cols.length)initRain();
+ ctx.font='13px IBM Plex Mono,monospace';
+ for(const c of cols){
+   ctx.fillStyle=P.rain;ctx.globalAlpha=0.85;ctx.fillText(c.ch,c.x,c.y);
+   ctx.globalAlpha=0.25;ctx.fillStyle='#bfffe0';ctx.fillText(c.ch,c.x,c.y-14);
+   c.y+=c.v*(playing?speed:0.4);if(Math.random()<0.04)c.ch=rch();
+   if(c.y>H){c.y=Math.random()*-60;c.v=1+Math.random()*2;}
+ }
+ ctx.globalAlpha=1;
+ // reasoning log panel
+ const lx=18, lw=Math.min(560,W*0.62);
+ ctx.fillStyle='rgba(4,8,16,0.62)';ctx.fillRect(lx-8,14,lw,Math.min(340,H-120));
+ const start=Math.max(0,k-14);let yy=34;
+ for(let i=start;i<=k;i++){const e=D.events[i];const a=(i===k)?1:0.35+0.5*((i-start)/Math.max(1,k-start));
+   ctx.globalAlpha=a;ctx.fillStyle=clsColor(e.cls);ctx.font='12px IBM Plex Mono,monospace';
+   ctx.fillText('▍'+e.cls.toUpperCase().slice(0,4),lx,yy);
+   ctx.fillStyle=(i===k)?'#fff':'#cdd8ef';ctx.fillText(' '+e.s.slice(0,72),lx+54,yy);yy+=20;}
+ ctx.globalAlpha=1;
+ // confidence bars right
+ const bx=W-188, cs=confAt(k);
+ ctx.fillStyle='#8aa0c4';ctx.font='10px IBM Plex Mono,monospace';ctx.fillText('BELIEF',bx,28);
+ D.hyps.forEach(function(h,j){const v=(cs[j]||0);const by=44+j*22;
+   ctx.fillStyle='rgba(255,255,255,0.08)';ctx.fillRect(bx,by,170,12);
+   ctx.fillStyle=h.color;ctx.fillRect(bx,by,170*v,12);
+   ctx.fillStyle='#cdd8ef';ctx.font='10px IBM Plex Mono,monospace';
+   ctx.fillText(h.label.slice(0,14)+' '+Math.round(v*100)+'%',bx,by-2);});
+}
+
+// ---------- CONSTELLATION (grows over time) ----------
+function nodePos(){const cx=W/2,cy=H/2-6,R=Math.min(W,H)*0.32;const ps=[];
+ D.hyps.forEach(function(h,j){const a=-Math.PI/2+j*2*Math.PI/Math.max(1,D.hyps.length);
+   ps.push({x:cx+R*Math.cos(a),y:cy+R*Math.sin(a),h:h,j:j});});return {cx:cx,cy:cy,ps:ps};}
+function drawConstellation(pp,k){
+ ctx.fillStyle='rgba(5,7,13,1)';ctx.fillRect(0,0,W,H);
+ const {cx,cy,ps}=nodePos(), cs=confAt(k);
+ // central hub
+ ctx.beginPath();ctx.arc(cx,cy,5,0,7);ctx.fillStyle=P.accent;ctx.fill();
+ ps.forEach(function(n){const created=(D.hypCreatedAt&&D.hypCreatedAt[n.h.label]!=null)?D.hypCreatedAt[n.h.label]:0;
+   if(k<created)return;const age=Math.min(1,(k-created+1)/3);const v=cs[n.j]||0;
+   ctx.strokeStyle=n.h.color;ctx.globalAlpha=0.25+0.5*age;ctx.lineWidth=1+3*v;
+   ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(n.x,n.y);ctx.stroke();ctx.globalAlpha=1;
+   const r=6+26*v;ctx.beginPath();ctx.arc(n.x,n.y,r,0,7);
+   ctx.fillStyle=n.h.color;ctx.globalAlpha=(n.h.status==='eliminated'||n.h.status==='superseded')?0.4:(0.55+0.4*age);ctx.fill();ctx.globalAlpha=1;
+   ctx.fillStyle='#dfe7f7';ctx.font='11px IBM Plex Mono,monospace';ctx.textAlign='center';
+   ctx.fillText(n.h.label.slice(0,16),n.x,n.y-r-6);
+   ctx.fillStyle=n.h.color;ctx.fillText(Math.round(v*100)+'%',n.x,n.y+r+14);ctx.textAlign='left';});
+ // evidence sparks flying to hub when this event cites records
+ const e=D.events[k];if(e&&e.recN){for(let i=0;i<Math.min(e.recN,18);i++){const a=Math.random()*7,rr=Math.min(W,H)*0.42;
+   const ex=cx+rr*Math.cos(a),ey=cy+rr*Math.sin(a);ctx.globalAlpha=0.5;ctx.strokeStyle=P.cls.evidence;
+   ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(cx,cy);ctx.stroke();ctx.globalAlpha=1;}}
+}
+
+// ---------- RIVER (reveals left→right) ----------
+function drawRiver(pp,k){
+ ctx.fillStyle='rgba(5,7,13,1)';ctx.fillRect(0,0,W,H);
+ const m={l:24,r:120,t:40,b:30};const nH=D.hyps.length;
+ const xr=function(i){return m.l+(W-m.l-m.r)*(i/Math.max(1,N-1));};
+ const mid=(H-m.b+m.t)/2;
+ // streamgraph: stack bands centered, thickness = conf*scale, revealed up to k
+ const maxTot=Math.max.apply(null,D.confSeries.map(function(r){return r.reduce(function(s,x){return s+(x||0);},0);}).concat([0.6]));
+ const scale=(H-m.t-m.b)/maxTot;
+ for(let j=0;j<nH;j++){const h=D.hyps[j];
+   ctx.beginPath();
+   for(let i=0;i<=k;i++){const cs=D.confSeries[i]||[];let below=0,tot=0;for(let q=0;q<nH;q++){tot+=(cs[q]||0);if(q<j)below+=(cs[q]||0);}
+     const yTop=mid-(tot*scale/2)+below*scale;ctx[i===0?'moveTo':'lineTo'](xr(i),yTop);}
+   for(let i=k;i>=0;i--){const cs=D.confSeries[i]||[];let below=0,tot=0;for(let q=0;q<nH;q++){tot+=(cs[q]||0);if(q<=j)below+=(cs[q]||0);}
+     const yBot=mid-(tot*scale/2)+below*scale;ctx.lineTo(xr(i),yBot);}
+   ctx.closePath();ctx.fillStyle=h.color;ctx.globalAlpha=(h.status==='eliminated'||h.status==='superseded')?0.5:0.92;ctx.fill();ctx.globalAlpha=1;
+   // label at head
+   const cs=D.confSeries[k]||[];const v=cs[j]||0;
+   ctx.fillStyle=h.color;ctx.font='11px IBM Plex Mono,monospace';
+   ctx.fillText(h.label.slice(0,16)+' '+Math.round(v*100)+'%',xr(k)+6,mid+(j-nH/2)*16);}
+ // playhead line
+ ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.beginPath();ctx.moveTo(xr(k),m.t-8);ctx.lineTo(xr(k),H-m.b);ctx.stroke();
+}
+
+// ---------- MISSION CONTROL (multi-panel) ----------
+function drawMission(pp,k){
+ ctx.fillStyle='rgba(5,7,13,1)';ctx.fillRect(0,0,W,H);
+ const e=D.events[k], cs=confAt(k);
+ // top ticker
+ ctx.fillStyle=P.panel;ctx.fillRect(10,10,W-20,52);
+ ctx.fillStyle=clsColor(e.cls);ctx.font='11px IBM Plex Mono,monospace';ctx.fillText('● '+e.cls.toUpperCase(),22,30);
+ ctx.fillStyle='#fff';ctx.font='15px IBM Plex Mono,monospace';ctx.fillText(e.s.slice(0,84),22,52);
+ // left: ranking bars
+ const lx=14,lw=W*0.42-20,ly=80;
+ ctx.fillStyle='#8aa0c4';ctx.font='10px IBM Plex Mono,monospace';ctx.fillText('HYPOTHESIS RANKING',lx,ly);
+ D.hyps.forEach(function(h,j){const v=cs[j]||0;const by=ly+16+j*24;
+   ctx.fillStyle='rgba(255,255,255,0.07)';ctx.fillRect(lx,by,lw,14);
+   ctx.fillStyle=h.color;ctx.globalAlpha=(h.status==='eliminated')?0.45:1;ctx.fillRect(lx,by,lw*v,14);ctx.globalAlpha=1;
+   ctx.fillStyle='#cdd8ef';ctx.fillText(h.label.slice(0,18)+'  '+Math.round(v*100)+'%',lx+2,by-3);});
+ // right: ISAAC records grid lighting up
+ const gx=W*0.46,gy=80,cells=(D.pool||[]).slice(0,60);
+ ctx.fillStyle='#8aa0c4';ctx.fillText('ISAAC DATA / RECORDS TOUCHED',gx,gy);
+ const cw=16,perRow=Math.max(8,Math.floor((W-gx-20)/cw));
+ const touched=(D.touchedBy&&D.touchedBy[k])||0;
+ cells.forEach(function(c,i){const cx=gx+(i%perRow)*cw,cyy=gy+12+Math.floor(i/perRow)*cw;
+   const lit=i<touched;ctx.fillStyle=lit?P.hi:'rgba(255,255,255,0.10)';ctx.globalAlpha=lit?0.9:0.5;
+   ctx.fillRect(cx,cyy,cw-3,cw-3);ctx.globalAlpha=1;});
+ // bottom: activity sparkline
+ const sy=H-46;ctx.strokeStyle=P.accent;ctx.beginPath();
+ for(let i=0;i<=k;i++){const x=14+(W-28)*(i/Math.max(1,N-1));const a=Math.min(1,(D.confSeries[i]||[]).reduce(function(s,x){return s+(x||0);},0));
+   ctx[i===0?'moveTo':'lineTo'](x,sy-a*30);}ctx.stroke();
+ ctx.fillStyle='#8aa0c4';ctx.font='9px IBM Plex Mono,monospace';ctx.fillText('total belief mass over time',16,H-8);
+}
+
+function drawCaption(k){const e=D.events[k];if(!e){cap.textContent='';return;}
+ cap.innerHTML='<span style="color:'+clsColor(e.cls)+'">['+e.cls+']</span> '+
+   (e.s.replace(/</g,'&lt;'))+'<span style="color:#7f8aa3"> &nbsp;'+(k+1)+'/'+N+'</span>';}
+
+function draw(){const k=evIndex(p);
+ if(MODE==='matrix')drawMatrix(p,k);
+ else if(MODE==='constellation')drawConstellation(p,k);
+ else if(MODE==='river')drawRiver(p,k);
+ else drawMission(p,k);
+ drawCaption(k);tl.textContent=(k+1)+' / '+N;}
+function loop(){tick++;if(playing){p+=(1/N)*0.10*speed;if(p>=1){p=1;playing=false;playB.textContent='▶';}scrub.value=p*1000;}
+ draw();requestAnimationFrame(loop);}
+playB.onclick=function(){playing=!playing;if(p>=1){p=0;}playB.textContent=playing?'❚❚':'▶';};
+scrub.oninput=function(){p=scrub.value/1000;playing=false;playB.textContent='▶';};
+spd.onchange=function(){speed=parseFloat(spd.value);};
+requestAnimationFrame(loop);
+</script></body></html>
+"""
+            return (tmpl.replace("__DATA__", data).replace("__PAL__", pal)
+                    .replace("__MODE__", mode).replace("__BGC__", "#05070d"))
+
         def _funnel(stages):
             n = len(stages)
             out = ["<div style='padding:4px 0'>"]
@@ -1858,9 +2048,100 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                                    for rid in (p.get("evidence_record_ids") or [])})
             prov = discovery.resolve_record_summaries(evidence_ids)
 
-            tabImpact, tabA, tabB, tabE, tabC, tabJ = st.tabs([
-                "🌊 Decision journey", "🧪 Hypotheses & provenance", "✅ Validation board",
-                "🔎 Evidence & matrix", "📊 Compute ledger", "📓 Journal"])
+            tabImpact, tabReplay, tabA, tabB, tabE, tabC, tabJ = st.tabs([
+                "🌊 Decision journey", "🎬 Replay", "🧪 Hypotheses & provenance",
+                "✅ Validation board", "🔎 Evidence & matrix", "📊 Compute ledger",
+                "📓 Journal"])
+
+            # ---- 🎬 Replay Studio: a data-driven "video" of the whole discovery ----
+            with tabReplay:
+                st.markdown("#### 🎬 Replay — watch the discovery happen")
+                st.caption("A generative 'video' built entirely from this project's "
+                           "stored timeline: every reasoning step, hypothesis swing, "
+                           "evidence/literature touch and compute job, played in order. "
+                           "Pick a cinematic style, hit ▶, or scrub the timeline.")
+                _emap = {"hypothesis_created": "hypothesis", "prediction_added": "prediction",
+                         "prediction_evaluated": "verdict", "evidence_ingested": "evidence",
+                         "compute_submitted": "compute", "compute_running": "compute",
+                         "next_experiment_proposed": "experiment", "status_changed": "update",
+                         "project_created": "other", "agent_message": "literature"}
+
+                def _ecls(et, summ):
+                    s = (summ or "").lower()
+                    if "literat" in s or "edison" in s or "paperqa" in s:
+                        return "literature"
+                    if "rigor" in s or "finding" in s:
+                        return "rigor"
+                    return _emap.get(et, "other")
+
+                _chrono = [e for e in reversed(events)]
+                _rhyps = [{"label": h["label"], "color": _hcolor.get(h["label"], "#C97A3C"),
+                           "status": h["status"]} for h in hyps]
+                # confidence at each event (snapshot ≤ event time), and creation index
+                _rsnaps = discovery.get_confidence_history(pid, owner)
+                _rsb = {h["label"]: [] for h in hyps}
+                _hid2lab = {h["hypothesis_id"]: h["label"] for h in hyps}
+
+                def _ep(dt):
+                    return dt.timestamp() if hasattr(dt, "timestamp") else 0.0
+                for _sn in _rsnaps:
+                    _lab = _hid2lab.get(_sn["hypothesis_id"])
+                    if _lab:
+                        _rsb[_lab].append((_ep(_sn["created_at"]), float(_sn["confidence"] or 0)))
+                for _l in _rsb:
+                    _rsb[_l].sort()
+
+                def _conf_at_t(lab, t):
+                    c = 0.0
+                    for st_, cv in _rsb.get(lab, []):
+                        if st_ <= t:
+                            c = cv
+                        else:
+                            break
+                    return c
+                _revents, _confseries, _touched, _cum = [], [], [], 0
+                _created_at = {}
+                _pool = []
+                for _i, _e in enumerate(_chrono):
+                    _et = _e["event_type"]
+                    _lab = _hid2lab.get(_e.get("hypothesis_id"))
+                    if _et == "hypothesis_created" and _lab and _lab not in _created_at:
+                        _created_at[_lab] = _i
+                    _recs = _e.get("evidence_record_ids") or []
+                    _cum += len(_recs)
+                    for _rid in _recs:
+                        _pool.append(_rid)
+                    _t = _ep(_e["created_at"]) if hasattr(_e.get("created_at"), "timestamp") else _i
+                    _revents.append({"cls": _ecls(_et, _e.get("summary")),
+                                     "s": (_e.get("summary") or "")[:120],
+                                     "recN": len(_recs)})
+                    _confseries.append([round(_conf_at_t(h["label"], _t), 3) for h in hyps])
+                    _touched.append(_cum)
+                # glyph pool for the matrix rain / record grid: record ids + descriptors
+                _pool = (_pool + [p_.get("descriptor_name", "") for h in hyps
+                                  for p_ in h["predictions"]]
+                         + [h["label"] for h in hyps] + ["CO2RR", "ISAAC", "ΔE", "Cu", "Au"])
+                _pool = [str(x) for x in _pool if x][:120] or ["ISAAC"]
+                _replay_payload = {
+                    "events": _revents, "hyps": _rhyps, "confSeries": _confseries,
+                    "hypCreatedAt": _created_at, "pool": _pool, "touchedBy": _touched,
+                }
+                if not _revents:
+                    st.info("No timeline yet — once the agent logs events, the replay fills in.")
+                else:
+                    _mode_label = st.radio(
+                        "Cinematic style", options=[
+                            "🟩 Matrix — reasoning rain + live log",
+                            "🕸️ Constellation — the network self-assembles",
+                            "🌊 Belief river — confidence flows in",
+                            "🛰️ Mission control — multi-panel replay"],
+                        horizontal=True, key=f"replaymode_{pid}", label_visibility="collapsed")
+                    _mode = ({"🟩": "matrix", "🕸️": "constellation",
+                              "🌊": "river", "🛰️": "mission"}).get(_mode_label[:1], "matrix")
+                    components.html(_replay_html(_replay_payload, st.session_state.ui_theme,
+                                                 _mode), height=580)
+                    st.caption(f"{len(_revents)} timeline steps · 4 styles to assess — tell "
+                               "me which you like and I'll refine it (or blend them).")
 
             # ---- Decision journey — the scale & complexity of the reasoning ----
             with tabImpact:
