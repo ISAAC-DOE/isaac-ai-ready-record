@@ -54,6 +54,29 @@ def test_unevaluated_predictions_do_not_move_belief():
     assert s["breakdown"]["unevaluated"] == 2
 
 
+def test_failed_compute_never_penalizes_the_score():
+    # a crashed/non-converged calc carries no verdict and must not move belief, even
+    # alongside a real support: confidence reflects the evidence we actually have.
+    only_support = compute_hypothesis_score(_h(_pred("supports", "moderate")))
+    with_failed = compute_hypothesis_score(_h(
+        _pred("supports", "moderate"),
+        _pred(None, "strong", work_status="compute_failed"),   # would-be evidence that failed
+    ))
+    assert with_failed["computed_confidence"] == only_support["computed_confidence"]
+    assert with_failed["n_decisive"] == only_support["n_decisive"]
+    assert with_failed["breakdown"]["unevaluated"] == 1   # the failed calc is unevaluated, not a verdict
+
+
+def test_all_failed_compute_stays_at_the_prior():
+    s = compute_hypothesis_score(_h(
+        _pred(None, work_status="compute_failed"),
+        _pred(None, work_status="compute_failed"),
+    ))
+    assert s["computed_confidence"] == 0.5
+    assert s["n_decisive"] == 0
+    assert s["reliable"] is False
+
+
 # --- supports / contradicts magnitudes (formula is literally +sw / -sw*1.25) ---
 
 def test_single_strong_support_matches_sigmoid():

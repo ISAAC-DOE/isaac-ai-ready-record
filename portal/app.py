@@ -1998,9 +1998,11 @@ requestAnimationFrame(loop);
 
             open_n = len(brief.get("open_questions", []))
             running = len(brief.get("pending_compute", []))
+            failed_n = len(brief.get("failed_compute", []))
             needs = sum(1 for h in hyps if h["status"] == "needs_more_data")
+            _failed_txt = f" · 🚫 {failed_n} compute failed (re-run, no score effect)" if failed_n else ""
             st.caption(f"⏳ **Pending** — {open_n} prediction(s) open · {running} compute "
-                       f"running · {needs} hypothes(es) need more data")
+                       f"running{_failed_txt} · {needs} hypothes(es) need more data")
 
             # ---------- Convergence: progress = distance to a decision, not leader conf ----
             _conv = brief.get("convergence", {})
