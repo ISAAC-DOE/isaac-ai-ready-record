@@ -1428,7 +1428,7 @@ elif page == "Discovery":
                     for i, h in enumerate(hyps)}
 
         _VERDICT_ICON = {"supports": "✅", "contradicts": "❌",
-                         "neutral": "➖", "insufficient": "❓"}
+                         "neutral": "➖", "insufficient": "❓", "blocked": "🚫"}
 
         def _bar(label, statement, confidence, status, color, score=None):
             c = float(confidence or 0.0)
@@ -1497,7 +1497,7 @@ const glow=defs.append('filter').attr('id','g').attr('x','-80%').attr('y','-80%'
 glow.append('feGaussianBlur').attr('stdDeviation','3.6').attr('result','b');
 const fm=glow.append('feMerge');fm.append('feMergeNode').attr('in','b');fm.append('feMergeNode').attr('in','SourceGraphic');
 const SC={supported:'#ffca28',eliminated:'#6f6f6f',needs_more_data:'#ffa726',proposed:'#4aa3ff',superseded:'#5a5a5a'};
-const VC={supports:'#26c6da',contradicts:'#ec407a',neutral:'#90a4ae',insufficient:'#5c6b7a'};
+const VC={supports:'#26c6da',contradicts:'#ec407a',neutral:'#90a4ae',insufficient:'#5c6b7a',blocked:'#7e6a4e'};
 function rT(d){return d.kind==='hyp'?56+(1-(d.conf||0))*150:d.kind==='pred'?250:d.kind==='evid'?330:392;}
 function nR(d){return d.kind==='hyp'?8+(d.conf||0)*22:d.kind==='pred'?({strong:7,moderate:5,weak:3}[d.strength]||4):d.kind==='evid'?3:1.3+Math.min(3.4,Math.log((d.n||1)+1));}
 function nC(d){return d.kind==='hyp'?(d.color||SC[d.status]||'#90caf9'):d.kind==='pred'?(VC[d.verdict]||'#455a64'):d.kind==='evid'?P.evid:P.screened;}

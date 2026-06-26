@@ -338,8 +338,9 @@ def get_manifest() -> dict:
                 "negative (a test that ran and found NO predicted effect is mild evidence "
                 "against) · INSUFFICIENT 0 (tested, didn't resolve) · BLOCKED 0 and "
                 "EXCLUDED (schema gate, below). strength = strong 1.0 / moderate 0.6 / "
-                "weak 0.3. confidence = sigmoid(Σ). A new hypothesis starts at the 0.5 "
-                "prior.",
+                "weak 0.3 (an OMITTED strength is treated as weak — qualify your "
+                "decisive verdicts). confidence = sigmoid(Σ). A new hypothesis starts at "
+                "the 0.5 prior.",
             "schema_gate": "When evidence is NOT validly comparable to a prediction "
                 "(different output_quantity, units without a declared transform, "
                 "different functional / electrolyte / potential / reference state, a DFT "
@@ -610,7 +611,8 @@ def get_manifest() -> dict:
             {"m": "POST", "path": "/projects/{id}/rigor/findings",
              "purpose": "INDEPENDENT CRITIC records a rigor problem {summary, detail, "
                         "category(use_novelty|individuation|falsifiability|"
-                        "evidence_compatibility|confirmation_bias|overreach), severity"
+                        "evidence_compatibility|confirmation_bias|overreach|"
+                        "shared_premise|other), severity"
                         "(critical|major|minor), target_type, target_id}. See "
                         "rigor_review.critic_prompt."},
             {"m": "GET", "path": "/projects/{id}/rigor/findings",
@@ -683,7 +685,7 @@ def get_manifest() -> dict:
                                 "you send are stored — nothing is dropped.",
                                 "descriptor": "str", "facility": "str", "method": "str",
                                 "rationale": "str",
-                                "predicted_outcomes": "[{hypothesis_label, expected}]"},
+                                "discriminates": "[{hypothesis_label, expected}]"},
             "evidence_independence": {"_for": "USE-NOVELTY on a prediction verdict — "
                                 "declare what the supporting model was fit to vs tested "
                                 "against, so circular confirmation is visible.",
@@ -1589,9 +1591,11 @@ def compute_hypothesis_score(h) -> dict:
       • blocked     → 0 and EXCLUDED from belief (SCHEMA GATE: the comparison is
                       methodologically incompatible / ill-posed — not a measurement, so
                       it can't move belief; it only lowers COVERAGE)
-    confidence = sigmoid(Σ). A score from <2 DECISIVE (supports/contradicts) verdicts
-    is UNRELIABLE — you cannot validate/falsify a hypothesis on one verdict; that is
-    why a hypothesis needs a SET of distinct, structured predictions."""
+    confidence = sigmoid(Σ). strength ∈ {strong:1.0, moderate:0.6, weak:0.3}; an
+    omitted/unknown strength is treated as WEAK (the conservative tier). A score from
+    <2 DECISIVE (supports/contradicts) verdicts is UNRELIABLE — you cannot
+    validate/falsify a hypothesis on one verdict; that is why a hypothesis needs a SET
+    of distinct, structured predictions."""
     logit, n_decisive, strong_contra = 0.0, 0, False
     bd = {"supports": 0, "contradicts": 0, "neutral": 0,
           "insufficient": 0, "blocked": 0, "unevaluated": 0}
@@ -1600,11 +1604,13 @@ def compute_hypothesis_score(h) -> dict:
             bd["unevaluated"] += 1
             continue
         v = normalize_verdict(p.get("verdict"))
-        sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), 0.5)
+        # omitted/unknown strength → weak (the conservative tier): an unqualified
+        # verdict should move belief the LEAST, never a magic mid-value.
+        sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), _STRENGTH_W["weak"])
         if v == "supports":
-            logit += sw * 0.95; n_decisive += 1; bd["supports"] += 1
+            logit += sw; n_decisive += 1; bd["supports"] += 1
         elif v == "contradicts":
-            logit -= sw * 1.25 * 0.95; n_decisive += 1; bd["contradicts"] += 1
+            logit -= sw * 1.25; n_decisive += 1; bd["contradicts"] += 1
             if sw >= 1.0:
                 strong_contra = True
         elif v == "neutral":
