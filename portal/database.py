@@ -8,14 +8,31 @@ import json
 import re
 import logging
 from datetime import datetime
-import psycopg2
-from psycopg2.extras import RealDictCursor
+
+# psycopg2 is required to actually talk to Postgres, but importing this module must
+# NOT require the driver — the portal's pure-logic layer (e.g. discovery scoring) is
+# unit-tested in environments without psycopg2 installed. Defer the hard failure to
+# the moment a real connection is requested.
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+except ModuleNotFoundError:  # pragma: no cover - exercised only in driver-less CI
+    psycopg2 = None
+    RealDictCursor = None
 
 logger = logging.getLogger("isaac-database")
 
 
+def _require_psycopg2():
+    if psycopg2 is None:
+        raise ModuleNotFoundError(
+            "psycopg2 is required for database access but is not installed. "
+            "Install psycopg2-binary to use the DB-backed code paths.")
+
+
 def get_db_connection():
     """Create a database connection using environment variables"""
+    _require_psycopg2()
     return psycopg2.connect(
         host=os.environ.get('PGHOST', 'localhost'),
         port=os.environ.get('PGPORT', '5432'),
@@ -46,6 +63,7 @@ def get_readonly_db_connection():
             "isaac-psql-readonly Secret is missing."
         )
         return get_db_connection()
+    _require_psycopg2()
     return psycopg2.connect(
         host=os.environ.get('PGHOST', 'localhost'),
         port=os.environ.get('PGPORT', '5432'),
@@ -244,6 +262,7 @@ def get_discovery_db_connection():
 
     Reads the DISCOVERY_* env vars so it is fully independent of the records-DB
     connection (PG*). Same psycopg2 driver and RealDictCursor convention."""
+    _require_psycopg2()
     return psycopg2.connect(
         host=os.environ.get('DISCOVERY_PGHOST', 'localhost'),
         port=os.environ.get('DISCOVERY_PGPORT', '5432'),
