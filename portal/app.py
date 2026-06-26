@@ -1491,12 +1491,12 @@ elif page == "Discovery":
  font:12px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;padding:8px 10px;border-radius:8px;
  box-shadow:0 4px 18px rgba(0,0,0,0.35);z-index:9;}
 #tt code{font-size:10px;opacity:.8;}</style></head>
-<body><div id="tt"></div><svg id="c" width="100%" height="580"></svg><script>
+<body><div id="tt"></div><svg id="c" width="100%" height="720"></svg><script>
 const DATA=__DATA__, P=__PAL__;
 const tt=document.getElementById('tt');
 tt.style.background=P.tipbg; tt.style.color=P.tiptext; tt.style.border='1px solid '+P.tipborder;
 document.body.style.background='radial-gradient(circle at 50% 45%,'+P.bg1+','+P.bg2+')';
-const el=document.getElementById('c'); const W=el.clientWidth||820, H=580; const cx=W/2, cy=H/2-2;
+const el=document.getElementById('c'); const W=el.clientWidth||820, H=720; const cx=W/2, cy=H/2-2;
 const svg=d3.select('#c').attr('width',W).attr('height',H);
 const defs=svg.append('defs');
 const glow=defs.append('filter').attr('id','g').attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
@@ -1504,16 +1504,16 @@ glow.append('feGaussianBlur').attr('stdDeviation','3.6').attr('result','b');
 const fm=glow.append('feMerge');fm.append('feMergeNode').attr('in','b');fm.append('feMergeNode').attr('in','SourceGraphic');
 const SC={supported:'#ffca28',eliminated:'#6f6f6f',needs_more_data:'#ffa726',proposed:'#4aa3ff',superseded:'#5a5a5a'};
 const VC={supports:'#26c6da',contradicts:'#ec407a',neutral:'#90a4ae',insufficient:'#5c6b7a',blocked:'#7e6a4e'};
-const CALC='#ab47bc';
-function rT(d){return d.kind==='hyp'?56+(1-(d.conf||0))*150:d.kind==='pred'?250:(d.kind==='evid'||d.kind==='calc')?330:392;}
-function nR(d){return d.kind==='hyp'?8+(d.conf||0)*22:d.kind==='pred'?({strong:7,moderate:5,weak:3}[d.strength]||4):d.kind==='calc'?4.5:d.kind==='evid'?3:1.3+Math.min(3.4,Math.log((d.n||1)+1));}
-function nC(d){return d.kind==='hyp'?(d.color||SC[d.status]||'#90caf9'):d.kind==='pred'?(VC[d.verdict]||'#455a64'):d.kind==='calc'?CALC:d.kind==='evid'?P.evid:P.screened;}
-function nO(d){return d.kind==='screened'?0.45:d.kind==='evid'?0.85:d.kind==='calc'?0.95:(d.status==='eliminated'||d.status==='superseded')?0.45:1;}
-[[56,'leading'],[250,'predictions'],[330,'evidence'],[392,'screened']].forEach(function(p){
+const CALC='#ab47bc'; const INVOLVED='#5b7da6';
+function rT(d){return d.kind==='hyp'?56+(1-(d.conf||0))*150:d.kind==='pred'?250:(d.kind==='evid'||d.kind==='calc')?330:d.kind==='involved'?366:392;}
+function nR(d){return d.kind==='hyp'?8+(d.conf||0)*22:d.kind==='pred'?({strong:7,moderate:5,weak:3}[d.strength]||4):d.kind==='calc'?4.5:d.kind==='evid'?3:d.kind==='involved'?1.9:1.3+Math.min(3.4,Math.log((d.n||1)+1));}
+function nC(d){return d.kind==='hyp'?(d.color||SC[d.status]||'#90caf9'):d.kind==='pred'?(VC[d.verdict]||'#455a64'):d.kind==='calc'?CALC:d.kind==='involved'?INVOLVED:d.kind==='evid'?P.evid:P.screened;}
+function nO(d){return d.kind==='screened'?0.4:d.kind==='involved'?0.62:d.kind==='evid'?0.85:d.kind==='calc'?0.95:(d.status==='eliminated'||d.status==='superseded')?0.45:1;}
+[[56,'leading'],[250,'predictions'],[330,'evidence'],[366,'in-scope'],[392,'screened']].forEach(function(p){
  svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',p[0]).attr('fill','none').attr('stroke',P.ring).attr('stroke-dasharray','2,7').attr('opacity',0.7);
  svg.append('text').attr('x',cx).attr('y',cy-p[0]-3).attr('fill',P.ringlab).attr('font-size',9).attr('text-anchor','middle').attr('opacity',0.85).text(p[1]);});
 svg.append('text').attr('x',16).attr('y',26).attr('fill',P.badge).attr('font-size',12).attr('font-weight',600)
- .text(DATA.corpus.records.toLocaleString()+'  records   →   '+DATA.corpus.screened+'  descriptors screened   →   '+DATA.corpus.cited+'  cited');
+ .text(DATA.corpus.records.toLocaleString()+'  records   →   '+DATA.corpus.screened+'  screened   →   '+(DATA.corpus.involved||0)+'  in-scope   →   '+DATA.corpus.cited+'  cited');
 const nodes=DATA.nodes.map(function(d){return Object.assign({},d);});
 const links=DATA.links.map(function(d){return Object.assign({},d);});
 const cont=svg.append('g');
@@ -2327,6 +2327,21 @@ requestAnimationFrame(loop);
                     for _r in relations:
                         _clinks.append({"source": _r["from_hypothesis_id"],
                                         "target": _r["to_hypothesis_id"], "rel": _r["relation_type"]})
+                    # INNER faint ring — records actually INVOLVED in this project (the
+                    # declared dataset-of-interest scope), distinct from the full screened
+                    # corpus (outer) and the few CITED ones (bright). Communicates the funnel:
+                    # all records → screened → in-scope/involved → cited.
+                    _ds_ids = ((data["project"].get("dataset") or {}).get("record_ids")) or []
+                    _cited_ids = {_rid for _h in hyps for _p in _h["predictions"]
+                                  for _rid in (_p.get("evidence_record_ids") or [])}
+                    _n_involved = len(set(_ds_ids))
+                    for _rid in _ds_ids[:140]:
+                        if _rid in _cited_ids:
+                            continue   # cited records are already bright nodes
+                        _itip = (f"<b>in-scope record</b> (declared dataset)"
+                                 f"<br><code>{_esc(_rid)}</code>")
+                        _cnodes.append({"id": "inv|" + _rid, "label": _rid,
+                                        "kind": "involved", "tip": _itip})
                     # the dense screened-descriptor field — the outer-ring complexity
                     for _name, _v in list(ev_idx.items())[:200]:
                         _stip = (f"<b>screened descriptor</b><br>{_esc(_name)}"
@@ -2335,16 +2350,18 @@ requestAnimationFrame(loop);
                                         "n": (_v or {}).get("n", 1), "tip": _stip})
                     components.html(_constellation_html(
                         {"nodes": _cnodes, "links": _clinks,
-                         "corpus": {"records": corpus or 0, "screened": n_desc, "cited": n_ev}},
-                        st.session_state.ui_theme), height=600)
-                    st.caption("**Drag to rotate.** The faint outer field is every descriptor "
-                               "screened; bright nodes are cited evidence (grey) and "
-                               "computations (purple) → predictions → the hypothesis stars, "
-                               "each drawn toward the centre by its confidence "
-                               "(`competes_with` ties push losers out). A prediction with NO "
-                               "grey/purple node is a verdict not yet cited to data — attach "
-                               "its evidence_record_ids / compute_run. Every position, size "
-                               "and colour is a real value.")
+                         "corpus": {"records": corpus or 0, "screened": n_desc,
+                                    "involved": _n_involved, "cited": n_ev}},
+                        st.session_state.ui_theme), height=740)
+                    st.caption("**Drag to rotate.** Concentric narrowing: the faint OUTER "
+                               "field is every descriptor screened → the **in-scope ring** "
+                               "(blue) is the declared dataset records this project is about "
+                               "→ bright nodes are CITED evidence (grey) and computations "
+                               "(purple) → predictions → the hypothesis stars, each drawn "
+                               "toward the centre by its confidence (`competes_with` ties "
+                               "push losers out). A prediction with NO grey/purple node is a "
+                               "verdict not yet cited to data. Every position, size and "
+                               "colour is a real value.")
 
                     # ---- The river of belief: confidence evolution over the run ----
                     # Real confidence history (first-class snapshots; legacy projects
