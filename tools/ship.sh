@@ -2,7 +2,7 @@
 # Gate: battery green locally -> merge -> CONFIRM post-merge CI on main.
 # Usage: tools/ship.sh <branch-or-pr>
 set -e
-python3 -m pytest tests/test_validation_battery.py -q --tb=line || { echo "BATTERY RED — NOT MERGING"; exit 1; }
+python3 -m pytest tests/ -q --tb=line || { echo "BATTERY RED — NOT MERGING"; exit 1; }
 gh pr merge --repo ISAAC-DOE/isaac-ai-ready-record "$1" --squash --delete-branch
 echo "merged — waiting for main CI conclusion..."
 for i in $(seq 1 30); do

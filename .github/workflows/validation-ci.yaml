@@ -22,7 +22,7 @@ jobs:
 
       - name: Run validation battery
         run: |
-          pytest tests/test_validation_battery.py -v --tb=short
+          pytest tests/ -v --tb=short
 
       - name: Check wiki generated sections freshness
         # Hard gate on main only. On PRs this is ADVISORY: a PR that changes
