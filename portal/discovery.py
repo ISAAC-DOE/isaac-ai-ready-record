@@ -70,7 +70,7 @@ COMPUTE_STATUSES = {"queued", "running", "completed", "failed", "resubmitted"}
 # severities order the response. Accept-and-normalize like the rest.
 RIGOR_CATEGORIES = {"use_novelty", "individuation", "falsifiability",
                     "evidence_compatibility", "confirmation_bias", "overreach",
-                    "shared_premise", "other"}
+                    "shared_premise", "grounding_misclassification", "other"}
 RIGOR_SEVERITIES = {"critical", "major", "minor"}
 RIGOR_FINDING_STATUSES = {"open", "resolved", "dismissed"}
 # A "residual" hypothesis is the explicit NONE-OF-THE-ABOVE / the-shared-premise-is-
@@ -85,6 +85,29 @@ MIN_PREDICTIONS_PER_HYPOTHESIS = 2
 def is_residual_hypothesis(h) -> bool:
     return (str(h.get("hypothesis_type") or "").strip().lower().replace("-", "_")
             in RESIDUAL_HYPOTHESIS_TYPES)
+
+
+# A hypothesis's epistemic standing. 'standing_prior' = an established/literature
+# mechanism that exists independently of this dataset (a trend may INSPIRE it, but it
+# was not built to fit these points). 'ad_hoc' = introduced/parameterised FROM this
+# dataset. Only ad_hoc faces the use-novelty accommodation discount. Default ad_hoc
+# (conservative: an unjustified hypothesis gets the stricter treatment).
+GROUNDINGS = {"standing_prior", "ad_hoc"}
+_GROUNDING_SYNONYMS = {"standing": "standing_prior", "prior": "standing_prior",
+                       "literature": "standing_prior", "established": "standing_prior",
+                       "adhoc": "ad_hoc", "data_derived": "ad_hoc",
+                       "data-derived": "ad_hoc", "novel": "ad_hoc"}
+
+
+def normalize_grounding(g) -> str:
+    g = str(g or "").strip().lower().replace("-", "_")
+    if g in GROUNDINGS:
+        return g
+    return _GROUNDING_SYNONYMS.get(g, "ad_hoc")
+
+
+def _grounding(h) -> str:
+    return normalize_grounding(h.get("grounding"))
 
 # Accept-and-normalize: agents reach for natural words. We map common synonyms to
 # the canonical vocabulary on write (teach, don't block) so the briefing's
@@ -126,7 +149,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.31-provisional",
+        "version": "0.32-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -191,9 +214,15 @@ def get_manifest() -> dict:
                 "before any endpoint.",
             "loop": [
                 "1. FRAME competing hypotheses (>=2) that explain the goal via DIFFERENT "
-                "mechanisms. Each carries a statement, a mechanism, and an `origin` (how "
-                "you arrived at it — reasoning + sources). A single unopposed hypothesis "
-                "is not a discovery, it is an assumption.",
+                "mechanisms. Reach FIRST for the established mechanisms your field already "
+                "debates for this system class (a SUPERPOSITION of standing-literature "
+                "explanations relevant to THIS system + ones motivated by trends in this "
+                "dataset) — don't only invent bespoke data-derived ones, and don't force "
+                "irrelevant menu items. Each hypothesis carries a statement, a mechanism, "
+                "an `origin` (how you arrived at it — reasoning + sources), and a "
+                "`grounding` ('standing_prior' if established/literature — cite it; "
+                "'ad_hoc' if derived from this dataset). A single unopposed hypothesis is "
+                "not a discovery, it is an assumption.",
                 "2. ENUMERATE falsifiers: for EACH hypothesis, register the SET of "
                 "predictions whose observed outcome would KILL it — not one token "
                 "prediction, the full discriminating set. A hypothesis with no falsifier "
@@ -246,20 +275,47 @@ def get_manifest() -> dict:
                 "enforced later). They apply in ANY field — they are about the logic of "
                 "evidence, not about any particular science.",
             "use_novelty": {
-                "rule": "Evidence used to BUILD or fit a hypothesis/model cannot also "
-                    "CONFIRM it. A model tuned until it reproduces an observation you "
-                    "already had earns ~zero confirmatory weight from that observation — "
-                    "it was used twice. This is the no-double-counting / overfitting / "
-                    "Texas-sharpshooter rule.",
-                "you_may": "Build and tune models freely — that is how hypotheses and "
-                    "predictions are GENERATED. Label such a result a hypothesis "
-                    "generator; it earns no confidence by itself.",
-                "you_must": "When you render a verdict that leans on a model/computation, "
-                    "declare `evidence_independence`: what the model was fit to vs what "
-                    "you are testing it against. If they overlap, the honest verdict is "
-                    "'neutral'/'consistent', not 'supports'. Real confirmation = the "
-                    "model's prediction on data it did NOT see (the discriminating "
-                    "experiment).",
+                "rule": "Use-novelty bites on ACCOMMODATION, not INSPIRATION — this is the "
+                    "single most important correction. ACCOMMODATION = a model/hypothesis "
+                    "with a FREE PARAMETER tuned until it reproduces a datum you already "
+                    "had; that datum was used twice (to fit AND to confirm) and earns "
+                    "~zero confirmatory weight (the overfitting / Texas-sharpshooter rule). "
+                    "INSPIRATION = a standing mechanism (established / in the literature) "
+                    "that a data trend merely POINTED TOWARD. Inspiration does NOT consume "
+                    "use-novelty: the mechanism had no knob tuned to that datum, so the "
+                    "datum still genuinely TESTS it. DO NOT downgrade a strong trend to "
+                    "'neutral' just because it motivated the hypothesis — that throws away "
+                    "your best evidence. The most evident trend is exactly what suggests "
+                    "the right standing mechanism.",
+                "the_real_test": "What grants or denies confirmatory weight is "
+                    "DISCRIMINATION, not history. Evidence consistent with H AND uniquely "
+                    "predicted by H (its rivals predict otherwise) is STRONG support — even "
+                    "if that trend first suggested H. Evidence consistent with H *and its "
+                    "rivals alike* is WEAK/neutral because it does not DISCRIMINATE — NOT "
+                    "because it is circular. Set a 'supports' verdict's `strength` by how "
+                    "much it discriminates: reserve 'strong' for an observation only THIS "
+                    "hypothesis predicted; author a non-discriminating consistency as "
+                    "'weak'. Declare the contrast in the prediction's `discriminates`.",
+                "grounding_gates_the_discount": "Each hypothesis carries a `grounding`: "
+                    "'standing_prior' (an established/literature mechanism that exists "
+                    "independently of this dataset) or 'ad_hoc' (introduced or "
+                    "parameterised FROM this dataset to fit it; default if unset). The "
+                    "accommodation discount in the score applies ONLY to ad_hoc hypotheses "
+                    "with genuine fitted-parameter overlap. A standing_prior with such "
+                    "overlap is a consistency check — kept but capped at 'weak', never "
+                    "zeroed. grounding='standing_prior' is a CLAIM you must justify (cite "
+                    "the literature/established source in `origin`); the rigor critic "
+                    "audits it.",
+                "you_may": "Build and tune models freely — that is how predictions are "
+                    "GENERATED. A purely tuned fit is a hypothesis generator; it earns no "
+                    "confidence BY ITSELF until tested on data it did not see.",
+                "you_must": "When a verdict leans on a FITTED model, declare "
+                    "`evidence_independence` {model_was_fit, parameters_fit_to:[id], "
+                    "tested_against:[id], roles:[...]}. Genuine overfitting — "
+                    "parameters_fit_to ∩ tested_against ≠ ∅ — is CIRCULAR and (for ad_hoc "
+                    "hypotheses) scores 0. This fitted-parameter overlap case is unchanged "
+                    "and still enforced. Inspiration WITHOUT parameter overlap is NOT this "
+                    "case — do not self-neutralise it.",
             },
             "hypothesis_individuation": {
                 "rule": "Distinguish refining a hypothesis from replacing it. A "
@@ -362,15 +418,27 @@ def get_manifest() -> dict:
             "report": "The score ships with its decomposition — n_decisive, the "
                 "supports/contradicts/neutral/insufficient/blocked breakdown, coverage, "
                 "and a conflict measure — never a bare number.",
-            "evidence_independence_enforced": "Use-novelty is now in the MATH, not just "
-                "flagged. A 'supports' whose evidence_independence shows the model was FIT "
-                "to the data it's TESTED on is CIRCULAR — it scores 0 and is NOT decisive "
-                "(a consistency check, not confirmation; declare evidence_independence so "
-                "this is visible). And CORRELATED same-direction verdicts that rest on "
-                "evidence_record_ids already counted are attenuated to 0.3× and don't add "
-                "to the independent-decisive count — you cannot confirm a hypothesis twice "
-                "with the same data, nor manufacture 'reliability' by stacking predictions "
-                "on one result. Reliability needs ≥2 INDEPENDENT decisive verdicts.",
+            "discrimination_is_the_currency": "What earns a 'supports' its weight is "
+                "DISCRIMINATION, not history. An observation predicted by THIS hypothesis "
+                "and NOT by its rivals is strong support — even if it inspired the "
+                "hypothesis. An observation predicted by H and its rivals alike is weak "
+                "(non-discriminating), not circular. So set `strength` by discrimination: "
+                "'strong' only when the prediction's `discriminates` gives the rivals a "
+                "DIFFERENT expected outcome; 'weak' for a shared consistency. Do NOT "
+                "self-neutralise a strong trend merely because it motivated the hypothesis "
+                "(that is INSPIRATION, not accommodation — see epistemic_guardrails."
+                "use_novelty).",
+            "evidence_independence_enforced": "The accommodation discount is in the MATH, "
+                "and it fires NARROWLY: only when evidence_independence shows fitted-"
+                "parameter overlap (parameters_fit_to ∩ tested_against) AND the hypothesis "
+                "is grounding='ad_hoc'. Then that 'supports' scores 0 and is not decisive. "
+                "A 'standing_prior' (literature) hypothesis with the same overlap is a "
+                "consistency check — KEPT but capped at weak, never zeroed (it was not "
+                "built to fit these points). It does NOT fire on a trend that merely "
+                "inspired the hypothesis. Separately, CORRELATED same-direction verdicts "
+                "resting on evidence_record_ids already counted are attenuated to 0.3× and "
+                "don't add to the independent-decisive count — you cannot confirm twice "
+                "with the same data. Reliability needs ≥2 INDEPENDENT decisive verdicts.",
             "sharpness": "Optional per-verdict `margin` ∈ [0,1] expresses HOW DECISIVELY "
                 "the observation diverged past the prediction's falsification threshold "
                 "(1 = far past / unambiguous, 0 = right at the line). It refines the coarse "
@@ -407,10 +475,15 @@ def get_manifest() -> dict:
                 "and read the whole thing — hypotheses, predictions, verdicts, "
                 "evidence_independence declarations, relations, and the reasoning prose. "
                 "Hunt specifically for:\n"
-                "  • USE-NOVELTY: any 'supports' verdict whose model/computation was fit "
-                "to the very data it is tested against — EVEN IF evidence_independence is "
-                "blank; infer it from the rationale/mechanism. Accommodation is not "
-                "prediction.\n"
+                "  • USE-NOVELTY (accommodation, NOT inspiration): flag a 'supports' only "
+                "where a model's FREE PARAMETERS were tuned to the very data it is tested "
+                "against (fitted-parameter overlap), OR an 'ad_hoc' hypothesis is confirmed "
+                "on its own fit data. Do NOT flag a standing/literature mechanism just "
+                "because a trend inspired it — that is genuinely tested by the trend. "
+                "Conversely, AUDIT grounding: a hypothesis claimed 'standing_prior' with no "
+                "independent literature source, or really parameterised from this dataset, "
+                "is mis-grounded (category grounding_misclassification) — it should be "
+                "ad_hoc and face the discount.\n"
                 "  • INDIVIDUATION: a `supersedes` that is really a refinement (no genuine "
                 "discriminating observable), or a 'new' hypothesis that only renames an "
                 "old one.\n"
@@ -592,10 +665,15 @@ def get_manifest() -> dict:
                         "epistemic_guardrails.hypothesis_individuation."},
             {"m": "POST", "path": "/projects/{id}/hypotheses",
              "purpose": "Add a hypothesis {statement, label, hypothesis_type, mechanism, "
-                        "origin}. Set hypothesis_type='residual' for an explicit "
-                        "NONE-OF-THE-ABOVE / the-shared-premise-is-wrong alternative — "
-                        "carry one whenever you have an equivalence class so the common "
-                        "premise can fail (see epistemic_guardrails.shared_premise_audit)."},
+                        "origin, grounding}. Set grounding='standing_prior' for an "
+                        "established/literature mechanism (cite it in origin) or 'ad_hoc' "
+                        "for one derived from THIS dataset (default if unset) — it gates "
+                        "the use-novelty accommodation discount (see "
+                        "epistemic_guardrails.use_novelty). Set hypothesis_type='residual' "
+                        "for an explicit NONE-OF-THE-ABOVE / the-shared-premise-is-wrong "
+                        "alternative — carry one whenever you have an equivalence class so "
+                        "the common premise can fail (see "
+                        "epistemic_guardrails.shared_premise_audit)."},
             {"m": "POST", "path": "/hypotheses/{id}/predictions",
              "purpose": "Add a FALSIFYING prediction — STRUCTURED, not one crammed "
                         "string: {descriptor_name, direction (↑/↓/non-monotonic), "
@@ -648,7 +726,7 @@ def get_manifest() -> dict:
              "purpose": "INDEPENDENT CRITIC records a rigor problem {summary, detail, "
                         "category(use_novelty|individuation|falsifiability|"
                         "evidence_compatibility|confirmation_bias|overreach|"
-                        "shared_premise|other), severity"
+                        "shared_premise|grounding_misclassification|other), severity"
                         "(critical|major|minor), target_type, target_id}. See "
                         "rigor_review.critic_prompt."},
             {"m": "GET", "path": "/projects/{id}/rigor/findings",
@@ -1110,7 +1188,8 @@ def _snapshot_confidence(cur, project_id, hypothesis_id, confidence, *,
 
 
 def create_hypothesis(project_id, statement, *, label=None, hypothesis_type=None,
-                      mechanism=None, origin=None, created_by=None) -> str | None:
+                      mechanism=None, origin=None, grounding=None,
+                      created_by=None) -> str | None:
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -1121,11 +1200,13 @@ def create_hypothesis(project_id, statement, *, label=None, hypothesis_type=None
         cur.execute(
             """INSERT INTO hyp_hypotheses
                  (hypothesis_id, project_id, label, statement, hypothesis_type,
-                  mechanism, origin, confidence, created_by)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                  mechanism, origin, grounding, confidence, created_by)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (hypothesis_id, project_id, label, statement, hypothesis_type,
              json.dumps(mechanism) if mechanism is not None else None,
-             json.dumps(origin) if origin is not None else None, 0.5, created_by))
+             json.dumps(origin) if origin is not None else None,
+             normalize_grounding(grounding) if grounding is not None else None,
+             0.5, created_by))
         _append_event(cur, project_id, "hypothesis_created",
                       f"Hypothesis {label or ''} added: {statement[:120]}",
                       hypothesis_id=hypothesis_id, actor=created_by)
@@ -1667,10 +1748,13 @@ def compute_hypothesis_score(h) -> dict:
       • blocked     → 0 and EXCLUDED from belief (SCHEMA GATE: the comparison is
                       methodologically incompatible / ill-posed — not a measurement, so
                       it can't move belief; it only lowers COVERAGE)
-    EVIDENCE INDEPENDENCE (use-novelty) is enforced in the math, not just flagged:
-      • a 'supports' whose evidence_independence shows the model was FIT to the data
-        it's TESTED on is CIRCULAR — it's a consistency check, not confirmation. It
-        contributes 0 and does NOT count as decisive (discounted_circular).
+    EVIDENCE INDEPENDENCE (use-novelty) is enforced in the math, gated by grounding:
+      • a 'supports' with fitted-parameter overlap (evidence_independence) on an
+        AD-HOC hypothesis is ACCOMMODATION — it contributes 0 and is not decisive
+        (circular_discounted). On a STANDING-PRIOR (literature) hypothesis the same
+        overlap is a consistency check — kept but capped at weak (circular_softened),
+        never zeroed. Inspiration (a trend that merely motivated the hypothesis) is
+        NOT discounted at all.
       • CORRELATED same-direction verdicts (sharing evidence_record_ids already
         counted) are attenuated to {_atten}× and don't add to n_decisive — you can't
         confirm twice with the same data, nor fake reliability by stacking predictions
@@ -1688,7 +1772,8 @@ def compute_hypothesis_score(h) -> dict:
         _atten=_CORRELATION_ATTENUATION)
     bd = {"supports": 0, "contradicts": 0, "neutral": 0, "insufficient": 0,
           "blocked": 0, "unevaluated": 0, "circular_discounted": 0,
-          "correlated_attenuated": 0}
+          "circular_softened": 0, "correlated_attenuated": 0}
+    hyp_grounding = _grounding(h)   # gates the accommodation discount (standing_prior vs ad_hoc)
     logit = 0.0
     decisive = []   # (direction:+1/-1, strength_weight, evidence_key) — survives to pass 2
     for p in h.get("predictions", []):
@@ -1703,9 +1788,18 @@ def compute_hypothesis_score(h) -> dict:
         if v == "supports":
             bd["supports"] += 1
             if _circularity_flag(p.get("evidence_independence")):
-                bd["circular_discounted"] += 1        # use-novelty: consistency, not confirmation
-                continue                              # 0 contribution, not decisive
-            decisive.append((+1, sw, _evidence_key(p), _m))
+                # Fitted-parameter overlap. ACCOMMODATION (an ad_hoc hypothesis whose
+                # parameters were tuned to this data) earns ~zero. But a STANDING-PRIOR
+                # (literature) mechanism the data merely INSPIRED was not built to fit
+                # these points — a consistency check on it still has value; keep it,
+                # capped at weak (not strong independent confirmation).
+                if hyp_grounding == "standing_prior":
+                    bd["circular_softened"] += 1
+                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m))
+                else:
+                    bd["circular_discounted"] += 1    # 0 contribution, not decisive
+            else:
+                decisive.append((+1, sw, _evidence_key(p), _m))
         elif v == "contradicts":
             bd["contradicts"] += 1
             decisive.append((-1, sw, _evidence_key(p), _m))
@@ -1771,8 +1865,10 @@ def compute_hypothesis_score(h) -> dict:
                     + (f", {bd['neutral']} neutral" if bd['neutral'] else "")
                     + (f", {bd['blocked']} blocked (schema gate)" if bd['blocked'] else "")
                     + ".")
-                 + (f" {bd['circular_discounted']} circular 'supports' discounted "
-                    "(use-novelty)." if bd['circular_discounted'] else "")
+                 + (f" {bd['circular_discounted']} ad-hoc 'supports' discounted as "
+                    "accommodation (use-novelty)." if bd['circular_discounted'] else "")
+                 + (f" {bd['circular_softened']} standing-prior 'supports' softened to "
+                    "weak (consistency check)." if bd['circular_softened'] else "")
                  + (f" {bd['correlated_attenuated']} correlated verdict(s) attenuated "
                     "(shared evidence)." if bd['correlated_attenuated'] else "")),
     }
@@ -1786,11 +1882,14 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
                           evidence_record_ids, margin
                      FROM hyp_predictions WHERE hypothesis_id=%s""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]
-    score = compute_hypothesis_score({"predictions": preds})
-    conf = score["computed_confidence"]
-    cur.execute("SELECT project_id FROM hyp_hypotheses WHERE hypothesis_id=%s",
+    cur.execute("SELECT project_id, grounding FROM hyp_hypotheses WHERE hypothesis_id=%s",
                 (hypothesis_id,))
     row = cur.fetchone()
+    # grounding gates the accommodation discount — it must reach the scorer so the
+    # STORED confidence reflects it (not just the display path).
+    score = compute_hypothesis_score({"predictions": preds,
+                                      "grounding": row["grounding"] if row else None})
+    conf = score["computed_confidence"]
     if row is None:
         return conf
     cur.execute("UPDATE hyp_hypotheses SET confidence=%s, updated_at=NOW() "

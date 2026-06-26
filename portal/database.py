@@ -530,6 +530,12 @@ def init_discovery_tables():
         # Stored + surfaced now (gated later).
         cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
                     "evidence_independence JSONB")
+        # grounding — the hypothesis's EPISTEMIC STANDING: 'standing_prior' (an
+        # established/literature mechanism that exists independently of this dataset) vs
+        # 'ad_hoc' (introduced/parameterised FROM this dataset to fit it). Gates the
+        # use-novelty accommodation discount: only ad_hoc + fitted-overlap is zeroed; a
+        # standing_prior that a trend merely inspired is NOT accommodation. Default ad_hoc.
+        cur.execute("ALTER TABLE hyp_hypotheses ADD COLUMN IF NOT EXISTS grounding TEXT")
         # margin ∈ [0,1] — per-verdict CONTRADICTION SHARPNESS: how decisively the
         # observation diverged PAST the prediction's falsification threshold (1 = far
         # past / unambiguous, 0 = right at the line). Refines the coarse strength tier

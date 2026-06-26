@@ -1012,7 +1012,8 @@ def discovery_create_hypothesis(project_id):
     hid = discovery.create_hypothesis(
         project_id, d["statement"], label=d.get("label"),
         hypothesis_type=d.get("hypothesis_type"), mechanism=d.get("mechanism"),
-        origin=d.get("origin"), created_by=_disc_identity())
+        origin=d.get("origin"), grounding=d.get("grounding"),
+        created_by=_disc_identity())
     if hid is None:
         return jsonify({"error": "project not found"}), 404
     return jsonify({"hypothesis_id": hid}), 201
