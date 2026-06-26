@@ -107,8 +107,44 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.22-provisional",
+        "version": "0.23-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
+        "isaac_ecosystem": {
+            "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
+                "be wired up for you — access depends on WHERE you run and WHO runs you. "
+                "The ISAAC records + this Discovery API are MANDATORY (you're already on "
+                "them, with your portal token). For everything else: on your FIRST turn, "
+                "check which you can actually reach and ASK YOUR OPERATOR ('your boss') "
+                "what you have access to in this environment — then USE WHAT YOU HAVE. "
+                "Don't fake a capability you lack; don't skip one you have.",
+            "mandatory": [
+                {"name": "ISAAC records API", "for": "the standardized knowledge base — "
+                    "experimental AND computational records (adsorption energies, "
+                    "barriers, XANES, performance). Query it for evidence and BEFORE "
+                    "recomputing anything (see integrations.isaac_data_sources).",
+                 "where": "GET /portal/api/records"},
+                {"name": "ISAAC Discovery API", "for": "this hypothesis workbench.",
+                 "where": "/portal/api/discovery/manifest"},
+            ],
+            "ask_your_operator_if_available": [
+                {"name": "FairChem / UMA (MLIP)", "for": "fast ML-potential adsorption "
+                    "energies & trend screening across many candidates"},
+                {"name": "VASP via NERSC IRI / Superfacility API", "for": "accurate DFT "
+                    "for the decisive numbers a verdict rests on"},
+                {"name": "mkmISAAC", "for": "microkinetic modeling — rates from energetics",
+                 "where": "https://github.com/ISAAC-DOE/mkmISAAC"},
+                {"name": "Catalysis Hub", "for": "published adsorption energies & reaction "
+                    "energetics (analog evidence)", "where": "https://www.catalysis-hub.org"},
+                {"name": "Materials Project", "for": "formation energies / stability / "
+                    "structures", "where": "https://materialsproject.org"},
+                {"name": "Edison literature (PaperQA3)", "for": "cited literature via the "
+                    "portal proxy — no key needed", "where": "/portal/api/literature/search"},
+                {"name": "MLflow", "for": "experiment + reasoning replay trace"},
+            ],
+            "first_turn": "Enumerate which of these you can reach, report it to your "
+                "operator, and ask about anything missing you'd want — so they can wire it "
+                "up. The point: every agent should reach all the ISAAC goodies it can.",
+        },
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
             "URL. Do not prepend '/discovery/' to them — the manifest just happens "
@@ -362,6 +398,12 @@ def get_manifest() -> dict:
                 "the recommended_actions (declare evidence_independence, attach "
                 "discriminating observables, commission an independent rigor review for "
                 "high-confidence claims, resolve findings, …) until they clear.\n\n"
+                "8. Check your toolbox: read the manifest's `isaac_ecosystem` and, on "
+                "this first turn, tell me which of those tools you can actually reach "
+                "(FairChem/UMA, VASP via NERSC, mkmISAAC, Catalysis Hub, Materials "
+                "Project, the records + literature APIs) — and ask me about any you're "
+                "missing so I can wire them up. Use the ISAAC records API to look up "
+                "existing computed/measured values before recomputing.\n\n"
                 "Then tell me, in your own words, the current state and full history of "
                 "the project (or the workflow for a new one), and what to do next."
             ),
