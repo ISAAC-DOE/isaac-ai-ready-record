@@ -2390,13 +2390,20 @@ requestAnimationFrame(loop);
                             "predicts for a measurable (drives next-experiment choice)")
                 matrix = brief.get("discrimination_matrix", [])
                 if matrix:
+                    # `expected_by_hypothesis` is the agent's `discriminates` — defend
+                    # against malformed shapes (strings / missing keys) so a bad write
+                    # can't crash the project view.
+                    def _disc_entries(m):
+                        return [e for e in (m.get("expected_by_hypothesis") or [])
+                                if isinstance(e, dict) and e.get("hypothesis_label")]
                     labels = sorted({e["hypothesis_label"]
-                                     for m in matrix for e in (m["expected_by_hypothesis"] or [])})
+                                     for m in matrix for e in _disc_entries(m)})
                     rows = []
                     for m in matrix:
-                        row = {"Prediction": m["prediction"], "Descriptor": m["descriptor"]}
+                        row = {"Prediction": m.get("prediction"),
+                               "Descriptor": m.get("descriptor")}
                         exp = {e["hypothesis_label"]: e.get("expected")
-                               for e in (m["expected_by_hypothesis"] or [])}
+                               for e in _disc_entries(m)}
                         for lb in labels:
                             row[lb] = exp.get(lb, "—")
                         rows.append(row)
