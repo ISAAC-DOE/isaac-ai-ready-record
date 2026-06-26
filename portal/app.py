@@ -1950,6 +1950,12 @@ requestAnimationFrame(loop);
             _issue_map = [
                 ("Hypotheses with no falsifying prediction",
                  _mc.get("hypotheses_without_falsifying_prediction")),
+                ("Hypotheses with too FEW predictions (need a set ≥2, aim 3-4)",
+                 _mc.get("hypotheses_below_min_predictions")),
+                ("Hypotheses whose predictions all use ONE descriptor (impoverished)",
+                 _mc.get("hypotheses_with_single_descriptor")),
+                ("Predictions missing structured fields (direction/reference/magnitude)",
+                 _mc.get("predictions_missing_structured_fields")),
                 ("Predictions missing provenance (origin)",
                  _mc.get("predictions_missing_origin_provenance")),
                 ("Predictions missing a falsification criterion",

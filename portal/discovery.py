@@ -74,6 +74,8 @@ RIGOR_FINDING_STATUSES = {"open", "resolved", "dismissed"}
 # to all surviving rivals actually FAIL. Marked via hypothesis_type.
 RESIDUAL_HYPOTHESIS_TYPES = {"residual", "null", "none_of_the_above", "noneoftheabove",
                              "shared_premise_false", "alternative_mechanism"}
+# A hypothesis must carry a SET of falsifying predictions, not one token prediction.
+MIN_PREDICTIONS_PER_HYPOTHESIS = 2
 
 
 def is_residual_hypothesis(h) -> bool:
@@ -118,7 +120,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.25-provisional",
+        "version": "0.26-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -525,11 +527,14 @@ def get_manifest() -> dict:
                         "carry one whenever you have an equivalence class so the common "
                         "premise can fail (see epistemic_guardrails.shared_premise_audit)."},
             {"m": "POST", "path": "/hypotheses/{id}/predictions",
-             "purpose": "Add a FALSIFYING prediction (descriptor_name, direction, "
-                        "falsification_criterion, output_quantity, "
-                        "discriminates:[{hypothesis_label,expected}], and `origin` = HOW "
-                        "this prediction was produced). Record every prediction that "
-                        "would falsify the hypothesis, each with its origin."},
+             "purpose": "Add a FALSIFYING prediction — STRUCTURED, not one crammed "
+                        "string: {descriptor_name, direction (↑/↓/non-monotonic), "
+                        "reference_condition (vs what baseline), magnitude (qualitative "
+                        "ok), falsification_criterion (what observation rejects it), "
+                        "output_quantity, discriminates:[{hypothesis_label,expected}], "
+                        "origin}. Each hypothesis needs a SET (>=2, aim 3-4) spanning "
+                        "DIFFERENT descriptors — not one token prediction on one "
+                        "measurable. See field_shapes.prediction."},
             {"m": "POST", "path": "/hypotheses/{id}/relations",
              "purpose": "Link hypotheses {to_hypothesis_id, relation_type, note}. For "
                         "`supersedes` also pass {discriminating_observable, "
@@ -605,6 +610,18 @@ def get_manifest() -> dict:
             "PUT ... {work_status:'compute_running'} when it starts",
             "PUT /predictions/{id}/evaluate with verdict + evidence + final mlflow_run_url"],
         "field_shapes": {
+            "prediction": {"_for": "a hypothesis carries a SET of these (>=2, aim 3-4), "
+                       "spanning DIFFERENT descriptors — each fully structured, never "
+                       "one crammed string.",
+                       "descriptor_name": "the measurable (e.g. faradaic_efficiency.C2H4, "
+                       "adsorption_energy.CO, a partial current) — VARY it across the set",
+                       "direction": "↑ / ↓ / non-monotonic / flat",
+                       "reference_condition": "vs WHAT baseline (e.g. 'vs pure-Cu')",
+                       "magnitude": "how much (qualitative ok, e.g. 'scales with X')",
+                       "falsification_criterion": "the observation that REJECTS the "
+                       "hypothesis",
+                       "discriminates": "[{hypothesis_label, expected}]",
+                       "origin": "see prediction_origin"},
             "origin": {"type": "agent_reasoning|literature|prior_result|human",
                        "summary": "str", "reasoning": "str",
                        "sources": "[{record_id|doi|hypothesis}]"},
@@ -1566,6 +1583,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     hyps_without_falsifier, preds_without_origin, preds_without_criterion = [], [], []
     circular_confirmations, supports_without_independence = [], []
     high_conf_hyps, preds_missing_mlflow = [], []
+    hyps_below_min_preds, preds_missing_structure, hyps_single_descriptor = [], [], []
     for h in hyps:
         ranking.append({"label": h["label"], "status": h["status"],
                         "confidence": h["confidence"], "statement": _oneline(h["statement"])})
@@ -1575,14 +1593,30 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             eliminated.append(h["label"])
         if h["status"] == "supported" or (h["confidence"] or 0) >= 0.7:
             high_conf_hyps.append(h["label"])
+        _live = h["status"] not in ("eliminated", "superseded")
         if not h["predictions"]:
             hyps_without_falsifier.append(h["label"])
+        # A hypothesis needs a SET of falsifying predictions, not one token — and the
+        # set should span DISTINCT measurables (a single descriptor = an impoverished
+        # falsification surface). (Live hypotheses only.)
+        elif _live and len(h["predictions"]) < MIN_PREDICTIONS_PER_HYPOTHESIS:
+            hyps_below_min_preds.append(f"{h['label']} ({len(h['predictions'])})")
+        if _live and len(h["predictions"]) >= 2 and \
+                len({(p.get("descriptor_name") or "") for p in h["predictions"]}) == 1:
+            hyps_single_descriptor.append(h["label"])
         for p in h["predictions"]:
             _ptag = h["label"] + "/" + (p.get("descriptor_name") or p.get("label") or "?")
             if not p.get("origin"):
                 preds_without_origin.append(_ptag)
             if not p.get("falsification_criterion"):
                 preds_without_criterion.append(_ptag)
+            # Structured shape (per the spec): a prediction must carry descriptor +
+            # direction + reference_condition + magnitude + falsification_criterion —
+            # not a single crammed string. Flag any missing the core structural fields.
+            _missing_struct = [f for f in ("direction", "reference_condition", "magnitude")
+                               if not p.get(f)]
+            if _missing_struct:
+                preds_missing_structure.append(f"{_ptag} [{','.join(_missing_struct)}]")
             # Auditability: a verdict that leaned on COMPUTE or a fitted MODEL must
             # carry an mlflow_run_url (the replay trace). Pure-data verdicts are not
             # flagged — only the compute/model-backed ones that should be traceable.
@@ -1789,6 +1823,24 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     if hyps_without_falsifier:
         recommended_actions.append(
             f"Add ≥1 falsifying prediction to hypotheses {hyps_without_falsifier}.")
+    if hyps_below_min_preds:
+        recommended_actions.append(
+            f"Build out the prediction SET for {hyps_below_min_preds} — each hypothesis "
+            f"needs ≥{MIN_PREDICTIONS_PER_HYPOTHESIS} falsifying predictions (aim for "
+            "3-4), spanning DIFFERENT measurables (descriptors), not one token "
+            "prediction. A richer falsifier set is what separates rivals.")
+    if hyps_single_descriptor:
+        recommended_actions.append(
+            f"Diversify the descriptors for {hyps_single_descriptor} — all their "
+            "predictions use ONE measurable, an impoverished falsification surface. Add "
+            "predictions on distinct descriptors (e.g. a partial-current, a binding "
+            "energy, a different product's FE).")
+    if preds_missing_structure:
+        recommended_actions.append(
+            f"Complete the STRUCTURE of {len(preds_missing_structure)} prediction(s) "
+            "missing direction / reference_condition / magnitude — a prediction is "
+            "{descriptor, direction, reference_condition, magnitude, "
+            "falsification_criterion}, not one crammed string.")
     if preds_without_origin:
         recommended_actions.append(
             f"Add origin provenance to {len(preds_without_origin)} prediction(s).")
@@ -1826,6 +1878,9 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                      "`recommended_actions` list above turns them into your to-do.",
             "enough_competing_hypotheses": len(hyps) >= 2,
             "hypotheses_without_falsifying_prediction": hyps_without_falsifier,
+            "hypotheses_below_min_predictions": hyps_below_min_preds,
+            "hypotheses_with_single_descriptor": hyps_single_descriptor,
+            "predictions_missing_structured_fields": preds_missing_structure,
             "predictions_missing_origin_provenance": preds_without_origin,
             "predictions_missing_falsification_criterion": preds_without_criterion,
             "circular_confirmations": circular_confirmations,
