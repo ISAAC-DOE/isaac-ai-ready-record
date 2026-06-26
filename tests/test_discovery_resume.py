@@ -14,7 +14,8 @@ PORTAL = Path(__file__).resolve().parent.parent / "portal"
 sys.path.insert(0, str(PORTAL))
 
 from discovery import (_resume_synthesis, _true_status_from_ranking,  # noqa: E402
-                       _canon_resume_status)
+                       _canon_resume_status, _compose_headline,
+                       compute_hypothesis_score)
 
 
 def _ev(v, ws="evaluated", s="weak"):
@@ -128,3 +129,81 @@ def test_decided_member_dropped_from_contested():
     # cluster had {H1(decided), H2}; H1 dropped → only H2 left → <2 → no contested entry
     contested_labels = {m for c in syn["still_contested"] for m in c["members"]}
     assert "H1" not in contested_labels
+
+
+# --- Headline tier ("X because Y unless Z") ------------------------------------
+
+def _hp(label, status="proposed", grounding=None, preds=None):
+    return {"label": label, "status": status, "grounding": grounding,
+            "predictions": preds or []}
+
+
+def _p(verdict, strength="strong", descriptor="d", ev=None, cross_system=None):
+    return {"verdict": verdict, "strength": strength, "work_status": "evaluated",
+            "descriptor_name": descriptor, "evidence_record_ids": ev or [],
+            "margin": None, "cross_system": cross_system, "evidence_independence": None,
+            "reliability_tier": None}
+
+
+def _scored(*hyps):
+    return [(h, compute_hypothesis_score({"predictions": h["predictions"],
+                                          "grounding": h.get("grounding")})) for h in hyps]
+
+
+def test_headline_caps_at_three_units():
+    hyps = [_hp(f"H{i}", preds=[_p("contradicts", ev=["a"]), _p("contradicts", ev=["b"])])
+            for i in range(5)]
+    sc = _scored(*hyps)
+    est = [{"label": h["label"], "conclusion": "refuted"} for h, _ in sc]
+    hl = _compose_headline(sc, est, [])
+    assert len(hl["units"]) <= 3
+
+
+def test_headline_delivers_clean_supported_when_robust():
+    # 3 independent supports → reliably supported AND not dangerously fragile → clean
+    h = _hp("H1", preds=[_p("supports", ev=["a"]), _p("supports", ev=["b"]),
+                         _p("supports", ev=["c"])])
+    sc = _scored(h)
+    hl = _compose_headline(sc, [{"label": "H1", "conclusion": "supported"}], [])
+    assert hl["verdict"] == "supported"
+    assert hl["units"][0]["claim"] == "H1 is supported"
+    assert "_fail_loud" not in hl
+
+
+def test_headline_degrades_borrowed_support_and_fails_loud():
+    # 'supported' but the keystone is a cross-system/borrowed leg → DEGRADE + fail loud
+    h = _hp("H1", preds=[_p("supports", ev=["a"]),
+                         _p("supports", ev=["b"], cross_system=True)])
+    sc = _scored(h)
+    hl = _compose_headline(sc, [{"label": "H1", "conclusion": "supported"}], [])
+    assert "front-runner" in hl["units"][0]["claim"]
+    assert hl["verdict"] != "supported"
+    assert "_fail_loud" in hl
+
+
+def test_headline_unreliable_leader_is_not_an_answer():
+    h = _hp("H1", preds=[_p("supports", ev=["a"])])   # 1 decisive → unreliable
+    sc = _scored(h)
+    hl = _compose_headline(sc, [], [])
+    assert "UNRELIABLE" in hl["units"][0]["claim"]
+    assert hl["verdict"] == "undetermined"
+    assert "_fail_loud" in hl
+
+
+def test_headline_unit_conclusions_equal_ledger_truth():
+    # invariant: a unit's conclusion must match _true_status_from_ranking (resume_check)
+    h_ref = _hp("H1", preds=[_p("contradicts", ev=["a"]), _p("contradicts", ev=["b"])])
+    h_sup = _hp("H2", preds=[_p("supports", ev=["a"]), _p("supports", ev=["b"]),
+                             _p("supports", ev=["c"])])
+    sc = _scored(h_ref, h_sup)
+    est = [{"label": "H1", "conclusion": "refuted"}, {"label": "H2", "conclusion": "supported"}]
+    hl = _compose_headline(sc, est, [])
+    for h, s in sc:
+        truth = _true_status_from_ranking(
+            {"status": h["status"], "computed_confidence": s["computed_confidence"],
+             "reliable": s["reliable"], "label": h["label"]}, set())
+        unit = next((u for u in hl["units"] if u["hypothesis"] == h["label"]), None)
+        assert unit is not None
+        # 'refuted'/'supported' claims must match the ledger's decided status
+        if truth in ("refuted", "supported"):
+            assert truth in unit["claim"]

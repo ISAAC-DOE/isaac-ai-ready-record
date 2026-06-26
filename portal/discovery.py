@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.38-provisional",
+        "version": "0.39-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -3255,11 +3255,133 @@ def get_evidence(project_id, owner_identity=None, descriptor=None) -> dict | Non
     return {"project_id": project_id, "elements": elems, "evidence_index": index}
 
 
+def _load_bearing_verdicts(h, top=3):
+    """The decisive verdicts that CARRY a hypothesis, strongest-first — the 'because' of
+    the punchline. Cites the 1-3 verdicts that moved the score; the rest live in the
+    ledger (this is the antidote to a thousand footnotes)."""
+    refs = []
+    for p in h.get("predictions", []):
+        if p.get("work_status") != "evaluated":
+            continue
+        v = normalize_verdict(p.get("verdict"))
+        if v not in ("supports", "contradicts"):
+            continue
+        sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), _STRENGTH_W["weak"])
+        refs.append((sw * _margin_factor(p.get("margin")),
+                     {"descriptor": p.get("descriptor_name"),
+                      "direction": "+" if v == "supports" else "−",
+                      "strength": p.get("strength") or "weak",
+                      "cross_system": bool(p.get("cross_system"))}))
+    refs.sort(key=lambda x: -x[0])
+    return [r for _, r in refs[:top]]
+
+
+def _dangerous_fragility(sc, frag):
+    """DANGEROUS fragility (vs merely 'thin') — the cases where a 'supported' claim must
+    DEGRADE to 'front-runner': it isn't reliable, its keystone is borrowed (cross_system),
+    or removing the keystone swings confidence a lot. A reliably-supported hypothesis that
+    is only fragile because it has exactly 2 verdicts (pull one → unreliable) is THIN, not
+    dangerous — it still reads 'supported', with a note to add a third independent verdict."""
+    if not sc["reliable"]:
+        return True
+    ks = frag.get("keystone")
+    if not ks:
+        return False
+    return bool(ks.get("cross_system")) or abs(ks.get("swing") or 0.0) >= 0.30
+
+
+def _threat_of(sc, frag):
+    """The single 'unless' — the one removal/finding that most threatens the claim."""
+    if not sc["reliable"]:
+        return {"kind": "unreliable",
+                "note": "front-runner, not established — needs ≥2 independent decisive verdicts"}
+    ks = frag.get("keystone")
+    if frag.get("fragile") and ks:
+        return {"kind": "borrowed" if ks["cross_system"] else "keystone",
+                "if": ks["descriptor"],
+                "drop": {"from": sc["computed_confidence"], "to": ks["confidence_if_removed"]},
+                "then": ("drops below reliable" if not ks["reliable_if_removed"] else "shifts")}
+    return {"kind": "robust", "note": "survives removal of any single verdict"}
+
+
+def _compose_headline(scored, established, contested):
+    """The HEADLINE tier — the 30-second punchline: ≤3 atomic 'X because Y unless Z' units,
+    a conservative project verdict, and a fail-loud banner. RE-DERIVED from the ledger every
+    call (never authored, never cached); its conclusions equal the resume_check truth by
+    construction. Compression is conservative: a fragile/borrowed/unreliable result is
+    DEGRADED to 'front-runner', never presented as a clean answer."""
+    by_label = {h.get("label"): (h, sc) for h, sc in scored}
+    units, seen = [], set()
+
+    def _frag(h):
+        return compute_fragility({"predictions": h.get("predictions", []),
+                                  "grounding": h.get("grounding")})
+
+    for e in established:                       # 1. the hard, reliably-decided results first
+        if len(units) >= 3:
+            break
+        h, sc = by_label[e["label"]]
+        f = _frag(h)
+        concl = e["conclusion"]
+        if concl == "supported" and _dangerous_fragility(sc, f):
+            concl = "front-runner (FRAGILE)"    # degrade — never a clean 'supported' on a borrowed/precarious leg
+        units.append({"hypothesis": e["label"], "claim": f"{e['label']} is {concl}",
+                      "because": _load_bearing_verdicts(h), "unless": _threat_of(sc, f),
+                      "confidence": sc["computed_confidence"], "reliable": sc["reliable"],
+                      "fragile": f["fragile"]})
+        seen.add(e["label"])
+    live = [(h, sc) for h, sc in scored
+            if (h.get("status") or "proposed") not in ("eliminated", "superseded")]
+    if len(units) < 3 and live:                 # 2. an unreliable front-runner, honestly degraded
+        h, sc = max(live, key=lambda x: x[1]["computed_confidence"])
+        if h.get("label") not in seen and not sc["reliable"]:
+            f = _frag(h)
+            units.append({"hypothesis": h.get("label"),
+                          "claim": f"{h.get('label')} is the front-runner (UNRELIABLE — not an answer)",
+                          "because": _load_bearing_verdicts(h), "unless": _threat_of(sc, f),
+                          "confidence": sc["computed_confidence"], "reliable": False,
+                          "fragile": f["fragile"]})
+            seen.add(h.get("label"))
+    if len(units) < 3 and contested:            # 3. a contested cluster + its decider
+        cl = contested[0]
+        test = cl.get("discriminating_test") or []
+        units.append({"hypothesis": None,
+                      "claim": f"{' vs '.join(str(m) for m in cl['members'])} — contested, not separated",
+                      "because": [], "unless": {"kind": "no_test",
+                      "if": (test[0] if test else "design a discriminating test")},
+                      "confidence": None, "reliable": False, "fragile": False})
+
+    clean_supported = [u for u in units if u["reliable"] and u["claim"].endswith("is supported")]
+    verdict = ("supported" if clean_supported else
+               "contested" if contested else "undetermined")
+    # the fail-loud banner fires only when something was actually DEGRADED (a front-runner /
+    # fragile / unreliable claim) — a thin-but-real 'supported' does not trip it.
+    degraded = any(("front-runner" in u["claim"] or "UNRELIABLE" in u["claim"]
+                    or "FRAGILE" in u["claim"]) for u in units)
+    top = units[0] if units else None
+    if not top:
+        one_liner = "No hypotheses framed yet — frame ≥2 competing mechanisms."
+    else:
+        _bc = ", ".join(str(r["descriptor"]) for r in top["because"][:2]
+                        if r.get("descriptor")) or "(no in-system evidence yet)"
+        _z = top["unless"].get("if") or top["unless"].get("note") or "—"
+        one_liner = f"{top['claim']} — because {_bc} — unless {_z}."
+    out = {"verdict": verdict, "one_liner": one_liner, "units": units[:3],
+           "_invariant": "Re-derived from the ledger each turn; conclusions equal "
+                         "resume_check truth. Never authored, never cached."}
+    if degraded:
+        out["_fail_loud"] = ("DEGRADED: the result rests on a FRAGILE / borrowed / "
+                             "UNRELIABLE front-runner — NOT an established answer. The "
+                             "`unless` is doing the work; close it before claiming a result.")
+    return out
+
+
 def _resume_synthesis(data, briefing, pending_work, history) -> dict:
     """SERVER-COMPOSED 'state of the project' for a resuming/cold-start agent — the
     WHAT and WHY distilled from the live data, so a fresh agent orients from a grounded
     narrative instead of reconstructing it unaided from raw events. The lossless history
-    stays in `history`; this is the MAP to it (and how to read the numbers correctly)."""
+    stays in `history`; this is the MAP to it (and how to read the numbers correctly).
+    Read `headline` FIRST (the 30-second punchline), then `detail`, then `history`."""
     hyps = data.get("hypotheses", []) or []
     scored = [(h, compute_hypothesis_score({"predictions": h.get("predictions", []),
                                             "grounding": h.get("grounding")})) for h in hyps]
@@ -3323,10 +3445,9 @@ def _resume_synthesis(data, briefing, pending_work, history) -> dict:
     recent_reasoning = [f"{e.get('summary')}" for e in reversed(history or [])
                         if e.get("event_type") in ("reasoning_step", "agent_message")][:5]
     nx = data.get("next_experiment") or {}
-    return {
-        "_what": "SERVER-COMPOSED state of the project — read THIS first to orient, then "
-                 "verify against the full `history`. Derived from live data, not authored.",
-        "goal": (data.get("project") or {}).get("goal"),
+    # The WARRANT tier — the 9 maps (kept at top level for back-compat AND mirrored under
+    # `detail`, same objects). The HEADLINE tier crowns it: the 30-second punchline.
+    detail = {
         "leader": leader,
         "established": established,
         "still_contested": contested,
@@ -3338,14 +3459,24 @@ def _resume_synthesis(data, briefing, pending_work, history) -> dict:
                        "next_experiment": nx.get("descriptor") or nx.get("method")},
         "recent_reasoning": recent_reasoning,
         "top_actions": (briefing or {}).get("recommended_actions", [])[:4],
+    }
+    return {
+        "_what": "Read `headline` FIRST (the 30-second punchline: what we can say NOW, and "
+                 "what would overturn it). Then `detail` for the warrant, then the full "
+                 "`history`. SERVER-composed from live data, never authored.",
+        "goal": (data.get("project") or {}).get("goal"),
+        "headline": _compose_headline(scored, established, contested),
+        "detail": detail,
+        # back-compat: the warrant keys also stay at top level (SAME objects as detail.*)
+        **detail,
         "how_to_read_this": (
             "Confidence is COMPUTED from the prediction verdicts (never authored). "
             "0.5 ≈ untested prior. A hypothesis is RELIABLE only with ≥2 INDEPENDENT "
             "decisive (supports/contradicts) verdicts — below that it is UNDETERMINED, "
-            "NOT refuted. 'established' = reliably supported/refuted; the leader may be "
-            "unreliable (front-runner, not a conclusion). compute_failed = a crashed calc "
-            "to re-run (no score effect). blocked = method-incompatible evidence, "
-            "excluded. Do NOT re-run anything under tried_and_failed."),
+            "NOT refuted. The headline's `unless` is the single biggest threat to the "
+            "claim; a DEGRADED/fail-loud headline means the front-runner is fragile or "
+            "borrowed, NOT an answer. compute_failed = a crashed calc to re-run (no score "
+            "effect). blocked = method-incompatible evidence, excluded."),
     }
 
 
@@ -3371,13 +3502,15 @@ def get_context(project_id, owner_identity=None) -> dict | None:
     briefing = get_briefing(project_id, owner_identity=owner_identity)
     pending_work = get_pending_work(project_id)
     return {
-        "resume_note": "Read `synthesis` FIRST — it is the server-composed state of the "
-            "project (what's established, what's still contested, what was tried-and-"
-            "failed, the open loops, and how to read the numbers). THEN verify it against "
-            "the full `history`. THEN post your resume_check (POST /projects/{id}/"
-            "resume_check — see manifest.resume_protocol) so the platform confirms you "
-            "understood the state BEFORE you act. Prime directive: GET /briefing each "
-            "turn, write every step back; if it isn't on the dashboard, it didn't happen.",
+        "resume_note": "Read `synthesis.headline` FIRST — the 30-second punchline ('X "
+            "because Y unless Z': what we can say NOW + the single biggest threat). Then "
+            "`synthesis.detail` for the warrant (what's established / contested / tried-and-"
+            "failed / open). THEN verify against the full `history`. THEN post your "
+            "resume_check (POST /projects/{id}/resume_check) so the platform confirms you "
+            "understood the state BEFORE you act. A DEGRADED/fail-loud headline = the "
+            "front-runner is fragile/borrowed, NOT an answer. Prime directive: GET "
+            "/briefing each turn, write every step back; if it isn't on the dashboard, it "
+            "didn't happen.",
         "synthesis": _resume_synthesis(data, briefing, pending_work, history),
         "project": data["project"],
         "hypotheses": data["hypotheses"],   # each with predictions + compute_runs
