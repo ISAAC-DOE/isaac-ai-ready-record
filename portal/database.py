@@ -450,6 +450,11 @@ def init_discovery_tables():
         # the auto element-matched candidate set): {include:[record_id], exclude:[]}.
         cur.execute("ALTER TABLE hyp_projects ADD COLUMN IF NOT EXISTS "
                     "evidence_overrides JSONB")
+        # The DATASET OF INTEREST: the human points the agent at the record set the
+        # project is about (so it doesn't have to divine scope from a 1M-record DB).
+        # {record_ids:[...], description, set_by, set_at}. Coverage is checked against
+        # it; the agent should use all of it (or justify) and may reach beyond.
+        cur.execute("ALTER TABLE hyp_projects ADD COLUMN IF NOT EXISTS dataset JSONB")
         # Project sharing: owner grants another portal identity read (or write)
         # access, so it shows in that user's Discovery tab when they log in.
         cur.execute('''

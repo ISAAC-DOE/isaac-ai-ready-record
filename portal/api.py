@@ -938,6 +938,20 @@ def discovery_evidence_overrides(project_id):
     return jsonify({"ok": True}), 200
 
 
+@app.route("/portal/api/projects/<project_id>/dataset", methods=["PUT"])
+@_require_auth
+def discovery_set_dataset(project_id):
+    d = request.get_json(silent=True) or {}
+    if not isinstance(d.get("record_ids"), list):
+        return jsonify({"error": "record_ids (list) is required"}), 400
+    ok = discovery.set_project_dataset(
+        project_id, d["record_ids"], description=d.get("description"),
+        owner_identity=_disc_identity(), actor=_disc_identity())
+    if not ok:
+        return jsonify({"error": "not found or not yours"}), 404
+    return jsonify({"ok": True, "n": len(d["record_ids"])}), 200
+
+
 @app.route("/portal/api/projects/<project_id>/share", methods=["POST"])
 @_require_auth
 def discovery_share_project(project_id):

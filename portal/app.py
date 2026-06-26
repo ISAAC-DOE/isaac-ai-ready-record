@@ -1771,10 +1771,14 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
                  _mc.get("compute_verdicts_missing_mlflow_trace")),
                 ("⚠ False precision (different confidence for observationally-identical rivals)",
                  _mc.get("false_precision_in_equivalence_class")),
+                ("📊 Declared-dataset records UNUSED (may break a confound)",
+                 _mc.get("dataset_records_unused")),
             ]
             for _lbl, _items in _issue_map:
                 if _items:
                     _issues.append((_lbl, _items))
+            if _mc.get("dataset_of_interest_undeclared"):
+                _issues.append(("No dataset of interest declared — scope not anchored", []))
             _rr = brief.get("rigor_review", {})
             _crit = _rr.get("open_findings", []) or []
             _n_checks = len(_issues) + len(_crit)
