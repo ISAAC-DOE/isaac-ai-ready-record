@@ -1670,6 +1670,20 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
             st.caption(f"⏳ **Pending** — {open_n} prediction(s) open · {running} compute "
                        f"running · {needs} hypothes(es) need more data")
 
+            # ---------- Convergence: progress = distance to a decision, not leader conf ----
+            _conv = brief.get("convergence", {})
+            if _conv.get("contested_clusters"):
+                _dd = _conv.get("decision_distance", 0)
+                _icon = ("🟢" if _dd <= 0.1 else "🟡" if _dd <= 0.2 else "🟠"
+                         if _dd < 0.8 else "🔴")
+                st.info(f"{_icon} **Decision distance {_dd}** — {_conv.get('headline','')}")
+                for _cl in _conv["contested_clusters"]:
+                    if _cl["state"] in ("blocked_on_experiment", "no_discriminating_test"):
+                        _be = (" → " + ", ".join(_cl["blocking_experiments"])
+                               if _cl.get("blocking_experiments") else "")
+                        st.caption(f"Contested: {', '.join(_cl['survivors'])} — "
+                                   f"{_cl['_reads']}{_be}")
+
             # ---------- Scientific-rigor check (live, from method_compliance) -------
             _mc = brief.get("method_compliance", {})
             _issues = []

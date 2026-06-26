@@ -83,6 +83,26 @@ here is specific to any one science.
    stay queryable — never overwrite a falsification. *Test:* if you can't name an
    observable on which old and new diverge, it's a refinement, not a new hypothesis.
 
+## Reading progress (convergence, not leader confidence)
+
+Discovery does not "keep one hypothesis high." Progress is **distance to a
+decision.** Two rivals that are *observationally identical* on all current data are
+a **settled phenomenon with an open sub-mechanism** — not "everything is weak."
+
+`briefing.convergence` reports contested clusters of surviving hypotheses and
+whether existing evidence can still separate them:
+- `blocked_on_experiment` — identical on current data, but a discriminating test is
+  registered (unrun). `decision_distance ≈ 0.2`: **run it.**
+- `no_discriminating_test` — identical *and* no test designed. `≈ 0.8`: **design
+  one.** (Worse than "one experiment away.")
+
+When survivors are observationally identical, **re-auditing the same data will not
+separate them — it only erodes confidence.** The platform redirects
+`recommended_actions` to the experiment; it **never freezes your confidences** (you
+keep updating them on real evidence). A rigor pass over *unchanged* evidence should
+be a no-op: don't re-deduct for a flaw already corrected. Confidence moves on new
+evidence / new hypotheses / corrected assumptions — not on how many times you look.
+
 ## Independent rigor review (the backstop)
 
 The automated checks above catch *missing* declarations. They cannot catch a

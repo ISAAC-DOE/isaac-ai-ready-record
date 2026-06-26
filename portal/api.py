@@ -1051,6 +1051,18 @@ def discovery_add_relation(hypothesis_id):
     return jsonify({"ok": True}), 201
 
 
+@app.route("/portal/api/hypotheses/<hypothesis_id>/relations", methods=["DELETE"])
+@_require_auth
+def discovery_delete_relation(hypothesis_id):
+    d = request.get_json(silent=True) or {}
+    if not d.get("to_hypothesis_id") or not d.get("relation_type"):
+        return jsonify({"error": "to_hypothesis_id and relation_type required"}), 400
+    n = discovery.delete_relation(
+        hypothesis_id, d["to_hypothesis_id"], d["relation_type"],
+        actor=_disc_identity())
+    return jsonify({"ok": True, "deleted": n}), 200
+
+
 @app.route("/portal/api/projects/<project_id>/rigor/findings", methods=["GET"])
 @_require_auth
 def discovery_list_rigor_findings(project_id):
