@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.42-provisional",
+        "version": "0.43-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -262,8 +262,13 @@ def get_manifest() -> dict:
                 "before a record is allowed to count.",
                 "6. RENDER a verdict per prediction (supports | contradicts | neutral | "
                 "insufficient | blocked) with a strength and EXPLICIT reasoning via "
-                "/evaluate. You do NOT set confidence — the platform COMPUTES it from "
-                "your verdicts (see scoring_model) and the ranking moves automatically.",
+                "/evaluate. CITE THE DATA: a supports/contradicts MUST attach the "
+                "evidence_record_ids it rests on AND/OR the compute_run that grounds it — "
+                "even when you derived a proxy from raw records, cite those records. A "
+                "decisive verdict not traceable to specific data is unauditable and floats "
+                "unconnected in the evidence graph. You do NOT set confidence — the platform "
+                "COMPUTES it from your verdicts (see scoring_model) and the ranking moves "
+                "automatically.",
                 "7. PROPOSE the single most discriminating next experiment via "
                 "/next_experiment.",
             ],
@@ -2166,7 +2171,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     matrix = []
     hyps_without_falsifier, preds_without_origin, preds_without_criterion = [], [], []
     circular_confirmations, supports_without_independence = [], []
-    high_conf_hyps, preds_missing_mlflow = [], []
+    high_conf_hyps, preds_missing_mlflow, preds_uncited = [], [], []
     hyps_below_min_preds, preds_missing_structure, hyps_single_descriptor = [], [], []
     unreliable_scores = []
     for h in hyps:
@@ -2223,6 +2228,14 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             if (p.get("work_status") == "evaluated" and _model_backed
                     and not p.get("mlflow_run_url")):
                 preds_missing_mlflow.append(_ptag)
+            # GROUNDING-IN-DATA: a DECISIVE verdict must be traceable to specific evidence —
+            # cited records and/or a compute run. An uncited verdict is unauditable (and
+            # floats unconnected in the evidence graph). Pure neutral/insufficient/blocked
+            # don't need a citation; supports/contradicts do.
+            if (p.get("work_status") == "evaluated"
+                    and normalize_verdict(p.get("verdict")) in ("supports", "contradicts")
+                    and not (p.get("evidence_record_ids") or p.get("compute_runs"))):
+                preds_uncited.append(_ptag)
             if p.get("discriminates"):
                 matrix.append({"prediction": p.get("label") or p.get("descriptor_name"),
                                "descriptor": p.get("descriptor_name"),
@@ -2422,6 +2435,15 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             f"Attach an mlflow_run_url to {len(preds_missing_mlflow)} compute/model-backed "
             "verdict(s) missing it — the MLflow run is the replay trace (dual-write: "
             "dashboard + MLflow).")
+    if preds_uncited:
+        _u = preds_uncited[:6]
+        recommended_actions.append(
+            f"CITE THE DATA: {len(preds_uncited)} decisive verdict(s) ({', '.join(_u)}) "
+            "attach NO evidence_record_ids AND NO compute_run — a supports/contradicts not "
+            "traceable to specific records or a calculation is UNAUDITABLE (and floats "
+            "unconnected in the evidence graph). For each, attach the record IDs it rests "
+            "on (even when you derived a proxy from raw records — cite those records) and/or "
+            "the compute_run that grounds it.")
     if open_findings:
         recommended_actions.append(
             f"Resolve {len(open_findings)} open rigor finding(s) "
@@ -2524,6 +2546,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "supersessions_without_discriminating_observable": supersedes_without_discriminator,
             "high_confidence_without_independent_review": high_confidence_without_review,
             "compute_verdicts_missing_mlflow_trace": preds_missing_mlflow,
+            "decisive_verdicts_uncited_to_data": preds_uncited,
             "dataset_records_unused": [r.get("material") or r.get("record_id")
                                        for r in dataset_coverage.get("unused_records", [])],
             "dataset_of_interest_undeclared": not dataset_coverage.get("declared"),
