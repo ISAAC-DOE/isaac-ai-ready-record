@@ -107,7 +107,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.20-provisional",
+        "version": "0.21-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "endpoint_paths_note": "Every endpoint `path` below is relative to "
             "`base_path` (e.g. base_path + '/projects'), NOT to this manifest's own "
@@ -424,6 +424,14 @@ def get_manifest() -> dict:
             {"m": "PUT", "path": "/projects/{id}/evidence_overrides",
              "purpose": "Curate the auto candidates: {include:[record_id], exclude:[...]}."},
             {"m": "POST", "path": "/projects", "purpose": "Create a project."},
+            {"m": "PUT", "path": "/projects/{id}/dataset",
+             "purpose": "Declare the DATASET OF INTEREST {record_ids:[...], description} "
+                        "— the curated record set the human pointed you at. Anchors "
+                        "scope; coverage is checked against it (briefing flags unused "
+                        "records). Use ALL of it or justify exclusions; you may still "
+                        "query the wider DB for corroborating data, but don't silently "
+                        "drop a declared record — a different geometry/composition/"
+                        "end-member may hold a discriminating contrast a confound hides."},
             {"m": "GET", "path": "/projects", "purpose": "List your projects."},
             {"m": "GET", "path": "/projects/{id}", "purpose": "Full project view."},
             {"m": "POST", "path": "/projects/{id}/hypotheses",
@@ -1519,6 +1527,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     convergence = compute_convergence(hyps, data.get("relations"),
                                       next_experiment=proj.get("next_experiment"))
     pending_work = get_pending_work(project_id)
+    dataset_coverage = compute_dataset_coverage(project_id, hyps, proj.get("dataset"))
 
     elements = extract_elements(proj.get("material_system"))
     ov = proj.get("evidence_overrides") or {}
@@ -1529,6 +1538,20 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     # the agent learns what to do next FROM THE BRIEFING, not from a bespoke human
     # prompt. Every action is a generic method/rigor step — never a science answer.
     recommended_actions = []
+    if not dataset_coverage.get("declared"):
+        recommended_actions.append(
+            "Declare the project's DATASET OF INTEREST (PUT /projects/{id}/dataset "
+            "{record_ids, description}) — anchor the record set this project is about "
+            "so scope is explicit and coverage can be checked.")
+    elif dataset_coverage.get("n_unused"):
+        _names = [r.get("material") or r.get("record_id")
+                  for r in dataset_coverage.get("unused_records", [])][:6]
+        recommended_actions.append(
+            f"COVERAGE: {dataset_coverage['n_unused']} of "
+            f"{dataset_coverage['n_dataset']} declared-dataset records are UNUSED "
+            f"({', '.join(str(n) for n in _names)}). Use them or justify excluding "
+            "each — a different geometry/composition/end-member may already hold the "
+            "discriminating contrast a confound is hiding.")
     if pending_work["items"]:
         recommended_actions.append(
             f"RECONCILE {pending_work['count']} pending external step(s) you started "
@@ -1623,6 +1646,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         "discrimination_matrix": matrix,
         "convergence": convergence,
         "pending_work": pending_work,
+        "dataset_coverage": dataset_coverage,
         "recommended_actions": recommended_actions,
         "method_compliance": {
             "_what": "Live check against the manifest `method` + epistemic_guardrails. "
@@ -1638,6 +1662,9 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "high_confidence_without_independent_review": high_confidence_without_review,
             "compute_verdicts_missing_mlflow_trace": preds_missing_mlflow,
             "false_precision_in_equivalence_class": convergence.get("false_precision", []),
+            "dataset_records_unused": [r.get("material") or r.get("record_id")
+                                       for r in dataset_coverage.get("unused_records", [])],
+            "dataset_of_interest_undeclared": not dataset_coverage.get("declared"),
         },
         "rigor_review": rigor_review,
         "evidence_index": _evidence_summary(evidence_index),
@@ -2303,6 +2330,67 @@ def set_evidence_overrides(project_id, *, include=None, exclude=None,
     finally:
         cur.close()
         conn.close()
+
+
+def set_project_dataset(project_id, record_ids, *, description=None,
+                        owner_identity=None, actor=None) -> bool:
+    """Declare the project's DATASET OF INTEREST — the curated record set the human
+    points the agent at. Anchors scope (so the agent isn't divining it from a huge
+    DB) and is what coverage is checked against. The agent should use ALL of it (or
+    justify exclusions) and may still reach beyond it for corroborating data."""
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT owner_identity FROM hyp_projects WHERE project_id=%s",
+                    (project_id,))
+        row = cur.fetchone()
+        if row is None or (owner_identity is not None
+                           and row["owner_identity"] != owner_identity):
+            return False
+        ids = sorted({str(x) for x in (record_ids or []) if x})
+        cur.execute("UPDATE hyp_projects SET dataset=%s, updated_at=NOW() "
+                    "WHERE project_id=%s",
+                    (json.dumps({"record_ids": ids, "description": description,
+                                 "set_by": actor, "set_at": _now_iso()}), project_id))
+        _append_event(cur, project_id, "status_changed",
+                      f"Dataset of interest set: {len(ids)} record(s)"
+                      + (f" — {description[:80]}" if description else ""),
+                      actor=actor)
+        conn.commit()
+        return True
+    finally:
+        cur.close()
+        conn.close()
+
+
+def compute_dataset_coverage(project_id, hyps, dataset) -> dict:
+    """Coverage of the declared dataset of interest: which of its records the agent
+    has actually cited as evidence, and which remain unused (shown by material name
+    so a different geometry/composition/end-member that may break a confound is
+    obvious). Generic — it only compares cited record_ids to the declared set."""
+    ds_ids = set((dataset or {}).get("record_ids") or [])
+    if not ds_ids:
+        return {"declared": False,
+                "_note": "No dataset of interest declared. Point the project at its "
+                         "record set (PUT /projects/{id}/dataset {record_ids, "
+                         "description}) so scope is explicit and coverage is checked."}
+    cited = {rid for h in hyps for p in h["predictions"]
+             for rid in (p.get("evidence_record_ids") or [])}
+    unused = sorted(ds_ids - cited)
+    summaries = resolve_record_summaries(unused) if unused else {}
+    return {
+        "declared": True,
+        "n_dataset": len(ds_ids),
+        "n_used": len(ds_ids & cited),
+        "n_unused": len(unused),
+        "unused_records": [{"record_id": rid,
+                            "material": (summaries.get(rid) or {}).get("material")}
+                           for rid in unused],
+        "_note": ("Use ALL of the declared dataset (or justify excluding a record). "
+                  "Unused records — especially DIFFERENT geometries/compositions or "
+                  "end-members — may carry the discriminating contrast a confound "
+                  "hides, so don't silently drop them."),
+    }
 
 
 def get_evidence(project_id, owner_identity=None, descriptor=None) -> dict | None:
