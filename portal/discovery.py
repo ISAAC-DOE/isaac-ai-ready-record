@@ -2028,6 +2028,7 @@ def get_pending_work(project_id) -> dict:
                  JOIN hyp_hypotheses h ON h.hypothesis_id = p.hypothesis_id
                 WHERE h.project_id=%s AND r.status IN ('queued','running')
                 ORDER BY r.created_at DESC""", (project_id,))
+        _seen_pred = set()
         for r in cur.fetchall():
             items.append({"kind": "compute", "ref": r.get("slurm_job_id"),
                           "summary": f"{r.get('backend') or ''} {r.get('engine') or ''}".strip()
@@ -2036,6 +2037,24 @@ def get_pending_work(project_id) -> dict:
                           "started_at": (r["created_at"].isoformat()
                                          if hasattr(r["created_at"], "isoformat")
                                          else str(r["created_at"]))})
+        # Also catch predictions the agent left mid-compute WITHOUT a run row — a
+        # submitted calc (NERSC etc.) that never came back. This is the common
+        # 'left pending when the last turn ended' case.
+        cur.execute(
+            """SELECT p.descriptor_name, p.work_status, p.updated_at, p.mlflow_run_url
+                 FROM hyp_predictions p
+                 JOIN hyp_hypotheses h ON h.hypothesis_id = p.hypothesis_id
+                WHERE h.project_id=%s
+                  AND p.work_status IN ('compute_submitted','compute_running')
+                ORDER BY p.updated_at DESC""", (project_id,))
+        for r in cur.fetchall():
+            items.append({"kind": "compute", "ref": None,
+                          "summary": f"prediction '{r.get('descriptor_name') or '?'}' "
+                                     f"awaiting result",
+                          "status": r["work_status"], "poll_hint": r.get("mlflow_run_url"),
+                          "started_at": (r["updated_at"].isoformat()
+                                         if hasattr(r["updated_at"], "isoformat")
+                                         else str(r["updated_at"]))})
     finally:
         cur.close()
         conn.close()
@@ -2043,10 +2062,9 @@ def get_pending_work(project_id) -> dict:
         "items": items,
         "count": len(items),
         "resumable": bool(items),
-        "_note": ("External steps were started but not yet reconciled. If you resume "
-                  "this project with an agent after they complete, it can poll and "
-                  "ingest the results — worth doing. Nothing here = the project is "
-                  "fully reconciled, nothing pending."),
+        "_note": ("External steps started but not yet reconciled (literature query / "
+                  "submitted calc). Resume the project with an agent to poll and ingest "
+                  "them. Empty = fully reconciled, nothing pending."),
     }
 
 
