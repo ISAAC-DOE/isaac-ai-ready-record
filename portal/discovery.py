@@ -41,6 +41,7 @@ EVENT_TYPES = {
     "ranking_updated", "status_changed", "next_experiment_proposed",
     "evidence_ingested", "agent_message", "project_created",
     "compute_submitted", "compute_running", "compute_failed",
+    "reasoning_step", "resume_check",
 }
 
 # Prediction workflow lifecycle (distinct from `verdict`, the scientific
@@ -149,7 +150,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.33-provisional",
+        "version": "0.34-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -530,17 +531,24 @@ def get_manifest() -> dict:
                 "non-issues. Surfaced live in briefing.rigor_review; later, open "
                 "critical findings will block 'supported'.",
         },
-        "resume_protocol": "To CONTINUE an existing project from a cold start (a "
-            "fresh agent with no prior memory): GET /projects to find it, then GET "
-            "/projects/{id}/context — a single call returning the full current state "
-            "PLUS the entire step-by-step reasoning history (every hypothesis, "
-            "prediction, verdict, compute run, with detail) PLUS the briefing. Read it "
-            "all to reconstruct exactly how the project got here before you act. The "
-            "briefing alone is a per-turn digest, not the full history — use /context "
-            "to resume. FIRST thing on resume: check briefing.pending_work — async "
-            "steps a prior turn started (a literature query, a submitted calc) but "
-            "couldn't await. Poll & ingest each, then PUT /async/{id} done. That is "
-            "usually the whole reason to resume.",
+        "resume_protocol": "To CONTINUE an existing project from a cold start (a fresh "
+            "agent with no prior memory): GET /projects to find it, then GET "
+            "/projects/{id}/context. Read it in THIS order: (1) `synthesis` FIRST — a "
+            "SERVER-COMPOSED state of the project (what's established, what's still "
+            "contested, what was tried-and-failed so you don't repeat it, the open loops, "
+            "and `how_to_read_this` — how to interpret the numbers). (2) Then VERIFY the "
+            "synthesis against the full `history` (every step, with detail). (3) Then "
+            "POST /projects/{id}/resume_check with what YOU believe the state is "
+            "({hypotheses:[{label, status}], open_question, next_step}) — the platform "
+            "DIFFS your understanding against the computed ground truth and returns any "
+            "mismatches you must RECONCILE before acting. The #1 resume error is calling "
+            "an unreliable front-runner 'established' — it is UNDETERMINED until ≥2 "
+            "independent decisive verdicts. (4) Check synthesis.open_loops / "
+            "briefing.pending_work — async steps a prior turn started (a literature query, "
+            "a submitted/queued calc, a compute_failed re-run) but couldn't await; poll & "
+            "ingest each. That is usually the whole reason to resume. Log your reasoning "
+            "as you go (POST /events event_type='reasoning_step') so the NEXT resume "
+            "inherits your thinking, not just your state changes.",
         "auth": {"scheme": "Bearer", "header": "Authorization: Bearer <token>",
                  "obtain": "portal API Keys page; user must be in an allowed group"},
         "getting_started": {
@@ -649,10 +657,19 @@ def get_manifest() -> dict:
              "purpose": "Curated ground-truth digest (incl. evidence-index summary, "
                         "discrimination matrix) — READ THIS FIRST each turn."},
             {"m": "GET", "path": "/projects/{id}/context",
-             "purpose": "ONE-SHOT RESUME bundle: full state + the ENTIRE step-by-step "
-                        "reasoning history (every event, with detail) + the briefing. "
-                        "A fresh agent with no prior context calls this FIRST to fully "
-                        "reconstruct an existing project before continuing."},
+             "purpose": "ONE-SHOT RESUME bundle: a server-composed `synthesis` (read "
+                        "FIRST) + full state + the ENTIRE step-by-step reasoning history "
+                        "(every event, with detail) + the briefing. A fresh agent with no "
+                        "prior context calls this FIRST to reconstruct an existing project. "
+                        "See resume_protocol for the read order."},
+            {"m": "POST", "path": "/projects/{id}/resume_check",
+             "purpose": "COMPREHENSION CHECK on resume: post what YOU believe the state is "
+                        "{hypotheses:[{label, status:refuted|supported|contested|"
+                        "undetermined}], open_question?, next_step?}; the platform DIFFS it "
+                        "against the computed ground truth and returns mismatches to "
+                        "RECONCILE + open loops to address. Do this AFTER reading "
+                        "context.synthesis, BEFORE you act. Catches the #1 error: calling "
+                        "an unreliable front-runner 'established'."},
             {"m": "GET", "path": "/projects/{id}/evidence",
              "purpose": "Exhaustive descriptor-keyed evidence index (element-matched "
                         "candidates, reaction annotated). ?descriptor=<name> to narrow. "
@@ -778,7 +795,10 @@ def get_manifest() -> dict:
         ],
         "per_turn_loop": [
             "GET /briefing", "reason", "write each move (hypotheses/predictions/"
-            "evaluate/status)", "POST /events per step", "PUT /next_experiment"],
+            "evaluate/status)",
+            "POST /events per step — including event_type='reasoning_step' to record the "
+            "WHY (not just the state change), so a future resume inherits your thinking",
+            "PUT /next_experiment"],
         "compute_loop": [
             "FIRST query isaac_data_sources (+ literature) for an EXISTING value — don't "
             "recompute what's archived",
@@ -3051,12 +3071,85 @@ def get_evidence(project_id, owner_identity=None, descriptor=None) -> dict | Non
     return {"project_id": project_id, "elements": elems, "evidence_index": index}
 
 
+def _resume_synthesis(data, briefing, pending_work, history) -> dict:
+    """SERVER-COMPOSED 'state of the project' for a resuming/cold-start agent — the
+    WHAT and WHY distilled from the live data, so a fresh agent orients from a grounded
+    narrative instead of reconstructing it unaided from raw events. The lossless history
+    stays in `history`; this is the MAP to it (and how to read the numbers correctly)."""
+    hyps = data.get("hypotheses", []) or []
+    scored = [(h, compute_hypothesis_score({"predictions": h.get("predictions", []),
+                                            "grounding": h.get("grounding")})) for h in hyps]
+    _dead = ("eliminated", "superseded")
+    live = [(h, sc) for h, sc in scored if (h.get("status") or "proposed") not in _dead]
+    leader = None
+    if live:
+        h, sc = max(live, key=lambda x: x[1]["computed_confidence"])
+        leader = {"label": h.get("label"), "confidence": sc["computed_confidence"],
+                  "reliable": sc["reliable"],
+                  "caveat": None if sc["reliable"] else
+                  "front-runner but UNRELIABLE (<2 independent decisive verdicts) — "
+                  "UNDETERMINED, not an established answer."}
+    established = []
+    for h, sc in scored:
+        c = sc["computed_confidence"]
+        if sc["reliable"] and c <= 0.2:
+            established.append({"label": h.get("label"), "conclusion": "refuted",
+                                "confidence": c, "n_decisive": sc["n_decisive"]})
+        elif sc["reliable"] and c >= 0.8:
+            established.append({"label": h.get("label"), "conclusion": "supported",
+                                "confidence": c, "n_decisive": sc["n_decisive"]})
+    conv = (briefing or {}).get("convergence", {}) or {}
+    contested = [{"members": cl.get("survivors") or [m.get("label") for m in cl.get("members", [])],
+                  "state": cl.get("state"),
+                  "discriminating_test": cl.get("blocking_experiments")}
+                 for cl in conv.get("contested_clusters", [])]
+    failed_compute, blocked, running = [], [], []
+    for h in hyps:
+        for p in h.get("predictions", []):
+            tag = f"{h.get('label')}/{p.get('descriptor_name') or '?'}"
+            if p.get("work_status") == "compute_failed":
+                failed_compute.append(tag)
+            if normalize_verdict(p.get("verdict")) == "blocked":
+                blocked.append(tag)
+            for r in (p.get("compute_runs") or []):
+                if r.get("status") in ("queued", "running"):
+                    running.append(f"{tag}: {r.get('engine') or r.get('backend') or 'compute'}")
+    superseded = [h.get("label") for h in hyps if (h.get("status") or "") == "superseded"]
+    recent_reasoning = [f"{e.get('summary')}" for e in reversed(history or [])
+                        if e.get("event_type") in ("reasoning_step", "agent_message")][:5]
+    nx = data.get("next_experiment") or {}
+    return {
+        "_what": "SERVER-COMPOSED state of the project — read THIS first to orient, then "
+                 "verify against the full `history`. Derived from live data, not authored.",
+        "goal": (data.get("project") or {}).get("goal"),
+        "leader": leader,
+        "established": established,
+        "still_contested": contested,
+        "decision_distance": conv.get("decision_distance"),
+        "tried_and_failed": {"compute_failed_rerun_todo": failed_compute,
+                             "blocked_incomparable": blocked, "superseded": superseded},
+        "open_loops": {"pending": [i.get("summary") for i in pending_work.get("items", [])],
+                       "compute_running": running,
+                       "next_experiment": nx.get("descriptor") or nx.get("method")},
+        "recent_reasoning": recent_reasoning,
+        "top_actions": (briefing or {}).get("recommended_actions", [])[:4],
+        "how_to_read_this": (
+            "Confidence is COMPUTED from the prediction verdicts (never authored). "
+            "0.5 ≈ untested prior. A hypothesis is RELIABLE only with ≥2 INDEPENDENT "
+            "decisive (supports/contradicts) verdicts — below that it is UNDETERMINED, "
+            "NOT refuted. 'established' = reliably supported/refuted; the leader may be "
+            "unreliable (front-runner, not a conclusion). compute_failed = a crashed calc "
+            "to re-run (no score effect). blocked = method-incompatible evidence, "
+            "excluded. Do NOT re-run anything under tried_and_failed."),
+    }
+
+
 def get_context(project_id, owner_identity=None) -> dict | None:
     """ONE-SHOT complete context for a COLD-STARTING agent resuming a project it
-    has never seen: full current state + the ENTIRE step-by-step reasoning history
-    (every event, with detail, chronological — not the briefing's recent slice) +
-    the curated briefing (which carries the evidence-index summary and the
-    discrimination matrix). Read-access enforced via get_project."""
+    has never seen: a server-composed `synthesis` (read first) + full current state +
+    the ENTIRE step-by-step reasoning history (every event, with detail, chronological)
+    + the curated briefing (evidence-index + discrimination matrix). Read-access
+    enforced via get_project."""
     data = get_project(project_id, owner_identity=owner_identity)
     if data is None:
         return None
@@ -3070,11 +3163,17 @@ def get_context(project_id, owner_identity=None) -> dict | None:
     finally:
         cur.close()
         conn.close()
+    briefing = get_briefing(project_id, owner_identity=owner_identity)
+    pending_work = get_pending_work(project_id)
     return {
-        "resume_note": "Complete project context for a fresh agent. Read the full "
-            "state and the entire `history` below to reconstruct how the project got "
-            "here, then follow the prime directive: GET /briefing each turn, write "
-            "every step back. If it isn't on the dashboard, it didn't happen.",
+        "resume_note": "Read `synthesis` FIRST — it is the server-composed state of the "
+            "project (what's established, what's still contested, what was tried-and-"
+            "failed, the open loops, and how to read the numbers). THEN verify it against "
+            "the full `history`. THEN post your resume_check (POST /projects/{id}/"
+            "resume_check — see manifest.resume_protocol) so the platform confirms you "
+            "understood the state BEFORE you act. Prime directive: GET /briefing each "
+            "turn, write every step back; if it isn't on the dashboard, it didn't happen.",
+        "synthesis": _resume_synthesis(data, briefing, pending_work, history),
         "project": data["project"],
         "hypotheses": data["hypotheses"],   # each with predictions + compute_runs
         "relations": data["relations"],
@@ -3083,9 +3182,119 @@ def get_context(project_id, owner_identity=None) -> dict | None:
         "history": history,                 # ALL steps, chronological, full detail
         "confidence_history": get_confidence_history(project_id,
                                                      owner_identity=owner_identity),
-        "pending_work": get_pending_work(project_id),  # resumable loose threads
-        "briefing": get_briefing(project_id, owner_identity=owner_identity),
+        "pending_work": pending_work,       # resumable loose threads
+        "briefing": briefing,
     }
+
+
+# --- Resume comprehension check (verify the agent understood before it acts) ---
+
+_RESUME_STATUS = {"refuted", "supported", "contested", "undetermined"}
+_RESUME_STATUS_SYNONYMS = {
+    "eliminated": "refuted", "ruled_out": "refuted", "rejected": "refuted",
+    "falsified": "refuted", "dead": "refuted",
+    "established": "supported", "confirmed": "supported", "accepted": "supported",
+    "proven": "supported", "leading": "supported", "winner": "supported",
+    "tied": "contested", "equivalence": "contested", "equivalence_class": "contested",
+    "front_runner": "undetermined", "frontrunner": "undetermined",
+    "unreliable": "undetermined", "open": "undetermined", "inconclusive": "undetermined",
+    "unresolved": "undetermined", "uncertain": "undetermined", "proposed": "undetermined",
+}
+
+
+def _canon_resume_status(s) -> str:
+    s = str(s or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if s in _RESUME_STATUS:
+        return s
+    return _RESUME_STATUS_SYNONYMS.get(s, s or "undetermined")
+
+
+def _true_status_from_ranking(r, contested_labels) -> str:
+    """The platform's ground-truth standing for a hypothesis, in the resume vocabulary.
+    'leading' is deliberately NOT a true status — a front-runner that isn't reliable is
+    UNDETERMINED, the distinction a resuming agent most often gets wrong."""
+    if (r.get("status") or "") in ("eliminated", "superseded"):
+        return "refuted"
+    if r.get("label") in contested_labels:
+        return "contested"
+    c = r.get("computed_confidence", r.get("confidence")) or 0.0
+    if r.get("reliable") and c <= 0.2:
+        return "refuted"
+    if r.get("reliable") and c >= 0.8:
+        return "supported"
+    return "undetermined"
+
+
+def submit_resume_check(project_id, understanding, *, actor=None) -> dict | None:
+    """A resuming agent posts what it BELIEVES the state is; the platform diffs that
+    against the computed ground truth and returns a comprehension report. This verifies
+    understanding instead of assuming it — the most common resume error is calling an
+    unreliable front-runner 'established'. `understanding` =
+      {hypotheses:[{label, status}], open_question?, next_step?}.
+    Returns the report (also journaled as a resume_check event), or None if not found."""
+    briefing = get_briefing(project_id, owner_identity=actor)
+    if briefing is None:
+        return None
+    ranking = briefing.get("ranking", [])
+    contested = set()
+    for cl in (briefing.get("convergence", {}) or {}).get("contested_clusters", []):
+        contested.update(m.get("label") for m in cl.get("members", []))
+        contested.update(cl.get("survivors") or [])
+    truth = {r["label"]: _true_status_from_ranking(r, contested) for r in ranking}
+    claimed = {c.get("label"): _canon_resume_status(c.get("status"))
+               for c in (understanding.get("hypotheses") or []) if c.get("label")}
+
+    matches, mismatches = [], []
+    for label, true_st in truth.items():
+        if label not in claimed:
+            mismatches.append({"label": label, "you_said": "(omitted)",
+                               "computed_truth": true_st,
+                               "note": "you didn't address this hypothesis"})
+        elif claimed[label] != true_st:
+            mismatches.append({"label": label, "you_said": claimed[label],
+                               "computed_truth": true_st,
+                               "note": ("an unreliable front-runner is UNDETERMINED, not "
+                                        "established" if true_st == "undetermined"
+                                        else "reconcile to the computed standing")})
+        else:
+            matches.append(label)
+    unknown = [l for l in claimed if l not in truth]
+
+    # Open loops the agent's plan must not silently drop.
+    pend = get_pending_work(project_id)
+    open_loops = [i.get("summary") for i in pend.get("items", [])]
+
+    aligned = not mismatches and not unknown
+    report = {
+        "aligned": aligned,
+        "matches": matches,
+        "mismatches": mismatches,
+        "unknown_labels": unknown,
+        "open_loops_to_address": open_loops,
+        "_note": ("RECONCILE every mismatch before you act — the dashboard is ground "
+                  "truth, your recollection is not. 'undetermined' means <2 independent "
+                  "decisive verdicts (a front-runner is NOT an established answer). Make "
+                  "sure your next_step addresses the open_loops_to_address."
+                  if not aligned else
+                  "Your understanding matches the computed state. Address the "
+                  "open_loops_to_address and proceed."),
+    }
+    # Journal it (best-effort) so the comprehension pass is itself on the dashboard.
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT 1 FROM hyp_projects WHERE project_id=%s", (project_id,))
+        if cur.fetchone() is not None:
+            _append_event(cur, project_id, "resume_check",
+                          f"Resume comprehension check — "
+                          f"{'aligned' if aligned else str(len(mismatches)) + ' mismatch(es)'}",
+                          detail=json.dumps({"understanding": understanding,
+                                             "report": report})[:4000], actor=actor)
+            conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+    return report
 
 
 # --- Provenance (READ-ONLY against the records DB) -------------------------

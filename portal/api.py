@@ -913,6 +913,22 @@ def discovery_context(project_id):
     return jsonify(ctx), 200
 
 
+@app.route("/portal/api/projects/<project_id>/resume_check", methods=["POST"])
+@_require_auth
+def discovery_resume_check(project_id):
+    """A resuming agent posts what it believes the state is; the platform diffs it
+    against the computed ground truth and returns a comprehension report (mismatches to
+    reconcile + open loops to address). Body: {hypotheses:[{label, status}],
+    open_question?, next_step?}."""
+    d = request.get_json(silent=True) or {}
+    if not isinstance(d.get("hypotheses"), list) or not d["hypotheses"]:
+        return jsonify({"error": "hypotheses: [{label, status}] is required"}), 400
+    report = discovery.submit_resume_check(project_id, d, actor=_disc_identity())
+    if report is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(report), 200
+
+
 @app.route("/portal/api/projects/<project_id>/evidence", methods=["GET"])
 @_require_auth
 def discovery_evidence(project_id):
