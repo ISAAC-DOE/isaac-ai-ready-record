@@ -51,8 +51,10 @@ re-checks it every turn.
    these into the cross-hypothesis discrimination matrix.
 5. **Gather method-compatible evidence** per prediction (records corpus, literature,
    compute), gating on methodological compatibility before a record counts.
-6. **Render a verdict** per prediction (`supports | contradicts | neutral`) with
-   strength and explicit reasoning; move hypothesis confidence + `confidence_basis`.
+6. **Render a verdict** per prediction (`supports | contradicts | neutral |
+   insufficient | blocked`) with strength and explicit reasoning. You do **not**
+   author a confidence number — the platform recomputes the hypothesis's confidence
+   from its prediction verdicts on every `/evaluate`.
 7. **Propose the single most discriminating next experiment.**
 
 **Non-negotiables:** every hypothesis falsifiable with ≥1 falsifying prediction;
@@ -143,11 +145,12 @@ the records DB — referenced read-only, never written from here.
 ## State machines
 
 - **Hypothesis `status`:** `proposed → supported | eliminated | needs_more_data | superseded`
-  (set via `PUT /hypotheses/{id}` with `confidence` 0–1 and `confidence_basis`).
+  (set via `PUT /hypotheses/{id}` — **status only**; any `confidence` sent is ignored,
+  the platform computes it from the prediction verdicts).
 - **Prediction `work_status`** (drives the Validation board):
   `awaiting_evidence → more_work_pending → compute_submitted → compute_running → evaluated`.
 - **Prediction `verdict`** (the scientific outcome, set at `evaluated`):
-  `supports | contradicts | neutral | insufficient`, with `strength` `strong|moderate|weak`.
+  `supports | contradicts | neutral | insufficient | blocked`, with `strength` `strong|moderate|weak`.
 
 `work_status` and `verdict` are **orthogonal**: one says where in the pipeline a
 prediction is, the other says what it concluded.
@@ -160,7 +163,7 @@ GET /projects/{id}/briefing            # ground yourself
 POST /projects/{id}/hypotheses         # a new idea
 POST /hypotheses/{id}/predictions      # a testable consequence
 PUT  /predictions/{id}/evaluate        # got data → verdict + evidence_record_ids + mlflow_run_url
-PUT  /hypotheses/{id}                   # ranking changed → status/confidence
+PUT  /hypotheses/{id}                   # ranking changed → status only (confidence is computed)
 PUT  /projects/{id}/next_experiment    # the discriminating next step
 POST /projects/{id}/events             # one line per reasoning step (transcript)
 ```
@@ -230,10 +233,12 @@ comparable). State the prediction's `output_quantity`; the dashboard resolves ea
 evidence record's method from the records DB and flags incompatible comparisons. A
 verdict resting on a mismatch is surfaced as a warning, not trusted silently.
 
-**Verdicts are atomic; the confidence rollup is a separate, swappable step.** Write
-each verdict via `/evaluate`. Updating a hypothesis's confidence/status from its
-verdicts is a distinct, auditable reasoning step (heuristic net-score now; Bayesian
-posterior is roadmap). Don't fold them together.
+**Verdicts are atomic; the confidence rollup is the platform's job, not yours.** Write
+each verdict via `/evaluate`. On every verdict the platform recomputes the
+hypothesis's confidence from the full prediction set (log-odds aggregation: supports
+add, contradicts subtract more heavily, neutral mild-negative, blocked excluded,
+insufficient no-op; unreliable below 2 decisive verdicts) and stores it. You never
+author or PUT a confidence number — you only render verdicts and set `status`.
 
 **The briefing-5 (the next increment).** The ground-truth digest will always show,
 at the top: (1) goal; (2) ranking + confidence; (3) an **evidence index keyed by

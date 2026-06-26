@@ -1437,14 +1437,15 @@ elif page == "Discovery":
             op = 0.45 if dead else 1.0
             _sc = ""
             if score is not None:
-                _cc = score.get("computed_confidence")
-                _n = score.get("n_scored", 0)
+                _n = score.get("n_decisive", score.get("n_scored", 0))
+                _nb = score.get("n_blocked", 0)
                 if not score.get("reliable") and not dead:
-                    _sc = (f" <span style='color:#e0726a'>· ⚠ {_n} scored pred"
-                           f"{'s' if _n != 1 else ''} — score unreliable</span>")
+                    _sc = (f" <span style='color:#e0726a'>· ⚠ {_n} decisive verdict"
+                           f"{'s' if _n != 1 else ''} — unreliable</span>")
                 else:
-                    _sc = (f" <span style='color:#888'>· computed {_cc:.2f} "
-                           f"(n={_n})</span>")
+                    _sc = (f" <span style='color:#888'>· {_n} decisive"
+                           + (f", {_nb} blocked" if _nb else "")
+                           + f", coverage {score.get('coverage', 0):.0%}</span>")
             return (
                 f"<div style='margin:5px 0;opacity:{op}'>"
                 f"<div style='font-size:0.85em'>"
@@ -2013,15 +2014,10 @@ requestAnimationFrame(loop);
                         _be = (" → " + ", ".join(_cl["blocking_experiments"])
                                if _cl.get("blocking_experiments") else "")
                         if _cl.get("equivalence_class"):
-                            _mc_str = ", ".join(f"{m['label']} {m['confidence']:.2f}"
-                                                for m in _cl.get("members", []))
                             st.caption(f"⚖️ **Equivalence class** {{{', '.join(_cl['survivors'])}}} "
                                        f"— observationally identical on current data, so "
-                                       f"this is ONE class, not a ranking{_be}")
-                            if _cl.get("false_precision"):
-                                st.caption(f"⚠ **False precision** — reported as "
-                                           f"{_mc_str}, but the data can't justify the "
-                                           f"{_cl['confidence_spread']:.2f} gap.")
+                                       f"this is ONE class, decided only by the "
+                                       f"experiment{_be}")
                         else:
                             st.caption(f"Contested: {', '.join(_cl['survivors'])} — "
                                        f"{_cl['_reads']}{_be}")
@@ -2034,12 +2030,10 @@ requestAnimationFrame(loop);
             _issue_map = [
                 ("Hypotheses with no falsifying prediction",
                  _mc.get("hypotheses_without_falsifying_prediction")),
-                ("⚠ UNRELIABLE score — <2 scored predictions (can't validate/falsify)",
+                ("⚠ UNRELIABLE score — <2 decisive verdicts (can't validate/falsify)",
                  _mc.get("unreliable_scores_too_few_predictions")),
                 ("Hypotheses with too FEW predictions (need a set ≥2, aim 3-4)",
                  _mc.get("hypotheses_below_min_predictions")),
-                ("Authored confidence diverges from the computed (prediction-based) score",
-                 _mc.get("authored_confidence_far_from_computed")),
                 ("Hypotheses whose predictions all use ONE descriptor (impoverished)",
                  _mc.get("hypotheses_with_single_descriptor")),
                 ("Predictions missing structured fields (direction/reference/magnitude)",
@@ -2059,8 +2053,6 @@ requestAnimationFrame(loop);
                  _mc.get("high_confidence_without_independent_review")),
                 ("Compute/model verdicts missing an MLflow replay trace",
                  _mc.get("compute_verdicts_missing_mlflow_trace")),
-                ("⚠ False precision (different confidence for observationally-identical rivals)",
-                 _mc.get("false_precision_in_equivalence_class")),
                 ("📊 Declared-dataset records UNUSED (may break a confound)",
                  _mc.get("dataset_records_unused")),
             ]
@@ -2123,9 +2115,9 @@ requestAnimationFrame(loop);
                     for _a in _recs:
                         st.markdown(f"- {_a}")
 
-            st.markdown("**Hypothesis ranking** — bar = authored confidence; "
-                        "*computed* = the score aggregated from the predictions "
-                        "(⚠ unreliable when <2 scored predictions)")
+            st.markdown("**Hypothesis ranking** — confidence is **computed** from the "
+                        "prediction verdicts (not authored); ⚠ unreliable when <2 "
+                        "decisive verdicts")
             st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
                                      h["status"], _hcolor.get(h["label"], "#C97A3C"),
                                      score=discovery.compute_hypothesis_score(h))
@@ -2455,8 +2447,9 @@ requestAnimationFrame(loop);
                         if _ver > 1:
                             st.caption(f"Refined in place to version {_ver} "
                                        "(same hypothesis, sharpened — not a new node).")
-                        if h.get("confidence_basis"):
-                            st.caption(f"Confidence basis: {h['confidence_basis']}")
+                        _hsc = discovery.compute_hypothesis_score(h)
+                        st.caption(f"Confidence {float(h['confidence'] or 0):.2f} — "
+                                   f"computed from verdicts: {_hsc['note']}")
                         st.markdown("**How it was formed / provenance**")
                         org = h.get("origin")
                         if isinstance(org, dict) and org:
