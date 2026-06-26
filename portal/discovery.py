@@ -149,7 +149,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.32-provisional",
+        "version": "0.33-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -275,6 +275,16 @@ def get_manifest() -> dict:
                 "enforced later). They apply in ANY field — they are about the logic of "
                 "evidence, not about any particular science.",
             "use_novelty": {
+                "the_number_one_error": "⚠ THE most common mistake on this platform: "
+                    "marking a strong trend 'neutral'/'circular' BECAUSE IT MOTIVATED THE "
+                    "HYPOTHESIS. STOP — that is INSPIRATION, not accommodation, and it is "
+                    "NOT a use-novelty violation. Before you ever downgrade a verdict citing "
+                    "'circular' or 'it motivated the hypothesis', apply this test: is there "
+                    "FITTED-PARAMETER OVERLAP (a model knob tuned to the very datum, "
+                    "declared in evidence_independence)? If NO overlap → it is NOT circular; "
+                    "decide its weight by DISCRIMINATION instead (do rivals predict it too? "
+                    "→ weak; only THIS hypothesis? → strong). Do not write 'neutral "
+                    "(circular — motivated the hypothesis)'; that exact phrasing is the bug.",
                 "rule": "Use-novelty bites on ACCOMMODATION, not INSPIRATION — this is the "
                     "single most important correction. ACCOMMODATION = a model/hypothesis "
                     "with a FREE PARAMETER tuned until it reproduces a datum you already "
@@ -479,11 +489,20 @@ def get_manifest() -> dict:
                 "where a model's FREE PARAMETERS were tuned to the very data it is tested "
                 "against (fitted-parameter overlap), OR an 'ad_hoc' hypothesis is confirmed "
                 "on its own fit data. Do NOT flag a standing/literature mechanism just "
-                "because a trend inspired it — that is genuinely tested by the trend. "
-                "Conversely, AUDIT grounding: a hypothesis claimed 'standing_prior' with no "
-                "independent literature source, or really parameterised from this dataset, "
-                "is mis-grounded (category grounding_misclassification) — it should be "
-                "ad_hoc and face the discount.\n"
+                "because a trend inspired it — that is genuinely tested by the trend.\n"
+                "  • INVERSE USE-NOVELTY ERROR (catch this — it is the #1 real mistake): a "
+                "'neutral'/'insufficient' verdict whose justification is 'circular' or 'it "
+                "motivated the hypothesis' BUT which has NO fitted-parameter overlap. That "
+                "is inspiration mislabeled as accommodation — the agent threw away good "
+                "evidence. Re-evaluate it by DISCRIMINATION: if rivals also predict the "
+                "observation it is genuinely weak/non-discriminating (verdict OK, but say "
+                "so for the right reason); if only THIS hypothesis predicts it, it was a "
+                "WRONGLY-SUPPRESSED 'supports' — post a finding (category use_novelty) to "
+                "re-evaluate it.\n"
+                "  • GROUNDING: a hypothesis claimed 'standing_prior' with no independent "
+                "literature source, or really parameterised from this dataset, is "
+                "mis-grounded (category grounding_misclassification) — it should be ad_hoc "
+                "and face the discount.\n"
                 "  • INDIVIDUATION: a `supersedes` that is really a refinement (no genuine "
                 "discriminating observable), or a 'new' hypothesis that only renames an "
                 "old one.\n"
