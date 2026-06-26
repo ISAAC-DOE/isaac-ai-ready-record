@@ -1195,10 +1195,12 @@ def compute_convergence(hyps, relations, next_experiment=None) -> dict:
              if h["status"] not in ("eliminated", "superseded")}
     label = {h["hypothesis_id"]: h["label"] for h in hyps}
 
-    # contested clusters = connected components of competes_with among survivors
+    # contested clusters = connected components of competes_with among survivors.
+    # ONLY competes_with — `co_operating` hypotheses work together, they are not
+    # rivals in a discriminating contest and must not be pulled into the cluster.
     adj = {hid: set() for hid in alive}
     for r in relations or []:
-        if r.get("relation_type") in ("competes_with", "co_operating"):
+        if r.get("relation_type") == "competes_with":
             a, b = r.get("from_hypothesis_id"), r.get("to_hypothesis_id")
             if a in alive and b in alive:
                 adj[a].add(b)
@@ -1218,18 +1220,31 @@ def compute_convergence(hyps, relations, next_experiment=None) -> dict:
         if len(comp) >= 2:
             clusters.append(comp)
 
-    all_preds = [p for h in hyps for p in h["predictions"]]
+    # carry the owner label: a test only resolves a cluster if its OWNER is a
+    # member of that cluster (else a third hypothesis's test that merely NAMES the
+    # members — who may AGREE against it — would be mistaken for a discriminator).
+    all_preds = [(h["label"], p) for h in hyps for p in h["predictions"]]
     out_clusters = []
     worst = "decided"  # decided < resolving < blocked_on_experiment < no_test
     rank = {"decided": 0, "resolving": 1,
             "blocked_on_experiment": 2, "no_discriminating_test": 3}
     for comp in clusters:
         slabels = {label[x] for x in comp}
-        disc_run = [p for p in all_preds
-                    if p.get("work_status") == "evaluated"
+        # A discriminating test only counts as "run/resolving" if its verdict
+        # ACTUALLY separated the survivors (supports/contradicts). A neutral or
+        # insufficient verdict means the test was tried but COULDN'T discriminate
+        # (e.g. confounded data) — the survivors are still observationally
+        # identical, so it must NOT read as 'resolving'.
+        disc_run = [p for (owner, p) in all_preds
+                    if owner in slabels
+                    and p.get("work_status") == "evaluated"
+                    and normalize_verdict(p.get("verdict")) in ("supports", "contradicts")
                     and _prediction_discriminates(p, slabels)]
-        disc_unrun = [p for p in all_preds
-                      if p.get("work_status") != "evaluated"
+        # genuinely NOT-yet-run discriminating tests (a neutral-evaluated test is
+        # neither: it was tried and couldn't separate them — re-running won't help)
+        disc_unrun = [p for (owner, p) in all_preds
+                      if owner in slabels
+                      and p.get("work_status") != "evaluated"
                       and _prediction_discriminates(p, slabels)]
         # a pre-registered next_experiment can also be the blocking discriminator
         nx_blocks = False
