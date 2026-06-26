@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.37-provisional",
+        "version": "0.38-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -464,6 +464,20 @@ def get_manifest() -> dict:
                 "as a kill (≤0.15) when the breach is decisive (margin omitted or ≥0.5) — a "
                 "barely-past-threshold strong contradiction is strong evidence-against, not "
                 "an automatic falsification. Omit margin and the strength tier alone is used.",
+            "reliability": "How much to TRUST the datum itself — distinct from "
+                "method-compatibility (is it comparable?) and strength (how decisive?). "
+                "Optionally pass `reliability:{basis:{reproduced_by:[ids], conflicts_with:"
+                "[ids], source_class:measured|modeled|modeled_nonportable, independence:"
+                "independent|self_cited|conflicted}}`. The SERVER derives the tier — "
+                "established / corroborated / single_source / contested / anecdotal — you "
+                "CANNOT self-assert it: 'corroborated'+ require reproduced_by records that "
+                "are INDEPENDENT of the verdict's own evidence; a non-portable model or a "
+                "self-citation is 'anecdotal'; a conflicts_with makes it 'contested'. The "
+                "tier multiplies the contribution, and contested/anecdotal move belief but "
+                "do NOT count toward n_decisive (a hypothesis can't become 'reliable' on "
+                "weak-provenance evidence). OPT-IN: omit reliability and the verdict scores "
+                "exactly as today. Applies SYMMETRICALLY — your own lab's single measurement "
+                "is 'single_source' until independently reproduced, same as a literature one.",
             "cross_system_can_suggest_not_establish": "Evidence borrowed from a DIFFERENT "
                 "material / reaction / mechanism class (an analog) — mark the verdict "
                 "cross_system=true. Phenomenological similarity is NOT mechanistic identity "
@@ -785,8 +799,9 @@ def get_manifest() -> dict:
                         "(0-1 sharpness) + cross_system=true if the evidence is a borrowed "
                         "ANALOG from a different material/reaction/mechanism class (it then "
                         "SUGGESTS but cannot ESTABLISH — capped weak, excluded from "
-                        "reliability) + evidence + mlflow_run_url + "
-                        "evidence_independence. THIS is what moves the "
+                        "reliability) + optional reliability{basis} (server-derived trust "
+                        "tier; low tiers move belief but not reliability) + evidence + "
+                        "mlflow_run_url + evidence_independence. THIS is what moves the "
                         "hypothesis's confidence — the platform recomputes & stores it "
                         "from all the verdicts (scoring_model). Use verdict='blocked' when "
                         "the evidence isn't validly comparable (schema gate). If the "
@@ -1358,7 +1373,8 @@ def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=N
 def evaluate_prediction(prediction_id, verdict, *, strength=None,
                         evidence_record_ids=None, rationale=None,
                         mlflow_run_url=None, evidence_independence=None,
-                        margin=None, cross_system=None, actor=None) -> bool:
+                        margin=None, cross_system=None, reliability=None,
+                        actor=None) -> bool:
     """Terminal verdict on a prediction. `evidence_independence` declares
     USE-NOVELTY: which evidence was used to BUILD/fit the supporting model vs to
     TEST it. {model_was_fit:bool, parameters_fit_to:[id], tested_against:[id],
@@ -1370,13 +1386,24 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
     diverged past the prediction's falsification threshold (1 = far past / unambiguous,
     0 = right at the line). It refines the coarse strength tier and gates the
     strong-contradiction falsification cap. Optional — omit and the strength tier
-    alone is used."""
+    alone is used.
+
+    `reliability` (optional) declares how TRUSTWORTHY the datum is, via a
+    machine-checkable basis: {basis:{reproduced_by:[ids], conflicts_with:[ids],
+    source_class, independence}}. The SERVER derives the tier (you can't self-assert
+    'corroborated' — reproduced_by must be INDEPENDENT of this verdict's own evidence);
+    low tiers move belief but don't count toward reliability. Omit → scored as today."""
     verdict = normalize_verdict(verdict)
     if margin is not None:
         try:
             margin = max(0.0, min(1.0, float(margin)))
         except (TypeError, ValueError):
             margin = None
+    # RELIABILITY: the agent's claimed tier is advisory — the SERVER derives the tier
+    # from the machine-checkable basis (reproduced_by must be INDEPENDENT of the verdict's
+    # own evidence). This is the anti-laundering hinge: you can't self-assert 'corroborated'.
+    reliability_tier = _derive_reliability_tier(reliability, evidence_record_ids)
+    reliability_basis = (reliability.get("basis") if isinstance(reliability, dict) else None)
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -1393,12 +1420,16 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
             """UPDATE hyp_predictions
                   SET verdict=%s, strength=%s, evidence_record_ids=%s,
                       rationale=%s, mlflow_run_url=%s, evidence_independence=%s,
-                      margin=%s, cross_system=%s, work_status='evaluated', updated_at=NOW()
+                      margin=%s, cross_system=%s, reliability_tier=%s,
+                      reliability_basis=%s, work_status='evaluated', updated_at=NOW()
                 WHERE prediction_id=%s""",
             (verdict, strength, evidence_record_ids, rationale, mlflow_run_url,
              json.dumps(evidence_independence) if evidence_independence is not None
              else None, margin,
-             bool(cross_system) if cross_system is not None else None, prediction_id))
+             bool(cross_system) if cross_system is not None else None,
+             reliability_tier,
+             json.dumps(reliability_basis) if reliability_basis is not None else None,
+             prediction_id))
         _circ = _circularity_flag(evidence_independence)
         _detail = rationale
         if _circ:
@@ -1788,6 +1819,41 @@ _STRENGTH_W = {"strong": 1.0, "moderate": 0.6, "weak": 0.3}
 # predictions on one result).
 _CORRELATION_ATTENUATION = 0.3
 
+# RELIABILITY of the EVIDENCE itself (distinct from method-compatibility and from
+# strength): how much to TRUST the datum. A method-compatible record can still be
+# untrustworthy — single-source, irreproducible, conflicted. The tier is SERVER-DERIVED
+# from a machine-checkable basis (the agent cannot self-assert it), and low tiers move
+# belief but do NOT count toward reliability. OPT-IN: an undeclared verdict (tier None)
+# behaves exactly as before — factor 1.0, counts — so this is additive, not disruptive.
+_RELIABILITY_W = {"established": 1.0, "corroborated": 0.85, "single_source": 0.6,
+                  "contested": 0.4, "anecdotal": 0.25}
+_RELIABILITY_NONCOUNTING = {"contested", "anecdotal"}   # move belief, but never make 'reliable'
+
+
+def _derive_reliability_tier(reliability, own_evidence_ids):
+    """SERVER-derive the reliability tier from the machine-checkable `basis` — the agent's
+    claimed tier is advisory and overwritten. Provenance must be EARNED, not asserted:
+    'corroborated'/'established' require reproduced_by records that are INDEPENDENT of the
+    verdict's own evidence (the anti-laundering check). Returns None if no reliability was
+    declared (→ scored as today, opt-in)."""
+    if not isinstance(reliability, dict):
+        return None
+    basis = reliability.get("basis") or {}
+    own = {str(x) for x in (own_evidence_ids or [])}
+    reproduced = {str(x) for x in (basis.get("reproduced_by") or [])} - own  # INDEPENDENT only
+    conflicts = {str(x) for x in (basis.get("conflicts_with") or [])}
+    src = str(basis.get("source_class") or "").strip().lower()
+    indep = str(basis.get("independence") or "").strip().lower()
+    if src == "modeled_nonportable" or indep in ("self_cited", "conflicted"):
+        return "anecdotal"
+    if conflicts:
+        return "contested"
+    if len(reproduced) >= 2:
+        return "established"
+    if len(reproduced) >= 1:
+        return "corroborated"
+    return "single_source"
+
 
 def _evidence_key(p):
     """The set of evidence record IDs a verdict rests on (for independence/dedup).
@@ -1844,6 +1910,12 @@ def compute_hypothesis_score(h) -> dict:
     ESTABLISH — capped at weak, contributes a little, but does NOT count toward n_decisive
     and never trips the falsification cap. A hypothesis cannot become 'reliable' on
     borrowed analogs alone (the Cu-Ag lesson). The rigor critic audits transferability.
+    RELIABILITY (optional per-verdict, server-derived `reliability_tier`): how much to
+    TRUST the datum — established/corroborated/single_source/contested/anecdotal. It
+    multiplies the contribution, and contested/anecdotal (weak-provenance) move belief but
+    do NOT count toward n_decisive. OPT-IN: an undeclared verdict (tier None) scores
+    exactly as before. The tier is SERVER-derived from a machine-checkable basis (the
+    agent can't self-assert 'corroborated' — reproduced_by must cite INDEPENDENT records).
     confidence = sigmoid(Σ). strength ∈ {{strong:1.0, moderate:0.6, weak:0.3}}; an
     omitted/unknown strength is treated as WEAK (the conservative tier). A score from
     <2 INDEPENDENT DECISIVE (supports/contradicts) verdicts is UNRELIABLE — you cannot
@@ -1853,7 +1925,7 @@ def compute_hypothesis_score(h) -> dict:
     bd = {"supports": 0, "contradicts": 0, "neutral": 0, "insufficient": 0,
           "blocked": 0, "unevaluated": 0, "circular_discounted": 0,
           "circular_softened": 0, "correlated_attenuated": 0,
-          "cross_system_attenuated": 0}
+          "cross_system_attenuated": 0, "low_reliability_excluded": 0}
     hyp_grounding = _grounding(h)   # gates the accommodation discount (standing_prior vs ad_hoc)
     logit = 0.0
     decisive = []   # (direction, strength_weight, evidence_key, margin, cross_system)
@@ -1867,6 +1939,7 @@ def compute_hypothesis_score(h) -> dict:
         sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), _STRENGTH_W["weak"])
         _m = p.get("margin")
         _xsys = bool(p.get("cross_system"))   # evidence from a DIFFERENT system/mechanism class
+        _rel = p.get("reliability_tier")      # server-derived trust tier (None = opt-out, as-today)
         if v == "supports":
             bd["supports"] += 1
             if _circularity_flag(p.get("evidence_independence")):
@@ -1877,14 +1950,14 @@ def compute_hypothesis_score(h) -> dict:
                 # capped at weak (not strong independent confirmation).
                 if hyp_grounding == "standing_prior":
                     bd["circular_softened"] += 1
-                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m, _xsys))
+                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m, _xsys, _rel))
                 else:
                     bd["circular_discounted"] += 1    # 0 contribution, not decisive
             else:
-                decisive.append((+1, sw, _evidence_key(p), _m, _xsys))
+                decisive.append((+1, sw, _evidence_key(p), _m, _xsys, _rel))
         elif v == "contradicts":
             bd["contradicts"] += 1
-            decisive.append((-1, sw, _evidence_key(p), _m, _xsys))
+            decisive.append((-1, sw, _evidence_key(p), _m, _xsys, _rel))
         elif v == "neutral":
             logit -= 0.20; bd["neutral"] += 1          # mild evidence against
         elif v == "blocked":
@@ -1900,30 +1973,38 @@ def compute_hypothesis_score(h) -> dict:
         claimed = set()
         same = sorted([d for d in decisive if d[0] == direction],
                       key=lambda d: -d[1])
-        for _dir, sw, ev, margin, xsys in same:
+        for _dir, sw, ev, margin, xsys, rel in same:
             if xsys:
                 # CROSS-SYSTEM / borrowed-analog evidence (a different material / reaction /
                 # mechanism class): it can SUGGEST but never ESTABLISH. Capped at weak,
                 # contributes a little, but does NOT count toward n_decisive (reliability)
                 # and never trips the falsification cap. This is the Cu-Ag lesson: a
-                # borrowed analog must not drive a hypothesis to 'reliable'.
+                # borrowed analog must not drive a hypothesis to 'reliable'. (cross_system
+                # short-circuits reliability — one defect, one attenuation, never both.)
                 bd["cross_system_attenuated"] += 1
                 logit += direction * min(sw, _STRENGTH_W["weak"]) * _margin_factor(margin) \
                     * (1.25 if direction < 0 else 1.0)
                 continue
             independent = (not ev) or not (ev & claimed)
             base = sw if independent else sw * _CORRELATION_ATTENUATION
-            weight = base * _margin_factor(margin)     # SHARPNESS: refine within the tier
+            # RELIABILITY: trust in the datum itself (None/unknown → 1.0, scored as today).
+            rel_factor = _RELIABILITY_W.get(rel, 1.0)
+            weight = base * _margin_factor(margin) * rel_factor
             if independent:
-                n_decisive += 1
-                if ev:
-                    claimed |= ev
-                # A STRONG contradiction falsifies (hard cap) only when the breach is
-                # DECISIVE: unqualified (no margin) keeps the old behaviour; an
-                # explicitly MARGINAL strong contradiction (margin<0.5, barely past the
-                # line) is strong evidence-against but not an automatic kill.
-                if direction < 0 and sw >= 1.0 and (margin is None or margin >= 0.5):
-                    strong_contra = True
+                if rel in _RELIABILITY_NONCOUNTING:
+                    # weak-provenance (contested/anecdotal): moves belief a little but can
+                    # NOT make a hypothesis 'reliable', and never falsifies — mirrors cross_system.
+                    bd["low_reliability_excluded"] += 1
+                else:
+                    n_decisive += 1
+                    if ev:
+                        claimed |= ev
+                    # A STRONG contradiction falsifies (hard cap) only when the breach is
+                    # DECISIVE: unqualified (no margin) keeps the old behaviour; an
+                    # explicitly MARGINAL strong contradiction (margin<0.5, barely past the
+                    # line) is strong evidence-against but not an automatic kill.
+                    if direction < 0 and sw >= 1.0 and (margin is None or margin >= 0.5):
+                        strong_contra = True
             else:
                 bd["correlated_attenuated"] += 1
             logit += direction * weight * (1.25 if direction < 0 else 1.0)
@@ -1964,7 +2045,10 @@ def compute_hypothesis_score(h) -> dict:
                  + (f" {bd['correlated_attenuated']} correlated verdict(s) attenuated "
                     "(shared evidence)." if bd['correlated_attenuated'] else "")
                  + (f" {bd['cross_system_attenuated']} cross-system/analog verdict(s) — "
-                    "suggestive only, not reliability-bearing." if bd['cross_system_attenuated'] else "")),
+                    "suggestive only, not reliability-bearing." if bd['cross_system_attenuated'] else "")
+                 + (f" {bd['low_reliability_excluded']} low-reliability verdict(s) "
+                    "(contested/anecdotal) — move belief but not reliability."
+                    if bd['low_reliability_excluded'] else "")),
     }
 
 
@@ -2015,7 +2099,7 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
     it (the platform owns confidence; the agent never authors it). Called on every
     prediction-evaluation change. Returns the new confidence."""
     cur.execute("""SELECT verdict, strength, work_status, evidence_independence,
-                          evidence_record_ids, margin, cross_system
+                          evidence_record_ids, margin, cross_system, reliability_tier
                      FROM hyp_predictions WHERE hypothesis_id=%s""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]
     cur.execute("SELECT project_id, grounding FROM hyp_hypotheses WHERE hypothesis_id=%s",

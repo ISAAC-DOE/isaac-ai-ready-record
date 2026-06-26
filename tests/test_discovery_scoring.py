@@ -20,16 +20,17 @@ from pathlib import Path
 PORTAL = Path(__file__).resolve().parent.parent / "portal"
 sys.path.insert(0, str(PORTAL))
 
-from discovery import compute_hypothesis_score, compute_fragility, _STRENGTH_W  # noqa: E402
+from discovery import (compute_hypothesis_score, compute_fragility,  # noqa: E402
+                       _derive_reliability_tier, _STRENGTH_W)
 
 
 def _pred(verdict=None, strength=None, work_status="evaluated",
           evidence_record_ids=None, evidence_independence=None, margin=None,
-          cross_system=None):
+          cross_system=None, reliability_tier=None):
     return {"verdict": verdict, "strength": strength, "work_status": work_status,
             "evidence_record_ids": evidence_record_ids,
             "evidence_independence": evidence_independence, "margin": margin,
-            "cross_system": cross_system}
+            "cross_system": cross_system, "reliability_tier": reliability_tier}
 
 
 # evidence_independence that is CIRCULAR (model fit to the data it's tested on)
@@ -428,6 +429,66 @@ def test_fragility_flags_a_borrowed_keystone():
                                    evidence_record_ids=["A"])))
     assert f["keystone"]["cross_system"] is True
     assert f["fragile"] is True
+
+
+# --- Reliability axis (opt-in trust tier) --------------------------------------
+
+def test_reliability_omitted_is_a_noop():
+    # the whole point of "blend like fabric": an undeclared verdict scores as before
+    plain = compute_hypothesis_score(_h(_pred("supports", "strong"),
+                                        _pred("supports", "strong")))
+    explicit_none = compute_hypothesis_score(_h(
+        _pred("supports", "strong", reliability_tier=None),
+        _pred("supports", "strong", reliability_tier=None)))
+    assert plain["computed_confidence"] == explicit_none["computed_confidence"]
+    assert plain["reliable"] == explicit_none["reliable"] is True
+
+
+def test_low_reliability_moves_belief_but_not_reliability():
+    # two 'anecdotal' supports: belief nudges up, but the hypothesis cannot be reliable
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=["A"], reliability_tier="anecdotal"),
+        _pred("supports", "strong", evidence_record_ids=["B"], reliability_tier="anecdotal"),
+    ))
+    assert s["n_decisive"] == 0 and s["reliable"] is False
+    assert s["breakdown"]["low_reliability_excluded"] == 2
+    assert s["computed_confidence"] > 0.5     # still moved belief, weakly
+
+
+def test_established_outweighs_single_source():
+    est = compute_hypothesis_score(_h(_pred("supports", "strong", reliability_tier="established")))
+    ss = compute_hypothesis_score(_h(_pred("supports", "strong", reliability_tier="single_source")))
+    assert est["computed_confidence"] > ss["computed_confidence"]
+
+
+def test_reliability_tier_is_server_derived_not_self_asserted():
+    # anti-laundering: 'corroborated' requires reproduced_by INDEPENDENT of own evidence.
+    # claiming reproduced_by == own evidence is self-citation → collapses to single_source.
+    laundered = _derive_reliability_tier(
+        {"tier": "established",
+         "basis": {"reproduced_by": ["A", "B"]}},  # but these ARE the verdict's own records
+        own_evidence_ids=["A", "B"])
+    assert laundered == "single_source"          # not 'established'
+    # genuine independent corroboration earns it
+    earned = _derive_reliability_tier(
+        {"basis": {"reproduced_by": ["C", "D"]}}, own_evidence_ids=["A"])
+    assert earned == "established"
+    # a non-portable model can't rise above anecdotal
+    assert _derive_reliability_tier(
+        {"basis": {"source_class": "modeled_nonportable"}}, own_evidence_ids=[]) == "anecdotal"
+
+
+def test_score_is_invariant_to_consensus_fields():
+    # THE load-bearing guard: consensus/surprise must NEVER touch belief. The scorer
+    # ignores unknown keys, so injecting consensus_relation/strength changes nothing.
+    base = _h(_pred("supports", "strong"), _pred("contradicts", "moderate"))
+    ref = compute_hypothesis_score(base)
+    for rel in ("concordant", "silent", "discordant"):
+        for strn in ("none", "weak", "strong"):
+            poisoned = {"predictions": [
+                {**p, "consensus_relation": rel, "consensus_strength": strn,
+                 "consensus_basis": ["rec_FAKE"]} for p in base["predictions"]]}
+            assert compute_hypothesis_score(poisoned) == ref, f"consensus leaked via {rel}/{strn}"
 
 
 def test_coverage_and_conflict_math():

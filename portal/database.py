@@ -547,6 +547,13 @@ def init_discovery_tables():
         # lesson — a borrowed analog must not drive a hypothesis to 'reliable').
         cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
                     "cross_system BOOLEAN")
+        # reliability of the EVIDENCE itself (trust, distinct from method-compat/strength).
+        # SERVER-derived tier from a machine-checkable basis; low tiers move belief but
+        # don't count toward reliability. Opt-in: NULL → scored as before.
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
+                    "reliability_tier TEXT")
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
+                    "reliability_basis JSONB")
         # (4) Confidence as a first-class TIME SERIES (one row per change), so the
         # "Belief River" reads real history instead of scraping event prose. Legacy
         # projects are backfilled-on-read from their event log (see discovery.py).
