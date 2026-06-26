@@ -1620,9 +1620,20 @@ svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr(
         # confidence snapshots. Self-contained canvas animation with play/scrub. ----
         def _replay_html(payload, theme="dark", mode="matrix"):
             dark = theme != "light"
+            _bg = "#05070d" if dark else "#eef3fa"
+            _capink = "#dfe7f7" if dark else "#1a2a44"
+            _capshadow = "0 1px 6px #000" if dark else "0 1px 4px rgba(255,255,255,0.9)"
+            _ctlbg = "#0a0e16" if dark else "#e6ecf5"
+            _ctlborder = "#1d2738" if dark else "#c6d3e4"
+            _playbg = "#111a2b" if dark else "#dbe6f3"
+            _playink = "#cfe" if dark else "#22344e"
+            _playborder = "#2a3a5e" if dark else "#aebfd6"
             pal = json.dumps({
-                "bg": "#05070d" if dark else "#0a0e14",  # cinema is always dark-ish
-                "ink": "#e7eefc", "dim": "#7f8aa3",
+                "bg": _bg,
+                "ink": "#e7eefc" if dark else "#13243a",
+                "dim": "#7f8aa3" if dark else "#5c6b86",
+                "org1": "#0b1224" if dark else "#eaf0fa",   # organism radial gradient
+                "org2": "#05070d" if dark else "#dce6f4",
                 "accent": "#5EC8C0", "rain": "#39d98a" if mode == "matrix" else "#5EC8C0",
                 "hi": "#ffd479", "panel": "rgba(255,255,255,0.05)",
                 "cls": {"hypothesis": "#E8941F", "prediction": "#7AD0FF",
@@ -1638,15 +1649,15 @@ html,body{margin:0;background:__BGC__;overflow:hidden;
  font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;}
 #wrap{position:relative;width:100%;height:524px;background:__BGC__;}
 #cv{display:block;width:100%;height:524px;}
-#cap{position:absolute;left:18px;right:18px;bottom:14px;color:#dfe7f7;
- font-size:13px;line-height:1.4;text-shadow:0 1px 6px #000;pointer-events:none;}
+#cap{position:absolute;left:18px;right:18px;bottom:14px;color:__CAPINK__;
+ font-size:13px;line-height:1.4;text-shadow:__CAPSHADOW__;pointer-events:none;}
 #ctl{height:42px;display:flex;align-items:center;gap:12px;padding:2px 14px;
- background:#0a0e16;border-top:1px solid #1d2738;}
-#play{cursor:pointer;border:1px solid #2a3a5e;background:#111a2b;color:#cfe;
+ background:__CTLBG__;border-top:1px solid __CTLBORDER__;}
+#play{cursor:pointer;border:1px solid __PLAYBORDER__;background:__PLAYBG__;color:__PLAYINK__;
  width:34px;height:26px;border-radius:6px;font-size:13px;}
 #scrub{flex:1;accent-color:#5EC8C0;}
 #tl{color:#7f8aa3;font-size:11px;min-width:74px;text-align:right;}
-select{background:#111a2b;color:#cfe;border:1px solid #2a3a5e;border-radius:6px;
+select{background:__PLAYBG__;color:__PLAYINK__;border:1px solid __PLAYBORDER__;border-radius:6px;
  font-size:11px;padding:2px;}
 </style></head><body>
 <div id="wrap"><canvas id="cv"></canvas><div id="cap"></div></div>
@@ -1836,7 +1847,7 @@ function drawOrganism(pp,k){
  if(!ORG||ORG.br.length!==D.hyps.length||Math.abs(ORG.cx-W/2)>4)initOrg();
  ORG.t+=0.016;
  var g=ctx.createRadialGradient(W/2,H*0.5,30,W/2,H*0.5,Math.max(W,H)*0.75);
- g.addColorStop(0,'#0b1224');g.addColorStop(1,'#05070d');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ g.addColorStop(0,P.org1);g.addColorStop(1,P.org2);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
  ctx.fillStyle='rgba(150,180,230,0.10)';
  ORG.motes.forEach(function(m){m.y-=m.s;if(m.y<0){m.y=H;m.x=Math.random()*W;}ctx.beginPath();ctx.arc(m.x,m.y,m.r,0,6.283);ctx.fill();});
  if(playing&&k>ORG.lastK){for(var j=ORG.lastK+1;j<=k;j++){var e=D.events[j];if(e&&(e.recN>0||['evidence','literature','compute','verdict'].indexOf(e.cls)>=0))spawnNutrients(e);}}
@@ -1855,7 +1866,7 @@ function drawOrganism(pp,k){
  ORG.br.forEach(function(b){if(b.grow<0.4)return;var tp=branchTip(b);var v=cs[b.i]||0;
   var dead=(b.h.status==='eliminated'||b.h.status==='superseded');
   ctx.fillStyle=dead?'rgba(150,160,180,0.5)':b.h.color;ctx.font='11px IBM Plex Mono,monospace';ctx.textAlign='center';
-  ctx.fillText(b.h.label.slice(0,16),tp.x,tp.y-20);ctx.fillStyle='#e7eefc';ctx.fillText(Math.round(v*100)+'%',tp.x,tp.y-6);ctx.textAlign='left';});}
+  ctx.fillText(b.h.label.slice(0,16),tp.x,tp.y-20);ctx.fillStyle=P.ink;ctx.fillText(Math.round(v*100)+'%',tp.x,tp.y-6);ctx.textAlign='left';});}
 
 function drawCaption(k){const e=D.events[k];if(!e){cap.textContent='';return;}
  cap.innerHTML='<span style="color:'+clsColor(e.cls)+'">['+e.cls+']</span> '+
@@ -1877,7 +1888,11 @@ requestAnimationFrame(loop);
 </script></body></html>
 """
             return (tmpl.replace("__DATA__", data).replace("__PAL__", pal)
-                    .replace("__MODE__", mode).replace("__BGC__", "#05070d"))
+                    .replace("__MODE__", mode).replace("__BGC__", _bg)
+                    .replace("__CAPINK__", _capink).replace("__CAPSHADOW__", _capshadow)
+                    .replace("__CTLBG__", _ctlbg).replace("__CTLBORDER__", _ctlborder)
+                    .replace("__PLAYBG__", _playbg).replace("__PLAYINK__", _playink)
+                    .replace("__PLAYBORDER__", _playborder))
 
         def _funnel(stages):
             n = len(stages)
@@ -2244,20 +2259,12 @@ requestAnimationFrame(loop);
                 if not _revents:
                     st.info("No timeline yet — once the agent logs events, the replay fills in.")
                 else:
-                    _mode_label = st.radio(
-                        "Cinematic style", options=[
-                            "🌱 Living organism — the discovery grows & prunes itself",
-                            "🟩 Matrix — reasoning rain + live log",
-                            "🕸️ Constellation — the network self-assembles",
-                            "🌊 Belief river — confidence flows in",
-                            "🛰️ Mission control — multi-panel replay"],
-                        horizontal=True, key=f"replaymode_{pid}", label_visibility="collapsed")
-                    _mode = ({"🌱": "organism", "🟩": "matrix", "🕸️": "constellation",
-                              "🌊": "river", "🛰️": "mission"}).get(_mode_label[:1], "organism")
+                    # The Living Organism is the one kept replay — the others were retired.
+                    _mode = "organism"
                     components.html(_replay_html(_replay_payload, st.session_state.ui_theme,
                                                  _mode), height=600)
-                    st.caption(f"{len(_revents)} timeline steps · the 🌱 Living organism is "
-                               "the reworked hero — hit ▶ and let it grow. Tell me what to "
+                    st.caption(f"{len(_revents)} timeline steps · 🌱 **Living organism** — the "
+                               "discovery grows & prunes itself. Hit ▶ and let it grow. "
                                "push further.")
 
             # ---- Decision journey — the scale & complexity of the reasoning ----
