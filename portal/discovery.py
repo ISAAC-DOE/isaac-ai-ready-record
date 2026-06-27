@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.43-provisional",
+        "version": "0.44-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -990,16 +990,49 @@ def get_manifest() -> dict:
                     "metrics}); a compute/model-backed verdict MUST carry an "
                     "mlflow_run_url. And query isaac_data_sources for an EXISTING result "
                     "before spending a calculation.",
-                "persist_results_as_records": "CLOSE THE LOOP — when a calculation "
-                    "produces a reusable value (an adsorption energy, a barrier, a "
-                    "relaxed structure), PERSIST it into ISAAC so it never has to be "
-                    "recomputed: build a schema-valid computational record, dry-run it "
-                    "with POST /portal/api/validate, then POST /portal/api/records. Mark "
-                    "provenance clearly AGENT-COMPUTED (method/functional or MLIP model, "
-                    "params, the MLflow run, this project_id). Then cite the new "
-                    "record_id as evidence. This is how the repository compounds — your "
-                    "calc becomes everyone's data, and the next agent looks it up instead "
-                    "of recomputing.",
+                "persist_results_as_records": {
+                    "_what": "CLOSE THE LOOP — a calculation worth keeping becomes a "
+                        "first-class ISAAC record so it never has to be recomputed and the "
+                        "next agent (or human) looks it up instead. Your calc becomes "
+                        "everyone's data; this is how the repository compounds.",
+                    "when_to_persist": "Persist EXPENSIVE / QUEUED calculations — the ones "
+                        "that cost real time and an allocation to produce: a VASP DFT job "
+                        "submitted to NERSC/HPC (a SLURM job, hours of wall-clock, the "
+                        "decisive numbers a verdict rests on), a relaxed structure, a "
+                        "converged barrier. The test is COST-OF-RECOMPUTE: if reproducing "
+                        "it is expensive, it is worth archiving. Do NOT bother persisting "
+                        "FAST on-the-spot calcs — MLIP/UMA inference, microkinetic / CatMAP "
+                        "runs, anything that finishes in seconds on a laptop with no queue. "
+                        "Those stay as ephemeral compute_runs grounding the prediction; "
+                        "re-running them is cheaper than the ceremony of depositing them. "
+                        "(This is the current-stage rule — kept deliberately simple; it can "
+                        "loosen later.)",
+                    "how": "(1) GET /portal/api/schema — fetch the AUTHORITATIVE live record "
+                        "schema with vocabulary enums merged in (public, no auth); build "
+                        "your record to it, never hardcode the shape. (2) POST "
+                        "/portal/api/validate — dry-run; fix every error until it passes. "
+                        "(3) POST /portal/api/records — persist. Then cite the new "
+                        "record_id as evidence on the prediction.",
+                    "provenance": "Mark provenance clearly AGENT-COMPUTED: method/functional "
+                        "(or MLIP model), params, the MLflow run_url, and this project_id, "
+                        "so the record is reproducible and traceable back to this run.",
+                    "ownership_and_limits": "You write with your OWN portal token — the same "
+                        "one you already hold; there is no separate key. You may DEPOSIT new "
+                        "records and EDIT ONLY YOUR OWN. You can NEVER edit or delete a "
+                        "record another user created (deletes are admin-only). This is a "
+                        "platform-wide invariant, enforced server-side — authorship is "
+                        "stamped for you; do not attempt to overwrite or reattribute others' "
+                        "records.",
+                    "no_double_counting": "Persisting a calculation you ALREADY cited as a "
+                        "compute_run on a prediction does NOT add a second independent "
+                        "evidence leg — the platform counts the SAME calculation ONCE. "
+                        "Where a number comes from (agent-computed now vs archived earlier) "
+                        "does NOT change its weight; a calc you just ran and a calc from the "
+                        "database carry EQUAL evidential weight. What is not allowed is one "
+                        "calculation corroborating itself twice on the same hypothesis. "
+                        "Reusing that record later on a DIFFERENT hypothesis is full, "
+                        "independent evidence — that reuse is the entire point of saving it.",
+                },
                 "your_specific_tools": "The EXACT binaries, HPC submission paths, API "
                     "endpoints and credentials available to you depend on WHERE you run "
                     "and WHO runs you (e.g. an S3DF session with FairChem + a NERSC/IRI "
