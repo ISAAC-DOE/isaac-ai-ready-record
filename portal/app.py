@@ -1590,12 +1590,30 @@ svg.call(d3.drag()
                 "grid": "#34456a" if dark else "#b7c5db",
                 "label": "#eef3ff" if dark else "#10243a",
                 "labshadow": "rgba(0,0,0,0.55)" if dark else "rgba(255,255,255,0.85)",
+                "tipbg": "rgba(10,16,32,0.97)" if dark else "rgba(255,255,255,0.98)",
+                "tipbd": "#2a3a5e" if dark else "#bcccdf",
+                "tipink": "#e7eefc" if dark else "#13243a",
+                "tipdim": "#8aa0c4" if dark else "#5c6b86",
+                "up": "#5fd08a" if dark else "#1a9a55",
+                "down": "#ff7a90" if dark else "#c2384e",
             })
             data = json.dumps(payload)
             tmpl = r"""
 <html><head><script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-<style>html,body{margin:0;overflow:hidden;}text{font-family:-apple-system,Segoe UI,Roboto,sans-serif;}</style></head>
-<body><svg id="r" width="100%" height="300"></svg><script>
+<style>html,body{margin:0;overflow:hidden;}text{font-family:-apple-system,Segoe UI,Roboto,sans-serif;}
+#tip{position:fixed;pointer-events:none;z-index:9;max-width:320px;padding:9px 11px;
+ border-radius:9px;border:1px solid;font-size:11.5px;line-height:1.45;opacity:0;
+ transition:opacity .08s;box-shadow:0 6px 22px rgba(0,0,0,0.45);
+ font-family:-apple-system,Segoe UI,Roboto,sans-serif;}
+#tip .th{font-weight:700;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;}
+#tip .ts{margin-bottom:6px;opacity:0.92;}
+#tip .tr{display:flex;align-items:center;gap:6px;margin-top:3px;white-space:nowrap;}
+#tip .dot{width:8px;height:8px;border-radius:50%;flex:none;}
+#tip .lb{font-weight:700;min-width:72px;}
+#tip .vv{opacity:0.82;}
+#tip .dd{font-weight:700;margin-left:auto;padding-left:10px;}
+#tip .tn{opacity:0.6;font-style:italic;}</style></head>
+<body><svg id="r" width="100%" height="300"></svg><div id="tip"></div><script>
 const D=__DATA__, P=__PAL__;
 document.body.style.background='linear-gradient(180deg,'+P.bg1+','+P.bg2+')';
 const el=document.getElementById('r'); const W=el.clientWidth||820,H=300,m={t:18,r:138,b:24,l:16};
@@ -1631,6 +1649,37 @@ svg.append('g').selectAll('text').data(series).join('text')
  .text(function(s){var h=D.hyps.find(function(z){return z.label===s.key;});return s.key+'  '+Math.round((h?h.conf:0)*100)+'%';});
 svg.append('text').attr('x',m.l).attr('y',H-7).attr('fill',P.axis).attr('font-size',10).text('run start');
 svg.append('text').attr('x',W-m.r).attr('y',H-7).attr('text-anchor','end').attr('fill',P.axis).attr('font-size',10).text('now →');
+// ---- hover popups on the dashed event marks: what landed + which beliefs moved ----
+const tip=document.getElementById('tip');
+tip.style.background=P.tipbg;tip.style.borderColor=P.tipbd;tip.style.color=P.tipink;
+function esc(s){return (s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function tipHTML(d){
+ var t=(d.type||'event').replace(/_/g,' ');
+ var s='<div class="th" style="color:'+P.tipdim+'">'+esc(t)+'</div>';
+ if(d.summary)s+='<div class="ts">'+esc(d.summary)+'</div>';
+ if(d.deltas&&d.deltas.length){
+  d.deltas.forEach(function(z){var up=z.delta>0;
+   s+='<div class="tr"><span class="dot" style="background:'+(colorOf[z.label]||P.tipink)+'"></span>'
+    +'<span class="lb">'+esc(z.label)+'</span>'
+    +'<span class="vv">'+Math.round(z.from*100)+'% → '+Math.round(z.to*100)+'%</span>'
+    +'<span class="dd" style="color:'+(up?P.up:P.down)+'">'+(up?'▲+':'▼')+Math.round(z.delta*100)+'</span></div>';});
+ }else{s+='<div class="tn">no belief shift recorded here</div>';}
+ return s;
+}
+function moveTip(ev){var tw=tip.offsetWidth||300,th=tip.offsetHeight||80;
+ var lx=ev.clientX+14;if(lx+tw>W-6)lx=ev.clientX-tw-14;if(lx<6)lx=6;
+ var ty=ev.clientY-th-10;if(ty<6)ty=ev.clientY+16;if(ty+th>H-2)ty=Math.max(6,H-th-4);
+ tip.style.left=lx+'px';tip.style.top=ty+'px';}
+function showTip(ev,d){tip.innerHTML=tipHTML(d);tip.style.opacity=1;
+ hl.attr('x1',x(d.t)).attr('x2',x(d.t)).attr('opacity',0.6);moveTip(ev,d);}
+function hideTip(){tip.style.opacity=0;hl.attr('opacity',0);}
+const mk=svg.append('g');
+const hl=mk.append('line').attr('y1',m.t-4).attr('y2',H-m.b).attr('stroke',P.label)
+ .attr('stroke-width',1.2).attr('opacity',0).attr('pointer-events','none');
+mk.selectAll('line.hit').data(D.markers).join('line').attr('class','hit')
+ .attr('x1',function(d){return x(d.t);}).attr('x2',function(d){return x(d.t);}).attr('y1',m.t-4).attr('y2',H-m.b)
+ .attr('stroke','transparent').attr('stroke-width',12).style('pointer-events','stroke').style('cursor','pointer')
+ .on('mouseenter',showTip).on('mousemove',moveTip).on('mouseleave',hideTip);
 }
 </script></body></html>
 """
@@ -2520,12 +2569,32 @@ requestAnimationFrame(loop);
                             _row[_h["label"]] = _cv if _cv is not None else 0.0
                         _steps.append(_row)
                     _tick_index = {round(_t, 6): _i for _i, _t in enumerate(_ticks)}
-                    _markers = [{"t": _tick_index.get(round(_epoch(e["created_at"]), 6), 0)
-                                 / (_N - 1) if _N > 1 else 0.0}
-                                for e in _chrono
-                                if e["event_type"] in ("prediction_evaluated", "compute_running",
-                                                        "compute_submitted", "evidence_ingested",
-                                                        "next_experiment_proposed")]
+                    _marker_types = ("prediction_evaluated", "compute_running",
+                                     "compute_submitted", "evidence_ingested",
+                                     "next_experiment_proposed")
+                    _markers = []
+                    for e in _chrono:
+                        if e["event_type"] not in _marker_types:
+                            continue
+                        _ti = _tick_index.get(round(_epoch(e["created_at"]), 6), 0)
+                        _t_pos = _ti / (_N - 1) if _N > 1 else 0.0
+                        # Which hypotheses moved AT this tick (vs the one before) — this is
+                        # exactly what the hover popup explains: who shifted and by how much.
+                        _deltas = []
+                        if _ti > 0:
+                            for _h in hyps:
+                                _before = _steps[_ti - 1].get(_h["label"], 0.0)
+                                _after = _steps[_ti].get(_h["label"], 0.0)
+                                _d = _after - _before
+                                if abs(_d) >= 0.005:
+                                    _deltas.append({"label": _h["label"], "from": _before,
+                                                    "to": _after, "delta": _d})
+                        _deltas.sort(key=lambda z: -abs(z["delta"]))
+                        _summary = (e.get("summary") or e.get("detail") or "").strip()
+                        if len(_summary) > 240:
+                            _summary = _summary[:237] + "…"
+                        _markers.append({"t": _t_pos, "type": e["event_type"],
+                                         "summary": _summary, "deltas": _deltas})
                     st.markdown("**The river of belief** — how confidence in each mechanism "
                                 "evolved as evidence arrived")
                     components.html(_river_html(
@@ -2538,8 +2607,10 @@ requestAnimationFrame(loop);
                         st.session_state.ui_theme), height=320)
                     st.caption("Each ribbon is a hypothesis; thickness = confidence over the "
                                "run — the leader swells, eliminated mechanisms thin out. Dashed "
-                               "marks are where evidence or compute landed. On resume, new "
-                               "evidence extends the river: the discovery's evolution, live.")
+                               "marks are where evidence or compute landed — **hover one** to see "
+                               "what happened and which beliefs moved (and by how much). On "
+                               "resume, new evidence extends the river: the discovery's "
+                               "evolution, live.")
 
             # ---- E: Evidence index (by descriptor) + discrimination matrix ----
             with tabE:
