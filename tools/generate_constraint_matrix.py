@@ -54,6 +54,8 @@ CODE_SCOPE = {
     "QC_COMPROMISED_NO_EVIDENCE": "all records",
     "SIGMA_ZERO_PLACEHOLDER": "all records",
     "UNIT_NOT_IN_VOCABULARY": "all records",
+    "COMPUTATION_METHOD_MISSING": "computation",
+    "COMPUTATION_METHOD_INCOMPLETE": "computation",
 }
 
 
