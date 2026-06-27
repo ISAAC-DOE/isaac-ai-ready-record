@@ -1491,12 +1491,12 @@ elif page == "Discovery":
  font:12px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;padding:8px 10px;border-radius:8px;
  box-shadow:0 4px 18px rgba(0,0,0,0.35);z-index:9;}
 #tt code{font-size:10px;opacity:.8;}</style></head>
-<body><div id="tt"></div><svg id="c" width="100%" height="720"></svg><script>
+<body><div id="tt"></div><svg id="c" width="100%" height="560"></svg><script>
 const DATA=__DATA__, P=__PAL__;
 const tt=document.getElementById('tt');
 tt.style.background=P.tipbg; tt.style.color=P.tiptext; tt.style.border='1px solid '+P.tipborder;
 document.body.style.background='radial-gradient(circle at 50% 45%,'+P.bg1+','+P.bg2+')';
-const el=document.getElementById('c'); const W=el.clientWidth||820, H=720; const cx=W/2, cy=H/2-2;
+const el=document.getElementById('c'); const W=el.clientWidth||820, H=560; const cx=W/2, cy=H/2-2;
 const svg=d3.select('#c').attr('width',W).attr('height',H);
 const defs=svg.append('defs');
 const glow=defs.append('filter').attr('id','g').attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
@@ -1516,6 +1516,13 @@ svg.append('text').attr('x',16).attr('y',26).attr('fill',P.badge).attr('font-siz
  .text(DATA.corpus.records.toLocaleString()+'  records   →   '+DATA.corpus.screened+'  screened   →   '+(DATA.corpus.involved||0)+'  in-scope   →   '+DATA.corpus.cited+'  cited');
 const nodes=DATA.nodes.map(function(d){return Object.assign({},d);});
 const links=DATA.links.map(function(d){return Object.assign({},d);});
+// SPREAD the hypotheses evenly AROUND the circle (an angular target each), so they fan
+// across the real estate instead of clustering wherever their evidence pulls them. Their
+// predictions/evidence then follow each hypothesis via the link force.
+const _hn=nodes.filter(function(n){return n.kind==='hyp';});
+_hn.forEach(function(n,i){n.theta=(-Math.PI/2)+(2*Math.PI*i/Math.max(1,_hn.length));});
+function hX(d){return d.kind==='hyp'&&d.theta!=null?cx+rT(d)*Math.cos(d.theta):cx;}
+function hY(d){return d.kind==='hyp'&&d.theta!=null?cy+rT(d)*Math.sin(d.theta):cy;}
 const cont=svg.append('g');
 const link=cont.append('g').selectAll('line').data(links).join('line')
  .attr('stroke',function(d){return d.rel==='pred'?(VC[d.verdict]||'#37474f'):d.rel==='calc'?'#ab47bc':d.rel==='evid'?P.screened:d.rel==='competes_with'?'#ef5350':d.rel==='co_operating'?'#66bb6a':P.relrest;})
@@ -1545,9 +1552,10 @@ function rp(x,y){var a=rot*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a),dx=x-cx,dy=
 function placeLabels(){lab.attr('x',function(d){return rp(d.x,d.y)[0];}).attr('y',function(d){return rp(d.x,d.y)[1]-nR(d)-5;});}
 const sim=d3.forceSimulation(nodes)
  .force('link',d3.forceLink(links).id(function(d){return d.id;}).distance(function(d){return d.rel==='pred'?66:d.rel==='evid'?40:120;}).strength(function(d){return d.rel==='pred'?0.45:0.18;}))
- .force('charge',d3.forceManyBody().strength(function(d){return d.kind==='screened'?-12:-72;}))
- .force('r',d3.forceRadial(rT,cx,cy).strength(0.92))
- .force('x',d3.forceX(cx).strength(0.045)).force('y',d3.forceY(cy).strength(0.045))
+ .force('charge',d3.forceManyBody().strength(function(d){return d.kind==='screened'?-12:d.kind==='hyp'?-220:-72;}))
+ .force('r',d3.forceRadial(rT,cx,cy).strength(function(d){return d.kind==='hyp'?0.18:0.92;}))
+ .force('x',d3.forceX(hX).strength(function(d){return d.kind==='hyp'?0.22:0.045;}))
+ .force('y',d3.forceY(hY).strength(function(d){return d.kind==='hyp'?0.22:0.045;}))
  .force('collide',d3.forceCollide().radius(function(d){return nR(d)+(d.kind==='screened'?1.4:2.6);}))
  .on('tick',function(){
   link.attr('x1',function(d){return d.source.x;}).attr('y1',function(d){return d.source.y;}).attr('x2',function(d){return d.target.x;}).attr('y2',function(d){return d.target.y;});
@@ -2359,7 +2367,7 @@ requestAnimationFrame(loop);
                         {"nodes": _cnodes, "links": _clinks,
                          "corpus": {"records": corpus or 0, "screened": n_desc,
                                     "involved": _n_involved, "cited": n_ev}},
-                        st.session_state.ui_theme), height=740)
+                        st.session_state.ui_theme), height=580)
                     st.caption("**Drag to rotate.** Concentric narrowing: the faint OUTER "
                                "field is every descriptor screened → the **in-scope ring** "
                                "(blue) is the declared dataset records this project is about "
