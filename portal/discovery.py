@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.53-provisional",
+        "version": "0.54-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -380,6 +380,19 @@ def get_manifest() -> dict:
                 "test": "If you cannot name an observable on which the new and old "
                     "predict differently, it is a refinement, not a new hypothesis.",
             },
+            "literature_is_a_claim_until_verified": "Your OWN knowledge of the literature is "
+                "welcome as EVIDENCE — but it is a CLAIM until VERIFIED, never data on your "
+                "word. Cite the finding with a resolvable DOI on the verdict "
+                "(/evaluate literature:[{doi, claim, supported, peer_reviewed}]). The platform "
+                "RESOLVES the DOI: one that does not resolve is a FABRICATION (flagged, earns "
+                "nothing) — not weak evidence. You supply the SEMANTIC check — supported=true "
+                "means you, or Edison, or a sub-agent that READ the paper, confirmed the "
+                "source actually makes the claim; a resolved DOI on the wrong paper is still a "
+                "broken citation. Verified + peer-reviewed → first-class cited evidence "
+                "(single_source; ≥2 INDEPENDENT papers → corroborated, can reach 'reliable'); "
+                "verified but a preprint/unvetted → anecdotal (moves belief, earns NO "
+                "standing); unresolved or unconfirmed → nothing. A citation you did not verify "
+                "is not grounding — it is recall in a lab coat.",
             "shared_premise_audit": {
                 "rule": "Audit the COMMON FOUNDATION of your surviving hypotheses, not "
                     "just each hypothesis. When ≥2 rivals are observationally identical, "
@@ -618,6 +631,17 @@ def get_manifest() -> dict:
                 "with how) or justify why it holds; 'dismissed' only for genuine "
                 "non-issues. Surfaced live in briefing.rigor_review; later, open "
                 "critical findings will block 'supported'.",
+            "spawn_sub_agents": "If your runtime can spawn agents, USE that — a fresh, "
+                "separate sub-agent (never yourself in the same pass) is your cheapest, "
+                "strongest INDEPENDENT check. Spawn one to VERIFY (does this DOI's paper "
+                "actually support the claim? does this calculation reproduce?) and to REFUTE "
+                "(what breaks the leading hypothesis?). BOUND it: use sub-agents for "
+                "verification/refutation/reproduction only — not to generate the hypotheses "
+                "or do the primary research — at most ONE per claim per pass, and NEVER "
+                "recursively (a critic does not spawn a critic). If a fleet of checks is "
+                "costly, propose it to your operator first (a reasoning_step). If your "
+                "runtime cannot spawn agents, ask your operator to wire it — independent "
+                "review is foundational, not optional.",
         },
         "resume_protocol": "To CONTINUE an existing project from a cold start (a fresh "
             "agent with no prior memory): GET /projects to find it, then GET "
@@ -848,7 +872,11 @@ def get_manifest() -> dict:
                         "observable_key (a stable 'quantity@system' id of WHAT this verdict "
                         "tests — same string across methods; same-observable/different-method "
                         "verdicts score as robustness, not independence — see "
-                        "compute.independence_of_calculations) + evidence + "
+                        "compute.independence_of_calculations) + optional literature "
+                        "([{doi, claim, supported, peer_reviewed}] — VERIFIED literature "
+                        "evidence; the server resolves the DOI, you attest the claim is in the "
+                        "paper; see epistemic_guardrails.literature_is_a_claim_until_verified) "
+                        "+ evidence + "
                         "mlflow_run_url + evidence_independence. RELIABILITY GATES: a decisive "
                         "verdict counts toward 'reliable' ONLY if it is a COMPLETE, AUDITABLE "
                         "test — CITED (a record or compute_run), its prediction FALSIFIABLE "
@@ -1197,6 +1225,47 @@ def _decision_why(origin=None, mechanism=None):
     return (" — ".join(seen))[:600] or None
 
 
+_DOI_CACHE = {}   # doi -> (resolved, title) — process-local, avoids re-hitting Crossref
+
+
+def _resolve_doi(doi):
+    """Does this DOI resolve to a real work? Returns (resolved: bool|None, title: str|None).
+    The fabrication guard for LLM-recalled literature: a citation that does not resolve is
+    not weak evidence, it is invented. DEFENSIVE — short timeout, cached, lazy-imports
+    requests, NEVER raises: on any error/timeout returns (None, None) ⇒ 'unverified' (scored
+    anecdotal, never blocks the write). Off the hot path: called only when a verdict cites
+    literature."""
+    doi = (str(doi or "").strip().lower()
+           .replace("https://doi.org/", "").replace("http://doi.org/", "").replace("doi:", ""))
+    if not doi:
+        return (False, None)
+    if doi in _DOI_CACHE:
+        return _DOI_CACHE[doi]
+    try:
+        import requests
+        r = requests.get("https://api.crossref.org/works/" + doi, timeout=4,
+                         headers={"User-Agent": "ISAAC-Discovery/1.0 (mailto:isaac@slac.stanford.edu)"})
+        if r.status_code == 200:
+            title = (((r.json() or {}).get("message") or {}).get("title") or [None])[0]
+            out = (True, title)
+        elif r.status_code == 404:
+            out = (False, None)
+        else:
+            out = (None, None)   # transient/unknown — treat as unverified, don't penalise
+    except Exception:
+        out = (None, None)       # network down / requests absent — fail safe to unverified
+    if out != (None, None):      # cache only definitive answers, not transient failures
+        _DOI_CACHE[doi] = out
+    return out
+
+
+def _verified_literature(p):
+    """Literature entries of a prediction that are VERIFIED — DOI resolved AND the claim
+    attested as supported by the source. First-class cited evidence."""
+    return [e for e in (p.get("literature") or [])
+            if isinstance(e, dict) and e.get("resolved") is True and e.get("supported")]
+
+
 def _append_event(cur, project_id, event_type, summary, *, detail=None,
                   hypothesis_id=None, evidence_record_ids=None,
                   mlflow_run_url=None, actor=None):
@@ -1527,7 +1596,7 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                         evidence_record_ids=None, rationale=None,
                         mlflow_run_url=None, evidence_independence=None,
                         margin=None, cross_system=None, reliability=None,
-                        observable_key=None, actor=None) -> bool:
+                        observable_key=None, literature=None, actor=None) -> bool:
     """Terminal verdict on a prediction. `evidence_independence` declares
     USE-NOVELTY: which evidence was used to BUILD/fit the supporting model vs to
     TEST it. {model_was_fit:bool, parameters_fit_to:[id], tested_against:[id],
@@ -1557,6 +1626,35 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
     # own evidence). This is the anti-laundering hinge: you can't self-assert 'corroborated'.
     reliability_tier = _derive_reliability_tier(reliability, evidence_record_ids)
     reliability_basis = (reliability.get("basis") if isinstance(reliability, dict) else None)
+    # LITERATURE: an LLM's recall is a CLAIM until verified. The SERVER resolves each DOI
+    # (Crossref, defensive) and STAMPS resolved+title — the agent cannot self-assert it. The
+    # agent supplies the semantic check: supported=true means it (or Edison/a sub-agent) read
+    # the paper and the claim is there. A resolved+supported entry is first-class cited
+    # evidence; a non-resolving DOI is a fabrication (flagged in the briefing, earns nothing).
+    lit_clean = None
+    if literature:
+        lit_clean = []
+        for e in (literature if isinstance(literature, list) else []):
+            if not isinstance(e, dict) or not (e.get("doi") or "").strip():
+                continue
+            resolved, title = _resolve_doi(e.get("doi"))
+            lit_clean.append({"doi": str(e["doi"]).strip(), "claim": (e.get("claim") or "")[:500],
+                              "supported": bool(e.get("supported")),
+                              "peer_reviewed": bool(e.get("peer_reviewed")),
+                              "resolved": resolved, "title": title})
+        # If the verdict rests on verified literature and the agent declared no explicit
+        # reliability, derive the tier from source maturity (peer→single_source counts;
+        # preprint→anecdotal: belief, not standing). Corroboration across ≥2 independent
+        # verified DOIs lifts it. The cross_system cap still applies on top in the scorer.
+        if reliability_tier is None:
+            _ver = [e for e in lit_clean if e["resolved"] is True and e["supported"]]
+            _peer = [e for e in _ver if e["peer_reviewed"]]
+            if len(_peer) >= 2:
+                reliability_tier = "corroborated"
+            elif _peer:
+                reliability_tier = "single_source"
+            elif _ver:
+                reliability_tier = "anecdotal"   # verified but preprint/unvetted → no standing
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -1574,7 +1672,7 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                   SET verdict=%s, strength=%s, evidence_record_ids=%s,
                       rationale=%s, mlflow_run_url=%s, evidence_independence=%s,
                       margin=%s, cross_system=%s, reliability_tier=%s,
-                      reliability_basis=%s, observable_key=%s,
+                      reliability_basis=%s, observable_key=%s, literature=%s,
                       work_status='evaluated', updated_at=NOW()
                 WHERE prediction_id=%s""",
             (verdict, strength, evidence_record_ids, rationale, mlflow_run_url,
@@ -1584,6 +1682,7 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
              reliability_tier,
              json.dumps(reliability_basis) if reliability_basis is not None else None,
              (observable_key or None),
+             json.dumps(lit_clean) if lit_clean is not None else None,
              prediction_id))
         _circ = _circularity_flag(evidence_independence)
         _detail = rationale
@@ -2041,13 +2140,14 @@ def _calc_keys(p):
 
 
 def _evidence_key(p):
-    """The identity-set a verdict rests on, for independence/dedup: the union of the
-    cited evidence record IDs AND the calculation identities (compute_runs) it leans on.
-    Two verdicts collide — and the later one is attenuated, not counted toward reliability —
-    when they share ANY record OR the same underlying calculation. Empty → unknown
-    provenance, treated as independent (we can't prove overlap)."""
+    """The identity-set a verdict rests on, for independence/dedup: the union of cited
+    record IDs, calculation identities (compute_runs), AND verified-literature DOIs. Two
+    verdicts collide — the later one attenuated, not counted toward reliability — when they
+    share ANY record, the same calculation, OR the same paper. Empty → unknown provenance,
+    treated as independent (we can't prove overlap)."""
     ids = p.get("evidence_record_ids") or []
     base = {str(x) for x in ids if x}
+    base |= {"doi:" + e["doi"].lower() for e in _verified_literature(p)}
     return frozenset(base | set(_calc_keys(p)))
 
 
@@ -2169,7 +2269,8 @@ def compute_hypothesis_score(h) -> dict:
         #   • EXPLAINED    — the verdict carries a rationale (the WHY — auditability).
         # So 'reliable' = >=2 cited, falsifiable, structured, explained, INDEPENDENT decisive
         # verdicts: a hypothesis earns standing only on a SET of genuinely auditable tests.
-        _cited = bool(p.get("evidence_record_ids") or p.get("compute_runs"))
+        _cited = bool(p.get("evidence_record_ids") or p.get("compute_runs")
+                      or _verified_literature(p))
         _falsifiable = bool((p.get("falsification_criterion") or "").strip())
         _structured = bool((p.get("direction") or "").strip()) and \
             bool((p.get("reference_condition") or "").strip())
@@ -2363,7 +2464,7 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
                           evidence_independence, evidence_record_ids, margin,
                           cross_system, reliability_tier, observable_key,
                           falsification_criterion, direction, reference_condition,
-                          rationale
+                          rationale, literature
                      FROM hyp_predictions WHERE hypothesis_id=%s""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]
     # Attach each prediction's compute-run IDENTITIES so the STORED confidence dedups
@@ -2418,6 +2519,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     circular_confirmations, supports_without_independence = [], []
     high_conf_hyps, preds_missing_mlflow, preds_uncited = [], [], []
     preds_unexplained = []
+    fabricated_citations = []
     hyps_below_min_preds, preds_missing_structure, hyps_single_descriptor = [], [], []
     unreliable_scores = []
     for h in hyps:
@@ -2488,6 +2590,14 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                     and normalize_verdict(p.get("verdict")) in ("supports", "contradicts")
                     and not (p.get("rationale") or "").strip()):
                 preds_unexplained.append(_ptag)
+            # FABRICATION GUARD: a cited DOI that did NOT resolve (invented), or resolved
+            # but whose claim was never attested as supported — neither earns standing.
+            for _e in (p.get("literature") or []):
+                if isinstance(_e, dict) and _e.get("doi"):
+                    if _e.get("resolved") is False:
+                        fabricated_citations.append(f"{_ptag} [DOI {_e['doi']} does not resolve]")
+                    elif _e.get("resolved") is True and not _e.get("supported"):
+                        fabricated_citations.append(f"{_ptag} [DOI {_e['doi']} claim unconfirmed]")
             if p.get("discriminates"):
                 matrix.append({"prediction": p.get("label") or p.get("descriptor_name"),
                                "descriptor": p.get("descriptor_name"),
@@ -2717,6 +2827,13 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "may separate them. 'Blocked' means you need PHYSICAL data you cannot obtain; a "
             "tie a calc or a lookup could break is UNEXPLORED, not blocked. Try one (or LOG "
             "why it can't help) before treating these as untestable.")
+    if fabricated_citations:
+        recommended_actions.append(
+            f"⚠ UNVERIFIED CITATION: {fabricated_citations[:6]} — a DOI that does not resolve "
+            "is a FABRICATION, and a resolved DOI whose claim you never confirmed is not "
+            "evidence. A literature claim earns standing only when the DOI resolves AND you "
+            "(or Edison / a sub-agent that read the paper) attest the source supports it. Fix "
+            "the DOI, confirm the claim (set supported), or drop the citation.")
     if preds_unexplained:
         _x = preds_unexplained[:6]
         recommended_actions.append(
@@ -2823,6 +2940,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "predictions_missing_falsification_criterion": preds_without_criterion,
             "decisive_verdicts_unexplained": preds_unexplained,
             "untested_hypotheses_with_idle_tools": untested_with_idle_tools,
+            "unverified_or_fabricated_citations": fabricated_citations,
             "circular_confirmations": circular_confirmations,
             "supports_without_independence_declaration": supports_without_independence,
             "supersessions_without_discriminating_observable": supersedes_without_discriminator,

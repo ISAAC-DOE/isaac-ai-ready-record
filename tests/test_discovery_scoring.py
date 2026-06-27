@@ -453,6 +453,64 @@ def test_one_cited_plus_one_uncited_is_not_reliable():
     assert s["breakdown"]["uncited_excluded"] == 1
 
 
+# --- Verified literature as evidence (LLM recall, gated by DOI resolution) ------
+
+def _lit(doi="10.x/y", supported=True, peer=True, resolved=True):
+    return {"doi": doi, "claim": "c", "supported": supported,
+            "peer_reviewed": peer, "resolved": resolved}
+
+
+def test_verified_peer_reviewed_literature_counts_as_cited():
+    # two verdicts each on a DIFFERENT verified peer-reviewed paper → cited, reliable.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=[], reliability_tier="single_source",
+              **{}) | {"literature": [_lit("10.1/a")]},
+        _pred("supports", "strong", evidence_record_ids=[], reliability_tier="single_source")
+        | {"literature": [_lit("10.2/b")]}))
+    assert s["n_decisive"] == 2 and s["reliable"] is True
+    assert s["breakdown"]["uncited_excluded"] == 0
+
+
+def test_unresolved_doi_does_not_count_as_cited():
+    # a DOI that did not resolve (fabrication) is NOT evidence — the verdict is uncited.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=[])
+        | {"literature": [_lit(resolved=False)]}))
+    assert s["n_decisive"] == 0 and s["reliable"] is False
+    assert s["breakdown"]["uncited_excluded"] == 1
+
+
+def test_resolved_but_unsupported_doi_is_not_cited():
+    # the paper exists but the claim was never attested (supported=False) → not evidence.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=[])
+        | {"literature": [_lit(supported=False)]}))
+    assert s["n_decisive"] == 0 and s["breakdown"]["uncited_excluded"] == 1
+
+
+def test_same_paper_cited_twice_does_not_double_count():
+    # two verdicts on the SAME verified DOI → correlated, counts once.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=[], reliability_tier="single_source")
+        | {"literature": [_lit("10.same/x")]},
+        _pred("supports", "strong", evidence_record_ids=[], reliability_tier="single_source")
+        | {"literature": [_lit("10.same/x")]}))
+    assert s["n_decisive"] == 1
+    assert s["breakdown"]["correlated_attenuated"] == 1
+
+
+def test_preprint_literature_moves_belief_but_not_standing():
+    # a verified PREPRINT (tier anecdotal) is cited but non-counting → belief, not reliability.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=[], reliability_tier="anecdotal")
+        | {"literature": [_lit("10.pp/a", peer=False)]},
+        _pred("supports", "strong", evidence_record_ids=[], reliability_tier="anecdotal")
+        | {"literature": [_lit("10.pp/b", peer=False)]}))
+    assert s["computed_confidence"] > 0.5
+    assert s["reliable"] is False
+    assert s["breakdown"]["low_reliability_excluded"] == 2
+
+
 # --- Admissibility gates: structured (direction+reference) and explained (rationale) ---
 
 def test_understructured_verdict_moves_belief_but_not_reliability():
