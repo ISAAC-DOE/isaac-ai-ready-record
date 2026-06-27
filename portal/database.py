@@ -562,6 +562,14 @@ def init_discovery_tables():
         # exactly as before (independence judged on evidence identity alone).
         cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
                     "observable_key TEXT")
+        # literature — VERIFIED literature evidence behind a verdict. An LLM's recall is a
+        # CLAIM, not data, until checked: each entry {doi, claim, supported(bool, the agent/
+        # Edison attested the paper actually makes the claim), peer_reviewed(bool)} is stamped
+        # server-side with resolved(bool, Crossref) + title. A resolved+supported entry is
+        # first-class CITED evidence (tier from maturity: peer→single_source, preprint→
+        # anecdotal); a non-resolving DOI is a FABRICATION (flagged, earns nothing).
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
+                    "literature JSONB")
         # (4) Confidence as a first-class TIME SERIES (one row per change), so the
         # "Belief River" reads real history instead of scraping event prose. Legacy
         # projects are backfilled-on-read from their event log (see discovery.py).
