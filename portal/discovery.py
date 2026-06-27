@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.51-provisional",
+        "version": "0.52-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -220,7 +220,10 @@ def get_manifest() -> dict:
             "briefing is SELF-INSTRUCTING — its `recommended_actions` is your "
             "prioritized to-do (derived from method_compliance + rigor_review), and "
             "`method_compliance` is the live audit. You do NOT need a human to tell you "
-            "the next rigor step; the dashboard does. Work the actions until clear.",
+            "the next rigor step; the dashboard does. KEEP CLEARING the actions until none "
+            "remains that you CAN do — yield only when genuinely blocked: a queued "
+            "calculation to await, information not in the repository, or a decision that is "
+            "your operator's.",
             "WRITE after you act: every hypothesis, prediction, verdict, status "
             "change and compute run is an API write. If it is not on the dashboard, "
             "it did not happen — never hold project state only in your context.",
