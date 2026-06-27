@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.47-provisional",
+        "version": "0.48-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -262,11 +262,15 @@ def get_manifest() -> dict:
                 "before a record is allowed to count.",
                 "6. RENDER a verdict per prediction (supports | contradicts | neutral | "
                 "insufficient | blocked) with a strength and EXPLICIT reasoning via "
-                "/evaluate. CITE THE DATA: a supports/contradicts MUST attach the "
-                "evidence_record_ids it rests on AND/OR the compute_run that grounds it — "
-                "even when you derived a proxy from raw records, cite those records. A "
-                "decisive verdict not traceable to specific data is unauditable and floats "
-                "unconnected in the evidence graph. You do NOT set confidence — the platform "
+                "/evaluate. CITE THE DATA — this is ENFORCED, not advisory: a "
+                "supports/contradicts MUST attach the evidence_record_ids it rests on "
+                "AND/OR the compute_run that grounds it. Even when you derived a proxy by "
+                "computing over RAW records (e.g. a product slate from GC ppm), cite THOSE "
+                "records — putting the numbers in your rationale prose is NOT citing. An "
+                "uncited decisive verdict still moves belief but counts for NOTHING toward "
+                "reliability and cannot falsify (scoring_model): a hypothesis CANNOT become "
+                "'reliable' on verdicts linked to nothing, and it floats unconnected in the "
+                "evidence graph / constellation. You do NOT set confidence — the platform "
                 "COMPUTES it from your verdicts (see scoring_model) and the ranking moves "
                 "automatically.",
                 "7. PROPOSE the single most discriminating next experiment via "
@@ -483,7 +487,9 @@ def get_manifest() -> dict:
                 "its persisted record on a sibling) counts ONCE. This is dedup, not a "
                 "down-weight — agent-computed and archived values carry EQUAL weight; only "
                 "self-corroboration is removed. Reliability needs ≥2 INDEPENDENT decisive "
-                "verdicts.",
+                "verdicts. CITED-TO-DATA: an uncited decisive verdict (no evidence_record_ids "
+                "and no compute_run) moves belief but counts for NOTHING toward reliability "
+                "and never falsifies — you cannot be 'reliable' on evidence you never linked.",
             "sharpness": "Optional per-verdict `margin` ∈ [0,1] expresses HOW DECISIVELY "
                 "the observation diverged past the prediction's falsification threshold "
                 "(1 = far past / unambiguous, 0 = right at the line). It refines the coarse "
@@ -2060,6 +2066,11 @@ def compute_hypothesis_score(h) -> dict:
         belief but CANNOT by itself make a one-observable hypothesis 'reliable' — only a
         DIFFERENT discriminating observable can. Opt-in: omit observable_key and independence
         is judged on evidence identity alone (as before).
+      • CITED-TO-DATA: a decisive verdict that links NEITHER a record (evidence_record_ids)
+        NOR a compute_run still moves belief but does NOT count toward n_decisive and never
+        trips the falsification cap. You cannot be 'reliable' — or refute — on evidence you
+        never linked. This makes citing structural, not optional (mirrors cross_system /
+        low-reliability: belief, not standing).
     SHARPNESS (optional per-verdict `margin` ∈ [0,1]): how decisively the observation
     diverged past the falsification threshold. Scales the contribution 0.7×..1.3×
     within the strength tier, and a STRONG contradiction only triggers the falsification
@@ -2085,7 +2096,7 @@ def compute_hypothesis_score(h) -> dict:
     bd = {"supports": 0, "contradicts": 0, "neutral": 0, "insufficient": 0,
           "blocked": 0, "unevaluated": 0, "circular_discounted": 0,
           "circular_softened": 0, "correlated_attenuated": 0, "robustness_attenuated": 0,
-          "cross_system_attenuated": 0, "low_reliability_excluded": 0}
+          "cross_system_attenuated": 0, "low_reliability_excluded": 0, "uncited_excluded": 0}
     hyp_grounding = _grounding(h)   # gates the accommodation discount (standing_prior vs ad_hoc)
     logit = 0.0
     decisive = []   # (direction, strength_weight, evidence_key, margin, cross_system)
@@ -2101,6 +2112,12 @@ def compute_hypothesis_score(h) -> dict:
         _xsys = bool(p.get("cross_system"))   # evidence from a DIFFERENT system/mechanism class
         _rel = p.get("reliability_tier")      # server-derived trust tier (None = opt-out, as-today)
         _obs = (str(p.get("observable_key")).strip() or None) if p.get("observable_key") else None
+        # CITED-TO-DATA: a decisive verdict must rest on something LINKABLE — a record
+        # (evidence_record_ids) or a compute_run. An uncited verdict still moves belief but
+        # can NOT establish reliability or hard-falsify — you cannot be 'reliable' on
+        # evidence you never linked (mirrors cross_system / low-reliability: belief, not
+        # standing). The uncited verdict floats unconnected in the evidence graph.
+        _cited = bool(p.get("evidence_record_ids") or p.get("compute_runs"))
         if v == "supports":
             bd["supports"] += 1
             if _circularity_flag(p.get("evidence_independence")):
@@ -2111,14 +2128,14 @@ def compute_hypothesis_score(h) -> dict:
                 # capped at weak (not strong independent confirmation).
                 if hyp_grounding == "standing_prior":
                     bd["circular_softened"] += 1
-                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m, _xsys, _rel, _obs))
+                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m, _xsys, _rel, _obs, _cited))
                 else:
                     bd["circular_discounted"] += 1    # 0 contribution, not decisive
             else:
-                decisive.append((+1, sw, _evidence_key(p), _m, _xsys, _rel, _obs))
+                decisive.append((+1, sw, _evidence_key(p), _m, _xsys, _rel, _obs, _cited))
         elif v == "contradicts":
             bd["contradicts"] += 1
-            decisive.append((-1, sw, _evidence_key(p), _m, _xsys, _rel, _obs))
+            decisive.append((-1, sw, _evidence_key(p), _m, _xsys, _rel, _obs, _cited))
         elif v == "neutral":
             logit -= 0.20; bd["neutral"] += 1          # mild evidence against
         elif v == "blocked":
@@ -2135,7 +2152,7 @@ def compute_hypothesis_score(h) -> dict:
         claimed_obs = set()    # OBSERVABLE identities already counted (robustness dedup)
         same = sorted([d for d in decisive if d[0] == direction],
                       key=lambda d: -d[1])
-        for _dir, sw, ev, margin, xsys, rel, obs in same:
+        for _dir, sw, ev, margin, xsys, rel, obs, cited in same:
             if xsys:
                 # CROSS-SYSTEM / borrowed-analog evidence (a different material / reaction /
                 # mechanism class): it can SUGGEST but never ESTABLISH. Capped at weak,
@@ -2163,7 +2180,14 @@ def compute_hypothesis_score(h) -> dict:
             rel_factor = _RELIABILITY_W.get(rel, 1.0)
             weight = base * _margin_factor(margin) * rel_factor
             if independent:
-                if rel in _RELIABILITY_NONCOUNTING:
+                if not cited:
+                    # UNCITED: a decisive verdict linked to NO record and NO compute_run.
+                    # It moves belief (logit, below) but cannot count toward reliability or
+                    # hard-falsify — you can't be 'reliable' on evidence you never linked.
+                    # This turns the decisive_verdicts_uncited_to_data warning into a scoring
+                    # consequence and creates structural pressure to CITE THE DATA.
+                    bd["uncited_excluded"] += 1
+                elif rel in _RELIABILITY_NONCOUNTING:
                     # weak-provenance (contested/anecdotal): moves belief a little but can
                     # NOT make a hypothesis 'reliable', and never falsifies — mirrors cross_system.
                     bd["low_reliability_excluded"] += 1

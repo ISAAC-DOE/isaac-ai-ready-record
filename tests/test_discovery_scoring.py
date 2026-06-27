@@ -15,6 +15,7 @@ if a weight or rule changes, the manifest prose and these assertions move togeth
 
 import math
 import sys
+import itertools
 from pathlib import Path
 
 PORTAL = Path(__file__).resolve().parent.parent / "portal"
@@ -24,10 +25,19 @@ from discovery import (compute_hypothesis_score, compute_fragility,  # noqa: E40
                        _derive_reliability_tier, _STRENGTH_W)
 
 
+_ev_counter = itertools.count()
+
+
 def _pred(verdict=None, strength=None, work_status="evaluated",
           evidence_record_ids=None, evidence_independence=None, margin=None,
           cross_system=None, reliability_tier=None, compute_runs=None,
           observable_key=None):
+    # A decisive verdict must be CITED to count toward reliability. So a BARE _pred
+    # (no evidence and no compute given) defaults to a UNIQUE cited record — it represents
+    # a normal, data-linked decisive verdict (uncited is the exception, not the norm).
+    # To test the UNCITED path, pass evidence_record_ids=[] explicitly.
+    if evidence_record_ids is None and compute_runs is None:
+        evidence_record_ids = [f"auto-ev-{next(_ev_counter)}"]
     return {"verdict": verdict, "strength": strength, "work_status": work_status,
             "evidence_record_ids": evidence_record_ids,
             "evidence_independence": evidence_independence, "margin": margin,
@@ -389,6 +399,53 @@ def test_opposite_directions_on_same_calc_are_a_conflict_not_redundancy():
     ))
     assert s["breakdown"]["correlated_attenuated"] == 0
     assert s["n_decisive"] == 2
+
+
+# --- Cited-to-data: an uncited decisive verdict can't establish reliability -----
+
+def test_uncited_supports_move_belief_but_never_reach_reliable():
+    # the live M-CO-COVERAGE case: two strong supports linked to NOTHING (no record,
+    # no compute_run). They still raise confidence, but the hypothesis is NOT reliable —
+    # you can't be 'reliable' on evidence you never linked.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=[]),
+        _pred("supports", "strong", evidence_record_ids=[]),
+    ))
+    assert s["computed_confidence"] > 0.5            # belief still moves
+    assert s["n_decisive"] == 0                       # but nothing counts toward reliability
+    assert s["reliable"] is False
+    assert s["breakdown"]["uncited_excluded"] == 2
+
+
+def test_citing_a_compute_run_counts_even_without_a_record():
+    # a verdict grounded in a compute_run (no record cited) IS cited — it counts.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=[],
+              compute_runs=[{"mlflow_run_url": "u1"}]),
+        _pred("supports", "strong", evidence_record_ids=[],
+              compute_runs=[{"mlflow_run_url": "u2"}]),
+    ))
+    assert s["n_decisive"] == 2 and s["reliable"] is True
+
+
+def test_uncited_strong_contradiction_does_not_hard_falsify():
+    # a strong contradiction linked to nothing moves belief down but must NOT trip the
+    # ≤0.15 falsification cap — you can't refute a hypothesis on unlinked evidence.
+    uncited = compute_hypothesis_score(_h(_pred("contradicts", "strong", evidence_record_ids=[])))
+    cited = compute_hypothesis_score(_h(_pred("contradicts", "strong", evidence_record_ids=["R1"])))
+    assert cited["computed_confidence"] <= 0.15        # cited strong contra falsifies
+    assert uncited["computed_confidence"] > 0.15       # uncited one does not
+    assert uncited["computed_confidence"] < 0.5        # but still lowers belief
+
+
+def test_one_cited_plus_one_uncited_is_not_reliable():
+    # mixing: only the CITED verdict counts toward reliability → 1 decisive → unreliable.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=["R1"]),
+        _pred("supports", "strong", evidence_record_ids=[]),
+    ))
+    assert s["n_decisive"] == 1 and s["reliable"] is False
+    assert s["breakdown"]["uncited_excluded"] == 1
 
 
 # --- Robustness vs independence: same observable, different method -------------
