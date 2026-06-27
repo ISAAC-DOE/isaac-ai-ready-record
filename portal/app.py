@@ -1845,6 +1845,7 @@ mk.selectAll('line.hit').data(D.markers).join('line').attr('class','hit')
                         "verdict": "#26c6da", "evidence": "#9aa7bd",
                         "compute": "#b48cff", "literature": "#ffd479",
                         "experiment": "#66e0a3", "rigor": "#ff7a90",
+                        "directive": "#f72585",
                         "update": "#8aa0c4", "other": "#8aa0c4"},
             })
             data = json.dumps(payload)
@@ -2478,7 +2479,8 @@ requestAnimationFrame(loop);
                          "prediction_evaluated": "verdict", "evidence_ingested": "evidence",
                          "compute_submitted": "compute", "compute_running": "compute",
                          "next_experiment_proposed": "experiment", "status_changed": "update",
-                         "project_created": "other", "agent_message": "literature"}
+                         "project_created": "other", "agent_message": "literature",
+                         "human_directive": "directive"}
 
                 def _ecls(et, summ):
                     s = (summ or "").lower()
