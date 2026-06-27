@@ -199,6 +199,32 @@ h4 {{ font-weight: 600 !important; font-size: 0.78rem !important; text-transform
 .stSelectbox [data-baseweb] {{ border-radius: 6px !important; }}
 [data-baseweb="popover"] ul[role="listbox"], [data-baseweb="menu"] {{ background: {p['surface']}; }}
 [role="option"] {{ color: {p['text']}; }}
+/* Option hover/selected — baseweb's default hover is a hardcoded dark grey that stays
+   dark on the light theme; override both states with a theme-aware accent tint. */
+[role="option"]:hover, [data-baseweb="menu"] li:hover {{
+    background: {p['accent_soft']} !important; color: {p['text']} !important; }}
+[role="option"][aria-selected="true"] {{ background: {p['accent_soft']} !important; }}
+
+/* Baseweb tooltips (the help '?' bubbles portal OUTSIDE .stApp, so they keep a default
+   dark background on the light theme unless set explicitly). */
+[data-baseweb="tooltip"], [data-baseweb="tooltip"] * {{
+    background: {p['surface_raised']} !important; color: {p['text']} !important; }}
+[data-baseweb="tooltip"] {{ border: 1px solid {p['border_soft']}; border-radius: 6px; }}
+
+/* Notification inner: some Streamlit builds keep a native tint on the inner node that the
+   outer stAlert override doesn't reach — flatten it to the themed surface. */
+div[data-baseweb="notification"] {{ background: {p['surface']} !important; }}
+
+/* Tabs: muted labels, themed active label, brand-accent active underline. */
+[data-baseweb="tab-list"] {{ border-bottom: 1px solid {p['border_soft']}; }}
+[data-baseweb="tab"] {{ color: {p['muted']}; }}
+[data-baseweb="tab"]:hover {{ color: {p['text']}; }}
+[data-baseweb="tab"][aria-selected="true"] {{ color: {p['text']}; }}
+[data-baseweb="tab-highlight"] {{ background: {p['accent']} !important; }}
+
+/* Multiselect / filter tags */
+[data-baseweb="tag"] {{ background: {p['accent_soft']} !important; color: {p['text']} !important;
+    border: 1px solid {p['border_soft']}; }}
 
 /* Hairline dividers (used sparingly — whitespace separates sections) */
 hr {{ border-color: {p['border_soft']} !important; }}

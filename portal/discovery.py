@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.43-provisional",
+        "version": "0.45-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -475,9 +475,15 @@ def get_manifest() -> dict:
                 "consistency check — KEPT but capped at weak, never zeroed (it was not "
                 "built to fit these points). It does NOT fire on a trend that merely "
                 "inspired the hypothesis. Separately, CORRELATED same-direction verdicts "
-                "resting on evidence_record_ids already counted are attenuated to 0.3× and "
-                "don't add to the independent-decisive count — you cannot confirm twice "
-                "with the same data. Reliability needs ≥2 INDEPENDENT decisive verdicts.",
+                "resting on the same evidence already counted — a record ID OR the same "
+                "underlying CALCULATION (same mlflow_run_url / slurm_job_id) — are "
+                "attenuated to 0.3× and don't add to the independent-decisive count. You "
+                "cannot confirm twice with the same data OR the same calc: one calculation "
+                "re-used across two predictions (e.g. cited as a compute_run on one and as "
+                "its persisted record on a sibling) counts ONCE. This is dedup, not a "
+                "down-weight — agent-computed and archived values carry EQUAL weight; only "
+                "self-corroboration is removed. Reliability needs ≥2 INDEPENDENT decisive "
+                "verdicts.",
             "sharpness": "Optional per-verdict `margin` ∈ [0,1] expresses HOW DECISIVELY "
                 "the observation diverged past the prediction's falsification threshold "
                 "(1 = far past / unambiguous, 0 = right at the line). It refines the coarse "
@@ -990,16 +996,49 @@ def get_manifest() -> dict:
                     "metrics}); a compute/model-backed verdict MUST carry an "
                     "mlflow_run_url. And query isaac_data_sources for an EXISTING result "
                     "before spending a calculation.",
-                "persist_results_as_records": "CLOSE THE LOOP — when a calculation "
-                    "produces a reusable value (an adsorption energy, a barrier, a "
-                    "relaxed structure), PERSIST it into ISAAC so it never has to be "
-                    "recomputed: build a schema-valid computational record, dry-run it "
-                    "with POST /portal/api/validate, then POST /portal/api/records. Mark "
-                    "provenance clearly AGENT-COMPUTED (method/functional or MLIP model, "
-                    "params, the MLflow run, this project_id). Then cite the new "
-                    "record_id as evidence. This is how the repository compounds — your "
-                    "calc becomes everyone's data, and the next agent looks it up instead "
-                    "of recomputing.",
+                "persist_results_as_records": {
+                    "_what": "CLOSE THE LOOP — a calculation worth keeping becomes a "
+                        "first-class ISAAC record so it never has to be recomputed and the "
+                        "next agent (or human) looks it up instead. Your calc becomes "
+                        "everyone's data; this is how the repository compounds.",
+                    "when_to_persist": "Persist EXPENSIVE / QUEUED calculations — the ones "
+                        "that cost real time and an allocation to produce: a VASP DFT job "
+                        "submitted to NERSC/HPC (a SLURM job, hours of wall-clock, the "
+                        "decisive numbers a verdict rests on), a relaxed structure, a "
+                        "converged barrier. The test is COST-OF-RECOMPUTE: if reproducing "
+                        "it is expensive, it is worth archiving. Do NOT bother persisting "
+                        "FAST on-the-spot calcs — MLIP/UMA inference, microkinetic / CatMAP "
+                        "runs, anything that finishes in seconds on a laptop with no queue. "
+                        "Those stay as ephemeral compute_runs grounding the prediction; "
+                        "re-running them is cheaper than the ceremony of depositing them. "
+                        "(This is the current-stage rule — kept deliberately simple; it can "
+                        "loosen later.)",
+                    "how": "(1) GET /portal/api/schema — fetch the AUTHORITATIVE live record "
+                        "schema with vocabulary enums merged in (public, no auth); build "
+                        "your record to it, never hardcode the shape. (2) POST "
+                        "/portal/api/validate — dry-run; fix every error until it passes. "
+                        "(3) POST /portal/api/records — persist. Then cite the new "
+                        "record_id as evidence on the prediction.",
+                    "provenance": "Mark provenance clearly AGENT-COMPUTED: method/functional "
+                        "(or MLIP model), params, the MLflow run_url, and this project_id, "
+                        "so the record is reproducible and traceable back to this run.",
+                    "ownership_and_limits": "You write with your OWN portal token — the same "
+                        "one you already hold; there is no separate key. You may DEPOSIT new "
+                        "records and EDIT ONLY YOUR OWN. You can NEVER edit or delete a "
+                        "record another user created (deletes are admin-only). This is a "
+                        "platform-wide invariant, enforced server-side — authorship is "
+                        "stamped for you; do not attempt to overwrite or reattribute others' "
+                        "records.",
+                    "no_double_counting": "Persisting a calculation you ALREADY cited as a "
+                        "compute_run on a prediction does NOT add a second independent "
+                        "evidence leg — the platform counts the SAME calculation ONCE. "
+                        "Where a number comes from (agent-computed now vs archived earlier) "
+                        "does NOT change its weight; a calc you just ran and a calc from the "
+                        "database carry EQUAL evidential weight. What is not allowed is one "
+                        "calculation corroborating itself twice on the same hypothesis. "
+                        "Reusing that record later on a DIFFERENT hypothesis is full, "
+                        "independent evidence — that reuse is the entire point of saving it.",
+                },
                 "your_specific_tools": "The EXACT binaries, HPC submission paths, API "
                     "endpoints and credentials available to you depend on WHERE you run "
                     "and WHO runs you (e.g. an S3DF session with FairChem + a NERSC/IRI "
@@ -1882,11 +1921,39 @@ def _derive_reliability_tier(reliability, own_evidence_ids):
     return "single_source"
 
 
+def _calc_keys(p):
+    """Identity of the CALCULATION(s) a verdict rests on, drawn from its compute_runs.
+    A single physical job (one VASP submission) attached to two different predictions
+    becomes two compute_run ROWS — but they share the same mlflow_run_url / slurm_job_id,
+    because that is the same job. We key on THOSE (the real calculation identity), NOT on
+    run_id (which is row-unique and so could never reveal that two rows are one job).
+    Namespaced ('mlflow:' / 'slurm:') so a calc key can never collide with a record ULID.
+    Empty → no usable provenance, treated as independent (we can't prove it's the same calc).
+
+    This is what makes the manifest's `no_double_counting` promise true: the SAME
+    calculation cannot corroborate one hypothesis twice — whether it was cited as a
+    compute_run on one prediction and (after being persisted) re-used on a sibling. It is
+    DEDUP, not a down-weight: source never changes weight; one calculation just counts once."""
+    keys = set()
+    for r in (p.get("compute_runs") or []):
+        url = str(r.get("mlflow_run_url") or "").strip()
+        job = str(r.get("slurm_job_id") or "").strip()
+        if url:
+            keys.add("mlflow:" + url)
+        if job:
+            keys.add("slurm:" + job)
+    return frozenset(keys)
+
+
 def _evidence_key(p):
-    """The set of evidence record IDs a verdict rests on (for independence/dedup).
-    Empty → unknown provenance, treated as independent (we can't prove overlap)."""
+    """The identity-set a verdict rests on, for independence/dedup: the union of the
+    cited evidence record IDs AND the calculation identities (compute_runs) it leans on.
+    Two verdicts collide — and the later one is attenuated, not counted toward reliability —
+    when they share ANY record OR the same underlying calculation. Empty → unknown
+    provenance, treated as independent (we can't prove overlap)."""
     ids = p.get("evidence_record_ids") or []
-    return frozenset(str(x) for x in ids if x)
+    base = {str(x) for x in ids if x}
+    return frozenset(base | set(_calc_keys(p)))
 
 
 def _margin_factor(margin):
@@ -1923,10 +1990,14 @@ def compute_hypothesis_score(h) -> dict:
         overlap is a consistency check — kept but capped at weak (circular_softened),
         never zeroed. Inspiration (a trend that merely motivated the hypothesis) is
         NOT discounted at all.
-      • CORRELATED same-direction verdicts (sharing evidence_record_ids already
-        counted) are attenuated to {_atten}× and don't add to n_decisive — you can't
-        confirm twice with the same data, nor fake reliability by stacking predictions
-        on one result.
+      • CORRELATED same-direction verdicts (sharing the same evidence — a record ID OR
+        the same underlying CALCULATION, by mlflow_run_url / slurm_job_id) are attenuated
+        to {_atten}× and don't add to n_decisive — you can't confirm twice with the same
+        data OR the same calc, nor fake reliability by stacking predictions on one result.
+        This holds whether a calc is cited as a compute_run on one prediction and re-used
+        (after being persisted as a record) on a sibling: the SAME calculation counts ONCE.
+        It is dedup, NOT a down-weight — an agent-computed value and an archived one carry
+        equal weight; only self-corroboration on one hypothesis is removed.
     SHARPNESS (optional per-verdict `margin` ∈ [0,1]): how decisively the observation
     diverged past the falsification threshold. Scales the contribution 0.7×..1.3×
     within the strength tier, and a STRONG contradiction only triggers the falsification
@@ -2125,10 +2196,19 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
     """Recompute a hypothesis's confidence FROM its prediction verdicts and persist
     it (the platform owns confidence; the agent never authors it). Called on every
     prediction-evaluation change. Returns the new confidence."""
-    cur.execute("""SELECT verdict, strength, work_status, evidence_independence,
-                          evidence_record_ids, margin, cross_system, reliability_tier
+    cur.execute("""SELECT prediction_id, verdict, strength, work_status,
+                          evidence_independence, evidence_record_ids, margin,
+                          cross_system, reliability_tier
                      FROM hyp_predictions WHERE hypothesis_id=%s""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]
+    # Attach each prediction's compute-run IDENTITIES so the STORED confidence dedups
+    # the-same-calculation-twice exactly as the display path does (calc fingerprinting
+    # lives in _evidence_key). Without this the stored and displayed confidence would
+    # diverge whenever a calculation backs two predictions on one hypothesis.
+    for p in preds:
+        cur.execute("""SELECT mlflow_run_url, slurm_job_id FROM hyp_compute_runs
+                         WHERE prediction_id=%s""", (p["prediction_id"],))
+        p["compute_runs"] = [dict(r) for r in cur.fetchall()]
     cur.execute("SELECT project_id, grounding FROM hyp_hypotheses WHERE hypothesis_id=%s",
                 (hypothesis_id,))
     row = cur.fetchone()

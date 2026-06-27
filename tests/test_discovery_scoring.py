@@ -26,11 +26,17 @@ from discovery import (compute_hypothesis_score, compute_fragility,  # noqa: E40
 
 def _pred(verdict=None, strength=None, work_status="evaluated",
           evidence_record_ids=None, evidence_independence=None, margin=None,
-          cross_system=None, reliability_tier=None):
+          cross_system=None, reliability_tier=None, compute_runs=None):
     return {"verdict": verdict, "strength": strength, "work_status": work_status,
             "evidence_record_ids": evidence_record_ids,
             "evidence_independence": evidence_independence, "margin": margin,
-            "cross_system": cross_system, "reliability_tier": reliability_tier}
+            "cross_system": cross_system, "reliability_tier": reliability_tier,
+            "compute_runs": compute_runs}
+
+
+def _run(mlflow=None, slurm=None):
+    """A compute_run row as the scorer sees it (only the identity fields matter)."""
+    return {"mlflow_run_url": mlflow, "slurm_job_id": slurm}
 
 
 # evidence_independence that is CIRCULAR (model fit to the data it's tested on)
@@ -295,6 +301,93 @@ def test_opposite_directions_on_same_record_are_not_correlated():
     assert s["breakdown"]["correlated_attenuated"] == 0
     assert s["n_decisive"] == 2
     assert s["computed_confidence"] == round(_sigmoid(0.6 - 0.6 * 1.25), 3)
+
+
+# --- CP-dedup: the SAME calculation cannot corroborate one hypothesis twice ----
+
+def test_same_calculation_does_not_double_count():
+    # two supports backed by the SAME physical job (same mlflow_run_url) on two
+    # predictions: the second is attenuated to 0.3× and does NOT add to n_decisive —
+    # exactly like sharing a record. This is the manifest's no_double_counting promise.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", compute_runs=[_run(mlflow="mlflow/run/abc")]),
+        _pred("supports", "strong", compute_runs=[_run(mlflow="mlflow/run/abc")]),
+    ))
+    assert s["computed_confidence"] == round(_sigmoid(1.0 + 0.3 * 1.0), 3)
+    assert s["n_decisive"] == 1
+    assert s["reliable"] is False
+    assert s["breakdown"]["correlated_attenuated"] == 1
+
+
+def test_different_calculations_each_count():
+    # two supports from DIFFERENT jobs → both full weight, both decisive, reliable.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", compute_runs=[_run(mlflow="mlflow/run/abc")]),
+        _pred("supports", "strong", compute_runs=[_run(mlflow="mlflow/run/xyz")]),
+    ))
+    assert s["computed_confidence"] == round(_sigmoid(2.0), 3)
+    assert s["n_decisive"] == 2
+    assert s["reliable"] is True
+    assert s["breakdown"]["correlated_attenuated"] == 0
+
+
+def test_calc_dedup_keys_on_slurm_job_id_too():
+    # if there is no mlflow url but the SLURM job id is shared, it is still one calc.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", compute_runs=[_run(slurm="nersc-12345")]),
+        _pred("supports", "strong", compute_runs=[_run(slurm="nersc-12345")]),
+    ))
+    assert s["n_decisive"] == 1
+    assert s["breakdown"]["correlated_attenuated"] == 1
+
+
+def test_calc_persisted_as_record_then_reused_counts_once():
+    # THE scenario CP-dedup exists for: a job is run (compute_run mlflow X) and its
+    # verdict supports H; the agent persists it as record RX and, on a SIBLING
+    # prediction, cites RX *and* attaches the same job (mlflow X). Sharing the calc
+    # identity makes the sibling correlated → counts once, not a fake 2nd decisive leg.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", compute_runs=[_run(mlflow="mlflow/run/abc")]),
+        _pred("supports", "strong", evidence_record_ids=["RX"],
+              compute_runs=[_run(mlflow="mlflow/run/abc")]),
+    ))
+    assert s["n_decisive"] == 1
+    assert s["reliable"] is False
+    assert s["breakdown"]["correlated_attenuated"] == 1
+
+
+def test_calc_and_unrelated_record_are_independent():
+    # a calc-backed verdict and a DIFFERENT record-backed verdict do NOT collide —
+    # we must not over-dedup. Both count; reliable.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", compute_runs=[_run(mlflow="mlflow/run/abc")]),
+        _pred("supports", "strong", evidence_record_ids=["RY"]),
+    ))
+    assert s["n_decisive"] == 2
+    assert s["reliable"] is True
+    assert s["breakdown"]["correlated_attenuated"] == 0
+
+
+def test_single_calc_carries_the_same_weight_as_a_single_record():
+    # source-neutrality: one support backed by a fresh calc weighs EXACTLY the same as
+    # one backed by an archived record. Agent-computed is not down-weighted.
+    by_calc = compute_hypothesis_score(_h(
+        _pred("supports", "strong", compute_runs=[_run(mlflow="mlflow/run/abc")])))
+    by_record = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=["RX"])))
+    assert by_calc["computed_confidence"] == by_record["computed_confidence"]
+    assert by_calc["n_decisive"] == by_record["n_decisive"] == 1
+
+
+def test_opposite_directions_on_same_calc_are_a_conflict_not_redundancy():
+    # support and contradiction from the same calc are a CONFLICT — both count (dedup is
+    # within-direction only), mirroring the same-record conflict case.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "moderate", compute_runs=[_run(mlflow="mlflow/run/abc")]),
+        _pred("contradicts", "moderate", compute_runs=[_run(mlflow="mlflow/run/abc")]),
+    ))
+    assert s["breakdown"]["correlated_attenuated"] == 0
+    assert s["n_decisive"] == 2
 
 
 # --- Item 2: per-verdict sharpness (margin) ------------------------------------
