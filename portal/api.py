@@ -1042,7 +1042,8 @@ def discovery_update_hypothesis(hypothesis_id):
     # NOTE: confidence is COMPUTED from prediction verdicts, never set here. Only
     # status is accepted; any confidence/confidence_basis in the body is ignored.
     ok = discovery.update_hypothesis(
-        hypothesis_id, status=d.get("status"), actor=_disc_identity())
+        hypothesis_id, status=d.get("status"), reason=d.get("reason"),
+        actor=_disc_identity())
     if not ok:
         return jsonify({"error": "not found, or no status to update "
                                  "(confidence is computed, not set)"}), 404
