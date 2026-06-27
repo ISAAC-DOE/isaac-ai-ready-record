@@ -131,6 +131,34 @@ def test_fe_range_check():
     assert not validation.validate_record_full(base)["valid"]
 
 
+def _warn_codes(record):
+    return {w["code"] for w in (validation.validate_record_full(record).get("warnings") or [])}
+
+
+def test_computation_method_completeness_nudge():
+    """A computation record must declare computation.method (functional + code) so its
+    result is comparable across functionals — else an advisory warning fires. Records
+    that DO tag their method (the XAS/microkinetic convention) are not nagged."""
+    # no computation block at all -> MISSING
+    no_method = {"record_type": "evidence", "record_domain": "simulation",
+                 "source_type": "computation", "sample": {}}
+    assert "COMPUTATION_METHOD_MISSING" in _warn_codes(no_method)
+    # method present but no functional_name -> INCOMPLETE
+    partial = {"record_type": "evidence", "source_type": "computation",
+               "computation": {"method": {"family": "DFT"}}}
+    assert "COMPUTATION_METHOD_INCOMPLETE" in _warn_codes(partial)
+    # fully tagged (family + functional_name) -> no method nag
+    tagged = {"record_type": "evidence", "source_type": "computation",
+              "computation": {"method": {"family": "DFT", "functional_name": "RPBE",
+                                         "functional_class": "GGA", "code": "VASP"}}}
+    codes = _warn_codes(tagged)
+    assert "COMPUTATION_METHOD_MISSING" not in codes
+    assert "COMPUTATION_METHOD_INCOMPLETE" not in codes
+    # a non-computation (performance) record is never subject to this check
+    perf = {"record_type": "evidence", "record_domain": "performance", "source_type": "experiment"}
+    assert "COMPUTATION_METHOD_MISSING" not in _warn_codes(perf)
+
+
 def test_vocabulary_list_leaves_checked():
     """The list-leaf walker bug stays fixed: bad processing.steps rejected."""
     base = json.loads((REPO / "examples" / "co2rr_performance_record.json").read_text())

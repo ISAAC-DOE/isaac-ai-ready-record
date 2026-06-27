@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.45-provisional",
+        "version": "0.46-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -991,6 +991,31 @@ def get_manifest() -> dict:
                     "verdict rests on; microkinetics / reaction-diffusion / transport "
                     "models for rates and length scales. Screen with MLIP, confirm the "
                     "decisive ones with DFT.",
+                "choose_the_method": "(PRELIMINARY — a dedicated catalysis method skill is "
+                    "coming.) The FUNCTIONAL is not a free choice: accuracy depends on using "
+                    "the approach the LITERATURE has validated for THIS question. Different "
+                    "functionals give materially different adsorption energies/barriers, and "
+                    "the right one is field-specific (e.g. RPBE / BEEF-vdW for CO2RR/CO "
+                    "adsorption energetics on transition metals; the SunCat/Nørskov line of "
+                    "work also applies EMPIRICAL SHIFTS to specific adsorbates to match "
+                    "experiment). Before you trust a decisive number: (1) decide the method "
+                    "from the literature for this exact property/system — do an Edison "
+                    "literature search if unsure WHICH functional+correction is standard; "
+                    "(2) match the ISAAC database standard so your value is comparable to "
+                    "existing records (the records corpus declares its functional in "
+                    "computation.method — read it before recomputing); (3) if you must use a "
+                    "different functional than the corpus, say so and prefer a DIFFERENCE "
+                    "(ΔΔE) that is robust to the choice over an absolute energy that is not. "
+                    "A calc with the wrong functional is precise-but-wrong; matching the "
+                    "validated method is part of the science, not a formality.",
+                "independence_of_calculations": "Two calculations are NOT automatically "
+                    "independent evidence. The SAME observable on the SAME system recomputed "
+                    "at a DIFFERENT functional is a ROBUSTNESS check (corroboration), not a "
+                    "second independent decisive verdict — it varies the method, not the "
+                    "test. Genuine independence comes from a DIFFERENT discriminating "
+                    "observable (or experiment). Use a cross-functional re-run to harden a "
+                    "number, but don't expect it to, by itself, make a one-observable "
+                    "hypothesis 'reliable'.",
                 "record_it": "Register each as a compute_run (POST /predictions/{id}/runs "
                     "{backend, engine, resource, slurm_job_id, mlflow_run_url, params, "
                     "metrics}); a compute/model-backed verdict MUST carry an "
@@ -1016,9 +1041,18 @@ def get_manifest() -> dict:
                     "how": "(1) GET /portal/api/schema — fetch the AUTHORITATIVE live record "
                         "schema with vocabulary enums merged in (public, no auth); build "
                         "your record to it, never hardcode the shape. (2) POST "
-                        "/portal/api/validate — dry-run; fix every error until it passes. "
-                        "(3) POST /portal/api/records — persist. Then cite the new "
-                        "record_id as evidence on the prediction.",
+                        "/portal/api/validate — dry-run; fix every error AND heed the "
+                        "warnings until it passes clean. (3) POST /portal/api/records — "
+                        "persist. Then cite the new record_id as evidence on the prediction.",
+                    "tag_the_method": "A computation record MUST declare its method in the "
+                        "structured `computation.method` block — family (DFT/microkinetic/…), "
+                        "functional_name (PBE, RPBE, BEEF-vdW, …), functional_class, "
+                        "basis_type, code + code_version (and dispersion / cutoff_eV / kpoints "
+                        "where they matter). NOT in free-text system.notes — a method buried "
+                        "in prose cannot be filtered or compared. The validator now WARNS "
+                        "(COMPUTATION_METHOD_MISSING / _INCOMPLETE) when it's absent: a "
+                        "computed value without its functional is not comparable to anything. "
+                        "See integrations.compute.choose_the_method.",
                     "provenance": "Mark provenance clearly AGENT-COMPUTED: method/functional "
                         "(or MLIP model), params, the MLflow run_url, and this project_id, "
                         "so the record is reproducible and traceable back to this run.",

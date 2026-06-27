@@ -332,6 +332,31 @@ def _warning_checks(record: dict):
             warnings.append({"code": "NO_LINKS", "path": "links",
                              "message": "Record has no links[] and no tags[]. Group it via a typed link (same_sample_as / derived_from / intended_comparison_target) or a tag."})
 
+        # Computation records must DECLARE THEIR METHOD in computation.method (the
+        # schema slots exist but are optional). Without functional + code, a computed
+        # number is not comparable across records: a PBE adsorption energy is not the
+        # same quantity as an RPBE or BEEF-vdW one, and the next agent cannot filter
+        # for a database-consistent value. (The method belongs in computation.method,
+        # NOT buried in free-text system/notes.)
+        if record.get("source_type") == "computation" or domain == "simulation":
+            method = ((record.get("computation") or {}).get("method") or {})
+            if not method:
+                warnings.append({"code": "COMPUTATION_METHOD_MISSING", "path": "computation/method",
+                                 "message": "Computation record has no computation.method block. Declare at least "
+                                            "family (DFT / microkinetic / AIMD / ...), functional_name (PBE, RPBE, "
+                                            "BEEF-vdW, HSE06, ...), functional_class, basis_type, code + code_version. "
+                                            "Results are NOT comparable across functionals/codes without it — and a "
+                                            "method recorded only in free-text (system.notes) cannot be filtered or "
+                                            "trusted for comparison."})
+            else:
+                miss = [f for f in ("family", "functional_name") if not method.get(f)]
+                if miss:
+                    warnings.append({"code": "COMPUTATION_METHOD_INCOMPLETE", "path": "computation/method",
+                                     "message": f"computation.method is missing {miss}. functional_name "
+                                                "(PBE / RPBE / BEEF-vdW / ...) and family are the comparability keys — "
+                                                "an adsorption energy or barrier is only meaningful next to the "
+                                                "functional that produced it."})
+
         qc = ((record.get("measurement") or {}).get("qc") or {})
         if qc.get("status") == "compromised" and str(qc.get("evidence", "")).strip().upper() in ("", "N/A", "NA", "NONE"):
             warnings.append({"code": "QC_COMPROMISED_NO_EVIDENCE", "path": "measurement/qc/evidence",
