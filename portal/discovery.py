@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.52-provisional",
+        "version": "0.53-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -221,9 +221,9 @@ def get_manifest() -> dict:
             "prioritized to-do (derived from method_compliance + rigor_review), and "
             "`method_compliance` is the live audit. You do NOT need a human to tell you "
             "the next rigor step; the dashboard does. KEEP CLEARING the actions until none "
-            "remains that you CAN do — yield only when genuinely blocked: a queued "
-            "calculation to await, information not in the repository, or a decision that is "
-            "your operator's.",
+            "remains that you CAN do — yield only when genuinely blocked: a calculation you "
+            "have LAUNCHED and are awaiting (not one you only named), information obtainable "
+            "from no source you can reach, or a decision that is your operator's.",
             "WRITE after you act: every hypothesis, prediction, verdict, status "
             "change and compute run is an API write. If it is not on the dashboard, "
             "it did not happen — never hold project state only in your context.",
@@ -406,12 +406,17 @@ def get_manifest() -> dict:
                 "discriminating test is registered/unrun) or `no_discriminating_test` "
                 "(identical and no test designed — worse). decision_distance summarizes "
                 "it (0 = decided, 0.2 = one experiment away, 0.8 = no test designed).",
-            "do_not_re_audit_to_resolve": "When survivors are observationally identical, "
-                "re-auditing the SAME data will not separate them — RUN the "
-                "discriminating experiment instead. The platform redirects "
-                "recommended_actions to the experiment. (Confidence isn't authored — it "
-                "is computed from your verdicts — so re-auditing without new verdicts "
-                "doesn't move it anyway.)",
+            "do_not_re_audit_to_resolve": "When survivors are observationally identical ON "
+                "CURRENT DATA, re-auditing the same records will not separate them — EXPLORE "
+                "first: a LITERATURE query, or a CALCULATION (a coupled model, a DFT run, a "
+                "microkinetic sweep). A tie you could break by literature or computation is "
+                "UNEXPLORED, not blocked: untestable on your data is not untestable in your "
+                "hands. You are blocked_on_experiment — and may yield — only once the "
+                "COMPUTABLE discriminators are exhausted and what remains needs PHYSICAL data "
+                "you cannot obtain; if you decline a probe as infeasible, LOG why "
+                "(a reasoning_step) — never assume it. (Confidence isn't authored — it is "
+                "computed from your verdicts — so re-auditing without new verdicts doesn't "
+                "move it anyway.)",
             "equivalence_classes": "When survivors are observationally identical on "
                 "current data they are NON-IDENTIFIABLE — report them as ONE equivalence "
                 "class (convergence.equivalence_classes), decided only by the experiment. "
@@ -2612,6 +2617,19 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     evidence_index = build_evidence_index(elements, include_ids=ov.get("include"),
                                           exclude_ids=ov.get("exclude"))
 
+    # EXPLORE-BEFORE-BLOCKED: untested LIVE hypotheses while the project has run NO
+    # computation and logged NO literature query — a computable probe (a calc or a lookup)
+    # may still discriminate them, so 'untestable' here is unexplored, not blocked.
+    _untested_live = [h["label"] for (h, s) in scored
+                      if h["status"] not in ("eliminated", "superseded")
+                      and not is_residual_hypothesis(h) and s["n_decisive"] == 0]
+    _total_cruns = sum(len(p.get("compute_runs") or [])
+                       for h in hyps for p in h["predictions"])
+    _lit_signal = any(k in ((e.get("summary") or "") + " " + (e.get("detail") or "")).lower()
+                      for e in events for k in ("literatur", "edison", "paperqa", "doi"))
+    untested_with_idle_tools = (_untested_live if (_untested_live and _total_cruns == 0
+                                                   and not _lit_signal) else [])
+
     # Self-instructing: turn the gaps above into an explicit, prioritized to-do so
     # the agent learns what to do next FROM THE BRIEFING, not from a bespoke human
     # prompt. Every action is a generic method/rigor step — never a science answer.
@@ -2691,6 +2709,14 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "unconnected in the evidence graph). For each, attach the record IDs it rests "
             "on (even when you derived a proxy from raw records — cite those records) and/or "
             "the compute_run that grounds it.")
+    if untested_with_idle_tools:
+        recommended_actions.append(
+            f"EXPLORE BEFORE YOU YIELD: {untested_with_idle_tools} are untested and this "
+            "project has run NO calculation and logged NO literature query. A computable "
+            "discriminator — a literature lookup or a calculation (MLIP/DFT/microkinetic) — "
+            "may separate them. 'Blocked' means you need PHYSICAL data you cannot obtain; a "
+            "tie a calc or a lookup could break is UNEXPLORED, not blocked. Try one (or LOG "
+            "why it can't help) before treating these as untestable.")
     if preds_unexplained:
         _x = preds_unexplained[:6]
         recommended_actions.append(
@@ -2796,6 +2822,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "predictions_missing_origin_provenance": preds_without_origin,
             "predictions_missing_falsification_criterion": preds_without_criterion,
             "decisive_verdicts_unexplained": preds_unexplained,
+            "untested_hypotheses_with_idle_tools": untested_with_idle_tools,
             "circular_confirmations": circular_confirmations,
             "supports_without_independence_declaration": supports_without_independence,
             "supersessions_without_discriminating_observable": supersedes_without_discriminator,
