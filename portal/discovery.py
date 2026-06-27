@@ -41,7 +41,7 @@ EVENT_TYPES = {
     "ranking_updated", "status_changed", "next_experiment_proposed",
     "evidence_ingested", "agent_message", "project_created",
     "compute_submitted", "compute_running", "compute_failed",
-    "reasoning_step", "resume_check",
+    "reasoning_step", "resume_check", "human_directive",
 }
 
 # Prediction workflow lifecycle (distinct from `verdict`, the scientific
@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.55-provisional",
+        "version": "0.56-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -227,6 +227,13 @@ def get_manifest() -> dict:
             "WRITE after you act: every hypothesis, prediction, verdict, status "
             "change and compute run is an API write. If it is not on the dashboard, "
             "it did not happen — never hold project state only in your context.",
+            "RECORD THE DIRECTIVE: if a human prompted this turn, the turn's FIRST "
+            "WRITE is that prompt, copied VERBATIM into a `human_directive` event (the "
+            "briefing GET is a read, so it still comes first; see "
+            "field_shapes.human_directive). The exact words are a method input — "
+            "without them the trace can't be reproduced, and this self-report is their "
+            "ONLY record. A turn you began autonomously (you still self-direct from the "
+            "briefing) writes nothing here.",
             "One project = one ground truth. Do not fork reality in your head.",
         ],
         "method": {
@@ -726,7 +733,11 @@ def get_manifest() -> dict:
                 "method, the guardrails, and the per-turn to-do — comes from this "
                 "manifest + the briefing. A sufficient human prompt is just: 'Connect to "
                 "ISAAC Discovery with this token, resume project <id> (or start one for "
-                "<goal>), and follow the manifest and the briefing's recommended_actions.'",
+                "<goal>), and follow the manifest and the briefing's recommended_actions.' "
+                "Whatever the human DOES say — even just this connect line — is still "
+                "recorded verbatim as a `human_directive` (see prime_directive); the "
+                "brevity of that record is itself the proof the method came from here, "
+                "not from the human.",
         },
         "reproducibility_mode": {
             "_what": "Two ways to run, kept distinct so a RECALLED result is never "
@@ -981,6 +992,22 @@ def get_manifest() -> dict:
                       "summary": "(REQUIRED, one line)", "detail": "(optional, long)",
                       "hypothesis_id": "optional", "evidence_record_ids": "optional",
                       "mlflow_run_url": "optional"},
+            "human_directive": {
+                "_for": "method provenance — the human prompt that opened the turn; the "
+                        "agent's FIRST write whenever a human steers, so every output "
+                        "traces to the instruction that produced it. Dashboard event only.",
+                "event_type": "human_directive",
+                "summary": "one-line gist (REQUIRED, for the timeline)",
+                "detail": "the prompt WORD-FOR-WORD — no paraphrase, summary, translation, "
+                          "cleanup or redaction (typos, formatting, links and all). If the "
+                          "human sent several messages this turn, include ALL of them in "
+                          "order. Non-text input (voice/image/file): record the "
+                          "transcript/URI and mark it as such. Never silently drop or "
+                          "truncate — if something must be withheld, leave a marked "
+                          "placeholder, not a gap.",
+                "_rule": "exact copy or it is worthless; the prompt logged under any other "
+                         "event_type does not count; omit entirely on an "
+                         "autonomously-begun turn."},
             "next_experiment": {"_semantics": "PUT REPLACES the whole object (not a "
                                 "merge); send the complete payload each time. ALL keys "
                                 "you send are stored — nothing is dropped.",
@@ -1023,7 +1050,11 @@ def get_manifest() -> dict:
             "magnitude-vs-falsification + replication). One-line summaries are not "
             "enough — if it isn't recorded in full, it can't be audited. Any verdict "
             "that leaned on COMPUTE or a fitted MODEL MUST carry an mlflow_run_url (the "
-            "replay trace); the briefing flags compute/model verdicts that lack one.",
+            "replay trace); the briefing flags compute/model verdicts that lack one. "
+            "Human prompts are provenance too: the verbatim directive that opens a "
+            "human-prompted turn is its FIRST write, a `human_directive` event "
+            "(self-reported, dashboard-only). The briefing flags substantial activity "
+            "with no directive on record.",
         "integrations": {
             "isaac_data_sources": {
                 "purpose": "ISAAC is itself a primary KNOWLEDGE SOURCE — query it BEFORE "
@@ -2986,6 +3017,21 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     if not proj.get("next_experiment"):
         recommended_actions.append("Propose the discriminating next experiment "
                                    "(PUT /next_experiment).")
+    # PROMPT PROVENANCE: the verbatim human directives are self-reported (the agent is
+    # the only witness). We can't verify the text, but we CAN flag the structural tell —
+    # substantial decision activity with NO directive on record means the human prompts
+    # that steered it were never written down.
+    _n_directives = sum(1 for e in events if e["event_type"] == "human_directive")
+    _decision_events = sum(1 for e in events if e["event_type"] in (
+        "hypothesis_created", "prediction_added", "prediction_evaluated",
+        "status_changed", "compute_submitted", "next_experiment_proposed"))
+    _activity_without_directive = _n_directives == 0 and _decision_events >= 4
+    if _activity_without_directive:
+        recommended_actions.append(
+            "NO HUMAN DIRECTIVE ON RECORD despite real activity — if a human ever "
+            "steered this project, record each prompt VERBATIM as the FIRST write of "
+            "its turn (human_directive event). The prompt is a method input; a trace "
+            "without it can't be reproduced.")
 
     return {
         "project_id": project_id,
@@ -3033,6 +3079,8 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                                        for r in dataset_coverage.get("unused_records", [])],
             "dataset_of_interest_undeclared": not dataset_coverage.get("declared"),
             "shared_premise_unaudited": shared_premise_audit["unaudited"],
+            "human_directives_recorded": _n_directives,
+            "activity_without_recorded_directive": _activity_without_directive,
         },
         "shared_premise_audit": shared_premise_audit,
         "rigor_review": rigor_review,
