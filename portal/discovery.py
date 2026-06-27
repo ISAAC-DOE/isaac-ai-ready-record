@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.54-provisional",
+        "version": "0.55-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -833,6 +833,15 @@ def get_manifest() -> dict:
                         "origin}. Each hypothesis needs a SET (>=2, aim 3-4) spanning "
                         "DIFFERENT descriptors — not one token prediction on one "
                         "measurable. See field_shapes.prediction."},
+            {"m": "PUT", "path": "/predictions/{id}",
+             "purpose": "COMPLETE/sharpen a prediction's STRUCTURE in place {direction, "
+                        "reference_condition, magnitude, falsification_criterion, label, "
+                        "discriminates, origin} — fill fields you omitted WITHOUT re-POSTing "
+                        "a duplicate. Does NOT touch the verdict (use /evaluate). Owner-only."},
+            {"m": "PUT", "path": "/projects/{id}",
+             "purpose": "Update project fields after creation {material_system, reaction, "
+                        "goal} — chiefly material_system, which keys the evidence index. "
+                        "Owner-only."},
             {"m": "POST", "path": "/hypotheses/{id}/relations",
              "purpose": "Link hypotheses {to_hypothesis_id, relation_type, note}. For "
                         "`supersedes` also pass {discriminating_observable, "
@@ -1361,6 +1370,78 @@ def create_project(owner_identity, title, goal=None, material_system=None,
                       f"Project created: {title}", actor=owner_identity)
         conn.commit()
         return project_id
+    finally:
+        cur.close()
+        conn.close()
+
+
+def update_project(project_id, *, material_system=None, reaction=None, goal=None,
+                   owner_identity=None, actor=None) -> bool:
+    """Update project-level fields that were settable only at creation before — chiefly
+    `material_system` (the descriptor-keyed evidence index keys off it). Only the fields
+    you pass are touched. Owner-only. Returns False if the project doesn't exist or isn't yours."""
+    sets, vals = [], []
+    for col, v in (("material_system", material_system), ("reaction", reaction),
+                   ("goal", goal)):
+        if v is not None:
+            sets.append(f"{col}=%s")
+            vals.append(v)
+    if not sets:
+        return False
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT 1 FROM hyp_projects WHERE project_id=%s", (project_id,))
+        if cur.fetchone() is None:
+            return False
+        if owner_identity is not None and not _is_owner(cur, project_id, owner_identity):
+            return False
+        cur.execute(f"UPDATE hyp_projects SET {', '.join(sets)}, updated_at=NOW() "
+                    "WHERE project_id=%s", (*vals, project_id))
+        conn.commit()
+        return True
+    finally:
+        cur.close()
+        conn.close()
+
+
+def update_prediction(prediction_id, *, label=None, direction=None,
+                      reference_condition=None, magnitude=None, output_quantity=None,
+                      falsification_criterion=None, discriminates=None, origin=None,
+                      owner_identity=None, actor=None) -> bool:
+    """Complete/sharpen a prediction's STRUCTURE in place (the descriptor + falsifier
+    fields) WITHOUT touching its verdict — that is what /evaluate is for. Lets an agent fill
+    direction / reference_condition / magnitude / falsification_criterion it omitted, rather
+    than re-POSTing a duplicate. Only the fields you pass are updated. False if not found."""
+    cols = {"label": label, "direction": direction, "reference_condition": reference_condition,
+            "magnitude": magnitude, "output_quantity": output_quantity,
+            "falsification_criterion": falsification_criterion}
+    sets, vals = [], []
+    for c, v in cols.items():
+        if v is not None:
+            sets.append(f"{c}=%s")
+            vals.append(v)
+    for c, v in (("discriminates", discriminates), ("origin", origin)):
+        if v is not None:
+            sets.append(f"{c}=%s")
+            vals.append(json.dumps(v))
+    if not sets:
+        return False
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT p.hypothesis_id, h.project_id FROM hyp_predictions p
+                       JOIN hyp_hypotheses h ON h.hypothesis_id=p.hypothesis_id
+                       WHERE p.prediction_id=%s""", (prediction_id,))
+        row = cur.fetchone()
+        if row is None:
+            return False
+        if owner_identity is not None and not _is_owner(cur, row["project_id"], owner_identity):
+            return False
+        cur.execute(f"UPDATE hyp_predictions SET {', '.join(sets)}, updated_at=NOW() "
+                    "WHERE prediction_id=%s", (*vals, prediction_id))
+        conn.commit()
+        return True
     finally:
         cur.close()
         conn.close()
@@ -2890,7 +2971,8 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     if preds_missing_structure:
         recommended_actions.append(
             f"Complete the STRUCTURE of {len(preds_missing_structure)} prediction(s) "
-            "missing direction / reference_condition / magnitude — a prediction is "
+            "missing direction / reference_condition / magnitude — fill them IN PLACE via "
+            "PUT /predictions/{id} (do NOT re-POST, which duplicates). A prediction is "
             "{descriptor, direction, reference_condition, magnitude, "
             "falsification_criterion}, not one crammed string.")
     if preds_without_origin:

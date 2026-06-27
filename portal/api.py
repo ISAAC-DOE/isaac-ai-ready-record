@@ -890,6 +890,21 @@ def discovery_get_project(project_id):
     return jsonify(proj), 200
 
 
+@app.route("/portal/api/projects/<project_id>", methods=["PUT", "PATCH"])
+@_require_auth
+def discovery_update_project(project_id):
+    """Update project-level fields after creation — chiefly material_system (and reaction/
+    goal). Owner-only. The descriptor-keyed evidence index keys off material_system."""
+    d = request.get_json(silent=True) or {}
+    ok = discovery.update_project(
+        project_id, material_system=d.get("material_system"),
+        reaction=d.get("reaction"), goal=d.get("goal"),
+        owner_identity=_disc_identity(), actor=_disc_identity())
+    if not ok:
+        return jsonify({"error": "not found, not yours, or no updatable field sent"}), 404
+    return jsonify({"ok": True}), 200
+
+
 @app.route("/portal/api/projects/<project_id>/briefing", methods=["GET"])
 @_require_auth
 def discovery_briefing(project_id):
@@ -1001,6 +1016,26 @@ def discovery_delete_project(project_id):
     if not ok:
         return jsonify({"error": "not found or not yours"}), 404
     return jsonify({"ok": True, "deleted": project_id}), 200
+
+
+@app.route("/portal/api/predictions/<prediction_id>", methods=["PUT", "PATCH"])
+@_require_auth
+def discovery_update_prediction(prediction_id):
+    """Complete/sharpen a prediction's STRUCTURE in place (direction, reference_condition,
+    magnitude, falsification_criterion, label, discriminates, origin) WITHOUT touching its
+    verdict — use /evaluate for the verdict. Lets you fill omitted structural fields instead
+    of re-POSTing a duplicate. Owner-only."""
+    d = request.get_json(silent=True) or {}
+    ok = discovery.update_prediction(
+        prediction_id, label=d.get("label"), direction=d.get("direction"),
+        reference_condition=d.get("reference_condition"), magnitude=d.get("magnitude"),
+        output_quantity=d.get("output_quantity"),
+        falsification_criterion=d.get("falsification_criterion"),
+        discriminates=d.get("discriminates"), origin=d.get("origin"),
+        owner_identity=_disc_identity(), actor=_disc_identity())
+    if not ok:
+        return jsonify({"error": "not found, not yours, or no updatable field sent"}), 404
+    return jsonify({"ok": True}), 200
 
 
 @app.route("/portal/api/predictions/<prediction_id>/status", methods=["PUT"])
