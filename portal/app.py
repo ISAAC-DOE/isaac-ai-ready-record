@@ -2548,7 +2548,7 @@ requestAnimationFrame(loop);
                 else:
                     _style = st.radio(
                         "Replay style",
-                        ["🌱 Living organism", "✦ Constellation evolution"],
+                        ["✦ Constellation evolution", "🌱 Living organism"],
                         horizontal=True, label_visibility="collapsed", key="replay_style")
                     if _style.startswith("✦"):
                         # The SAME constellation as the Decision-journey tab, but played over
