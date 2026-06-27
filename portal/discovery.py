@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.46-provisional",
+        "version": "0.47-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -828,7 +828,11 @@ def get_manifest() -> dict:
                         "ANALOG from a different material/reaction/mechanism class (it then "
                         "SUGGESTS but cannot ESTABLISH — capped weak, excluded from "
                         "reliability) + optional reliability{basis} (server-derived trust "
-                        "tier; low tiers move belief but not reliability) + evidence + "
+                        "tier; low tiers move belief but not reliability) + optional "
+                        "observable_key (a stable 'quantity@system' id of WHAT this verdict "
+                        "tests — same string across methods; same-observable/different-method "
+                        "verdicts score as robustness, not independence — see "
+                        "compute.independence_of_calculations) + evidence + "
                         "mlflow_run_url + evidence_independence. THIS is what moves the "
                         "hypothesis's confidence — the platform recomputes & stores it "
                         "from all the verdicts (scoring_model). Use verdict='blocked' when "
@@ -1013,9 +1017,16 @@ def get_manifest() -> dict:
                     "at a DIFFERENT functional is a ROBUSTNESS check (corroboration), not a "
                     "second independent decisive verdict — it varies the method, not the "
                     "test. Genuine independence comes from a DIFFERENT discriminating "
-                    "observable (or experiment). Use a cross-functional re-run to harden a "
-                    "number, but don't expect it to, by itself, make a one-observable "
-                    "hypothesis 'reliable'.",
+                    "observable (or experiment). The platform now ENFORCES this when you "
+                    "declare it: pass `observable_key` on /evaluate — a STABLE id of WHAT the "
+                    "verdict tests, quantity@system (e.g. 'dEads.OCHO-COOH@Cu111'), the SAME "
+                    "string for every method that computes that quantity. Two same-direction "
+                    "verdicts with the same observable_key are scored as robustness (the 2nd "
+                    "attenuated, NOT counted toward reliability); different observable_keys "
+                    "count as independent. So a cross-functional re-run HARDENS a number but "
+                    "cannot, by itself, make a one-observable hypothesis 'reliable' — only a "
+                    "different observable can. (A cross-method DISAGREEMENT is the opposite "
+                    "direction and correctly registers as a conflict, not redundancy.)",
                 "record_it": "Register each as a compute_run (POST /predictions/{id}/runs "
                     "{backend, engine, resource, slurm_job_id, mlflow_run_url, params, "
                     "metrics}); a compute/model-backed verdict MUST carry an "
@@ -1474,7 +1485,7 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                         evidence_record_ids=None, rationale=None,
                         mlflow_run_url=None, evidence_independence=None,
                         margin=None, cross_system=None, reliability=None,
-                        actor=None) -> bool:
+                        observable_key=None, actor=None) -> bool:
     """Terminal verdict on a prediction. `evidence_independence` declares
     USE-NOVELTY: which evidence was used to BUILD/fit the supporting model vs to
     TEST it. {model_was_fit:bool, parameters_fit_to:[id], tested_against:[id],
@@ -1521,7 +1532,8 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                   SET verdict=%s, strength=%s, evidence_record_ids=%s,
                       rationale=%s, mlflow_run_url=%s, evidence_independence=%s,
                       margin=%s, cross_system=%s, reliability_tier=%s,
-                      reliability_basis=%s, work_status='evaluated', updated_at=NOW()
+                      reliability_basis=%s, observable_key=%s,
+                      work_status='evaluated', updated_at=NOW()
                 WHERE prediction_id=%s""",
             (verdict, strength, evidence_record_ids, rationale, mlflow_run_url,
              json.dumps(evidence_independence) if evidence_independence is not None
@@ -1529,6 +1541,7 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
              bool(cross_system) if cross_system is not None else None,
              reliability_tier,
              json.dumps(reliability_basis) if reliability_basis is not None else None,
+             (observable_key or None),
              prediction_id))
         _circ = _circularity_flag(evidence_independence)
         _detail = rationale
@@ -1918,6 +1931,12 @@ _STRENGTH_W = {"strong": 1.0, "moderate": 0.6, "weak": 0.3}
 # hypothesis twice with the same data, nor manufacture 'reliability' by stacking
 # predictions on one result).
 _CORRELATION_ATTENUATION = 0.3
+# Same OBSERVABLE, DIFFERENT method (e.g. the same ΔΔE recomputed PBE→RPBE): this is
+# ROBUSTNESS, not a second INDEPENDENT verdict. It earns MORE than re-citing the same
+# number (cross-method agreement is genuinely informative) but is still attenuated and
+# does NOT count toward reliability — varying the functional is not varying the test.
+# Between full independence (1.0) and pure redundancy (0.3). Tunable.
+_ROBUSTNESS_ATTENUATION = 0.5
 
 # RELIABILITY of the EVIDENCE itself (distinct from method-compatibility and from
 # strength): how much to TRUST the datum. A method-compatible record can still be
@@ -2032,6 +2051,15 @@ def compute_hypothesis_score(h) -> dict:
         (after being persisted as a record) on a sibling: the SAME calculation counts ONCE.
         It is dedup, NOT a down-weight — an agent-computed value and an archived one carry
         equal weight; only self-corroboration on one hypothesis is removed.
+      • ROBUSTNESS vs INDEPENDENCE (optional per-verdict `observable_key`): two same-direction
+        decisive verdicts that test the SAME observable (same quantity@system) via DIFFERENT
+        evidence — e.g. the same ΔΔE recomputed PBE then RPBE — are ROBUSTNESS, not two
+        independent verdicts. The 2nd is attenuated to {_robust}× (more than re-citing the same
+        number, because cross-method agreement is informative, but less than a fresh test) and
+        does NOT add to n_decisive. So varying the FUNCTIONAL on one observable can harden
+        belief but CANNOT by itself make a one-observable hypothesis 'reliable' — only a
+        DIFFERENT discriminating observable can. Opt-in: omit observable_key and independence
+        is judged on evidence identity alone (as before).
     SHARPNESS (optional per-verdict `margin` ∈ [0,1]): how decisively the observation
     diverged past the falsification threshold. Scales the contribution 0.7×..1.3×
     within the strength tier, and a STRONG contradiction only triggers the falsification
@@ -2053,10 +2081,10 @@ def compute_hypothesis_score(h) -> dict:
     <2 INDEPENDENT DECISIVE (supports/contradicts) verdicts is UNRELIABLE — you cannot
     validate/falsify a hypothesis on one verdict; that is why a hypothesis needs a SET
     of distinct, structured predictions on independent evidence.""".format(
-        _atten=_CORRELATION_ATTENUATION)
+        _atten=_CORRELATION_ATTENUATION, _robust=_ROBUSTNESS_ATTENUATION)
     bd = {"supports": 0, "contradicts": 0, "neutral": 0, "insufficient": 0,
           "blocked": 0, "unevaluated": 0, "circular_discounted": 0,
-          "circular_softened": 0, "correlated_attenuated": 0,
+          "circular_softened": 0, "correlated_attenuated": 0, "robustness_attenuated": 0,
           "cross_system_attenuated": 0, "low_reliability_excluded": 0}
     hyp_grounding = _grounding(h)   # gates the accommodation discount (standing_prior vs ad_hoc)
     logit = 0.0
@@ -2072,6 +2100,7 @@ def compute_hypothesis_score(h) -> dict:
         _m = p.get("margin")
         _xsys = bool(p.get("cross_system"))   # evidence from a DIFFERENT system/mechanism class
         _rel = p.get("reliability_tier")      # server-derived trust tier (None = opt-out, as-today)
+        _obs = (str(p.get("observable_key")).strip() or None) if p.get("observable_key") else None
         if v == "supports":
             bd["supports"] += 1
             if _circularity_flag(p.get("evidence_independence")):
@@ -2082,14 +2111,14 @@ def compute_hypothesis_score(h) -> dict:
                 # capped at weak (not strong independent confirmation).
                 if hyp_grounding == "standing_prior":
                     bd["circular_softened"] += 1
-                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m, _xsys, _rel))
+                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m, _xsys, _rel, _obs))
                 else:
                     bd["circular_discounted"] += 1    # 0 contribution, not decisive
             else:
-                decisive.append((+1, sw, _evidence_key(p), _m, _xsys, _rel))
+                decisive.append((+1, sw, _evidence_key(p), _m, _xsys, _rel, _obs))
         elif v == "contradicts":
             bd["contradicts"] += 1
-            decisive.append((-1, sw, _evidence_key(p), _m, _xsys, _rel))
+            decisive.append((-1, sw, _evidence_key(p), _m, _xsys, _rel, _obs))
         elif v == "neutral":
             logit -= 0.20; bd["neutral"] += 1          # mild evidence against
         elif v == "blocked":
@@ -2102,10 +2131,11 @@ def compute_hypothesis_score(h) -> dict:
     # the independent-decisive count that drives reliability.
     n_decisive, strong_contra = 0, False
     for direction in (+1, -1):
-        claimed = set()
+        claimed = set()        # evidence-record / calc identities already counted
+        claimed_obs = set()    # OBSERVABLE identities already counted (robustness dedup)
         same = sorted([d for d in decisive if d[0] == direction],
                       key=lambda d: -d[1])
-        for _dir, sw, ev, margin, xsys, rel in same:
+        for _dir, sw, ev, margin, xsys, rel, obs in same:
             if xsys:
                 # CROSS-SYSTEM / borrowed-analog evidence (a different material / reaction /
                 # mechanism class): it can SUGGEST but never ESTABLISH. Capped at weak,
@@ -2117,8 +2147,18 @@ def compute_hypothesis_score(h) -> dict:
                 logit += direction * min(sw, _STRENGTH_W["weak"]) * _margin_factor(margin) \
                     * (1.25 if direction < 0 else 1.0)
                 continue
-            independent = (not ev) or not (ev & claimed)
-            base = sw if independent else sw * _CORRELATION_ATTENUATION
+            # Two ways a verdict can be NON-independent of one already counted:
+            #  • shares EVIDENCE (same record / same calc) → near-redundant (0.3×).
+            #  • shares the OBSERVABLE but via DIFFERENT evidence (same quantity@system,
+            #    different functional/method) → ROBUSTNESS, not independence (0.5×).
+            # Either way it does NOT add to n_decisive (reliability). Unknown provenance
+            # (no ev AND no observable_key) is treated as independent — we can't prove overlap.
+            shares_ev = bool(ev) and bool(ev & claimed)
+            shares_obs = bool(obs) and (obs in claimed_obs)
+            independent = not shares_ev and not shares_obs
+            base = (sw if independent
+                    else sw * _CORRELATION_ATTENUATION if shares_ev
+                    else sw * _ROBUSTNESS_ATTENUATION)
             # RELIABILITY: trust in the datum itself (None/unknown → 1.0, scored as today).
             rel_factor = _RELIABILITY_W.get(rel, 1.0)
             weight = base * _margin_factor(margin) * rel_factor
@@ -2131,14 +2171,18 @@ def compute_hypothesis_score(h) -> dict:
                     n_decisive += 1
                     if ev:
                         claimed |= ev
+                    if obs:
+                        claimed_obs.add(obs)
                     # A STRONG contradiction falsifies (hard cap) only when the breach is
                     # DECISIVE: unqualified (no margin) keeps the old behaviour; an
                     # explicitly MARGINAL strong contradiction (margin<0.5, barely past the
                     # line) is strong evidence-against but not an automatic kill.
                     if direction < 0 and sw >= 1.0 and (margin is None or margin >= 0.5):
                         strong_contra = True
-            else:
+            elif shares_ev:
                 bd["correlated_attenuated"] += 1
+            else:                       # same observable, different method → robustness
+                bd["robustness_attenuated"] += 1
             logit += direction * weight * (1.25 if direction < 0 else 1.0)
     computed = 1.0 / (1.0 + math.exp(-logit))
     if strong_contra:
@@ -2232,7 +2276,7 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
     prediction-evaluation change. Returns the new confidence."""
     cur.execute("""SELECT prediction_id, verdict, strength, work_status,
                           evidence_independence, evidence_record_ids, margin,
-                          cross_system, reliability_tier
+                          cross_system, reliability_tier, observable_key
                      FROM hyp_predictions WHERE hypothesis_id=%s""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]
     # Attach each prediction's compute-run IDENTITIES so the STORED confidence dedups

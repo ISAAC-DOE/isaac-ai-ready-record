@@ -26,12 +26,13 @@ from discovery import (compute_hypothesis_score, compute_fragility,  # noqa: E40
 
 def _pred(verdict=None, strength=None, work_status="evaluated",
           evidence_record_ids=None, evidence_independence=None, margin=None,
-          cross_system=None, reliability_tier=None, compute_runs=None):
+          cross_system=None, reliability_tier=None, compute_runs=None,
+          observable_key=None):
     return {"verdict": verdict, "strength": strength, "work_status": work_status,
             "evidence_record_ids": evidence_record_ids,
             "evidence_independence": evidence_independence, "margin": margin,
             "cross_system": cross_system, "reliability_tier": reliability_tier,
-            "compute_runs": compute_runs}
+            "compute_runs": compute_runs, "observable_key": observable_key}
 
 
 def _run(mlflow=None, slurm=None):
@@ -387,6 +388,71 @@ def test_opposite_directions_on_same_calc_are_a_conflict_not_redundancy():
         _pred("contradicts", "moderate", compute_runs=[_run(mlflow="mlflow/run/abc")]),
     ))
     assert s["breakdown"]["correlated_attenuated"] == 0
+    assert s["n_decisive"] == 2
+
+
+# --- Robustness vs independence: same observable, different method -------------
+
+def test_same_observable_different_method_is_robustness_not_independence():
+    # THE RPBE case: the same ΔΔE recomputed at a different functional (different
+    # records) — robustness, not a 2nd independent decisive verdict. n_decisive stays 1,
+    # the hypothesis is NOT made 'reliable', and the 2nd leg is robustness-attenuated.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=["rPBE"],
+              observable_key="dEads.OCHO-COOH@Cu111"),
+        _pred("supports", "strong", evidence_record_ids=["rRPBE"],
+              observable_key="dEads.OCHO-COOH@Cu111"),
+    ))
+    assert s["n_decisive"] == 1
+    assert s["reliable"] is False
+    assert s["breakdown"]["robustness_attenuated"] == 1
+    assert s["breakdown"]["correlated_attenuated"] == 0
+
+
+def test_robustness_weighs_more_than_pure_correlation_but_less_than_independence():
+    # cross-method agreement (0.5x) sits between re-citing the same record (0.3x) and a
+    # fresh independent observable (1.0x).
+    robust = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=["rA"], observable_key="O"),
+        _pred("supports", "strong", evidence_record_ids=["rB"], observable_key="O")))
+    correlated = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=["rA"]),
+        _pred("supports", "strong", evidence_record_ids=["rA"])))
+    independent = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=["rA"], observable_key="O1"),
+        _pred("supports", "strong", evidence_record_ids=["rB"], observable_key="O2")))
+    assert (correlated["computed_confidence"] < robust["computed_confidence"]
+            < independent["computed_confidence"])
+
+
+def test_different_observable_is_genuinely_independent():
+    # two DIFFERENT observables (e.g. an adsorption energy AND a barrier) → independent,
+    # both count, the hypothesis can become reliable.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=["rA"], observable_key="dEads@Cu111"),
+        _pred("supports", "strong", evidence_record_ids=["rB"], observable_key="barrier@Cu111"),
+    ))
+    assert s["n_decisive"] == 2
+    assert s["reliable"] is True
+    assert s["breakdown"]["robustness_attenuated"] == 0
+
+
+def test_observable_key_absent_is_backward_compatible():
+    # no observable_key → independence judged on evidence identity alone, exactly as before.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=["rA"]),
+        _pred("supports", "strong", evidence_record_ids=["rB"])))
+    assert s["n_decisive"] == 2 and s["reliable"] is True
+    assert s["breakdown"]["robustness_attenuated"] == 0
+
+
+def test_same_observable_opposite_directions_is_a_conflict():
+    # PBE says supports, RPBE says contradicts on the SAME observable — a real cross-method
+    # DISAGREEMENT, not redundancy. Dedup is within-direction only, so both count.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "moderate", evidence_record_ids=["rPBE"], observable_key="O"),
+        _pred("contradicts", "moderate", evidence_record_ids=["rRPBE"], observable_key="O")))
+    assert s["breakdown"]["robustness_attenuated"] == 0
     assert s["n_decisive"] == 2
 
 
