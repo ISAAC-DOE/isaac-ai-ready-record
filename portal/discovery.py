@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.50-provisional",
+        "version": "0.51-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -770,9 +770,11 @@ def get_manifest() -> dict:
             {"m": "POST", "path": "/projects/{id}/hypotheses",
              "purpose": "Add a hypothesis (statement, label, origin, mechanism)."},
             {"m": "PUT", "path": "/hypotheses/{id}",
-             "purpose": "Update a hypothesis's STATUS only {status}. Confidence is NOT "
-                        "set here — it is COMPUTED from the prediction verdicts (see "
-                        "scoring_model). Any confidence sent is ignored."},
+             "purpose": "Update a hypothesis's STATUS only {status, reason}. ALWAYS pass a "
+                        "`reason` (WHY the status changed — e.g. why you eliminated it): it "
+                        "is recorded in the event log so the DECISION is documented, not just "
+                        "the transition. Confidence is NOT set here — it is COMPUTED from the "
+                        "prediction verdicts (see scoring_model). Any confidence sent is ignored."},
             {"m": "PUT", "path": "/hypotheses/{id}/refine",
              "purpose": "REFINE a hypothesis in place as a new VERSION (same empirical "
                         "content, sharpened): {statement?, mechanism?, change_note, "
@@ -1450,11 +1452,13 @@ def create_hypothesis(project_id, statement, *, label=None, hypothesis_type=None
         conn.close()
 
 
-def update_hypothesis(hypothesis_id, *, status=None, actor=None, **_ignored) -> bool:
+def update_hypothesis(hypothesis_id, *, status=None, reason=None, actor=None, **_ignored) -> bool:
     """Update a hypothesis's STATUS only. Confidence is NOT settable here — it is
     COMPUTED from the prediction verdicts (see compute_hypothesis_score) and stored
     by evaluate_prediction. Any confidence/confidence_basis passed in is ignored
-    (kept in the signature only so legacy callers don't error)."""
+    (kept in the signature only so legacy callers don't error). `reason` records WHY
+    the status changed (e.g. why a hypothesis was eliminated), captured in the event
+    log so the DECISION is documented, not just the state transition."""
     if status is None:
         return False
     conn = _conn()
@@ -1467,6 +1471,7 @@ def update_hypothesis(hypothesis_id, *, status=None, actor=None, **_ignored) -> 
                     "WHERE hypothesis_id=%s", (status, hypothesis_id))
         _append_event(cur, project_id, "status_changed",
                       f"Hypothesis status → {status}",
+                      detail=((str(reason).strip() or None) if reason else None),
                       hypothesis_id=hypothesis_id, actor=actor)
         cur.execute("UPDATE hyp_projects SET updated_at=NOW() WHERE project_id=%s",
                     (project_id,))
