@@ -1916,6 +1916,7 @@ requestAnimationFrame(loop);
                     .replace("__PLAYBORDER__", _playborder))
 
         def _funnel(stages):
+            pal = branding.palette(st.session_state.ui_theme)
             n = len(stages)
             out = ["<div style='padding:4px 0'>"]
             for i, (label, count, sub) in enumerate(stages):
@@ -1923,11 +1924,13 @@ requestAnimationFrame(loop);
                 out.append(
                     "<div style='display:flex;justify-content:center;margin:3px 0'>"
                     f"<div style='width:{w:.0f}%;background:linear-gradient(90deg,"
-                    "#0d47a1,#42a5f5);border-radius:7px;padding:7px 12px;color:white;"
-                    "text-align:center;box-shadow:0 1px 5px rgba(0,0,0,0.35)'>"
+                    f"{pal['accent']},{pal['accent_hover']});border-radius:7px;"
+                    f"padding:7px 12px;color:{pal['on_accent']};text-align:center;"
+                    "box-shadow:0 1px 5px rgba(0,0,0,0.18)'>"
                     f"<span style='font-size:1.25em;font-weight:800'>{count:,}</span> "
-                    f"<span style='opacity:0.95'>{label}</span>"
-                    + (f"<div style='font-size:0.78em;opacity:0.85'>{sub}</div>" if sub else "")
+                    f"<span style='opacity:0.95'>{html.escape(str(label))}</span>"
+                    + (f"<div style='font-size:0.78em;opacity:0.85'>{html.escape(str(sub))}</div>"
+                       if sub else "")
                     + "</div></div>")
             out.append("</div>")
             return "".join(out)
