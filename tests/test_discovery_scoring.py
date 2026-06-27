@@ -31,12 +31,13 @@ _ev_counter = itertools.count()
 def _pred(verdict=None, strength=None, work_status="evaluated",
           evidence_record_ids=None, evidence_independence=None, margin=None,
           cross_system=None, reliability_tier=None, compute_runs=None,
-          observable_key=None, falsification_criterion="default-falsifier"):
-    # A decisive verdict counts toward reliability only if it is CITED and its prediction
-    # is FALSIFIABLE. So a BARE _pred defaults to a unique cited record AND a non-empty
-    # falsification_criterion — it represents a normal, data-linked, falsifiable decisive
-    # verdict (uncited/unfalsifiable are the exceptions). To test those paths pass
-    # evidence_record_ids=[] or falsification_criterion=None explicitly.
+          observable_key=None, falsification_criterion="default-falsifier",
+          direction="up", reference_condition="vs baseline", rationale="because"):
+    # A decisive verdict counts toward reliability only if it is a COMPLETE auditable test:
+    # CITED + FALSIFIABLE + STRUCTURED (direction+reference_condition) + EXPLAINED (rationale).
+    # A BARE _pred defaults to all of these (a normal admissible verdict); to test a failing
+    # gate, pass evidence_record_ids=[] / falsification_criterion=None / direction=None /
+    # rationale=None explicitly.
     if evidence_record_ids is None and compute_runs is None:
         evidence_record_ids = [f"auto-ev-{next(_ev_counter)}"]
     return {"verdict": verdict, "strength": strength, "work_status": work_status,
@@ -44,7 +45,9 @@ def _pred(verdict=None, strength=None, work_status="evaluated",
             "evidence_independence": evidence_independence, "margin": margin,
             "cross_system": cross_system, "reliability_tier": reliability_tier,
             "compute_runs": compute_runs, "observable_key": observable_key,
-            "falsification_criterion": falsification_criterion}
+            "falsification_criterion": falsification_criterion,
+            "direction": direction, "reference_condition": reference_condition,
+            "rationale": rationale}
 
 
 def _run(mlflow=None, slurm=None):
@@ -448,6 +451,47 @@ def test_one_cited_plus_one_uncited_is_not_reliable():
     ))
     assert s["n_decisive"] == 1 and s["reliable"] is False
     assert s["breakdown"]["uncited_excluded"] == 1
+
+
+# --- Admissibility gates: structured (direction+reference) and explained (rationale) ---
+
+def test_understructured_verdict_moves_belief_but_not_reliability():
+    # cited + falsifiable + explained, but NO direction/reference_condition → under-structured.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", direction=None, reference_condition=None),
+        _pred("supports", "strong", direction=None, reference_condition=None),
+    ))
+    assert s["computed_confidence"] > 0.5
+    assert s["n_decisive"] == 0 and s["reliable"] is False
+    assert s["breakdown"]["unstructured_excluded"] == 2
+
+
+def test_unexplained_verdict_moves_belief_but_not_reliability():
+    # cited + falsifiable + structured, but NO rationale → unexplained → no standing.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", rationale=None),
+        _pred("supports", "strong", rationale=None),
+    ))
+    assert s["n_decisive"] == 0 and s["reliable"] is False
+    assert s["breakdown"]["unexplained_excluded"] == 2
+
+
+def test_gate_precedence_is_cited_then_falsifiable_then_structured_then_explained():
+    # an uncited+unstructured verdict is attributed to the FIRST failing gate (uncited).
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", evidence_record_ids=[], direction=None)))
+    assert s["breakdown"]["uncited_excluded"] == 1
+    assert s["breakdown"]["unstructured_excluded"] == 0
+
+
+def test_fully_admissible_verdicts_confer_reliability():
+    # the complete auditable test: cited + falsifiable + structured + explained → counts.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong"), _pred("supports", "strong")))
+    assert s["n_decisive"] == 2 and s["reliable"] is True
+    for k in ("uncited_excluded", "unfalsifiable_excluded",
+              "unstructured_excluded", "unexplained_excluded"):
+        assert s["breakdown"][k] == 0
 
 
 # --- Falsifiable-to-count: reliability needs structured, falsifiable predictions ---

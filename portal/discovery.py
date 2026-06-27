@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.49-provisional",
+        "version": "0.50-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -840,10 +840,14 @@ def get_manifest() -> dict:
                         "verdicts score as robustness, not independence — see "
                         "compute.independence_of_calculations) + evidence + "
                         "mlflow_run_url + evidence_independence. RELIABILITY GATES: a decisive "
-                        "verdict counts toward 'reliable' ONLY if it is CITED (a record or "
-                        "compute_run) AND its prediction states a falsification_criterion; "
-                        "uncited or unfalsifiable verdicts still move belief but earn no "
-                        "standing. THIS is what moves the "
+                        "verdict counts toward 'reliable' ONLY if it is a COMPLETE, AUDITABLE "
+                        "test — CITED (a record or compute_run), its prediction FALSIFIABLE "
+                        "(has a falsification_criterion) and STRUCTURED (direction + "
+                        "reference_condition), AND the verdict EXPLAINED (carries a rationale). "
+                        "A verdict missing any facet still moves belief but earns no standing. "
+                        "So always give your decisive verdicts a rationale, and give your "
+                        "predictions the full structure (descriptor+direction+reference_condition"
+                        "+magnitude+falsification_criterion). THIS is what moves the "
                         "hypothesis's confidence — the platform recomputes & stores it "
                         "from all the verdicts (scoring_model). Use verdict='blocked' when "
                         "the evidence isn't validly comparable (schema gate). If the "
@@ -1169,6 +1173,20 @@ def _conn():
     return database.get_discovery_db_connection()
 
 
+def _decision_why(origin=None, mechanism=None):
+    """Pull a human 'WHY' from a decision's origin/mechanism so the event-log DETAIL records
+    the REASONING, not just the state change — making the audit trail self-documenting per
+    decision. Returns None if no reasoning is present (then the briefing nudges for it)."""
+    parts = []
+    if isinstance(origin, dict):
+        parts += [origin.get("reasoning"), origin.get("summary")]
+    if isinstance(mechanism, dict):
+        parts += [mechanism.get("summary"), mechanism.get("description")]
+    parts = [str(x).strip() for x in parts if x and str(x).strip()]
+    seen = list(dict.fromkeys(parts))   # de-dup, preserve order
+    return (" — ".join(seen))[:600] or None
+
+
 def _append_event(cur, project_id, event_type, summary, *, detail=None,
                   hypothesis_id=None, evidence_record_ids=None,
                   mlflow_run_url=None, actor=None):
@@ -1419,6 +1437,7 @@ def create_hypothesis(project_id, statement, *, label=None, hypothesis_type=None
              0.5, created_by))
         _append_event(cur, project_id, "hypothesis_created",
                       f"Hypothesis {label or ''} added: {statement[:120]}",
+                      detail=_decision_why(origin, mechanism),
                       hypothesis_id=hypothesis_id, actor=created_by)
         # born at the 0.5 PRIOR (no evidence yet); evidence moves it via evaluate
         _snapshot_confidence(cur, project_id, hypothesis_id, 0.5, source="created")
@@ -1483,7 +1502,7 @@ def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=N
              json.dumps(origin) if origin is not None else None))
         _append_event(cur, project_id, "prediction_added",
                       f"Prediction added: {descriptor_name} ({direction or '?'})",
-                      hypothesis_id=hypothesis_id, actor=actor)
+                      detail=_decision_why(origin), hypothesis_id=hypothesis_id, actor=actor)
         conn.commit()
         return prediction_id
     finally:
@@ -2075,11 +2094,15 @@ def compute_hypothesis_score(h) -> dict:
         trips the falsification cap. You cannot be 'reliable' — or refute — on evidence you
         never linked. This makes citing structural, not optional (mirrors cross_system /
         low-reliability: belief, not standing).
-      • FALSIFIABLE-TO-COUNT: a decisive verdict on a prediction with NO falsification_criterion
-        (no stated observation that would reject the hypothesis) likewise moves belief but does
-        NOT count toward n_decisive and never falsifies. With n_decisive>=2 this means 'reliable'
-        = >=2 cited, FALSIFIABLE, decisive verdicts — i.e. a hypothesis earns standing only on a
-        SET of genuinely structured, falsifiable predictions, never on unfalsifiable claims.
+      • ADMISSIBLE-TO-COUNT: a decisive verdict counts toward n_decisive (and can hard-falsify)
+        ONLY if it is a complete, auditable test — CITED (record/compute_run), FALSIFIABLE
+        (its prediction states a falsification_criterion), STRUCTURED (direction + reference_
+        condition; magnitude stays an advisory nudge), and EXPLAINED (carries a rationale).
+        Any verdict failing a facet still moves belief but earns no standing (belief, not
+        standing — like cross_system). So 'reliable' = >=2 such complete, independent decisive
+        verdicts — a hypothesis earns standing only on a SET of genuinely auditable tests, never
+        on uncited, unfalsifiable, under-structured, or unexplained claims. The breakdown tracks
+        each facet (uncited/unfalsifiable/unstructured/unexplained_excluded).
     SHARPNESS (optional per-verdict `margin` ∈ [0,1]): how decisively the observation
     diverged past the falsification threshold. Scales the contribution 0.7×..1.3×
     within the strength tier, and a STRONG contradiction only triggers the falsification
@@ -2106,7 +2129,7 @@ def compute_hypothesis_score(h) -> dict:
           "blocked": 0, "unevaluated": 0, "circular_discounted": 0,
           "circular_softened": 0, "correlated_attenuated": 0, "robustness_attenuated": 0,
           "cross_system_attenuated": 0, "low_reliability_excluded": 0, "uncited_excluded": 0,
-          "unfalsifiable_excluded": 0}
+          "unfalsifiable_excluded": 0, "unstructured_excluded": 0, "unexplained_excluded": 0}
     hyp_grounding = _grounding(h)   # gates the accommodation discount (standing_prior vs ad_hoc)
     logit = 0.0
     decisive = []   # (direction, strength_weight, evidence_key, margin, cross_system)
@@ -2122,19 +2145,28 @@ def compute_hypothesis_score(h) -> dict:
         _xsys = bool(p.get("cross_system"))   # evidence from a DIFFERENT system/mechanism class
         _rel = p.get("reliability_tier")      # server-derived trust tier (None = opt-out, as-today)
         _obs = (str(p.get("observable_key")).strip() or None) if p.get("observable_key") else None
-        # CITED-TO-DATA: a decisive verdict must rest on something LINKABLE — a record
-        # (evidence_record_ids) or a compute_run. An uncited verdict still moves belief but
-        # can NOT establish reliability or hard-falsify — you cannot be 'reliable' on
-        # evidence you never linked (mirrors cross_system / low-reliability: belief, not
-        # standing). The uncited verdict floats unconnected in the evidence graph.
+        # ADMISSIBILITY GATES for RELIABILITY. A decisive verdict ALWAYS moves belief, but it
+        # confers RELIABILITY (counts toward n_decisive) and can hard-falsify ONLY if it is a
+        # complete, auditable test. Four facets, each tracked distinctly so the breakdown
+        # shows WHY a verdict didn't count (belief-not-standing, like cross_system):
+        #   • CITED        — linked to a record or compute_run (not floating).
+        #   • FALSIFIABLE  — its prediction states a falsification_criterion (a real test).
+        #   • STRUCTURED   — direction + reference_condition (which way, vs what baseline);
+        #                    magnitude stays an advisory nudge as it's often qualitative.
+        #   • EXPLAINED    — the verdict carries a rationale (the WHY — auditability).
+        # So 'reliable' = >=2 cited, falsifiable, structured, explained, INDEPENDENT decisive
+        # verdicts: a hypothesis earns standing only on a SET of genuinely auditable tests.
         _cited = bool(p.get("evidence_record_ids") or p.get("compute_runs"))
-        # FALSIFIABLE-TO-COUNT: a prediction with no falsification_criterion is not a real
-        # test — there's no stated observation that would REJECT the hypothesis. A verdict
-        # on such a prediction still moves belief but can NOT confer reliability or
-        # hard-falsify. Combined with n_decisive>=2, 'reliable' therefore means >=2 cited,
-        # FALSIFIABLE, decisive verdicts — encoding 'a hypothesis IS a set of structured
-        # falsifiable predictions'. (Same belief-not-standing pattern as cited-to-data.)
         _falsifiable = bool((p.get("falsification_criterion") or "").strip())
+        _structured = bool((p.get("direction") or "").strip()) and \
+            bool((p.get("reference_condition") or "").strip())
+        _explained = bool((p.get("rationale") or "").strip())
+        # the FIRST failing gate (None ⇒ fully admissible → counts toward reliability)
+        _gate = (None if (_cited and _falsifiable and _structured and _explained)
+                 else "uncited" if not _cited
+                 else "unfalsifiable" if not _falsifiable
+                 else "unstructured" if not _structured
+                 else "unexplained")
         if v == "supports":
             bd["supports"] += 1
             if _circularity_flag(p.get("evidence_independence")):
@@ -2145,14 +2177,14 @@ def compute_hypothesis_score(h) -> dict:
                 # capped at weak (not strong independent confirmation).
                 if hyp_grounding == "standing_prior":
                     bd["circular_softened"] += 1
-                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m, _xsys, _rel, _obs, _cited, _falsifiable))
+                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m, _xsys, _rel, _obs, _gate))
                 else:
                     bd["circular_discounted"] += 1    # 0 contribution, not decisive
             else:
-                decisive.append((+1, sw, _evidence_key(p), _m, _xsys, _rel, _obs, _cited, _falsifiable))
+                decisive.append((+1, sw, _evidence_key(p), _m, _xsys, _rel, _obs, _gate))
         elif v == "contradicts":
             bd["contradicts"] += 1
-            decisive.append((-1, sw, _evidence_key(p), _m, _xsys, _rel, _obs, _cited, _falsifiable))
+            decisive.append((-1, sw, _evidence_key(p), _m, _xsys, _rel, _obs, _gate))
         elif v == "neutral":
             logit -= 0.20; bd["neutral"] += 1          # mild evidence against
         elif v == "blocked":
@@ -2169,7 +2201,7 @@ def compute_hypothesis_score(h) -> dict:
         claimed_obs = set()    # OBSERVABLE identities already counted (robustness dedup)
         same = sorted([d for d in decisive if d[0] == direction],
                       key=lambda d: -d[1])
-        for _dir, sw, ev, margin, xsys, rel, obs, cited, falsifiable in same:
+        for _dir, sw, ev, margin, xsys, rel, obs, gate in same:
             if xsys:
                 # CROSS-SYSTEM / borrowed-analog evidence (a different material / reaction /
                 # mechanism class): it can SUGGEST but never ESTABLISH. Capped at weak,
@@ -2197,18 +2229,12 @@ def compute_hypothesis_score(h) -> dict:
             rel_factor = _RELIABILITY_W.get(rel, 1.0)
             weight = base * _margin_factor(margin) * rel_factor
             if independent:
-                if not cited:
-                    # UNCITED: a decisive verdict linked to NO record and NO compute_run.
-                    # It moves belief (logit, below) but cannot count toward reliability or
-                    # hard-falsify — you can't be 'reliable' on evidence you never linked.
-                    # This turns the decisive_verdicts_uncited_to_data warning into a scoring
-                    # consequence and creates structural pressure to CITE THE DATA.
-                    bd["uncited_excluded"] += 1
-                elif not falsifiable:
-                    # UNFALSIFIABLE: the prediction states no falsification_criterion, so the
-                    # verdict isn't a real test. Moves belief but cannot confer reliability or
-                    # hard-falsify — 'reliable' requires FALSIFIABLE predictions, not just verdicts.
-                    bd["unfalsifiable_excluded"] += 1
+                if gate is not None:
+                    # NOT a complete auditable test (uncited / unfalsifiable / unstructured /
+                    # unexplained). Moves belief (logit, below) but confers NO reliability and
+                    # never hard-falsifies — belief, not standing. Tracked per-facet so the
+                    # breakdown shows exactly which gate failed (and the briefing can nudge it).
+                    bd[gate + "_excluded"] += 1
                 elif rel in _RELIABILITY_NONCOUNTING:
                     # weak-provenance (contested/anecdotal): moves belief a little but can
                     # NOT make a hypothesis 'reliable', and never falsifies — mirrors cross_system.
@@ -2323,7 +2349,8 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
     cur.execute("""SELECT prediction_id, verdict, strength, work_status,
                           evidence_independence, evidence_record_ids, margin,
                           cross_system, reliability_tier, observable_key,
-                          falsification_criterion
+                          falsification_criterion, direction, reference_condition,
+                          rationale
                      FROM hyp_predictions WHERE hypothesis_id=%s""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]
     # Attach each prediction's compute-run IDENTITIES so the STORED confidence dedups
@@ -2377,6 +2404,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     hyps_without_falsifier, preds_without_origin, preds_without_criterion = [], [], []
     circular_confirmations, supports_without_independence = [], []
     high_conf_hyps, preds_missing_mlflow, preds_uncited = [], [], []
+    preds_unexplained = []
     hyps_below_min_preds, preds_missing_structure, hyps_single_descriptor = [], [], []
     unreliable_scores = []
     for h in hyps:
@@ -2441,6 +2469,12 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                     and normalize_verdict(p.get("verdict")) in ("supports", "contradicts")
                     and not (p.get("evidence_record_ids") or p.get("compute_runs"))):
                 preds_uncited.append(_ptag)
+            # EXPLAINED: a decisive verdict must carry a rationale (the WHY) — else it earns
+            # no reliability and the reasoning trail has a hole. Mirrors the uncited flag.
+            if (p.get("work_status") == "evaluated"
+                    and normalize_verdict(p.get("verdict")) in ("supports", "contradicts")
+                    and not (p.get("rationale") or "").strip()):
+                preds_unexplained.append(_ptag)
             if p.get("discriminates"):
                 matrix.append({"prediction": p.get("label") or p.get("descriptor_name"),
                                "descriptor": p.get("descriptor_name"),
@@ -2649,6 +2683,13 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "unconnected in the evidence graph). For each, attach the record IDs it rests "
             "on (even when you derived a proxy from raw records — cite those records) and/or "
             "the compute_run that grounds it.")
+    if preds_unexplained:
+        _x = preds_unexplained[:6]
+        recommended_actions.append(
+            f"EXPLAIN THE VERDICT: {len(preds_unexplained)} decisive verdict(s) "
+            f"({', '.join(_x)}) carry NO rationale — an unexplained supports/contradicts "
+            "earns no reliability and leaves a hole in the reasoning trail. Add a rationale "
+            "(the WHY) to each, and POST event_type='reasoning_step' for pivots between moves.")
     if open_findings:
         recommended_actions.append(
             f"Resolve {len(open_findings)} open rigor finding(s) "
@@ -2746,6 +2787,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "unreliable_scores_too_few_predictions": unreliable_scores,
             "predictions_missing_origin_provenance": preds_without_origin,
             "predictions_missing_falsification_criterion": preds_without_criterion,
+            "decisive_verdicts_unexplained": preds_unexplained,
             "circular_confirmations": circular_confirmations,
             "supports_without_independence_declaration": supports_without_independence,
             "supersessions_without_discriminating_observable": supersedes_without_discriminator,
