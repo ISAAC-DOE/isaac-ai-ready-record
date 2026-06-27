@@ -2618,6 +2618,85 @@ requestAnimationFrame(loop);
 
             # ---- B: Validation board — predictions by workflow state ----
             with tabB:
+                # Per-hypothesis SCOREBOARD: each hypothesis as a row — how many predictions
+                # it carries (vs the >=2 minimum) and how they resolve (validated / invalidated
+                # / not-enough-data). Consolidates what was scattered across the ranking caption
+                # + the flat board below. Glyphs+numbers carry meaning (theme/colorblind-safe);
+                # the mini-bar is the at-a-glance composition.
+                _spal = branding.palette(st.session_state.ui_theme)
+                _MINP = discovery.MIN_PREDICTIONS_PER_HYPOTHESIS
+                _GREEN, _RED, _GREY = "#3a9d6b", _spal["error"], _spal["muted"]
+                st.markdown("#### Prediction scoreboard")
+                st.caption(f"Each hypothesis needs a SET of falsifiable predictions "
+                           f"(≥{_MINP}). A row shows how its predictions resolve — and a "
+                           "thin or untested hypothesis can't be trusted no matter its "
+                           "confidence.")
+                _rows = []
+                for h in hyps:
+                    _preds = h["predictions"]
+                    _tot = len(_preds)
+                    _val = sum(1 for p in _preds if p.get("work_status") == "evaluated"
+                               and discovery.normalize_verdict(p.get("verdict")) == "supports")
+                    _inv = sum(1 for p in _preds if p.get("work_status") == "evaluated"
+                               and discovery.normalize_verdict(p.get("verdict")) == "contradicts")
+                    _nd = _tot - _val - _inv
+                    _sc = discovery.compute_hypothesis_score(h)
+                    _conf, _rel = _sc["computed_confidence"], _sc["reliable"]
+                    _dead = h["status"] in ("eliminated", "superseded")
+                    # Precedence: a decisive CONCLUSION (refuted/reliable) wins over the
+                    # 'thin' flag — a refutation is a result even on few predictions; the
+                    # '!' on the Preds count still signals the thinness.
+                    if _tot == 0:
+                        _stat = "◌ Untested"
+                    elif _dead or (_inv > _val and (_val + _inv) >= 1):
+                        _stat = "✗ Refuted"
+                    elif _rel and _val > _inv:
+                        _stat = "✓ Reliable"
+                    elif _tot < _MINP:
+                        _stat = "◌ Thin"
+                    elif _val > 0 and _inv > 0:
+                        _stat = "~ Mixed"
+                    elif _val > 0:
+                        _stat = "Supported"
+                    else:
+                        _stat = "Pending"
+                    _thin = "<span style='color:%s'> !</span>" % _RED if _tot < _MINP else ""
+                    # composition mini-bar (proportional segments; empty if no preds)
+                    _den = max(_tot, 1)
+                    def _seg(n, col):
+                        return (f"<span style='display:inline-block;height:9px;"
+                                f"width:{(n/_den)*90:.0f}px;background:{col}'></span>") if n else ""
+                    _bar_html = (_seg(_val, _GREEN) + _seg(_inv, _RED) + _seg(_nd, _GREY)) \
+                        or f"<span style='color:{_GREY};font-size:0.8em'>none</span>"
+                    _dot = _hcolor.get(h["label"], "#C97A3C")
+                    _rows.append(
+                        "<tr style='border-bottom:1px solid %s'>" % _spal["border_soft"]
+                        + f"<td style='padding:6px 10px 6px 0;white-space:nowrap'>"
+                        f"<span style='display:inline-block;width:8px;height:8px;border-radius:50%;"
+                        f"background:{_dot};margin-right:6px'></span><b>{html.escape(h['label'])}</b></td>"
+                        + f"<td style='text-align:center;color:{_spal['text']}'>{_tot} / {_MINP}{_thin}</td>"
+                        + f"<td style='text-align:center;color:{_GREEN};font-weight:600'>{_val}</td>"
+                        + f"<td style='text-align:center;color:{_RED};font-weight:600'>{_inv}</td>"
+                        + f"<td style='text-align:center;color:{_GREY};font-weight:600'>{_nd}</td>"
+                        + f"<td style='padding:0 10px'>{_bar_html}</td>"
+                        + f"<td style='text-align:right;color:{_spal['text']};font-variant-numeric:tabular-nums'>{_conf:.2f}</td>"
+                        + f"<td style='padding-left:10px;color:{_spal['muted']};white-space:nowrap'>{_stat}</td></tr>")
+                st.markdown(
+                    f"<table style='width:100%;border-collapse:collapse;font-size:0.86em'>"
+                    f"<thead><tr style='color:{_spal['muted']};text-align:center;"
+                    f"font-size:0.82em;text-transform:uppercase;letter-spacing:0.04em'>"
+                    f"<th style='text-align:left'>Hypothesis</th><th>Preds</th>"
+                    f"<th>✅</th><th>❌</th><th>⏳</th>"
+                    f"<th style='text-align:left;padding-left:10px'>Composition</th>"
+                    f"<th style='text-align:right'>Conf</th>"
+                    f"<th style='text-align:left;padding-left:10px'>Status</th></tr></thead>"
+                    f"<tbody>{''.join(_rows)}</tbody></table>"
+                    f"<div style='color:{_spal['muted']};font-size:0.78em;margin-top:8px'>"
+                    f"✅ validated (supports) · ❌ invalidated (contradicts) · ⏳ not enough data "
+                    f"· <span style='color:{_RED}'>!</span> below the ≥{_MINP} minimum · "
+                    f"✓ Reliable = ≥2 cited, falsifiable, decisive verdicts</div>",
+                    unsafe_allow_html=True)
+                st.divider()
                 groups = {k: [] for k in ["evaluated", "compute_running",
                                           "compute_submitted", "more_work_pending",
                                           "awaiting_evidence"]}
