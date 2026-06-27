@@ -31,18 +31,20 @@ _ev_counter = itertools.count()
 def _pred(verdict=None, strength=None, work_status="evaluated",
           evidence_record_ids=None, evidence_independence=None, margin=None,
           cross_system=None, reliability_tier=None, compute_runs=None,
-          observable_key=None):
-    # A decisive verdict must be CITED to count toward reliability. So a BARE _pred
-    # (no evidence and no compute given) defaults to a UNIQUE cited record — it represents
-    # a normal, data-linked decisive verdict (uncited is the exception, not the norm).
-    # To test the UNCITED path, pass evidence_record_ids=[] explicitly.
+          observable_key=None, falsification_criterion="default-falsifier"):
+    # A decisive verdict counts toward reliability only if it is CITED and its prediction
+    # is FALSIFIABLE. So a BARE _pred defaults to a unique cited record AND a non-empty
+    # falsification_criterion — it represents a normal, data-linked, falsifiable decisive
+    # verdict (uncited/unfalsifiable are the exceptions). To test those paths pass
+    # evidence_record_ids=[] or falsification_criterion=None explicitly.
     if evidence_record_ids is None and compute_runs is None:
         evidence_record_ids = [f"auto-ev-{next(_ev_counter)}"]
     return {"verdict": verdict, "strength": strength, "work_status": work_status,
             "evidence_record_ids": evidence_record_ids,
             "evidence_independence": evidence_independence, "margin": margin,
             "cross_system": cross_system, "reliability_tier": reliability_tier,
-            "compute_runs": compute_runs, "observable_key": observable_key}
+            "compute_runs": compute_runs, "observable_key": observable_key,
+            "falsification_criterion": falsification_criterion}
 
 
 def _run(mlflow=None, slurm=None):
@@ -446,6 +448,45 @@ def test_one_cited_plus_one_uncited_is_not_reliable():
     ))
     assert s["n_decisive"] == 1 and s["reliable"] is False
     assert s["breakdown"]["uncited_excluded"] == 1
+
+
+# --- Falsifiable-to-count: reliability needs structured, falsifiable predictions ---
+
+def test_unfalsifiable_supports_move_belief_but_never_reach_reliable():
+    # two cited strong supports, but the predictions state NO falsification_criterion →
+    # not real tests. Belief still moves; the hypothesis is NOT reliable.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", falsification_criterion=None),
+        _pred("supports", "strong", falsification_criterion=None),
+    ))
+    assert s["computed_confidence"] > 0.5
+    assert s["n_decisive"] == 0 and s["reliable"] is False
+    assert s["breakdown"]["unfalsifiable_excluded"] == 2
+
+
+def test_falsifiable_predictions_count_normally():
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", falsification_criterion="C2H4 does not rise → reject"),
+        _pred("supports", "strong", falsification_criterion="CO binding unchanged → reject"),
+    ))
+    assert s["n_decisive"] == 2 and s["reliable"] is True
+    assert s["breakdown"]["unfalsifiable_excluded"] == 0
+
+
+def test_unfalsifiable_strong_contradiction_does_not_hard_falsify():
+    unfals = compute_hypothesis_score(_h(_pred("contradicts", "strong", falsification_criterion=None)))
+    fals = compute_hypothesis_score(_h(_pred("contradicts", "strong", falsification_criterion="x")))
+    assert fals["computed_confidence"] <= 0.15
+    assert unfals["computed_confidence"] > 0.15
+
+
+def test_reliability_needs_two_cited_AND_falsifiable_verdicts():
+    # one fully-qualified verdict + one unfalsifiable → only 1 counts → not reliable.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", falsification_criterion="real"),
+        _pred("supports", "strong", falsification_criterion=None),
+    ))
+    assert s["n_decisive"] == 1 and s["reliable"] is False
 
 
 # --- Robustness vs independence: same observable, different method -------------

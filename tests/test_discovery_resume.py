@@ -28,6 +28,7 @@ def _ev(v, ws="evaluated", s="weak"):
     d = {"verdict": v, "strength": s, "work_status": ws}
     if ws == "evaluated" and v in ("supports", "contradicts"):
         d["evidence_record_ids"] = [f"auto-ev-{next(_ev_counter)}"]
+        d["falsification_criterion"] = "default-falsifier"   # cited + falsifiable → counts
     return d
 
 
@@ -151,7 +152,7 @@ def _p(verdict, strength="strong", descriptor="d", ev=None, cross_system=None):
     return {"verdict": verdict, "strength": strength, "work_status": "evaluated",
             "descriptor_name": descriptor, "evidence_record_ids": ev or [],
             "margin": None, "cross_system": cross_system, "evidence_independence": None,
-            "reliability_tier": None}
+            "reliability_tier": None, "falsification_criterion": "default-falsifier"}
 
 
 def _scored(*hyps):
