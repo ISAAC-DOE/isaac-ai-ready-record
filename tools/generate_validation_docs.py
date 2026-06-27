@@ -35,6 +35,8 @@ REGISTRY = {
     "FE_SUM_EXCEEDS_UNITY": ("warning", "Product faradaic efficiencies in one output block sum to > 1.05."),
     "FE_ROLE_VIOLATION": ("warning", "A faradaic_efficiency series channel claims role=measured_response; FE is a derived claim (role must be derived_signal)."),
     "FE_SERIES_DUPLICATE": ("warning", "A single-point series channel duplicates an FE descriptor of the same name."),
+    "COMPUTATION_METHOD_MISSING": ("warning", "A computation record (source_type=computation / domain=simulation) has no computation.method block; declare family + functional_name (PBE/RPBE/BEEF-vdW/...) + code so the result is comparable across functionals."),
+    "COMPUTATION_METHOD_INCOMPLETE": ("warning", "computation.method is missing family or functional_name — the comparability keys for a computed energy/barrier."),
     # --- info (suggestions) ---
     "SIGMA_ZERO_PLACEHOLDER": ("info", "uncertainty.sigma=0.0 with a 'not reported' note reads as zero uncertainty to a machine."),
     "UNIT_NOT_IN_VOCABULARY": ("info", "A unit is not in the canonical unit vocabulary and is not a known alias."),
