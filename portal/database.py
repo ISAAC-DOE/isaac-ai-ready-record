@@ -554,6 +554,14 @@ def init_discovery_tables():
                     "reliability_tier TEXT")
         cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
                     "reliability_basis JSONB")
+        # observable_key — the IDENTITY of what a verdict TESTS (quantity @ system),
+        # distinct from the evidence/calc that produced it. Two decisive verdicts on the
+        # SAME observable via DIFFERENT methods (e.g. PBE then RPBE of the same ΔΔE) are
+        # ROBUSTNESS, not two INDEPENDENT verdicts: they vary the method, not the test, so
+        # the 2nd is attenuated and does NOT count toward reliability. Opt-in: NULL → scored
+        # exactly as before (independence judged on evidence identity alone).
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
+                    "observable_key TEXT")
         # (4) Confidence as a first-class TIME SERIES (one row per change), so the
         # "Belief River" reads real history instead of scraping event prose. Legacy
         # projects are backfilled-on-read from their event log (see discovery.py).
