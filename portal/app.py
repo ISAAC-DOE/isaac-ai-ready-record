@@ -9,6 +9,7 @@ import agent
 import discovery
 import os
 import re
+import html
 import importlib
 import streamlit.components.v1 as components
 from datetime import datetime, timezone, timedelta
@@ -1434,36 +1435,48 @@ elif page == "Discovery":
             c = float(confidence or 0.0)
             pct = max(0, min(100, int(round(c * 100))))
             dead = status in ("eliminated", "superseded")
-            op = 0.45 if dead else 1.0
-            # The confidence bar is a LEVEL (0–1), not a verdict — so every bar uses the
-            # SAME neutral blue. Hypothesis identity stays on the colored dot + title
-            # (matching the constellation); a per-hypothesis red/amber bar would read as
-            # "warning/wrong" when it only means "lower confidence". Eliminated/superseded
-            # hypotheses get a muted grey fill instead.
-            bar_fill = "#5b7f8a" if dead else "#4f86d6"
-            _sc = ""
+            op = 0.5 if dead else 1.0
+            pal = branding.palette(st.session_state.ui_theme)
+            # The confidence bar is a LEVEL (0–1), not a verdict — so every live bar uses
+            # the SAME neutral brand accent (theme-aware: teal on both light & dark).
+            # Hypothesis identity stays on the colored dot + title (matching the
+            # constellation); a per-hypothesis red/amber bar would read as "warning/wrong"
+            # when it only means "lower confidence". Eliminated/superseded → muted fill.
+            bar_fill = pal["muted"] if dead else pal["accent"]
+            # Right-hand metadata, kept compact so it never crowds the statement:
+            # status · confidence · reliability note.
+            meta = (f"<span style='color:{pal['muted']}'>{html.escape(str(status))}</span>"
+                    f" · <b style='color:{pal['text']}'>{c:.2f}</b>")
             if score is not None:
                 _n = score.get("n_decisive", score.get("n_scored", 0))
                 _nb = score.get("n_blocked", 0)
                 if not score.get("reliable") and not dead:
-                    _sc = (f" <span style='color:#e0726a'>· ⚠ {_n} decisive verdict"
-                           f"{'s' if _n != 1 else ''} — unreliable</span>")
+                    meta += (f" · <span style='color:{pal['error']}'>⚠ {_n} decisive"
+                             " — unreliable</span>")
                 else:
-                    _sc = (f" <span style='color:#888'>· {_n} decisive"
-                           + (f", {_nb} blocked" if _nb else "")
-                           + f", coverage {score.get('coverage', 0):.0%}</span>")
+                    _blk = f", {_nb} blocked" if _nb else ""
+                    meta += (f" · <span style='color:{pal['muted']}'>{_n} decisive{_blk}, "
+                             f"{score.get('coverage', 0):.0%} cov</span>")
+            # Flexbox header: three zones that CANNOT overlap — identity (fixed),
+            # statement (flexes + ellipsis-truncates in the space left), metadata
+            # (fixed, pinned right). This replaces the old float:right, whose metadata
+            # dropped onto the bar whenever the statement wrapped.
             return (
-                f"<div style='margin:5px 0;opacity:{op}'>"
-                f"<div style='font-size:0.85em'>"
+                f"<div style='margin:11px 0;opacity:{op}'>"
+                f"<div style='display:flex;align-items:baseline;gap:9px;"
+                f"font-size:0.85em;line-height:1.4'>"
+                f"<span style='flex-shrink:0;white-space:nowrap'>"
                 f"<span style='display:inline-block;width:9px;height:9px;border-radius:50%;"
                 f"background:{color};margin-right:7px;vertical-align:middle'></span>"
-                f"<b style='color:{color}'>{label or ''}</b> "
-                f"<span style='color:#888'>{(statement or '')[:74]}</span> "
-                f"<span style='float:right;color:#888'>{status} · {c:.2f}{_sc}</span></div>"
-                f"<div style='background:#88888822;border-radius:4px;height:12px;"
-                f"width:100%;margin-top:3px'>"
-                f"<div style='background:{bar_fill};width:{pct}%;height:12px;"
-                f"border-radius:4px'></div></div></div>")
+                f"<b style='color:{color}'>{html.escape(str(label or ''))}</b></span>"
+                f"<span style='flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;"
+                f"white-space:nowrap;color:{pal['muted']}'>{html.escape(str(statement or ''))}</span>"
+                f"<span style='flex-shrink:0;white-space:nowrap'>{meta}</span>"
+                f"</div>"
+                f"<div style='background:{pal['surface']};border:1px solid {pal['border_soft']};"
+                f"border-radius:5px;height:9px;width:100%;margin-top:5px;overflow:hidden'>"
+                f"<div style='background:{bar_fill};width:{pct}%;height:9px;"
+                f"border-radius:5px'></div></div></div>")
 
         def _constellation_html(payload, theme="dark"):
             dark = theme != "light"
@@ -2163,9 +2176,10 @@ requestAnimationFrame(loop);
                     for _a in _recs:
                         st.markdown(f"- {_a}")
 
-            st.markdown("**Hypothesis ranking** — confidence is **computed** from the "
-                        "prediction verdicts (not authored); ⚠ unreliable when <2 "
-                        "decisive verdicts")
+            st.markdown("#### Hypothesis ranking")
+            st.caption("Confidence is **computed** from the prediction verdicts — never "
+                       "authored. A score from fewer than 2 decisive verdicts is flagged "
+                       "⚠ unreliable.")
             st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
                                      h["status"], _hcolor.get(h["label"], "#C97A3C"),
                                      score=discovery.compute_hypothesis_score(h))
@@ -2619,10 +2633,36 @@ requestAnimationFrame(loop);
                 if nx:
                     st.divider()
                     st.markdown("#### 🧪 Next experiment (proposed)")
-                    st.success(f"**{nx.get('descriptor', '')}** — {nx.get('method', '')} "
-                               f"@ {nx.get('facility', '')}")
-                    if nx.get("rationale"):
-                        st.write(nx["rationale"])
+                    _pal = branding.palette(st.session_state.ui_theme)
+                    _desc = (nx.get("descriptor") or "").strip()
+                    _method = (nx.get("method") or "").strip()
+                    _facility = (nx.get("facility") or "").strip()
+                    _rationale = (nx.get("rationale") or "").strip()
+                    # Build the headline from ONLY the fields that are present — never emit
+                    # an empty markdown skeleton ('**** — @'). When the structured fields are
+                    # blank (the agent put everything in the rationale), fall back to the
+                    # rationale prose. Themed accent panel (not st.success) so it's elegant on
+                    # both light and dark and doesn't read as a green 'success'.
+                    _where = " @ ".join(x for x in [_method, _facility] if x)
+                    _headline = " — ".join(x for x in [_desc, _where] if x)
+                    if _headline:
+                        _body = f"<div style='font-weight:600'>{html.escape(_headline)}</div>"
+                        if _rationale:
+                            _body += (f"<div style='color:{_pal['muted']};font-size:0.92em;"
+                                      f"margin-top:0.45rem;line-height:1.55'>"
+                                      f"{html.escape(_rationale)}</div>")
+                    elif _rationale:
+                        _body = (f"<div style='line-height:1.6'>"
+                                 f"{html.escape(_rationale)}</div>")
+                    else:
+                        _body = (f"<div style='color:{_pal['muted']}'>A next experiment is "
+                                 "proposed (no details recorded yet).</div>")
+                    st.markdown(
+                        f"<div style='background:{_pal['accent_soft']};"
+                        f"border:1px solid {_pal['border_soft']};"
+                        f"border-left:3px solid {_pal['accent']};border-radius:8px;"
+                        f"padding:0.8rem 1rem;color:{_pal['text']}'>{_body}</div>",
+                        unsafe_allow_html=True)
                     if nx.get("predicted_outcomes"):
                         st.dataframe(pd.DataFrame(nx["predicted_outcomes"]),
                                      width='stretch', hide_index=True)
