@@ -2637,17 +2637,19 @@ requestAnimationFrame(loop);
                     st.divider()
                     st.markdown("#### 🧪 Next experiment (proposed)")
                     _pal = branding.palette(st.session_state.ui_theme)
+                    # The next_experiment payload is free-form — agents use EITHER a single
+                    # `title` OR structured descriptor/method/facility (both seen live). Build
+                    # the headline from whichever is present; never emit an empty markdown
+                    # skeleton ('**** — @'), and fall back to the rationale prose when no
+                    # headline field is set. Themed accent panel (not st.success) so it's
+                    # elegant on light AND dark and doesn't read as a green 'success'.
+                    _title = (nx.get("title") or "").strip()
                     _desc = (nx.get("descriptor") or "").strip()
                     _method = (nx.get("method") or "").strip()
                     _facility = (nx.get("facility") or "").strip()
                     _rationale = (nx.get("rationale") or "").strip()
-                    # Build the headline from ONLY the fields that are present — never emit
-                    # an empty markdown skeleton ('**** — @'). When the structured fields are
-                    # blank (the agent put everything in the rationale), fall back to the
-                    # rationale prose. Themed accent panel (not st.success) so it's elegant on
-                    # both light and dark and doesn't read as a green 'success'.
                     _where = " @ ".join(x for x in [_method, _facility] if x)
-                    _headline = " — ".join(x for x in [_desc, _where] if x)
+                    _headline = _title or " — ".join(x for x in [_desc, _where] if x)
                     if _headline:
                         _body = f"<div style='font-weight:600'>{html.escape(_headline)}</div>"
                         if _rationale:
