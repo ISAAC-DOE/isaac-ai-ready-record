@@ -1581,6 +1581,141 @@ svg.call(d3.drag()
 """
             return tmpl.replace("__DATA__", data).replace("__PAL__", pal)
 
+        def _constellation_replay_html(payload, theme="dark"):
+            # The SAME constellation as the Decision-journey page (identical rings, node
+            # kinds, colours, radii, fan layout) — but played over the run's timeline:
+            # nodes/links fade in at the step they appeared, hypotheses migrate inward as
+            # they get ranked, decision points surface as captions, and the FINAL frame is
+            # byte-for-byte the live main-page constellation.
+            dark = theme != "light"
+            pal = json.dumps({
+                "bg1": "#0c1226" if dark else "#eef3fa",
+                "bg2": "#04050a" if dark else "#dbe6f3",
+                "ring": "#24324f" if dark else "#c6d3e4",
+                "ringlab": "#46587e" if dark else "#90a4c0",
+                "badge": "#8bbad2" if dark else "#3d6885",
+                "label": "#eef3ff" if dark else "#10243a",
+                "labshadow": "rgba(0,0,0,0.6)" if dark else "rgba(255,255,255,0.85)",
+                "screened": "#33446a" if dark else "#a9bad4",
+                "evid": "#d6dee6" if dark else "#5f7081",
+                "relrest": "#7e8aa0" if dark else "#9aa7bd",
+                "annbg": "rgba(16,22,40,0.94)" if dark else "rgba(255,255,255,0.97)",
+                "annborder": "#2a3a5e" if dark else "#c2d0e4",
+                "capink": "#dfe7f7" if dark else "#1a2a44",
+                "ctlbg": "#0a0e16" if dark else "#e6ecf5",
+                "ctlborder": "#1d2738" if dark else "#c6d3e4",
+                "playbg": "#111a2b" if dark else "#dbe6f3",
+                "playink": "#cfe" if dark else "#22344e",
+                "playborder": "#2a3a5e" if dark else "#aebfd6",
+                "dim": "#7f8aa3" if dark else "#5c6b86",
+            })
+            data = json.dumps(payload)
+            tmpl = r"""
+<html><head><script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>html,body{margin:0;overflow:hidden;font-family:-apple-system,Segoe UI,Roboto,sans-serif;}
+text{font-family:-apple-system,Segoe UI,Roboto,sans-serif;}
+#wrap{position:relative;width:100%;height:520px;}
+#ann{position:absolute;left:50%;top:38px;transform:translateX(-50%);max-width:70%;
+ padding:7px 13px;border-radius:9px;border:1px solid;font-size:12.5px;font-weight:600;
+ opacity:0;transition:opacity .25s;pointer-events:none;text-align:center;
+ box-shadow:0 5px 20px rgba(0,0,0,0.4);}
+#cap{position:absolute;left:16px;right:16px;bottom:8px;font-size:12px;line-height:1.4;
+ pointer-events:none;}
+#ctl{height:40px;display:flex;align-items:center;gap:12px;padding:0 14px;border-top:1px solid;}
+#play{cursor:pointer;border:1px solid;width:34px;height:26px;border-radius:6px;font-size:13px;}
+#scrub{flex:1;accent-color:#5EC8C0;cursor:pointer;}
+#tl{font-size:11px;min-width:66px;text-align:right;}</style></head>
+<body><div id="wrap"><svg id="c" width="100%" height="520"></svg>
+<div id="ann"></div><div id="cap"></div></div>
+<div id="ctl"><button id="play">▶</button><input id="scrub" type="range" min="0" max="1000" value="0">
+<span id="tl">0 / 0</span></div>
+<script>
+const DATA=__DATA__, P=__PAL__;
+document.body.style.background='radial-gradient(circle at 50% 45%,'+P.bg1+','+P.bg2+')';
+const ann=document.getElementById('ann'),cap=document.getElementById('cap');
+const playB=document.getElementById('play'),scrub=document.getElementById('scrub'),tlab=document.getElementById('tl');
+ann.style.background=P.annbg;ann.style.borderColor=P.annborder;
+document.getElementById('ctl').style.background=P.ctlbg;document.getElementById('ctl').style.borderTopColor=P.ctlborder;
+playB.style.background=P.playbg;playB.style.color=P.playink;playB.style.borderColor=P.playborder;
+tlab.style.color=P.dim;
+const el=document.getElementById('c'); const W=el.clientWidth||820, H=520; const cx=W/2, cy=H/2-2;
+const svg=d3.select('#c').attr('width',W).attr('height',H);
+const defs=svg.append('defs');
+const glow=defs.append('filter').attr('id','g').attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
+glow.append('feGaussianBlur').attr('stdDeviation','3.6').attr('result','b');
+const fm=glow.append('feMerge');fm.append('feMergeNode').attr('in','b');fm.append('feMergeNode').attr('in','SourceGraphic');
+const SC={supported:'#ffca28',eliminated:'#6f6f6f',needs_more_data:'#ffa726',proposed:'#4aa3ff',superseded:'#5a5a5a'};
+const VC={supports:'#26c6da',contradicts:'#ec407a',neutral:'#90a4ae',insufficient:'#5c6b7a',blocked:'#7e6a4e'};
+const CALC='#ab47bc'; const INVOLVED='#5b7da6';
+const N=DATA.N||1; let K=0, playing=false, fr=0;
+function rT(d){return d.kind==='hyp'?56+(1-(d.conf||0))*150:d.kind==='pred'?250:(d.kind==='evid'||d.kind==='calc')?330:d.kind==='involved'?366:392;}
+function nR(d){return d.kind==='hyp'?8+(d.conf||0)*22:d.kind==='pred'?({strong:7,moderate:5,weak:3}[d.strength]||4):d.kind==='calc'?4.5:d.kind==='evid'?3:d.kind==='involved'?1.9:1.3+Math.min(3.4,Math.log((d.n||1)+1));}
+function nC(d){return d.kind==='hyp'?(d.color||SC[d.status]||'#90caf9'):d.kind==='pred'?(VC[d.verdict]||'#455a64'):d.kind==='calc'?CALC:d.kind==='involved'?INVOLVED:d.kind==='evid'?P.evid:P.screened;}
+function nO(d){return d.kind==='screened'?0.4:d.kind==='involved'?0.62:d.kind==='evid'?0.85:d.kind==='calc'?0.95:(d.status==='eliminated'||d.status==='superseded')?0.45:1;}
+function fade(d){return Math.max(0,Math.min(1,(K-(d.t0||0)+1)/2));}
+[[56,'leading'],[250,'predictions'],[330,'evidence'],[366,'in-scope'],[392,'screened']].forEach(function(p){
+ svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',p[0]).attr('fill','none').attr('stroke',P.ring).attr('stroke-dasharray','2,7').attr('opacity',0.7);
+ svg.append('text').attr('x',cx).attr('y',cy-p[0]-3).attr('fill',P.ringlab).attr('font-size',9).attr('text-anchor','middle').attr('opacity',0.85).text(p[1]);});
+svg.append('text').attr('x',16).attr('y',26).attr('fill',P.badge).attr('font-size',12).attr('font-weight',600)
+ .text(DATA.corpus.records.toLocaleString()+'  records   →   '+DATA.corpus.screened+'  screened   →   '+(DATA.corpus.involved||0)+'  in-scope   →   '+DATA.corpus.cited+'  cited');
+const nodes=DATA.nodes.map(function(d){return Object.assign({},d);});
+const links=DATA.links.map(function(d){return Object.assign({},d);});
+const _hn=nodes.filter(function(n){return n.kind==='hyp';});
+_hn.forEach(function(n,i){n.theta=(-Math.PI/2)+(2*Math.PI*i/Math.max(1,_hn.length));});
+function hX(d){return d.kind==='hyp'&&d.theta!=null?cx+rT(d)*Math.cos(d.theta):cx;}
+function hY(d){return d.kind==='hyp'&&d.theta!=null?cy+rT(d)*Math.sin(d.theta):cy;}
+const cont=svg.append('g');
+const link=cont.append('g').selectAll('line').data(links).join('line')
+ .attr('stroke',function(d){return d.rel==='pred'?(VC[d.verdict]||'#37474f'):d.rel==='calc'?'#ab47bc':d.rel==='evid'?P.screened:d.rel==='competes_with'?'#ef5350':d.rel==='co_operating'?'#66bb6a':P.relrest;})
+ .attr('stroke-width',function(d){return d.rel==='pred'?({strong:2.8,moderate:1.9,weak:1.2}[d.strength]||1.4):d.rel==='calc'?1.6:(d.rel==='competes_with'||d.rel==='co_operating')?1.8:1.1;})
+ .attr('stroke-linecap','round')
+ .attr('stroke-dasharray',function(d){return d.rel==='competes_with'?'4,3':null;});
+const node=cont.append('g').selectAll('circle').data(nodes).join('circle')
+ .attr('r',nR).attr('fill',nC)
+ .attr('filter',function(d){return d.kind==='hyp'?'url(#g)':null;})
+ .attr('stroke',function(d){return d.kind==='hyp'?'#0006':'none';}).attr('stroke-width',0.5);
+const labLayer=svg.append('g');
+const lab=labLayer.selectAll('text').data(nodes.filter(function(d){return d.kind==='hyp';})).join('text')
+ .attr('fill',P.label).attr('font-size',11.5).attr('font-weight',700).attr('text-anchor','middle')
+ .style('paint-order','stroke').style('stroke',P.labshadow).style('stroke-width','3px').style('stroke-linejoin','round');
+function linkBaseOp(d){return d.rel==='evid'?0.42:d.rel==='calc'?0.6:d.rel==='pred'?0.72:0.78;}
+function linkVis(d){var s=d.source,t=d.target;return Math.min(fade(d),(s&&s.t0!=null?fade(s):1),(t&&t.t0!=null?fade(t):1));}
+function placeLabels(){lab.attr('x',function(d){return d.x;}).attr('y',function(d){return d.y-nR(d)-5;});}
+const sim=d3.forceSimulation(nodes)
+ .force('link',d3.forceLink(links).id(function(d){return d.id;}).distance(function(d){return d.rel==='pred'?66:d.rel==='evid'?40:120;}).strength(function(d){return d.rel==='pred'?0.45:0.18;}))
+ .force('charge',d3.forceManyBody().strength(function(d){return d.kind==='screened'?-12:d.kind==='hyp'?-220:-72;}))
+ .force('r',d3.forceRadial(rT,cx,cy).strength(function(d){return d.kind==='hyp'?0.18:0.92;}))
+ .force('x',d3.forceX(hX).strength(function(d){return d.kind==='hyp'?0.22:0.045;}))
+ .force('y',d3.forceY(hY).strength(function(d){return d.kind==='hyp'?0.22:0.045;}))
+ .force('collide',d3.forceCollide().radius(function(d){return nR(d)+(d.kind==='screened'?1.4:2.6);}))
+ .on('tick',function(){
+  link.attr('x1',function(d){return d.source.x;}).attr('y1',function(d){return d.source.y;}).attr('x2',function(d){return d.target.x;}).attr('y2',function(d){return d.target.y;});
+  node.attr('cx',function(d){return d.x;}).attr('cy',function(d){return d.y;});
+  placeLabels();});
+function updateAnn(){var best=null;for(var i=0;i<(DATA.annotations||[]).length;i++){var a=DATA.annotations[i];if(a.k<=K&&(best==null||a.k>=best.k))best=a;}
+ if(best&&(K-best.k)<=4){ann.style.opacity=Math.max(0.15,1-(K-best.k)/6);ann.style.color=best.color||P.label;ann.innerHTML=best.text;}else ann.style.opacity=0;}
+function updateCap(){var c=(DATA.captions||[])[Math.min(K,N-1)];if(!c){cap.innerHTML='';return;}
+ cap.innerHTML='<span style="color:'+(c.color||P.dim)+'">['+(c.cls||'step')+']</span> <span style="color:'+P.capink+'">'+(c.s||'').replace(/</g,'&lt;')+'</span><span style="color:'+P.dim+'"> &nbsp;'+(K+1)+'/'+N+'</span>';}
+function applyStep(){
+ nodes.forEach(function(d){if(d.kind==='hyp'&&d.cs)d.conf=(d.cs[Math.min(K,d.cs.length-1)]!=null)?d.cs[Math.min(K,d.cs.length-1)]:d.conf;});
+ node.attr('r',nR).attr('fill',nC).attr('opacity',function(d){return (d.t0||0)>K?0:fade(d)*nO(d);});
+ link.attr('opacity',function(d){return linkVis(d)*linkBaseOp(d);});
+ lab.text(function(d){return d.label+'  '+Math.round((d.conf||0)*100)+'%';})
+    .attr('opacity',function(d){return (d.t0||0)>K?0:fade(d);});
+ sim.force('r').radius(rT);sim.force('x').x(hX);sim.force('y').y(hY);
+ sim.alpha(0.32).restart();
+ updateAnn();updateCap();
+ scrub.value=N>1?Math.round(K/(N-1)*1000):0;tlab.textContent=(K+1)+' / '+N;}
+function setK(k){K=Math.max(0,Math.min(N-1,k|0));applyStep();}
+playB.onclick=function(){if(K>=N-1){setK(0);}playing=!playing;playB.textContent=playing?'⏸':'▶';};
+scrub.oninput=function(){playing=false;playB.textContent='▶';setK(Math.round(this.value/1000*(N-1)));};
+function loop(){fr++;if(playing&&fr%16===0){if(K<N-1)setK(K+1);else{playing=false;playB.textContent='▶';}}requestAnimationFrame(loop);}
+window.__seek=function(frac){playing=false;setK(Math.round(frac*(N-1)));for(var i=0;i<240;i++)sim.tick();sim.on('tick')();};
+setK(0);loop();
+</script></body></html>
+"""
+            return tmpl.replace("__DATA__", data).replace("__PAL__", pal)
+
         def _river_html(payload, theme="dark"):
             dark = theme != "light"
             pal = json.dumps({
@@ -2411,13 +2546,157 @@ requestAnimationFrame(loop);
                 if not _revents:
                     st.info("No timeline yet — once the agent logs events, the replay fills in.")
                 else:
-                    # The Living Organism is the one kept replay — the others were retired.
-                    _mode = "organism"
-                    components.html(_replay_html(_replay_payload, st.session_state.ui_theme,
-                                                 _mode), height=600)
-                    st.caption(f"{len(_revents)} timeline steps · 🌱 **Living organism** — the "
-                               "discovery grows & prunes itself. Hit ▶ and let it grow. "
-                               "push further.")
+                    _style = st.radio(
+                        "Replay style",
+                        ["🌱 Living organism", "✦ Constellation evolution"],
+                        horizontal=True, label_visibility="collapsed", key="replay_style")
+                    if _style.startswith("✦"):
+                        # The SAME constellation as the Decision-journey tab, but played over
+                        # the timeline. Reuse its node/link vocabulary; add t0 (appearance
+                        # step), per-hyp confidence series, and decision-point annotations.
+                        import bisect as _bisect
+
+                        def _esc2(s):
+                            return (str(s or "").replace("&", "&amp;").replace("<", "&lt;")
+                                    .replace(">", "&gt;"))
+                        _N = len(_revents)
+                        _ev_times = [_ep(e["created_at"]) for e in _chrono]
+
+                        def _step_of(ts):
+                            if not _ev_times:
+                                return 0
+                            return max(0, min(_N - 1, _bisect.bisect_right(_ev_times, ts) - 1))
+                        _cn, _cl = [], []
+                        for _j, _h in enumerate(hyps):
+                            _cs = ([_confseries[_k][_j] for _k in range(_N)] if _N
+                                   else [float(_h["confidence"] or 0)])
+                            _tip = (f"<b>{_esc2(_h['label'])}</b> · {_esc2(_h['status'])} · "
+                                    f"{round(float(_h['confidence'] or 0)*100)}%<br>"
+                                    f"<span style='opacity:.85'>"
+                                    f"{_esc2((_h.get('statement') or '')[:150])}</span>")
+                            _cn.append({"id": _h["hypothesis_id"], "label": _h["label"] or "H",
+                                        "kind": "hyp", "conf": float(_h["confidence"] or 0),
+                                        "status": _h["status"],
+                                        "color": _hcolor.get(_h["label"], "#C97A3C"),
+                                        "tip": _tip, "t0": _created_at.get(_h["label"], 0),
+                                        "cs": [round(_c, 3) for _c in _cs]})
+                        for _h in hyps:
+                            for _p in _h["predictions"]:
+                                _pid = _p["prediction_id"]
+                                _pt0 = (_step_of(_ep(_p.get("created_at")))
+                                        if _p.get("created_at")
+                                        else _created_at.get(_h["label"], 0))
+                                _vt0 = (_step_of(_ep(_p.get("updated_at")))
+                                        if _p.get("updated_at") else _pt0)
+                                _ptip = (f"<b>{_esc2(_p.get('descriptor_name'))}</b> "
+                                         f"<span style='opacity:.7'>(prediction · "
+                                         f"{_esc2(_h['label'])})</span><br>verdict: "
+                                         f"{_esc2(_p.get('verdict') or '—')} "
+                                         f"({_esc2(_p.get('strength') or '—')})")
+                                _cn.append({"id": _pid,
+                                            "label": _p.get("descriptor_name") or "",
+                                            "kind": "pred", "verdict": _p.get("verdict"),
+                                            "strength": _p.get("strength"), "tip": _ptip,
+                                            "t0": _pt0})
+                                _cl.append({"source": _pid, "target": _h["hypothesis_id"],
+                                            "rel": "pred", "verdict": _p.get("verdict"),
+                                            "strength": _p.get("strength"), "t0": _vt0})
+                                for _rid in (_p.get("evidence_record_ids") or [])[:6]:
+                                    _enid = _rid + "|" + _pid
+                                    _mat = prov.get(_rid, {}).get("material", "")
+                                    _etip = (f"<b>evidence record</b><br>{_esc2(_mat[:60])}"
+                                             f"<br><code>{_esc2(_rid)}</code>")
+                                    _cn.append({"id": _enid, "label": _rid, "kind": "evid",
+                                                "tip": _etip, "t0": _vt0})
+                                    _cl.append({"source": _enid, "target": _pid,
+                                                "rel": "evid", "t0": _vt0})
+                                for _ci, _cr in enumerate((_p.get("compute_runs") or [])[:4]):
+                                    _eng = _cr.get("engine") or _cr.get("backend") or "compute"
+                                    _cid = f"calc{_ci}|{_pid}"
+                                    _crt0 = (_step_of(_ep(_cr.get("created_at")))
+                                             if _cr.get("created_at") else _vt0)
+                                    _ctip = (f"<b>computation</b><br>{_esc2(_eng)}"
+                                             f"<br>status: {_esc2(_cr.get('status') or '?')}")
+                                    _cn.append({"id": _cid, "label": _eng, "kind": "calc",
+                                                "tip": _ctip, "t0": _crt0})
+                                    _cl.append({"source": _cid, "target": _pid,
+                                                "rel": "calc", "t0": _crt0})
+                        for _r in relations:
+                            _rt0 = (_step_of(_ep(_r.get("created_at")))
+                                    if _r.get("created_at") else 0)
+                            _cl.append({"source": _r["from_hypothesis_id"],
+                                        "target": _r["to_hypothesis_id"],
+                                        "rel": _r["relation_type"], "t0": _rt0})
+                        _ev_index = brief.get("evidence_index", {})
+                        _ds_ids = ((data["project"].get("dataset") or {})
+                                   .get("record_ids")) or []
+                        _cited_ids = {_rid for _h in hyps for _p in _h["predictions"]
+                                      for _rid in (_p.get("evidence_record_ids") or [])}
+                        for _rid in _ds_ids[:140]:
+                            if _rid in _cited_ids:
+                                continue
+                            _cn.append({"id": "inv|" + _rid, "label": _rid,
+                                        "kind": "involved", "t0": 0,
+                                        "tip": f"<b>in-scope record</b><br><code>"
+                                               f"{_esc2(_rid)}</code>"})
+                        for _name, _v in list(_ev_index.items())[:200]:
+                            _cn.append({"id": "scr|" + _name, "label": _name,
+                                        "kind": "screened", "n": (_v or {}).get("n", 1),
+                                        "t0": 0, "tip": f"<b>screened descriptor</b><br>"
+                                                        f"{_esc2(_name)}"})
+                        try:
+                            _corpus = database.count_records()
+                        except Exception:
+                            _corpus = 0
+                        # decision-point annotations: notable confidence swings + status flips
+                        _annos = []
+                        for _k in range(1, _N):
+                            for _j, _h in enumerate(hyps):
+                                _d = _confseries[_k][_j] - _confseries[_k - 1][_j]
+                                if abs(_d) >= 0.06:
+                                    _dir = "▲ ranked up" if _d > 0 else "▼ ranked down"
+                                    _annos.append({
+                                        "k": _k, "mag": abs(_d),
+                                        "color": _hcolor.get(_h["label"], "#C97A3C"),
+                                        "text": f"{_dir} · {_esc2(_h['label'])} → "
+                                                f"{round(_confseries[_k][_j]*100)}%"})
+                        for _i, _e in enumerate(_chrono):
+                            if _e["event_type"] == "status_changed":
+                                _lab = _hid2lab.get(_e.get("hypothesis_id"))
+                                if _lab:
+                                    _annos.append({
+                                        "k": _i, "mag": 1.0,
+                                        "color": _hcolor.get(_lab, "#C97A3C"),
+                                        "text": f"✦ {_esc2(_lab)} — "
+                                                f"{_esc2((_e.get('summary') or 'status changed')[:60])}"})
+                        _by_k = {}
+                        for _a in _annos:
+                            if _a["k"] not in _by_k or _a["mag"] > _by_k[_a["k"]]["mag"]:
+                                _by_k[_a["k"]] = _a
+                        _annos = sorted(_by_k.values(), key=lambda a: a["k"])
+                        _creplay = {"nodes": _cn, "links": _cl, "N": _N,
+                                    "annotations": _annos, "captions": _revents,
+                                    "corpus": {"records": _corpus or 0,
+                                               "screened": len(_ev_index),
+                                               "involved": len(set(_ds_ids)),
+                                               "cited": len(_cited_ids)}}
+                        components.html(_constellation_replay_html(
+                            _creplay, st.session_state.ui_theme), height=600)
+                        st.caption(f"{_N} timeline steps · ✦ **Constellation evolution** — the "
+                                   "SAME map as the Decision-journey tab, played from the first "
+                                   "hypothesis to now: data sits in the outer rings from the "
+                                   "start, predictions/evidence/compute light up as they land, "
+                                   "and each hypothesis migrates **inward as it ranks up**. The "
+                                   "final frame is the live constellation. ▶ or scrub; the "
+                                   "callouts mark the decision points.")
+                    else:
+                        _mode = "organism"
+                        components.html(_replay_html(_replay_payload,
+                                                     st.session_state.ui_theme, _mode),
+                                        height=600)
+                        st.caption(f"{len(_revents)} timeline steps · 🌱 **Living organism** — "
+                                   "the discovery grows & prunes itself. Hit ▶ and let it grow. "
+                                   "push further.")
 
             # ---- Decision journey — the scale & complexity of the reasoning ----
             with tabImpact:
