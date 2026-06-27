@@ -8,6 +8,7 @@ Resume-comprehension unit tests (Stage 5). Pure functions, no DB:
 """
 
 import sys
+import itertools
 from pathlib import Path
 
 PORTAL = Path(__file__).resolve().parent.parent / "portal"
@@ -17,9 +18,17 @@ from discovery import (_resume_synthesis, _true_status_from_ranking,  # noqa: E4
                        _canon_resume_status, _compose_headline,
                        compute_hypothesis_score)
 
+_ev_counter = itertools.count()
+
 
 def _ev(v, ws="evaluated", s="weak"):
-    return {"verdict": v, "strength": s, "work_status": ws}
+    # decisive verdicts default to a unique CITED record so they count toward reliability
+    # (an uncited verdict moves belief but never reaches 'reliable'); compute_failed/other
+    # non-evaluated rows don't need it.
+    d = {"verdict": v, "strength": s, "work_status": ws}
+    if ws == "evaluated" and v in ("supports", "contradicts"):
+        d["evidence_record_ids"] = [f"auto-ev-{next(_ev_counter)}"]
+    return d
 
 
 # --- the comprehension diff's ground-truth mapping ----------------------------
