@@ -1549,17 +1549,27 @@ function esc(s){return (s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;',
 function chip(label, ok){var c=ok?GREEN:P.muted;
  return '<span class="g" style="border-color:'+c+';color:'+c+';opacity:'+(ok?1:0.65)+'">'
    +(ok?'✓':'✗')+' '+label+'</span>';}
+const maxConf=Math.max.apply(null,R.map(function(x){return x.conf||0;}).concat([0.01]));
 R.forEach(function(h,i){
  const d=document.createElement('div'); d.className='row'; d.dataset.i=i; d.style.opacity=h.dead?0.5:1;
- const fill=h.dead?P.muted:P.accent;
- let meta='<span style="color:'+P.muted+'">'+esc(h.status)+'</span> · <b style="color:'+P.text+'">'+h.conf.toFixed(2)+'</b>';
- meta+=(!h.reliable&&!h.dead)?' · <span class="unrel">⚠ '+h.n_decisive+' decisive — unreliable</span>'
-                            :' · <span style="color:'+P.muted+'">'+h.n_decisive+' decisive</span>';
+ // TWO honest encodings, no red: bar LENGTH + BRIGHTNESS = confidence (the leader pops);
+ // bar TEXTURE = decisiveness — SOLID once reliable, HATCHED/ghostly while still
+ // provisional. The ghost bar itself says "confident but not yet proven".
+ const col=h.dead?P.muted:P.accent;
+ const op=(0.40+0.60*((h.conf||0)/maxConf)).toFixed(2);
+ const bg=h.reliable?col:('repeating-linear-gradient(45deg,'+col+' 0 3px,rgba(0,0,0,0) 3px 7px)');
+ const nd=Math.max(0,Math.min(2,h.n_decisive||0));
+ const dcol=(h.n_decisive>0)?P.accent:P.muted;
+ const dots='●'.repeat(nd)+'○'.repeat(2-nd);
+ let meta='<span style="color:'+P.muted+'">'+esc(h.status)+'</span> · '
+   +'<b style="color:'+P.text+'">'+h.conf.toFixed(2)+'</b> · '
+   +'<span style="color:'+dcol+'" title="decisive tests passed, of 2 needed to confirm">'
+   +dots+' decisive</span>';
  d.innerHTML='<div class="head"><span class="dot" style="background:'+h.color+'"></span>'
   +'<span class="lab" style="color:'+h.color+'">'+esc(h.label)+'</span>'
   +'<span class="stmt">'+esc(h.statement)+'</span><span class="meta">'+meta+'</span></div>'
-  +'<div class="barbg"><div class="barfill" style="width:'+Math.round(h.conf*100)+'%;background:'+fill+'"></div></div>';
- d.addEventListener('mouseenter',function(){show(i);});
+  +'<div class="barbg"><div class="barfill" style="width:'+Math.round(h.conf*100)+'%;background:'+bg+';opacity:'+op+'"></div></div>';
+ d.addEventListener('mouseenter',function(){cancelHide();show(i);});
  bars.appendChild(d);
 });
 function show(i){
@@ -1570,7 +1580,7 @@ function show(i){
  s+='<div style="color:'+P.muted+';font-size:11.5px;margin-bottom:4px">'+h.preds.length
    +' prediction(s) · ✅ '+h.nv+'  ❌ '+h.ni+'  ⏳ '+h.npd
    +(h.reliable?' · <span style="color:'+GREEN+'">reliable</span>'
-              :' · <span class="unrel">'+h.n_decisive+' decisive → provisional</span>')+'</div>';
+              :' · <span style="color:'+P.muted+'">'+h.n_decisive+'/2 decisive → provisional</span>')+'</div>';
  [['validated','Validated (supports)'],['invalidated','Invalidated (contradicts)'],
   ['inconclusive','Ran, inconclusive'],['pending','Pending (not yet run)']].forEach(function(g){
   const items=h.preds.filter(function(p){return p.cat===g[0];}); if(!items.length) return;
@@ -1600,12 +1610,20 @@ const PLACEHOLDER='<div class="ph">Hover a hypothesis to see its predictions —
  +'(cited · falsifiable · structured · explained · independent) it already meets.</div>';
 function resetPanel(){document.querySelectorAll('.row').forEach(function(r){r.classList.remove('active');});
  panel.innerHTML=PLACEHOLDER;}
-// the panel follows the mouse: it shows on hover and CLEARS when the mouse leaves
-bars.addEventListener('mouseleave',resetPanel);
+// HOVER INTENT: the panel follows the mouse but with a grace delay, so you can travel
+// from a hypothesis INTO the panel and scroll it. Entering bars/panel/ⓘ cancels the
+// pending hide; leaving any of them schedules a hide that the next enter cancels.
+var hideTimer=null;
+function cancelHide(){if(hideTimer){clearTimeout(hideTimer);hideTimer=null;}}
+function scheduleHide(){cancelHide();hideTimer=setTimeout(resetPanel,650);}
+bars.addEventListener('mouseenter',cancelHide);
+bars.addEventListener('mouseleave',scheduleHide);
+panel.addEventListener('mouseenter',cancelHide);
+panel.addEventListener('mouseleave',scheduleHide);
 var info=document.getElementById('info');
-info.addEventListener('mouseenter',function(){panel.innerHTML=
+info.addEventListener('mouseenter',function(){cancelHide();panel.innerHTML=
  '<div style="color:'+P.text+'">'+esc(NOTE)+'</div>';});
-info.addEventListener('mouseleave',resetPanel);
+info.addEventListener('mouseleave',scheduleHide);
 resetPanel();
 </script></body></html>"""
             return (tmpl.replace("__DATA__", data).replace("__PAL__", P)
