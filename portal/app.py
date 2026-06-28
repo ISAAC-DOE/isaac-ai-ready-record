@@ -1826,13 +1826,20 @@ function _unionFor(ids){if(!ids||!ids.length)return null;var S=new Set();
  ids.forEach(function(h){var r=relById[h];if(r)r.forEach(function(x){S.add(x);});});return S.size?S:null;}
 function applyFocus(){
  var S=focusSet, heroSet=new Set(heroIds);
- node.transition().duration(200).attr('opacity',function(d){return S?(S.has(d.id)?nO(d):0.05):nO(d);});
- lab.transition().duration(200).attr('opacity',function(d){return S?(S.has(d.id)?1:0.08):1;});
- link.transition().duration(200).attr('stroke-opacity',function(d){
+ // Asymmetric: emphasis-IN is snappy (200ms), the RESTORE to "show everything" is a
+ // gentle, longer fade-up (560ms ease-out) so dropping the focus melts back instead of
+ // popping — no dizzy snap when the cursor leaves. ("fast in, slow out".)
+ var dur=S?200:560, ez=S?d3.easeCubicInOut:d3.easeCubicOut;
+ // One transition per selection (a second node.transition() would cancel the first) —
+ // opacity AND the hero outline ride the same curve, so restore fades back together.
+ node.transition().duration(dur).ease(ez)
+     .attr('opacity',function(d){return S?(S.has(d.id)?nO(d):0.05):nO(d);})
+     .attr('stroke',function(d){return heroSet.has(d.id)?P.tiptext:(d.kind==='hyp'?'#0006':'none');})
+     .attr('stroke-width',function(d){return heroSet.has(d.id)?2.2:0.5;});
+ lab.transition().duration(dur).ease(ez).attr('opacity',function(d){return S?(S.has(d.id)?1:0.08):1;});
+ link.transition().duration(dur).ease(ez).attr('stroke-opacity',function(d){
   if(!S)return _linkBase(d);
   return (S.has(_eid(d.source))&&S.has(_eid(d.target)))?Math.min(1,_linkBase(d)+0.22):0.03;});
- node.attr('stroke',function(d){return heroSet.has(d.id)?P.tiptext:(d.kind==='hyp'?'#0006':'none');})
-     .attr('stroke-width',function(d){return heroSet.has(d.id)?2.2:0.5;});
 }
 function pulseHeroes(){var heroSet=new Set(heroIds);
  node.filter(function(d){return heroSet.has(d.id);}).each(function(d){var n=d3.select(this),r0=nR(d);
@@ -2104,10 +2111,13 @@ const hidToLabel={}; (D.hyps||[]).forEach(function(h){if(h.id)hidToLabel[h.id]=h
 function setRiverFocus(ids){
  var labset=null;
  if(ids&&ids.length){labset=new Set(ids.map(function(i){return hidToLabel[i];}).filter(Boolean));}
- ribbons.transition().duration(200).attr('opacity',function(s){
+ // Same "fast in, slow out" as the constellation: emphasis 200ms, restore a gentle
+ // 560ms ease-out so the ribbons/marks melt back instead of snapping.
+ var on=!!(ids&&ids.length), dur=on?200:560, ez=on?d3.easeCubicInOut:d3.easeCubicOut;
+ ribbons.transition().duration(dur).ease(ez).attr('opacity',function(s){
   if(!labset)return deadOf[s.key]?0.5:0.95;
   return labset.has(s.key)?0.98:0.12;});
- mlines.transition().duration(200).attr('opacity',function(d){
+ mlines.transition().duration(dur).ease(ez).attr('opacity',function(d){
   if(!ids||!ids.length)return 0.4;
   var hit=(d.hyp_ids||[]).some(function(h){return ids.indexOf(h)>=0;});
   return hit?0.95:0.06;}).attr('stroke',function(d){
