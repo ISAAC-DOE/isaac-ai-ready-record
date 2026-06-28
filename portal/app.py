@@ -1485,19 +1485,25 @@ elif page == "Discovery":
                 f"<div style='background:{bar_fill};width:{pct}%;height:9px;"
                 f"border-radius:5px'></div></div></div>")
 
-        def _ranking_html(rows, theme="dark", height=320):
+        def _ranking_html(rows, theme="dark", height=320, note=""):
             # Master-detail ranking: confidence bars on the left; hovering one fills a side
             # panel with that hypothesis's full prediction breakdown (validated / invalidated
             # / inconclusive / pending), and for each evaluated prediction the admissibility
             # gates (cited / falsifiable / structured / explained) + whether it counts toward
-            # n_decisive (and if not, why). A self-contained iframe so nothing clips.
+            # n_decisive (and if not, why). The `note` (what 'decisive' means) is tucked behind
+            # an ⓘ hover, not shown as a wall of text. Panel resets when the mouse leaves.
             pal = branding.palette(theme)
             P = json.dumps({"text": pal["text"], "muted": pal["muted"],
                             "accent": pal["accent"], "err": pal["error"]})
             data = json.dumps(rows)
+            note_j = json.dumps(note)
             _hh = height
             tmpl = r"""<html><head><style>
 html,body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:transparent;}
+#hdr{display:flex;justify-content:flex-end;align-items:center;margin:0 0 6px;}
+#info{font-size:11px;color:__MUTED__;border:1px solid __BORDERSOFT__;border-radius:14px;
+ padding:2px 10px;cursor:help;}
+#info:hover{color:__ACCENT__;border-color:__ACCENT__;}
 #wrap{display:flex;gap:14px;align-items:flex-start;}
 #bars{flex:1 1 54%;min-width:0;}
 #panel{flex:1 1 46%;background:__SURF__;border:1px solid __BORDER__;border-radius:10px;
@@ -1521,12 +1527,11 @@ html,body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;backgrou
 .g{font-size:9.5px;padding:1px 6px;border-radius:7px;border:1px solid;white-space:nowrap;}
 .why{font-size:10px;}
 </style></head><body>
+<div id="hdr"><span id="info">ⓘ what counts as “decisive”?</span></div>
 <div id="wrap"><div id="bars"></div>
-<div id="panel"><div class="ph">Hover a hypothesis to see its predictions — which are
- validated / invalidated / pending, and for each, which of the decisiveness criteria
- (cited · falsifiable · structured · explained · independent) it already meets.</div></div></div>
+<div id="panel"></div></div>
 <script>
-const R=__DATA__, P=__PAL__;
+const R=__DATA__, P=__PAL__, NOTE=__NOTE__;
 const GREEN='#3a9d6b';
 const bars=document.getElementById('bars'), panel=document.getElementById('panel');
 const CAT={validated:['✅',GREEN],invalidated:['❌',P.err],
@@ -1590,14 +1595,28 @@ function show(i){
  if(!h.preds.length) s+='<div class="ph">No predictions attached yet — this hypothesis has no falsifiers.</div>';
  panel.innerHTML=s;
 }
+const PLACEHOLDER='<div class="ph">Hover a hypothesis to see its predictions — which are '
+ +'validated / invalidated / pending, and for each, which decisiveness criteria '
+ +'(cited · falsifiable · structured · explained · independent) it already meets.</div>';
+function resetPanel(){document.querySelectorAll('.row').forEach(function(r){r.classList.remove('active');});
+ panel.innerHTML=PLACEHOLDER;}
+// the panel follows the mouse: it shows on hover and CLEARS when the mouse leaves
+bars.addEventListener('mouseleave',resetPanel);
+var info=document.getElementById('info');
+info.addEventListener('mouseenter',function(){panel.innerHTML=
+ '<div style="color:'+P.text+'">'+esc(NOTE)+'</div>';});
+info.addEventListener('mouseleave',resetPanel);
+resetPanel();
 </script></body></html>"""
             return (tmpl.replace("__DATA__", data).replace("__PAL__", P)
+                    .replace("__NOTE__", note_j)
                     .replace("__SURF__", pal["surface"])
                     .replace("__BORDER__", pal["border"])
                     .replace("__BORDERSOFT__", pal["border_soft"])
                     .replace("__TEXT__", pal["text"]).replace("__MUTED__", pal["muted"])
+                    .replace("__ACCENT__", pal["accent"])
                     .replace("__ERR__", pal["error"]).replace("__ACCSOFT__", pal["accent_soft"])
-                    .replace("__HH__", str(_hh - 20)))
+                    .replace("__HH__", str(_hh - 50)))
 
         def _constellation_html(payload, theme="dark"):
             dark = theme != "light"
@@ -2296,7 +2315,18 @@ requestAnimationFrame(loop);
             # ---------- BRIEFING HEADER (the universal-truth digest) ----------
             st.markdown(f"### {proj['title']}")
             if proj.get("goal"):
-                st.info(f"🎯 **Goal:** {proj['goal']}")
+                # A card matching the leader card below (same geometry) so the two read as
+                # one harmonic stack — alternating accents: teal Goal, then the hypothesis
+                # colour on the leader.
+                _gp = branding.palette(st.session_state.ui_theme)
+                st.markdown(
+                    f"<div style='border:1px solid {_gp['border']};border-left:4px solid "
+                    f"{_gp['accent']};border-radius:12px;padding:13px 18px;margin:8px 0 4px;"
+                    f"background:{_gp['accent_soft']}'>"
+                    f"<span style='font-size:0.72em;letter-spacing:0.12em;"
+                    f"text-transform:uppercase;color:{_gp['muted']}'>🎯 Goal</span>"
+                    f"<div style='color:{_gp['text']};margin-top:3px;font-size:1.0em'>"
+                    f"{html.escape(proj['goal'])}</div></div>", unsafe_allow_html=True)
             meta = " · ".join(filter(None, [
                 proj.get("material_system"), proj.get("reaction"),
                 f"status: {proj.get('status')}"]))
@@ -2340,17 +2370,18 @@ requestAnimationFrame(loop);
 
             def _ranking_block():
                 st.markdown("#### How the explanations rank")
-                st.caption("Confidence is **computed** from the prediction verdicts — never "
-                           "authored. **Decisive** = a verdict on a *complete, auditable, "
-                           "independent* test (cited to data/compute, falsifiable, structured, "
-                           "explained). Belief can climb high on supporting evidence, but a "
-                           "hypothesis stays **provisional** until ≥2 *independent decisive* "
-                           "verdicts agree — so 0.91 with 0 decisive means *the evidence "
-                           "points strongly this way, but no single piece is yet a fully "
-                           "auditable, independent test*. **Hover a row** for its predictions.")
                 if not hyps:
                     st.markdown("_No hypotheses yet._")
                     return
+                # The long "what's decisive" explanation is tucked behind the ⓘ hover in the
+                # iframe (not shown as a wall of text); hovering a row shows its predictions.
+                _note = ("Confidence is COMPUTED from the prediction verdicts, never authored. "
+                         "DECISIVE = a verdict on a complete, auditable, INDEPENDENT test — "
+                         "cited to data/compute, falsifiable, structured, explained. Belief can "
+                         "climb high on supporting evidence, but a hypothesis stays PROVISIONAL "
+                         "until at least 2 independent decisive verdicts agree — so 0.93 with 0 "
+                         "decisive means the evidence points strongly this way, but no single "
+                         "piece is yet a fully auditable, independent test.")
                 _rows = []
                 for h in hyps:
                     _sc = discovery.compute_hypothesis_score(h)
@@ -2386,11 +2417,12 @@ requestAnimationFrame(loop);
                         "reliable": bool(_sc.get("reliable")),
                         "nv": _nv, "ni": _ni, "npd": _npd, "preds": _ps})
 
-                # Height follows the BARS (left column); the detail panel SCROLLS within it
-                # (overflow:auto) instead of stretching the iframe — so a long prediction list
-                # never leaves a tall empty gap under the bars.
-                _H = max(220, 46 * len(_rows) + 26)
-                components.html(_ranking_html(_rows, st.session_state.ui_theme, _H), height=_H)
+                # Height follows the BARS (left column) plus the ⓘ header row; the detail
+                # panel SCROLLS within it (overflow:auto) instead of stretching the iframe —
+                # so a long prediction list never leaves a tall empty gap under the bars.
+                _H = max(250, 46 * len(_rows) + 56)
+                components.html(_ranking_html(_rows, st.session_state.ui_theme, _H, _note),
+                                height=_H)
 
             def _status_line():
                 _st = brief.get("settled", {"supported": [], "eliminated": []})
@@ -2438,10 +2470,12 @@ requestAnimationFrame(loop);
                     st.json(brief)
 
             # --- Calm landing (the chosen single view) ---
+            # Top of page flows cleanly into the decision journey: goal → leader → ranking
+            # → the tabs (constellation + river). The diagnostic expanders (status,
+            # resumable, rigor, briefing) are rendered AFTER the tabs (see end of function)
+            # so they don't break that flow.
             _leader_card()
             _ranking_block()
-            _status_line()
-            _diagnostics_compact()
 
             preds = [p for h in hyps for p in h["predictions"]]
             evidence_ids = sorted({rid for p in preds
@@ -3229,6 +3263,13 @@ requestAnimationFrame(loop);
                     if not (e.get("detail") or e.get("evidence_record_ids")
                             or e.get("mlflow_run_url")):
                         st.caption("_(no extra detail recorded for this step)_")
+
+            # ---- Diagnostics, BELOW the decision journey + river of belief ----
+            # (status line + resumable, rigor & next steps, raw briefing) — kept out of the
+            # top flow so the goal → leader → ranking → constellation reads as one piece.
+            st.divider()
+            _status_line()
+            _diagnostics_compact()
 
         # ---- Project list vs detail ----
         if st.session_state.discovery_project is None:
