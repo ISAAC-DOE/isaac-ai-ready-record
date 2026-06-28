@@ -1619,7 +1619,7 @@ const GREEN='#3a9d6b';
 // Broadcast the hovered hypothesis to the constellation below (same-origin iframes),
 // so it can spotlight that hypothesis's whole network. No-ops if unsupported.
 var BC=null; try{BC=new BroadcastChannel('isaac-focus');}catch(e){}
-function broadcast(id){if(BC)BC.postMessage({focus:id});}
+function broadcast(id){if(BC)BC.postMessage({focus:id,origin:'ranking'});}
 const bars=document.getElementById('bars'), panel=document.getElementById('panel');
 const CAT={validated:['✅',GREEN],invalidated:['❌',P.err],
            inconclusive:['◌',P.muted],pending:['⏳',P.muted]};
@@ -1819,20 +1819,37 @@ links.forEach(function(l){if(l.rel==='pred'&&relById[_eid(l.target)])relById[_ei
 links.forEach(function(l){if(l.rel==='evid'||l.rel==='calc'){var s=_eid(l.source),t=_eid(l.target);
  for(var hid in relById){if(relById[hid].has(t))relById[hid].add(s);}}});
 function _linkBase(d){return d.rel==='evid'?0.42:d.rel==='calc'?0.6:d.rel==='pred'?0.72:0.78;}
-let focusId=null;
+// focusSet = node ids kept lit (the UNION of one-or-more hypotheses' subgraphs);
+// heroIds = the hypothesis ids that are the CAUSE (glow + one-shot pulse — the flare).
+let focusSet=null, heroIds=[];
+function _unionFor(ids){if(!ids||!ids.length)return null;var S=new Set();
+ ids.forEach(function(h){var r=relById[h];if(r)r.forEach(function(x){S.add(x);});});return S.size?S:null;}
 function applyFocus(){
- var S=(focusId&&relById[focusId])?relById[focusId]:null;
+ var S=focusSet, heroSet=new Set(heroIds);
  node.transition().duration(200).attr('opacity',function(d){return S?(S.has(d.id)?nO(d):0.05):nO(d);});
  lab.transition().duration(200).attr('opacity',function(d){return S?(S.has(d.id)?1:0.08):1;});
  link.transition().duration(200).attr('stroke-opacity',function(d){
   if(!S)return _linkBase(d);
   return (S.has(_eid(d.source))&&S.has(_eid(d.target)))?Math.min(1,_linkBase(d)+0.22):0.03;});
+ node.attr('stroke',function(d){return heroSet.has(d.id)?P.tiptext:(d.kind==='hyp'?'#0006':'none');})
+     .attr('stroke-width',function(d){return heroSet.has(d.id)?2.2:0.5;});
 }
-function setFocus(id){var nid=(id&&relById[id])?id:null;if(nid===focusId)return;focusId=nid;applyFocus();}
-node.on('mouseenter.focus',function(d){if(d.kind==='hyp')setFocus(d.id);})
-    .on('mouseleave.focus',function(d){if(d.kind==='hyp')setFocus(null);});
-try{var _bc=new BroadcastChannel('isaac-focus');
- _bc.onmessage=function(ev){setFocus(ev&&ev.data?ev.data.focus:null);};}catch(e){}
+function pulseHeroes(){var heroSet=new Set(heroIds);
+ node.filter(function(d){return heroSet.has(d.id);}).each(function(d){var n=d3.select(this),r0=nR(d);
+  n.interrupt('pulse').transition('pulse').duration(170).attr('r',r0*1.55)
+   .transition('pulse').duration(430).ease(d3.easeQuadOut).attr('r',r0);});}
+function setFocusIds(ids,pulse){focusSet=_unionFor(ids);
+ heroIds=(ids||[]).filter(function(h){return relById[h];});applyFocus();if(pulse)pulseHeroes();}
+var _bc=null;
+try{_bc=new BroadcastChannel('isaac-focus');
+ _bc.onmessage=function(ev){var m=ev&&ev.data;if(!m||m.origin==='constellation')return;
+  var f=m.focus,ids=(f==null)?null:(Array.isArray(f)?f:[f]);setFocusIds(ids,!!m.pulse);};}catch(e){}
+// NB d3 v7: listener args are (event, datum) — earlier code used function(d) and so
+// silently never fired (d was the event). Use the datum (the second arg) explicitly.
+node.on('mouseenter.focus',function(event,d){if(d.kind==='hyp'){setFocusIds([d.id],false);
+  if(_bc)_bc.postMessage({focus:[d.id],origin:'constellation'});}})
+    .on('mouseleave.focus',function(event,d){if(d.kind==='hyp'){setFocusIds(null,false);
+  if(_bc)_bc.postMessage({focus:null,origin:'constellation'});}});
 let rot=0, ds=null;
 function rp(x,y){var a=rot*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a),dx=x-cx,dy=y-cy;return [cx+dx*ca-dy*sa, cy+dx*sa+dy*ca];}
 function placeLabels(){lab.attr('x',function(d){return rp(d.x,d.y)[0];}).attr('y',function(d){return rp(d.x,d.y)[1]-nR(d)-5;});}
@@ -2042,10 +2059,10 @@ const area=d3.area().x(function(d){return x(d.data.t);}).y0(function(d){return y
 const defs=svg.append('defs');
 const gl=defs.append('filter').attr('id','rg').attr('x','-40%').attr('y','-40%').attr('width','180%').attr('height','180%');
 gl.append('feGaussianBlur').attr('stdDeviation','2.4');
-svg.append('g').selectAll('line').data(D.markers).join('line')
+const mlines=svg.append('g').selectAll('line').data(D.markers).join('line')
  .attr('x1',function(d){return x(d.t);}).attr('x2',function(d){return x(d.t);}).attr('y1',m.t-4).attr('y2',H-m.b)
  .attr('stroke',P.grid).attr('stroke-dasharray','2,4').attr('opacity',0.4);
-svg.append('g').selectAll('path').data(series).join('path')
+const ribbons=svg.append('g').selectAll('path').data(series).join('path')
  .attr('d',area).attr('fill',function(s){return colorOf[s.key];})
  .attr('opacity',function(s){return deadOf[s.key]?0.5:0.95;})
  .attr('stroke','#00000022').attr('stroke-width',0.4)
@@ -2078,12 +2095,37 @@ function moveTip(ev){var tw=tip.offsetWidth||300,th=tip.offsetHeight||80;
  var lx=ev.clientX+14;if(lx+tw>W-6)lx=ev.clientX-tw-14;if(lx<6)lx=6;
  var ty=ev.clientY-th-10;if(ty<6)ty=ev.clientY+16;if(ty+th>H-2)ty=Math.max(6,H-th-4);
  tip.style.left=lx+'px';tip.style.top=ty+'px';}
+// ---- LINKED BRUSHING: river moment <-> constellation subgraph ----------------
+// Hovering a moment broadcasts the hypotheses it MOVED so the constellation lights
+// up exactly those subgraphs (with a one-shot pulse); receiving a focus from the
+// constellation/ranking highlights this hypothesis's ribbon + its moments here.
+var RBC=null; try{RBC=new BroadcastChannel('isaac-focus');}catch(e){}
+const hidToLabel={}; (D.hyps||[]).forEach(function(h){if(h.id)hidToLabel[h.id]=h.label;});
+function setRiverFocus(ids){
+ var labset=null;
+ if(ids&&ids.length){labset=new Set(ids.map(function(i){return hidToLabel[i];}).filter(Boolean));}
+ ribbons.transition().duration(200).attr('opacity',function(s){
+  if(!labset)return deadOf[s.key]?0.5:0.95;
+  return labset.has(s.key)?0.98:0.12;});
+ mlines.transition().duration(200).attr('opacity',function(d){
+  if(!ids||!ids.length)return 0.4;
+  var hit=(d.hyp_ids||[]).some(function(h){return ids.indexOf(h)>=0;});
+  return hit?0.95:0.06;}).attr('stroke',function(d){
+  if(!ids||!ids.length)return P.grid;
+  var hit=(d.hyp_ids||[]).some(function(h){return ids.indexOf(h)>=0;});
+  return hit?P.label:P.grid;});
+}
+if(RBC){RBC.onmessage=function(ev){var msg=ev&&ev.data;if(!msg||msg.origin==='river')return;
+ var f=msg.focus,ids=(f==null)?null:(Array.isArray(f)?f:[f]);setRiverFocus(ids);};}
 function showTip(ev,d){tip.innerHTML=tipHTML(d);tip.style.opacity=1;
- hl.attr('x1',x(d.t)).attr('x2',x(d.t)).attr('opacity',0.6);moveTip(ev,d);}
-function hideTip(){tip.style.opacity=0;hl.attr('opacity',0);}
+ var c=(d.deltas&&d.deltas.length)?(colorOf[d.deltas[0].label]||P.label):P.label;
+ hl.attr('x1',x(d.t)).attr('x2',x(d.t)).attr('stroke',c).attr('opacity',0.75);moveTip(ev,d);
+ if(RBC)RBC.postMessage({focus:(d.hyp_ids&&d.hyp_ids.length)?d.hyp_ids:null,origin:'river',pulse:true});}
+function hideTip(){tip.style.opacity=0;hl.attr('opacity',0);
+ if(RBC)RBC.postMessage({focus:null,origin:'river'});}
 const mk=svg.append('g');
 const hl=mk.append('line').attr('y1',m.t-4).attr('y2',H-m.b).attr('stroke',P.label)
- .attr('stroke-width',1.2).attr('opacity',0).attr('pointer-events','none');
+ .attr('stroke-width',1.4).attr('opacity',0).attr('pointer-events','none');
 mk.selectAll('line.hit').data(D.markers).join('line').attr('class','hit')
  .attr('x1',function(d){return x(d.t);}).attr('x2',function(d){return x(d.t);}).attr('y1',m.t-4).attr('y2',H-m.b)
  .attr('stroke','transparent').attr('stroke-width',12).style('pointer-events','stroke').style('cursor','pointer')
@@ -3265,6 +3307,9 @@ requestAnimationFrame(loop);
                     _marker_types = ("prediction_evaluated", "compute_running",
                                      "compute_submitted", "evidence_ingested",
                                      "next_experiment_proposed")
+                    # label → hypothesis_id, so each river moment can name the constellation
+                    # subgraphs it moved (linked-brushing join key).
+                    _label2hid = {_h["label"]: _h["hypothesis_id"] for _h in hyps}
                     _markers = []
                     for e in _chrono:
                         if e["event_type"] not in _marker_types:
@@ -3286,13 +3331,19 @@ requestAnimationFrame(loop);
                         _summary = (e.get("summary") or e.get("detail") or "").strip()
                         if len(_summary) > 240:
                             _summary = _summary[:237] + "…"
+                        # The hypotheses this moment moved — the constellation lights up
+                        # exactly these subgraphs when the moment is hovered.
+                        _hyp_ids = [_label2hid[z["label"]] for z in _deltas
+                                    if z.get("label") in _label2hid]
                         _markers.append({"t": _t_pos, "type": e["event_type"],
-                                         "summary": _summary, "deltas": _deltas})
+                                         "summary": _summary, "deltas": _deltas,
+                                         "hyp_ids": _hyp_ids})
                     st.markdown("**The river of belief** — how confidence in each mechanism "
                                 "evolved as evidence arrived")
                     components.html(_river_html(
                         {"steps": _steps,
-                         "hyps": [{"label": _h["label"], "status": _h["status"],
+                         "hyps": [{"id": _h["hypothesis_id"], "label": _h["label"],
+                                   "status": _h["status"],
                                    "conf": float(_h["confidence"] or 0),
                                    "color": _hcolor.get(_h["label"], "#C97A3C"),
                                    "lead": _h["label"] == _leader_label} for _h in hyps],
