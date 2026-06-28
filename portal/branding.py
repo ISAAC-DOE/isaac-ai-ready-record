@@ -116,34 +116,29 @@ html, body, [class*="css"], .stMarkdown, .stButton, .stSelectbox, .stTextInput {
 .block-container {{ max-width: 1080px; padding: 1.1rem 2rem 4rem; }}
 
 /* ---- Sticky top bar ---------------------------------------------------------
-   The header columns (logo · menu · theme · DB status · user) are wrapped in a
-   st.container() carrying an .isaac-topbar-marker sentinel. Pin the vertical block
-   that holds that marker to the top of the scroll area so the bar stays visible as
-   the page scrolls. :has(> elementContainer …) matches ONLY the inner container,
-   not the page-level block (whose marker is a deeper descendant). */
-[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .isaac-topbar-marker) {{
+   The header (logo · menu · theme · DB status · user) lives in st.container(key=
+   "isaac_topbar"). Streamlit puts an `.st-key-isaac_topbar` class on that container's
+   OUTERMOST wrapper — the element that is a direct child of the main column and has
+   real height to slide within — so pinning IT (not a nested inner block) actually
+   sticks. The bar stays glued to the top as the page scrolls. */
+.st-key-isaac_topbar {{
     position: sticky; top: 0; z-index: 1000;
     background: {p['bg']};
-    padding: 0.55rem 0 0.5rem;
-    margin-bottom: 0.4rem;
+    padding: 0.5rem 0 0.5rem;
     border-bottom: 1px solid {p['border_soft']};
 }}
-.isaac-topbar-marker {{ display: none; }}
 /* Compact controls in the bar: the ☰ menu and ☀️/🌙 toggle read as icons, not slabs. */
-[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .isaac-topbar-marker)
-    .stButton > button,
-[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .isaac-topbar-marker)
-    [data-testid="stPopoverButton"] {{ padding-left: 0.4rem; padding-right: 0.4rem; }}
+.st-key-isaac_topbar .stButton > button,
+.st-key-isaac_topbar [data-testid="stPopoverButton"] {{
+    padding-left: 0.4rem; padding-right: 0.4rem; }}
 
 /* Brand logo sizing — theme legibility handled by swapping the asset itself
    (white art on dark, dark art on light), see render_header/render_footer. */
 [data-testid="stImage"] img {{ image-rendering: -webkit-optimize-contrast; }}
 
-/* Header rule: a single restrained hairline (no gradient flourish) */
-.isaac-spectral-line {{
-    height: 0; border: 0; border-top: 1px solid {p['border_soft']};
-    margin: 0.4rem 0 1.8rem 0;
-}}
+/* Header rule: retired — the sticky top bar carries its own bottom hairline now, so
+   the old free-floating line above it is hidden to avoid a stray rule + dead space. */
+.isaac-spectral-line {{ display: none; }}
 
 /* ---- Type scale (modular ~1.18; every level sized) ---- */
 h1, [data-testid="stHeading"] h1 {{ font-weight: 700 !important; font-size: 2.0rem !important;
@@ -265,7 +260,6 @@ hr {{ border-color: {p['border_soft']} !important; }}
 a {{ color: {p['accent']} !important; text-decoration: none; }}
 a:hover {{ text-decoration: underline; }}
 </style>
-<div class="isaac-spectral-line"></div>
 """, unsafe_allow_html=True)
 
 

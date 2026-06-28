@@ -118,12 +118,11 @@ if database.is_discovery_db_configured() and \
     PAGES.insert(PAGES.index("About"), "Discovery")
 
 # --- Top bar: one level — [logo  ☰]  ·····  [theme  ● DB Online  user | logout] ---
-# Wrapped in a container carrying an .isaac-topbar-marker sentinel so the design-system
-# CSS can pin the whole bar `position:sticky; top:0` (it stays visible while scrolling).
+# Wrapped in st.container(key="isaac_topbar"); the design-system CSS pins that keyed
+# wrapper `position:sticky; top:0` so the whole bar stays visible while scrolling.
 # vertical_alignment="center" puts the logo, hamburger, theme toggle, DB status and
 # user/logout all on the SAME horizontal line.
-with st.container():
-    st.markdown('<div class="isaac-topbar-marker"></div>', unsafe_allow_html=True)
+with st.container(key="isaac_topbar"):
     logo_col, burger_col, _spacer_col, theme_col, status_col, user_col = st.columns(
         [2.3, 0.7, 3.9, 0.55, 1.5, 2.4], vertical_alignment="center")
     with logo_col:
@@ -2447,32 +2446,27 @@ requestAnimationFrame(loop);
             brief = discovery.get_briefing(pid, owner) or {}
 
             # ---------- BRIEFING HEADER (the universal-truth digest) ----------
+            # Title + a single quiet meta line; the Goal now lives in the triptych below
+            # (Goal → Leading explanation → Next move) rather than a separate full-width box.
             st.markdown(f"### {proj['title']}")
-            if proj.get("goal"):
-                # A card matching the leader card below (same geometry) so the two read as
-                # one harmonic stack — alternating accents: teal Goal, then the hypothesis
-                # colour on the leader.
-                _gp = branding.palette(st.session_state.ui_theme)
-                st.markdown(
-                    f"<div style='border:1px solid {_gp['border']};border-left:4px solid "
-                    f"{_gp['accent']};border-radius:12px;padding:13px 18px;margin:8px 0 4px;"
-                    f"background:{_gp['accent_soft']}'>"
-                    f"<span style='font-size:0.72em;letter-spacing:0.12em;"
-                    f"text-transform:uppercase;color:{_gp['muted']}'>🎯 Goal</span>"
-                    f"<div style='color:{_gp['text']};margin-top:3px;font-size:1.0em'>"
-                    f"{html.escape(proj['goal'])}</div></div>", unsafe_allow_html=True)
             meta = " · ".join(filter(None, [
                 proj.get("material_system"), proj.get("reaction"),
                 f"status: {proj.get('status')}"]))
             if meta:
                 st.caption(meta)
 
-            # --- Calm-landing helpers (the chosen view) ---
-            def _leader_card_html():
-                # Returns (inner HTML, text-length estimate) for the two-up flex row,
-                # or ("", 0) if there's no live hypothesis.
+            # --- Calm landing: the triptych (Goal → Leading explanation → Next move) ---
+            # Three equal cards in ONE iframe: same width (grid 1fr), same FIXED height. Each
+            # body SCROLLS with a soft bottom fade when it overflows — nothing is clipped and
+            # nothing sits half-empty. The middle "Leading explanation" is the hero (sole teal
+            # accent + the one big confidence number), so equal geometry never flattens the
+            # hierarchy — the eye lands on the answer first. (Design panel consensus.)
+            def _leader_inner():
+                # Inner HTML for the hero card (eyebrow · anchor · scrolling statement · foot).
                 if not _alive:
-                    return "", 0
+                    return ("<div class='eyebrow hero-eyebrow'>Leading explanation</div>"
+                            "<div class='body'><span class='muted'>No live hypothesis yet — "
+                            "the agent hasn't proposed one.</span></div>")
                 _ld = max(_alive, key=lambda h: float(h["confidence"] or 0))
                 _sc = discovery.compute_hypothesis_score(_ld)
                 _conf = float(_ld["confidence"] or 0)
@@ -2481,30 +2475,28 @@ requestAnimationFrame(loop);
                 _nd = _sc.get("n_decisive", 0)
                 if _ld["status"] == "supported" or (_sc.get("reliable") and _nd >= 2):
                     _chip, _chipcol = "confirmed", "#3a9d6b"
-                    _why = "Confirmed — at least 2 independent decisive tests agree."
+                    _foot = f"{_nd} independent decisive tests agree."
                 else:
                     _chip, _chipcol = "provisional", _pal["muted"]
-                    _why = (f"Ahead, not yet confirmed — a hypothesis is promoted only after "
-                            f"2 independent decisive tests agree ({_nd} so far). By design.")
+                    _foot = (f"{_nd}/2 independent decisive tests so far — promoted only at 2, "
+                             f"by design.")
                 return (
-                    f"<div class='lxc' style='border-left:4px solid {_col}'>"
-                    f"<div class='lxlab'>Leading explanation</div>"
-                    f"<div style='display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:5px'>"
-                    f"<span class='lxname' style='color:{_col}'>{html.escape(_ld['label'] or 'H')}</span>"
-                    f"<span class='lxbig'>{_conf:.2f}</span>"
-                    f"<span class='lxchip' style='border:1px solid {_chipcol};color:{_chipcol}'>{_chip}</span></div>"
-                    f"<div class='lxstmt'>{html.escape(_ld.get('statement') or '')}</div>"
-                    f"<div class='lxsub'>{html.escape(_why)}</div></div>",
-                    len(_ld.get('statement') or '') + len(_why) + 60)
+                    f"<div class='eyebrow hero-eyebrow'>Leading explanation</div>"
+                    f"<div class='anchor'>"
+                    f"<span class='conf'>{_conf:.2f}</span>"
+                    f"<span class='hyp' style='color:{_col};border-color:{_col}'>"
+                    f"{html.escape(_ld['label'] or 'H')}</span>"
+                    f"<span class='chip' style='border-color:{_chipcol};color:{_chipcol}'>{_chip}</span>"
+                    f"</div>"
+                    f"<div class='body'>{html.escape(_ld.get('statement') or '')}</div>"
+                    f"<div class='foot'>{html.escape(_foot)}</div>")
 
-            def _next_moves_html():
-                # The single most valuable next move: what it is + why, briefly. No repeat
-                # of the leader's number/state (it's right alongside), no #2/#3, no hover.
+            def _next_inner():
+                # Inner HTML for the next-move card, or None if there's no move to show.
                 _ne = brief.get("next_experiment") or data.get("next_experiment")
                 _recs = brief.get("recommended_actions") or []
                 if not (_ne and (_ne.get("rationale") or _ne.get("title"))) and not _recs:
-                    return "", 0
-                _pal = branding.palette(st.session_state.ui_theme)
+                    return None
                 _ld = (max(_alive, key=lambda h: float(h["confidence"] or 0))
                        if _alive else None)
                 _sc = discovery.compute_hypothesis_score(_ld) if _ld else {}
@@ -2534,51 +2526,72 @@ requestAnimationFrame(loop);
                     _title = _recs[0].split(" — ")[0].split(". ")[0].strip()
                     _why = ""
                     _tags = [_tag_for(_recs[0])]
-                if len(_title) > 120:
-                    _title = _title[:117] + "…"
-                if len(_why) > 420:
-                    _why = _why[:417] + "…"
-                _h = (f"<div class='lxc' style='border-left:4px solid {_pal['accent']}'>"
-                      f"<div class='lxlab'>Next move · most valuable</div>"
-                      f"<div class='lxmtags'>{' · '.join(_tags)}</div>"
-                      f"<div class='lxmtitle'>{html.escape(_title)}</div>"
-                      + (f"<div class='lxsub'>{html.escape(_why)}</div>" if _why else "")
-                      + "</div>")
-                return _h, len(_title) + len(_why) + 60
+                return (
+                    f"<div class='eyebrow'>Next move · most valuable</div>"
+                    f"<div class='tags'>{' · '.join(_tags)}</div>"
+                    f"<div class='body'><div class='mtitle'>{html.escape(_title)}</div>"
+                    + (f"<div class='mwhy'>{html.escape(_why)}</div>" if _why else "")
+                    + "</div>")
 
-            def _render_lead_and_moves():
-                # Leading explanation + next move in ONE iframe as a flex row, so they're
-                # EXACTLY equal height (flex stretch) and each card SCROLLS if its text is
-                # long — nothing gets clipped. Iframe height is sized to the taller card.
-                _lc, _ll = _leader_card_html()
-                _nm, _nl = _next_moves_html()
-                if not _lc and not _nm:
-                    st.caption("No live hypotheses yet — the agent hasn't proposed one.")
-                    return
+            def _render_triptych():
                 _p = branding.palette(st.session_state.ui_theme)
-                _both = bool(_lc and _nm)
-                _cards = (_lc or "") + (_nm or "")
-                _maxlen = max(_ll, _nl)
-                _hh = int(min(420, max(200, 96 + (_maxlen / 46) * 22)))
-                _doc = ("<html><head><style>"
-                        "html,body{height:100%%;margin:0;background:transparent;"
-                        "font-family:-apple-system,Segoe UI,Roboto,sans-serif;}"
-                        ".lxr{display:flex;gap:14px;height:100%%;box-sizing:border-box;align-items:stretch;}"
-                        ".lxc{flex:1 1 0;min-width:0;overflow:auto;box-sizing:border-box;"
-                        "border:1px solid %(bd)s;border-radius:12px;padding:15px 18px;}"
-                        ".lxlab{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:%(mut)s;}"
-                        ".lxname{font-size:18px;font-weight:700;}"
-                        ".lxbig{font-size:24px;font-weight:700;color:%(txt)s;font-variant-numeric:tabular-nums;}"
-                        ".lxchip{font-size:11.5px;border-radius:20px;padding:2px 11px;}"
-                        ".lxstmt{color:%(txt)s;font-size:15px;line-height:1.5;margin-top:9px;}"
-                        ".lxsub{color:%(mut)s;font-size:13.5px;line-height:1.55;margin-top:9px;}"
-                        ".lxmtags{font-size:11px;color:%(acc)s;text-transform:uppercase;"
-                        "letter-spacing:.05em;font-weight:700;margin-top:9px;}"
-                        ".lxmtitle{font-weight:700;color:%(txt)s;font-size:16px;margin-top:5px;line-height:1.35;}"
-                        "</style></head><body><div class='lxr'>%(cards)s</div></body></html>"
-                        ) % {"bd": _p["border"], "mut": _p["muted"], "txt": _p["text"],
-                              "acc": _p["accent"], "cards": _cards}
-                components.html(_doc, height=_hh + 6)
+                _goal = proj.get("goal") or proj.get("title") or ""
+                _cards = [
+                    ("<div class='card'>"
+                     "<div class='eyebrow'>🎯 The goal</div>"
+                     f"<div class='body'>{html.escape(_goal)}</div></div>"),
+                    f"<div class='card hero'>{_leader_inner()}</div>",
+                ]
+                _nin = _next_inner()
+                if _nin:
+                    _cards.append(f"<div class='card'>{_nin}</div>")
+                # Token template (literal % in calc()/masks survives .replace untouched —
+                # no %-format escaping to get wrong).
+                _tpl = (
+                    "<html><head><style>"
+                    "html,body{margin:0;background:transparent;"
+                    "font-family:-apple-system,Segoe UI,Roboto,sans-serif;}"
+                    ".grid{display:grid;grid-template-columns:repeat(__COLS__,1fr);gap:14px;"
+                    "padding:4px 1px 8px;}"
+                    ".card{box-sizing:border-box;display:flex;flex-direction:column;height:248px;"
+                    "background:__SURF__;border:1px solid __BD__;border-left:2px solid __BD__;"
+                    "border-radius:12px;padding:17px 18px;"
+                    "transition:transform .15s ease,border-color .15s ease;}"
+                    ".card:hover{transform:translateY(-2px);border-color:__BDSOFT__;}"
+                    ".card.hero{border-left:2px solid __ACC__;background:__ACCSOFT__;}"
+                    ".eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;"
+                    "color:__MUT__;font-weight:600;flex:0 0 auto;margin-bottom:11px;}"
+                    ".hero-eyebrow{color:__ACC__;}"
+                    ".anchor{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;"
+                    "flex:0 0 auto;margin-bottom:11px;}"
+                    ".conf{font-size:30px;font-weight:700;line-height:1;color:__ACC__;"
+                    "font-variant-numeric:tabular-nums;letter-spacing:-.01em;}"
+                    ".hyp{font-size:11px;letter-spacing:.07em;text-transform:uppercase;"
+                    "font-weight:700;padding:2px 8px;border:1px solid __BD__;border-radius:999px;}"
+                    ".chip{font-size:11px;border:1px solid __MUT__;border-radius:999px;padding:2px 9px;}"
+                    ".tags{font-size:10.5px;color:__ACC__;text-transform:uppercase;"
+                    "letter-spacing:.04em;font-weight:700;flex:0 0 auto;margin-bottom:9px;"
+                    "line-height:1.55;}"
+                    ".body{flex:1 1 auto;min-height:0;overflow-y:auto;color:__TXT__;"
+                    "font-size:14px;line-height:1.5;scrollbar-width:none;"
+                    "-webkit-mask-image:linear-gradient(to bottom,#000 0,"
+                    "#000 calc(100% - 18px),transparent 100%);"
+                    "mask-image:linear-gradient(to bottom,#000 0,"
+                    "#000 calc(100% - 18px),transparent 100%);}"
+                    ".body::-webkit-scrollbar{width:0;height:0;}"
+                    ".muted{color:__MUT__;}"
+                    ".mtitle{font-weight:700;color:__TXT__;font-size:15px;line-height:1.35;"
+                    "margin-bottom:7px;}"
+                    ".mwhy{color:__MUT__;font-size:13px;line-height:1.5;}"
+                    ".foot{flex:0 0 auto;margin-top:9px;color:__MUT__;font-size:11.5px;"
+                    "line-height:1.4;}"
+                    "</style></head><body><div class='grid'>__CARDS__</div></body></html>")
+                _doc = (_tpl.replace("__SURF__", _p["surface"]).replace("__BDSOFT__", _p["border_soft"])
+                        .replace("__BD__", _p["border"]).replace("__MUT__", _p["muted"])
+                        .replace("__TXT__", _p["text"]).replace("__ACCSOFT__", _p["accent_soft"])
+                        .replace("__ACC__", _p["accent"]).replace("__COLS__", str(len(_cards)))
+                        .replace("__CARDS__", "".join(_cards)))
+                components.html(_doc, height=262)
 
             def _ranking_block():
                 st.markdown("#### How the explanations rank")
@@ -2687,7 +2700,7 @@ requestAnimationFrame(loop);
             # → the tabs (constellation + river). The diagnostic expanders (status,
             # resumable, rigor, briefing) are rendered AFTER the tabs (see end of function)
             # so they don't break that flow.
-            _render_lead_and_moves()
+            _render_triptych()
             _ranking_block()
 
             preds = [p for h in hyps for p in h["predictions"]]
