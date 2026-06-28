@@ -2189,21 +2189,14 @@ requestAnimationFrame(loop);
             if meta:
                 st.caption(meta)
 
-            # ============ LANDING LAYOUT (Calm / Hero / Classic) ============
-            # Three switchable landing layouts, so a first-time viewer isn't buried.
-            # Persisted via the `landing` query param so the 5s auto-refresh keeps the
-            # choice. Calm = slimmed first-impression view; Hero = Calm with the living
-            # constellation on top; Classic = the original dense view (unchanged).
-            _LANDINGS = {"calm": "✨ Calm", "hero": "🌌 Living hero", "classic": "▦ Classic"}
-            _lq = st.query_params.get("landing")
-            if "disc_landing" not in st.session_state:
-                st.session_state.disc_landing = _lq if _lq in _LANDINGS else "calm"
-            landing = st.radio(
-                "Landing", list(_LANDINGS.keys()),
-                format_func=lambda k: _LANDINGS[k], horizontal=True,
-                label_visibility="collapsed", key="disc_landing")
-            if st.query_params.get("landing") != landing:
-                st.query_params["landing"] = landing
+            # ============ LANDING LAYOUTS (Calm / Hero / Classic) as TABS ============
+            # All three landing layouts shown as tabs, so every version is viewable on the
+            # server at once and a winner can be picked directly. Calm = slimmed
+            # first-impression view; Living hero = Calm with the living constellation on
+            # top; Classic = the original dense view (unchanged). The tabs are populated
+            # further down (with-blocks) once the helpers below are defined.
+            _lt_calm, _lt_hero, _lt_classic = st.tabs(
+                ["✨ Calm", "🌌 Living hero", "▦ Classic"])
 
             # shared provenance — the leader card + constellation both need it
             _preds0 = [p for h in hyps for p in h["predictions"]]
@@ -2366,7 +2359,7 @@ requestAnimationFrame(loop);
                                  expanded=False):
                     st.json(brief)
 
-            if landing == "classic":
+            with _lt_classic:
                 # ---------- RESUMABLE pending work — the first thing you should see ----
                 _pw = brief.get("pending_work", {})
                 if _pw.get("items"):
@@ -2564,7 +2557,7 @@ requestAnimationFrame(loop);
                                "reconciles its reasoning to this at the start of every turn; "
                                "if a change isn't written back here, it didn't happen.")
                     st.json(brief)
-            elif landing == "hero":
+            with _lt_hero:
                 if hyps:
                     components.html(_constellation_html(_constellation_payload(),
                                     st.session_state.ui_theme), height=520)
@@ -2575,7 +2568,7 @@ requestAnimationFrame(loop);
                 _ranking_block()
                 _status_line()
                 _diagnostics_compact()
-            else:  # calm
+            with _lt_calm:
                 _leader_card()
                 _ranking_block()
                 _status_line()
