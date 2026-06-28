@@ -44,6 +44,13 @@ def render_header(mode: str = "dark"):
     inject_theme(mode)
 
 
+def header_logo(mode: str = "dark", width: int = 190):
+    """Just the theme-matched ISAAC logo, for placing INSIDE a custom header row
+    (a vertical-centered st.columns bar). Does NOT inject the theme — call
+    inject_theme(mode) once, separately, before the bar."""
+    st.image(_asset(_LOGO, mode), width=width)
+
+
 def render_footer(mode: str = "dark"):
     """Render partner + DOE logos at the bottom, theme-matched so the National Lab
     artwork stays visible on a light background (was white-on-white before)."""
