@@ -1486,110 +1486,77 @@ elif page == "Discovery":
                 f"border-radius:5px'></div></div></div>")
 
         def _genesis_html(payload, theme="dark"):
-            # GENESIS — how the hypotheses were conceived, staged as abductive reasoning:
-            # the OBSERVATION (a surprising anomaly the human handed over) → the QUESTION →
-            # the competing mechanisms revealed ONE AT A TIME, each a receipt (a real source
-            # + its reading of the data) → the NULL set apart. Self-contained animated iframe;
-            # autoplay + replay; reduced-motion shows the final frame. Sequence, not a grid.
+            # GENESIS — generic, per-project: how the hypotheses were conceived. The SEED is
+            # the project's real GOAL (what ISAAC was actually asked). From it, the competing
+            # mechanisms are revealed ONE AT A TIME, each a receipt: its mechanism, WHY it was
+            # posed (the real origin.reasoning), and its grounding + source. The null is set
+            # apart. NO fabricated chart — everything is per-project data from the record.
+            # Staged reveal; autoplay + replay; reduced-motion shows the final frame.
             pal = branding.palette(theme)
-            P = json.dumps({"text": pal["text"], "muted": pal["muted"], "accent": pal["accent"],
-                            "surface": pal["surface"], "border": pal["border"],
-                            "border_soft": pal["border_soft"]})
+            P = json.dumps({"text": pal["text"], "muted": pal["muted"], "accent": pal["accent"]})
             data = json.dumps(payload)
             tmpl = r"""<html><head><style>
 html,body{margin:0;background:transparent;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:__TEXT__;}
-#g{padding:6px 4px 2px;}
-.k{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:__MUTED__;}
-#obswrap{display:flex;gap:18px;align-items:center;}
-#chart{flex:0 0 280px;}
-#obscap{flex:1;min-width:0;opacity:0;transition:opacity .7s ease;}
-#obscap .big{font-size:18px;font-weight:600;margin:3px 0 4px;color:__TEXT__;}
-#obscap .say{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:__ACCENT__;font-style:italic;}
-#q{margin:16px 0 6px;font-size:17px;font-weight:600;color:__TEXT__;opacity:0;
- transform:translateY(6px);transition:opacity .6s ease,transform .6s ease;}
-#cards{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;}
-.card{flex:1 1 200px;min-width:180px;border:1px solid __BORDER__;border-left:3px solid var(--c);
- border-radius:10px;padding:10px 12px;background:__SURFACE__;opacity:0;transform:translateY(8px);
+#g{padding:4px 4px 2px;}
+.k{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:__MUTED__;}
+#seedwrap{border-left:3px solid __ACCENT__;padding:2px 0 2px 14px;margin:2px 0 4px;
+ opacity:0;transform:translateX(-6px);transition:opacity .6s ease,transform .6s ease;}
+#seed{font-size:17px;font-weight:600;color:__TEXT__;margin-top:3px;line-height:1.35;}
+#bridge{margin:14px 0 8px;font-size:13px;color:__MUTED__;opacity:0;transition:opacity .6s ease;}
+#bridge b{color:__TEXT__;font-weight:600;}
+#cards{display:flex;flex-wrap:wrap;gap:10px;}
+.card{flex:1 1 220px;min-width:200px;border:1px solid __BORDER__;border-left:3px solid var(--c);
+ border-radius:10px;padding:10px 13px;background:__SURFACE__;opacity:0;transform:translateY(8px);
  transition:opacity .5s ease,transform .5s ease;}
-.card.null{border-style:dashed;border-left-style:dashed;opacity:.92;}
+.card.null{border-style:dashed;border-left-style:dashed;}
 .card .nm{font-weight:700;font-size:13px;color:var(--c);}
 .card .mech{font-size:12px;color:__TEXT__;margin:4px 0 6px;line-height:1.4;}
+.card .why{font-size:11px;color:__MUTED__;line-height:1.4;margin-bottom:6px;}
 .card .src{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10px;color:__MUTED__;}
-.card .tag{font-size:9.5px;color:__MUTED__;text-transform:uppercase;letter-spacing:.06em;}
 #replay{margin-top:12px;font-size:11px;color:__MUTED__;background:none;border:1px solid __BORDER_SOFT__;
  border-radius:14px;padding:3px 12px;cursor:pointer;}
 #replay:hover{color:__ACCENT__;border-color:__ACCENT__;}
-.curve{fill:none;stroke:__ACCENT__;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
-.axis{stroke:__BORDER_SOFT__;stroke-width:1;}
 </style></head><body><div id="g">
-<div id="obswrap">
- <svg id="chart" viewBox="0 0 280 140"></svg>
- <div id="obscap">
-  <div class="k">Observation · handed to ISAAC</div>
-  <div class="big" id="obstitle"></div>
-  <div class="say">“this shouldn't happen — explain it.”</div>
- </div>
-</div>
-<div id="q"></div>
+<div id="seedwrap"><div class="k">The seed · what ISAAC was asked</div><div id="seed"></div></div>
+<div id="bridge"></div>
 <div id="cards"></div>
-<button id="replay">↻ replay genesis</button>
+<button id="replay">↻ replay</button>
 </div>
 <script>
 const D=__DATA__, P=__PAL__;
-const chart=document.getElementById('chart'), cards=document.getElementById('cards');
-const obscap=document.getElementById('obscap'), q=document.getElementById('q');
-document.getElementById('obstitle').textContent=D.observation;
-q.textContent=D.question;
+const cards=document.getElementById('cards');
+const seedwrap=document.getElementById('seedwrap'), bridge=document.getElementById('bridge');
 function esc(s){return (s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
-// ---- the anomaly curve (drawn) ----
-const W=280,H=140,m={l:8,r:8,t:10,b:16};
-function X(x){return m.l+(W-m.l-m.r)*x;}
-function Y(y){var ymax=Math.max.apply(null,D.curve.map(function(p){return p[1];}))||1;
- return H-m.b-(H-m.t-m.b)*(y/ymax);}
-var path='', dotx=0,doty=0,peakx=0;
-D.curve.forEach(function(p,i){path+=(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)+' ';});
-var pk=D.curve.reduce(function(a,b){return b[1]>a[1]?b:a;});peakx=pk[0];
-var an=D.curve[D.curve.length-1];dotx=an[0];doty=an[1];   // the downturn point
-chart.innerHTML='<line class="axis" x1="'+m.l+'" y1="'+(H-m.b)+'" x2="'+(W-m.r)+'" y2="'+(H-m.b)+'"/>'
- +'<path class="curve" d="'+path+'"/>'
- +'<line id="amark" x1="'+X(dotx).toFixed(1)+'" y1="'+(m.t)+'" x2="'+X(dotx).toFixed(1)+'" y2="'+(H-m.b)+'" stroke="'+P.accent+'" stroke-width="1" stroke-dasharray="2,3" opacity="0"/>'
- +'<circle id="adot" cx="'+X(dotx).toFixed(1)+'" cy="'+Y(doty).toFixed(1)+'" r="3.5" fill="'+P.accent+'" opacity="0"/>'
- +'<text id="alab" x="'+X(dotx).toFixed(1)+'" y="'+(m.t+8)+'" fill="'+P.accent+'" font-size="9" text-anchor="middle" opacity="0">anomaly</text>';
-const cpath=chart.querySelector('.curve');
-const L=cpath.getTotalLength();cpath.style.strokeDasharray=L;cpath.style.strokeDashoffset=L;
-cpath.style.transition='stroke-dashoffset 1.1s cubic-bezier(.22,1,.36,1)';
-// ---- build cards (hidden) ----
-D.hyps.forEach(function(h,i){
+document.getElementById('seed').textContent=D.goal;
+bridge.innerHTML='From it, ISAAC posed <b>'+D.n+' competing mechanism'+(D.n===1?'':'s')
+ +'</b> the field actually debates — each grounded, and stated so it can be broken.';
+D.hyps.forEach(function(h){
  var d=document.createElement('div');d.className='card'+(h.is_null?' null':'');d.style.setProperty('--c',h.color);
+ var foot=h.is_null?'⌜ the null — kept on the board to rule out'
+   :('⌜ '+esc(h.grounding)+(h.source?' · '+esc(h.source):''));
  d.innerHTML='<div class="nm">'+esc(h.label)+'</div>'
   +'<div class="mech">'+esc(h.mech)+'</div>'
-  +'<div class="src">'+(h.is_null?'⌜ the null — predicts NO downturn':'⌜ '+esc(h.source))+'</div>'
-  +'<div class="tag">'+(h.is_null?'the null we must rule out':esc(h.grounding||'standing prior'))+'</div>';
+  +(h.why?'<div class="why">posed because: '+esc(h.why)+'</div>':'')
+  +'<div class="src">'+foot+'</div>';
  cards.appendChild(d);
 });
 const cardEls=cards.querySelectorAll('.card');
 var timers=[];
 function clearT(){timers.forEach(clearTimeout);timers=[];}
 function at(ms,fn){timers.push(setTimeout(fn,ms));}
+function show(){
+ seedwrap.style.opacity=1;seedwrap.style.transform='none';bridge.style.opacity=1;
+ cardEls.forEach(function(c){c.style.opacity=1;c.style.transform='none';});}
 function play(){
  clearT();
- cpath.style.strokeDashoffset=L;obscap.style.opacity=0;q.style.opacity=0;q.style.transform='translateY(6px)';
- ['amark','adot','alab'].forEach(function(id){chart.querySelector('#'+id).setAttribute('opacity','0');});
+ seedwrap.style.opacity=0;seedwrap.style.transform='translateX(-6px)';bridge.style.opacity=0;
  cardEls.forEach(function(c){c.style.opacity=0;c.style.transform='translateY(8px)';});
- void cpath.getBoundingClientRect();
- at(120,function(){cpath.style.strokeDashoffset=0;});                 // draw the curve
- at(1250,function(){chart.querySelector('#amark').setAttribute('opacity','0.8');
-   chart.querySelector('#adot').setAttribute('opacity','1');chart.querySelector('#alab').setAttribute('opacity','0.9');});
- at(1500,function(){obscap.style.opacity=1;});                        // the observation + surprise
- at(2900,function(){q.style.opacity=1;q.style.transform='translateY(0)';}); // the question
- cardEls.forEach(function(c,i){at(3700+i*420,function(){c.style.opacity=(c.classList.contains('null')?0.92:1);c.style.transform='translateY(0)';});});
+ at(150,function(){seedwrap.style.opacity=1;seedwrap.style.transform='none';});  // the seed
+ at(1100,function(){bridge.style.opacity=1;});                                   // the bridge
+ cardEls.forEach(function(c,i){at(1700+i*380,function(){c.style.opacity=1;c.style.transform='none';});});
 }
 document.getElementById('replay').addEventListener('click',play);
-if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){
- cpath.style.transition='none';cpath.style.strokeDashoffset=0;obscap.style.opacity=1;q.style.opacity=1;q.style.transform='none';
- ['amark','adot','alab'].forEach(function(id){chart.querySelector('#'+id).setAttribute('opacity','0.9');});
- cardEls.forEach(function(c){c.style.opacity=1;c.style.transform='none';});
-}else{play();}
+if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){show();}else{play();}
 </script></body></html>"""
             return (tmpl.replace("__DATA__", data).replace("__PAL__", P)
                     .replace("__TEXT__", pal["text"]).replace("__MUTED__", pal["muted"])
@@ -2722,8 +2689,8 @@ requestAnimationFrame(loop);
                     f"✓ Reliable = ≥2 cited, falsifiable, structured, explained verdicts</div>",
                     unsafe_allow_html=True)
 
-            tabGenesis, tabImpact, tabReplay, tabA, tabB, tabE, tabC, tabJ = st.tabs([
-                "✨ Genesis", "🌊 Decision journey", "🎬 Replay",
+            tabImpact, tabGenesis, tabReplay, tabA, tabB, tabE, tabC, tabJ = st.tabs([
+                "🌊 Decision journey", "✨ Genesis", "🎬 Replay",
                 "🧪 Hypotheses & provenance", "✅ Validation board",
                 "🔎 Evidence & matrix", "📊 Compute ledger", "📓 Journal"])
 
@@ -2752,28 +2719,36 @@ requestAnimationFrame(loop);
                         if isinstance(_m, dict):
                             _m = _m.get("summary") or _m.get("text") or json.dumps(_m)
                         return (str(_m or _h.get("statement") or "")[:140])
+
+                    def _why_of(_h):
+                        _o = _h.get("origin") or {}
+                        return str(_o.get("reasoning") or _o.get("summary") or "")[:150]
+
+                    def _ground_label(_h):
+                        _g = (_h.get("grounding") or "").lower()
+                        if _g == "standing_prior":
+                            return "from the literature"
+                        if _g == "ad_hoc":
+                            return "from this dataset"
+                        return (_g.replace("_", " ") or "reasoning")
                     _gh = []
                     for _h in hyps:
                         _gh.append({"label": _h["label"] or "H",
                                     "color": _hcolor.get(_h["label"], "#C97A3C"),
-                                    "mech": _mech_of(_h),
-                                    "grounding": (_h.get("grounding") or "").replace("_", " "),
+                                    "mech": _mech_of(_h), "why": _why_of(_h),
+                                    "grounding": _ground_label(_h),
                                     "source": _src_of(_h), "is_null": _is_null(_h)})
-                    _obs = (proj.get("goal") or "an unexpected trend in the data")
-                    if len(_obs) > 120:
-                        _obs = _obs[:117] + "…"
-                    _gpay = {
-                        "observation": _obs,
-                        "question": "What mechanism would explain it — and which rivals does it beat?",
-                        # a representative volcano (peak then downturn) — the shape of the anomaly
-                        "curve": [[0.03, 0.0], [0.2, 0.02], [0.5, 0.05], [0.67, 0.09],
-                                  [0.8, 0.18], [0.89, 0.10]],
-                        "hyps": _gh}
-                    components.html(_genesis_html(_gpay, st.session_state.ui_theme), height=380)
-                    st.caption("ISAAC posed the mechanisms the field actually debates — each "
-                               "grounded in the literature and read against your data. The "
-                               "dashed card is the **null** it kept on the board to rule out. "
-                               "↻ replay to watch the reasoning unfold.")
+                    # The SEED is the project's real goal — what ISAAC was actually asked. No
+                    # fabricated chart; everything below is per-project, from the record.
+                    _gpay = {"goal": (proj.get("goal") or proj.get("title") or
+                                      "the question ISAAC was given"),
+                             "n": len(_gh), "hyps": _gh}
+                    components.html(_genesis_html(_gpay, st.session_state.ui_theme),
+                                    height=max(300, 150 + 96 * ((len(_gh) + 1) // 2)))
+                    st.caption("The seed is the goal you set; from it, ISAAC posed the "
+                               "mechanisms the field debates — each grounded (literature or "
+                               "this dataset) and stated so it can be broken. A dashed card is "
+                               "a **null** kept on the board to rule out. ↻ replay the reasoning.")
 
             # ---- 🎬 Replay Studio: a data-driven "video" of the whole discovery ----
             with tabReplay:
