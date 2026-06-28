@@ -1533,6 +1533,10 @@ html,body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;backgrou
 <script>
 const R=__DATA__, P=__PAL__, NOTE=__NOTE__;
 const GREEN='#3a9d6b';
+// Broadcast the hovered hypothesis to the constellation below (same-origin iframes),
+// so it can spotlight that hypothesis's whole network. No-ops if unsupported.
+var BC=null; try{BC=new BroadcastChannel('isaac-focus');}catch(e){}
+function broadcast(id){if(BC)BC.postMessage({focus:id});}
 const bars=document.getElementById('bars'), panel=document.getElementById('panel');
 const CAT={validated:['✅',GREEN],invalidated:['❌',P.err],
            inconclusive:['◌',P.muted],pending:['⏳',P.muted]};
@@ -1569,7 +1573,7 @@ R.forEach(function(h,i){
   +'<span class="lab" style="color:'+h.color+'">'+esc(h.label)+'</span>'
   +'<span class="stmt">'+esc(h.statement)+'</span><span class="meta">'+meta+'</span></div>'
   +'<div class="barbg"><div class="barfill" style="width:'+Math.round(h.conf*100)+'%;background:'+bg+';opacity:'+op+'"></div></div>';
- d.addEventListener('mouseenter',function(){cancelHide();show(i);});
+ d.addEventListener('mouseenter',function(){cancelHide();show(i);broadcast(h.id);});
  bars.appendChild(d);
 });
 function show(i){
@@ -1609,7 +1613,7 @@ const PLACEHOLDER='<div class="ph">Hover a hypothesis to see its predictions —
  +'validated / invalidated / pending, and for each, which decisiveness criteria '
  +'(cited · falsifiable · structured · explained · independent) it already meets.</div>';
 function resetPanel(){document.querySelectorAll('.row').forEach(function(r){r.classList.remove('active');});
- panel.innerHTML=PLACEHOLDER;}
+ panel.innerHTML=PLACEHOLDER;broadcast(null);}
 // HOVER INTENT: the panel follows the mouse but with a grace delay, so you can travel
 // from a hypothesis INTO the panel and scroll it. Entering bars/panel/ⓘ cancels the
 // pending hide; leaving any of them schedules a hide that the next enter cancels.
@@ -1718,6 +1722,34 @@ const lab=labLayer.selectAll('text').data(nodes.filter(function(d){return d.kind
  .attr('fill',P.label).attr('font-size',11.5).attr('font-weight',700).attr('text-anchor','middle')
  .style('paint-order','stroke').style('stroke',P.labshadow).style('stroke-width','3px').style('stroke-linejoin','round')
  .text(function(d){return d.label+'  '+Math.round((d.conf||0)*100)+'%';});
+// ---- LINKED FOCUS: spotlight one hypothesis's whole network, fade the rest ----
+// Per hypothesis, the set of related node ids = the hyp + its predictions + the
+// evidence/compute attached to those predictions. (Built from links: at this point
+// source/target may be id-strings; after forceLink they're node objects — (x.id||x)
+// handles both.) Driven by hovering a hyp node here AND by a BroadcastChannel the
+// ranking posts to (the two iframes share origin), so hovering a ranking row lights
+// up its constellation subgraph.
+const _eid=function(x){return (x&&x.id!=null)?x.id:x;};
+const relById={};
+nodes.forEach(function(n){if(n.kind==='hyp')relById[n.id]=new Set([n.id]);});
+links.forEach(function(l){if(l.rel==='pred'&&relById[_eid(l.target)])relById[_eid(l.target)].add(_eid(l.source));});
+links.forEach(function(l){if(l.rel==='evid'||l.rel==='calc'){var s=_eid(l.source),t=_eid(l.target);
+ for(var hid in relById){if(relById[hid].has(t))relById[hid].add(s);}}});
+function _linkBase(d){return d.rel==='evid'?0.42:d.rel==='calc'?0.6:d.rel==='pred'?0.72:0.78;}
+let focusId=null;
+function applyFocus(){
+ var S=(focusId&&relById[focusId])?relById[focusId]:null;
+ node.transition().duration(200).attr('opacity',function(d){return S?(S.has(d.id)?nO(d):0.05):nO(d);});
+ lab.transition().duration(200).attr('opacity',function(d){return S?(S.has(d.id)?1:0.08):1;});
+ link.transition().duration(200).attr('stroke-opacity',function(d){
+  if(!S)return _linkBase(d);
+  return (S.has(_eid(d.source))&&S.has(_eid(d.target)))?Math.min(1,_linkBase(d)+0.22):0.03;});
+}
+function setFocus(id){var nid=(id&&relById[id])?id:null;if(nid===focusId)return;focusId=nid;applyFocus();}
+node.on('mouseenter.focus',function(d){if(d.kind==='hyp')setFocus(d.id);})
+    .on('mouseleave.focus',function(d){if(d.kind==='hyp')setFocus(null);});
+try{var _bc=new BroadcastChannel('isaac-focus');
+ _bc.onmessage=function(ev){setFocus(ev&&ev.data?ev.data.focus:null);};}catch(e){}
 let rot=0, ds=null;
 function rp(x,y){var a=rot*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a),dx=x-cx,dy=y-cy;return [cx+dx*ca-dy*sa, cy+dx*sa+dy*ca];}
 function placeLabels(){lab.attr('x',function(d){return rp(d.x,d.y)[0];}).attr('y',function(d){return rp(d.x,d.y)[1]-nR(d)-5;});}
@@ -2426,6 +2458,7 @@ requestAnimationFrame(loop);
                             "counted": bool(_g.get("counted")), "admissible": bool(_g.get("admissible")),
                             "reason": _g.get("reason")})
                     _rows.append({
+                        "id": h["hypothesis_id"],
                         "label": h["label"] or "H",
                         "color": _hcolor.get(h["label"], "#C97A3C"),
                         "statement": h.get("statement") or "",
