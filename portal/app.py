@@ -2491,19 +2491,17 @@ requestAnimationFrame(loop);
                     f"<div class='lxsub'>{html.escape(_why)}</div></div>")
 
             def _next_moves_html():
-                # Returns the next-moves card's inner HTML (shared .lx* classes), or "".
-                # Shows ONLY #1 (the most valuable move) by default; #2/#3 reveal on hover.
+                # The single most valuable next move: what it is + why, briefly. No repeat
+                # of the leader's number/state (it's right alongside), no #2/#3, no hover.
                 _ne = brief.get("next_experiment") or data.get("next_experiment")
                 _recs = brief.get("recommended_actions") or []
                 if not (_ne and (_ne.get("rationale") or _ne.get("title"))) and not _recs:
                     return ""
                 _pal = branding.palette(st.session_state.ui_theme)
-                _c = _pal["accent"]
                 _ld = (max(_alive, key=lambda h: float(h["confidence"] or 0))
                        if _alive else None)
                 _sc = discovery.compute_hypothesis_score(_ld) if _ld else {}
                 _rel = bool(_sc.get("reliable"))
-                _conf = float(_ld["confidence"] or 0) if _ld else 0.0
 
                 def _tag_for(_a):
                     _l = _a.lower()
@@ -2516,64 +2514,34 @@ requestAnimationFrame(loop);
                         return "📊 use the data on hand"
                     if any(w in _l for w in ("review", "critic", "rigor", "independent")):
                         return "🔍 independent check"
-                    if any(w in _l for w in ("vary", "experiment", "test", "measure")):
-                        return "⚔️ discriminates rivals"
                     return "• strengthens the case"
-                _moves = []
                 if _ne and (_ne.get("rationale") or _ne.get("title")):
+                    _title = _ne.get("title") or "Run the discriminating experiment"
+                    _why = _ne.get("rationale") or ""
                     _tags = []
                     if _ne.get("discriminates"):
                         _tags.append("⚔️ decides between rivals")
-                    _tags.append("🔓 confirms the leader" if not _rel else "🧪 hardens it")
+                    _tags.append("🧪 hardens it" if _rel else "🔓 confirms it")
                     _tags.append("📉 could falsify it")
-                    _why = (_ne.get("rationale") or "")
-                    if len(_why) > 150:
-                        _why = _why[:147] + "…"
-                    _t1 = _ne.get("title") or "Run the discriminating experiment"
-                    if len(_t1) > 88:
-                        _t1 = _t1[:85] + "…"
-                    _moves.append({"n": 1, "title": _t1, "why": _why, "tags": _tags})
-                for _a in _recs:
-                    if len(_moves) >= 3:
-                        break
-                    _t = _a.split(" — ")[0].split(". ")[0].strip()[:80]
-                    _moves.append({"n": len(_moves) + 1, "title": _t,
-                                   "why": "", "tags": [_tag_for(_a)]})
-                if not _moves:
-                    return ""
-                if _ld and not _rel:
-                    _hero = (f"Leading at <b>{_conf:.2f}</b>, still provisional — the move that "
-                             "would <b>prove</b> it (or <b>break</b> it):")
-                elif _ld and _rel:
-                    _hero = (f"Confirmed at <b>{_conf:.2f}</b> — the move that would "
-                             "<b>harden</b> it or rule out the last rival:")
                 else:
-                    _hero = "The most valuable thing to do next:"
-                _m1 = _moves[0]
-                _more = ""
-                if len(_moves) > 1:
-                    _rows = ""
-                    for _mv in _moves[1:]:
-                        _rows += (
-                            f"<div class='lxmrow'><span style='color:{_pal['muted']};"
-                            f"font-weight:700'>{_mv['n']}</span><span style='flex:1'>"
-                            f"{html.escape(_mv['title'])} <span style='color:{_pal['muted']}'>— "
-                            f"{_mv['tags'][0]}</span></span></div>")
-                    _more = (f"<div class='lxhint'>↓ {len(_moves) - 1} more on hover</div>"
-                             f"<div class='lxmore'>{_rows}</div>")
+                    _title = _recs[0].split(" — ")[0].split(". ")[0].strip()
+                    _why = ""
+                    _tags = [_tag_for(_recs[0])]
+                if len(_title) > 92:
+                    _title = _title[:89] + "…"
+                if len(_why) > 175:
+                    _why = _why[:172] + "…"
                 return (
-                    f"<div class='lxc moves' style='border-left:4px solid {_c}'>"
-                    f"<div class='lxlab'>Next move · ranked by value</div>"
-                    f"<div class='lxstmt' style='font-size:0.92em'>{_hero}</div>"
-                    f"<div class='lxmtags'>{' · '.join(_m1['tags'])}</div>"
-                    f"<div class='lxmtitle'>{html.escape(_m1['title'])}</div>"
-                    + (f"<div class='lxsub' style='margin-top:3px'>{html.escape(_m1['why'])}</div>"
-                       if _m1["why"] else "")
-                    + _more + "</div>")
+                    f"<div class='lxc' style='border-left:4px solid {_pal['accent']}'>"
+                    f"<div class='lxlab'>Next move · most valuable</div>"
+                    f"<div class='lxmtags'>{' · '.join(_tags)}</div>"
+                    f"<div class='lxmtitle'>{html.escape(_title)}</div>"
+                    + (f"<div class='lxsub'>{html.escape(_why)}</div>" if _why else "")
+                    + "</div>")
 
             def _render_lead_and_moves():
-                # Two equal-height columns: the leading explanation and the next move,
-                # one shared type scale. Falls back to one card (or a note) gracefully.
+                # The leading explanation and the next move, side by side (st.columns — the
+                # reliable way to get two columns in Streamlit), one shared type scale.
                 _lc = _leader_card_html()
                 _nm = _next_moves_html()
                 if not _lc and not _nm:
@@ -2581,28 +2549,26 @@ requestAnimationFrame(loop);
                     return
                 _p = branding.palette(st.session_state.ui_theme)
                 _css = ("<style>"
-                        ".lxr{display:flex;gap:14px;align-items:stretch;flex-wrap:wrap;margin:10px 0 6px;}"
-                        ".lxc{flex:1 1 320px;min-width:280px;box-sizing:border-box;"
-                        "border:1px solid %(bd)s;border-radius:12px;padding:15px 18px;}"
+                        ".lxc{box-sizing:border-box;border:1px solid %(bd)s;border-radius:12px;"
+                        "padding:15px 18px;min-height:215px;}"
                         ".lxlab{font-size:0.72em;letter-spacing:.12em;text-transform:uppercase;color:%(mut)s;}"
                         ".lxname{font-size:1.12em;font-weight:700;}"
                         ".lxbig{font-size:1.5em;font-weight:700;color:%(txt)s;font-variant-numeric:tabular-nums;}"
                         ".lxchip{font-size:0.74em;border-radius:20px;padding:2px 11px;}"
                         ".lxstmt{color:%(txt)s;font-size:0.96em;line-height:1.5;margin-top:9px;}"
-                        ".lxsub{color:%(mut)s;font-size:0.83em;line-height:1.45;margin-top:8px;}"
+                        ".lxsub{color:%(mut)s;font-size:0.85em;line-height:1.5;margin-top:9px;}"
                         ".lxmtags{font-size:0.70em;color:%(acc)s;text-transform:uppercase;"
                         "letter-spacing:.06em;font-weight:700;margin-top:9px;}"
-                        ".lxmtitle{font-weight:700;color:%(txt)s;font-size:1.0em;margin-top:3px;}"
-                        ".lxhint{font-size:0.78em;color:%(mut)s;margin-top:10px;}"
-                        ".lxmore{max-height:0;overflow:hidden;opacity:0;"
-                        "transition:max-height .25s ease,opacity .25s ease;}"
-                        ".lxmrow{display:flex;gap:9px;padding:6px 0;border-top:1px solid %(bds)s;font-size:0.86em;color:%(txt)s;}"
-                        ".lxc.moves:hover .lxmore{max-height:200px;opacity:1;}"
-                        ".lxc.moves:hover .lxhint{opacity:0;height:0;margin:0;}"
-                        "</style>") % {"bd": _p["border"], "bds": _p["border_soft"],
-                                       "mut": _p["muted"], "txt": _p["text"], "acc": _p["accent"]}
-                st.markdown(_css + f"<div class='lxr'>{_lc}{_nm}</div>",
-                            unsafe_allow_html=True)
+                        ".lxmtitle{font-weight:700;color:%(txt)s;font-size:1.04em;margin-top:5px;}"
+                        "</style>") % {"bd": _p["border"], "mut": _p["muted"],
+                                       "txt": _p["text"], "acc": _p["accent"]}
+                st.markdown(_css, unsafe_allow_html=True)
+                if _lc and _nm:
+                    _c1, _c2 = st.columns(2, gap="medium")
+                    _c1.markdown(_lc, unsafe_allow_html=True)
+                    _c2.markdown(_nm, unsafe_allow_html=True)
+                else:
+                    st.markdown(_lc or _nm, unsafe_allow_html=True)
 
             def _ranking_block():
                 st.markdown("#### How the explanations rank")
