@@ -2496,6 +2496,99 @@ requestAnimationFrame(loop);
                     f"<div style='color:{_pal['muted']};margin-top:8px;font-size:0.83em'>{html.escape(_why)}</div>"
                     f"</div>", unsafe_allow_html=True)
 
+            def _next_moves():
+                # The next most valuable thing to do — up to 3, #1 with WHY it's #1. Sourced
+                # from the agent's own discriminating next_experiment + the briefing's
+                # recommended_actions. The hero line answers "why do more even at high
+                # confidence": belief != confirmation; a provisional leader needs proving,
+                # a confirmed one needs hardening / the last rival ruled out.
+                _ne = brief.get("next_experiment") or data.get("next_experiment")
+                _recs = brief.get("recommended_actions") or []
+                if not (_ne and (_ne.get("rationale") or _ne.get("title"))) and not _recs:
+                    return
+                _pal = branding.palette(st.session_state.ui_theme)
+                _c = _pal["accent"]
+                _ld = (max(_alive, key=lambda h: float(h["confidence"] or 0))
+                       if _alive else None)
+                _sc = discovery.compute_hypothesis_score(_ld) if _ld else {}
+                _rel = bool(_sc.get("reliable"))
+                _conf = float(_ld["confidence"] or 0) if _ld else 0.0
+
+                def _tag_for(_a):
+                    _l = _a.lower()
+                    if any(w in _l for w in ("structure", "cite", "falsif", "decisive",
+                                             "predictions", "origin", "mlflow")):
+                        return "🔧 makes a test count"
+                    if any(w in _l for w in ("reconcile", "pending", "poll", "await")):
+                        return "⏳ finish what's running"
+                    if any(w in _l for w in ("coverage", "unused", "dataset")):
+                        return "📊 use the data on hand"
+                    if any(w in _l for w in ("review", "critic", "rigor", "independent")):
+                        return "🔍 independent check"
+                    if any(w in _l for w in ("vary", "experiment", "test", "measure")):
+                        return "⚔️ discriminates rivals"
+                    return "• strengthens the case"
+                _moves = []
+                if _ne and (_ne.get("rationale") or _ne.get("title")):
+                    _tags = []
+                    if _ne.get("discriminates"):
+                        _tags.append("⚔️ decides between rivals")
+                    _tags.append("🔓 would confirm the leader" if not _rel
+                                 else "🧪 hardens the result")
+                    _tags.append("📉 could falsify it")
+                    _why = (_ne.get("rationale") or "")
+                    if len(_why) > 260:
+                        _why = _why[:257] + "…"
+                    _moves.append({"n": 1, "title": _ne.get("title")
+                                   or "Run the discriminating experiment",
+                                   "why": _why, "tags": _tags})
+                for _a in _recs:
+                    if len(_moves) >= 3:
+                        break
+                    _t = _a.split(" — ")[0].split(". ")[0].strip()[:96]
+                    _moves.append({"n": len(_moves) + 1, "title": _t,
+                                   "why": "", "tags": [_tag_for(_a)]})
+                if not _moves:
+                    return
+                if _ld and not _rel:
+                    _hero = (f"Leading at <b>{_conf:.2f}</b> — but provisional. Here's what "
+                             "would <b>prove</b> it, and what could <b>break</b> it:")
+                elif _ld and _rel:
+                    _hero = (f"Confirmed at <b>{_conf:.2f}</b> — here's what would "
+                             "<b>harden</b> it or rule out the last rival:")
+                else:
+                    _hero = "What's most worth doing next:"
+                _rows = ""
+                for _mv in _moves:
+                    _tagstr = " · ".join(_mv["tags"])
+                    if _mv["n"] == 1:
+                        _rows += (
+                            f"<div style='border-left:3px solid {_c};padding:6px 0 6px 12px;"
+                            f"margin:9px 0 6px'>"
+                            f"<div style='font-size:0.70em;color:{_c};text-transform:uppercase;"
+                            f"letter-spacing:0.08em;font-weight:700'>#1 most valuable · "
+                            f"{_tagstr}</div>"
+                            f"<div style='font-weight:700;color:{_pal['text']};margin:3px 0;"
+                            f"font-size:1.0em'>{html.escape(_mv['title'])}</div>"
+                            + (f"<div style='color:{_pal['muted']};font-size:0.86em;"
+                               f"line-height:1.45'>{html.escape(_mv['why'])}</div>"
+                               if _mv["why"] else "") + "</div>")
+                    else:
+                        _rows += (
+                            f"<div style='display:flex;gap:10px;align-items:baseline;"
+                            f"padding:5px 0;border-top:1px solid {_pal['border_soft']}'>"
+                            f"<span style='color:{_pal['muted']};font-weight:700'>{_mv['n']}</span>"
+                            f"<span style='flex:1;color:{_pal['text']};font-size:0.9em'>"
+                            f"{html.escape(_mv['title'])} <span style='color:{_pal['muted']};"
+                            f"font-size:0.85em'>— {_mv['tags'][0]}</span></span></div>")
+                st.markdown(
+                    f"<div style='border:1px solid {_pal['border']};border-left:4px solid {_c};"
+                    f"border-radius:12px;padding:13px 18px;margin:6px 0'>"
+                    f"<div style='font-size:0.72em;letter-spacing:0.12em;text-transform:uppercase;"
+                    f"color:{_pal['muted']}'>Next moves · ranked by value</div>"
+                    f"<div style='color:{_pal['text']};margin:5px 0 2px;font-size:0.95em'>"
+                    f"{_hero}</div>{_rows}</div>", unsafe_allow_html=True)
+
             def _ranking_block():
                 st.markdown("#### How the explanations rank")
                 if not hyps:
@@ -2604,6 +2697,7 @@ requestAnimationFrame(loop);
             # resumable, rigor, briefing) are rendered AFTER the tabs (see end of function)
             # so they don't break that flow.
             _leader_card()
+            _next_moves()
             _ranking_block()
 
             preds = [p for h in hyps for p in h["predictions"]]
