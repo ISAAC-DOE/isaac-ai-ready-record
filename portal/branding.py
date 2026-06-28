@@ -117,12 +117,19 @@ html, body, [class*="css"], .stMarkdown, .stButton, .stSelectbox, .stTextInput {
 
 /* ---- Sticky top bar ---------------------------------------------------------
    The header (logo · menu · theme · DB status · user) lives in st.container(key=
-   "isaac_topbar"). Streamlit puts an `.st-key-isaac_topbar` class on that container's
-   OUTERMOST wrapper — the element that is a direct child of the main column and has
-   real height to slide within — so pinning IT (not a nested inner block) actually
-   sticks. The bar stays glued to the top as the page scrolls. */
+   "isaac_topbar"). VERIFIED VIA THE LIVE DOM (CDP): Streamlit 1.52 wraps every
+   top-level element in a content-sized [data-testid="stLayoutWrapper"]. A sticky
+   element can only stick while its CONTAINING BLOCK (its parent) is in view — and
+   that wrapper is exactly the header's own 67px height, so pinning the inner block
+   un-sticks after 67px of scroll. The fix that actually holds (measured: header
+   top stays 0 after a 250px scroll) is to pin the WRAPPER itself — its containing
+   block is the full-height main column. We pin both: the wrapper (1.52+) and the
+   keyed block (older builds with no stLayoutWrapper); visual styling on the block. */
+[data-testid="stLayoutWrapper"]:has(> .st-key-isaac_topbar),
 .st-key-isaac_topbar {{
     position: sticky; top: 0; z-index: 1000;
+}}
+.st-key-isaac_topbar {{
     background: {p['bg']};
     padding: 0.5rem 0 0.5rem;
     border-bottom: 1px solid {p['border_soft']};

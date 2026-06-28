@@ -2446,9 +2446,18 @@ requestAnimationFrame(loop);
             brief = discovery.get_briefing(pid, owner) or {}
 
             # ---------- BRIEFING HEADER (the universal-truth digest) ----------
-            # Title + a single quiet meta line; the Goal now lives in the triptych below
-            # (Goal → Leading explanation → Next move) rather than a separate full-width box.
+            # Title + the project's unique DB id (so you can tell the agent "continue
+            # <id>" — the human title alone isn't addressable) + a single quiet meta line.
+            # The Goal now lives in the triptych below rather than a separate full-width box.
             st.markdown(f"### {proj['title']}")
+            _tp = branding.palette(st.session_state.ui_theme)
+            st.markdown(
+                f"<div style=\"font-family:'IBM Plex Mono',monospace;font-size:0.72rem;"
+                f"margin:-6px 0 4px;color:{_tp['muted']}\">"
+                f"<span style='text-transform:uppercase;letter-spacing:.09em'>project id</span>"
+                f"&nbsp;&nbsp;<code style='background:{_tp['code_bg']};padding:1px 8px;"
+                f"border-radius:5px;color:{_tp['text']};font-size:0.95em'>{html.escape(str(pid))}</code>"
+                f"</div>", unsafe_allow_html=True)
             meta = " · ".join(filter(None, [
                 proj.get("material_system"), proj.get("reaction"),
                 f"status: {proj.get('status')}"]))
@@ -2474,19 +2483,23 @@ requestAnimationFrame(loop);
                 _col = _hcolor.get(_ld["label"], _pal["accent"])
                 _nd = _sc.get("n_decisive", 0)
                 if _ld["status"] == "supported" or (_sc.get("reliable") and _nd >= 2):
-                    _chip, _chipcol = "confirmed", "#3a9d6b"
+                    _sym, _symcol, _word = "✓", "#5EC8C0", "confirmed"
                     _foot = f"{_nd} independent decisive tests agree."
                 else:
-                    _chip, _chipcol = "provisional", _pal["muted"]
+                    _sym, _symcol, _word = "○", _pal["muted"], "provisional"
                     _foot = (f"{_nd}/2 independent decisive tests so far — promoted only at 2, "
                              f"by design.")
+                # Owner-directed hierarchy: hypothesis NAME first (its own colour, the
+                # identity a scientist refers to), then the confidence number (neutral, #2),
+                # then a quiet status — newcomers shouldn't be shouted "confirmed".
                 return (
                     f"<div class='eyebrow hero-eyebrow'>Leading explanation</div>"
-                    f"<div class='anchor'>"
-                    f"<span class='conf'>{_conf:.2f}</span>"
-                    f"<span class='hyp' style='color:{_col};border-color:{_col}'>"
-                    f"{html.escape(_ld['label'] or 'H')}</span>"
-                    f"<span class='chip' style='border-color:{_chipcol};color:{_chipcol}'>{_chip}</span>"
+                    f"<div class='hname' style='color:{_col}'>{html.escape(_ld['label'] or 'H')}</div>"
+                    f"<div class='hrow'>"
+                    f"<span class='hconf'>{_conf:.2f}</span>"
+                    f"<span class='hconflab'>confidence</span>"
+                    f"<span class='hstatus'>"
+                    f"<span style='color:{_symcol}'>{_sym}</span>&nbsp;{_word}</span>"
                     f"</div>"
                     f"<div class='body'>{html.escape(_ld.get('statement') or '')}</div>"
                     f"<div class='foot'>{html.escape(_foot)}</div>")
@@ -2537,7 +2550,7 @@ requestAnimationFrame(loop);
                 _p = branding.palette(st.session_state.ui_theme)
                 _goal = proj.get("goal") or proj.get("title") or ""
                 _cards = [
-                    ("<div class='card'>"
+                    ("<div class='card goal'>"
                      "<div class='eyebrow'>🎯 The goal</div>"
                      f"<div class='body'>{html.escape(_goal)}</div></div>"),
                     f"<div class='card hero'>{_leader_inner()}</div>",
@@ -2546,29 +2559,44 @@ requestAnimationFrame(loop);
                 if _nin:
                     _cards.append(f"<div class='card'>{_nin}</div>")
                 # Token template (literal % in calc()/masks survives .replace untouched —
-                # no %-format escaping to get wrong).
+                # no %-format escaping to get wrong). Hover spec + name-first hero hierarchy
+                # from the design panel; iframe is sized so the hover shadow isn't clipped.
                 _tpl = (
                     "<html><head><style>"
                     "html,body{margin:0;background:transparent;"
                     "font-family:-apple-system,Segoe UI,Roboto,sans-serif;}"
                     ".grid{display:grid;grid-template-columns:repeat(__COLS__,1fr);gap:14px;"
-                    "padding:4px 1px 8px;}"
+                    "padding:8px 8px 22px;}"
                     ".card{box-sizing:border-box;display:flex;flex-direction:column;height:248px;"
                     "background:__SURF__;border:1px solid __BD__;border-left:2px solid __BD__;"
-                    "border-radius:12px;padding:17px 18px;"
-                    "transition:transform .15s ease,border-color .15s ease;}"
-                    ".card:hover{transform:translateY(-2px);border-color:__BDSOFT__;}"
+                    "border-radius:12px;padding:17px 18px;will-change:transform;"
+                    "box-shadow:0 1px 2px rgba(0,0,0,0.30),0 0 0 1px rgba(94,200,192,0);"
+                    "transform:translateY(0) scale(1);"
+                    "transition:transform 220ms cubic-bezier(.22,1,.36,1),"
+                    "box-shadow 260ms cubic-bezier(.22,1,.36,1),"
+                    "border-color 180ms cubic-bezier(.4,0,.2,1);}"
+                    ".card:hover{transform:translateY(-3px) scale(1.006);border-color:__BDSOFT__;"
+                    "box-shadow:0 2px 4px rgba(0,0,0,0.40),0 12px 28px -8px rgba(0,0,0,0.55),"
+                    "0 8px 32px -4px rgba(94,200,192,0.10),0 0 0 1px rgba(94,200,192,0.14),"
+                    "inset 0 1px 0 0 rgba(255,255,255,0.04);}"
                     ".card.hero{border-left:2px solid __ACC__;background:__ACCSOFT__;}"
                     ".eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;"
-                    "color:__MUT__;font-weight:600;flex:0 0 auto;margin-bottom:11px;}"
+                    "color:__MUT__;font-weight:600;flex:0 0 auto;margin-bottom:11px;"
+                    "transition:color 200ms cubic-bezier(.22,1,.36,1);}"
+                    ".card:hover .eyebrow{color:__TXT__;}"
                     ".hero-eyebrow{color:__ACC__;}"
-                    ".anchor{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;"
-                    "flex:0 0 auto;margin-bottom:11px;}"
-                    ".conf{font-size:30px;font-weight:700;line-height:1;color:__ACC__;"
-                    "font-variant-numeric:tabular-nums;letter-spacing:-.01em;}"
-                    ".hyp{font-size:11px;letter-spacing:.07em;text-transform:uppercase;"
-                    "font-weight:700;padding:2px 8px;border:1px solid __BD__;border-radius:999px;}"
-                    ".chip{font-size:11px;border:1px solid __MUT__;border-radius:999px;padding:2px 9px;}"
+                    ".card:hover .hero-eyebrow{color:__ACC__;}"
+                    # name-first hero hierarchy
+                    ".hname{font-size:22px;font-weight:700;line-height:1.1;letter-spacing:.04em;"
+                    "text-transform:uppercase;flex:0 0 auto;margin-bottom:9px;}"
+                    ".hrow{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;flex:0 0 auto;"
+                    "margin-bottom:11px;}"
+                    ".hconf{font-size:20px;font-weight:600;color:__TXT__;"
+                    "font-variant-numeric:tabular-nums;line-height:1;}"
+                    ".hconflab{font-size:10.5px;font-weight:500;color:__MUT__;text-transform:uppercase;"
+                    "letter-spacing:.06em;}"
+                    ".hstatus{margin-left:auto;font-size:11.5px;font-weight:600;color:__MUT__;"
+                    "white-space:nowrap;align-self:baseline;}"
                     ".tags{font-size:10.5px;color:__ACC__;text-transform:uppercase;"
                     "letter-spacing:.04em;font-weight:700;flex:0 0 auto;margin-bottom:9px;"
                     "line-height:1.55;}"
@@ -2578,6 +2606,7 @@ requestAnimationFrame(loop);
                     "#000 calc(100% - 18px),transparent 100%);"
                     "mask-image:linear-gradient(to bottom,#000 0,"
                     "#000 calc(100% - 18px),transparent 100%);}"
+                    ".goal .body{font-size:13.5px;line-height:1.52;}"
                     ".body::-webkit-scrollbar{width:0;height:0;}"
                     ".muted{color:__MUT__;}"
                     ".mtitle{font-weight:700;color:__TXT__;font-size:15px;line-height:1.35;"
@@ -2585,13 +2614,17 @@ requestAnimationFrame(loop);
                     ".mwhy{color:__MUT__;font-size:13px;line-height:1.5;}"
                     ".foot{flex:0 0 auto;margin-top:9px;color:__MUT__;font-size:11.5px;"
                     "line-height:1.4;}"
+                    "@media (prefers-reduced-motion: reduce){"
+                    ".card{transition:border-color 120ms ease,box-shadow 120ms ease;}"
+                    ".card:hover{transform:none;box-shadow:0 0 0 1px rgba(94,200,192,0.12),"
+                    "0 4px 16px -6px rgba(0,0,0,0.45);}}"
                     "</style></head><body><div class='grid'>__CARDS__</div></body></html>")
                 _doc = (_tpl.replace("__SURF__", _p["surface"]).replace("__BDSOFT__", _p["border_soft"])
                         .replace("__BD__", _p["border"]).replace("__MUT__", _p["muted"])
                         .replace("__TXT__", _p["text"]).replace("__ACCSOFT__", _p["accent_soft"])
                         .replace("__ACC__", _p["accent"]).replace("__COLS__", str(len(_cards)))
                         .replace("__CARDS__", "".join(_cards)))
-                components.html(_doc, height=262)
+                components.html(_doc, height=286)
 
             def _ranking_block():
                 st.markdown("#### How the explanations rank")
