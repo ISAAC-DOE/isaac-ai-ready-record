@@ -2358,6 +2358,9 @@ def compute_hypothesis_score(h) -> dict:
     hyp_grounding = _grounding(h)   # gates the accommodation discount (standing_prior vs ad_hoc)
     logit = 0.0
     decisive = []   # (direction, strength_weight, evidence_key, margin, cross_system)
+    # Per-prediction admissibility, surfaced so the UI can show WHY a verdict isn't
+    # decisive yet (which of cited/falsifiable/structured/explained/independent it lacks).
+    pred_detail = {}
     for p in h.get("predictions", []):
         if p.get("work_status") != "evaluated":
             bd["unevaluated"] += 1
@@ -2393,6 +2396,12 @@ def compute_hypothesis_score(h) -> dict:
                  else "unfalsifiable" if not _falsifiable
                  else "unstructured" if not _structured
                  else "unexplained")
+        _pdkey = p.get("prediction_id") or p.get("id") or ("idx%d" % len(pred_detail))
+        pred_detail[_pdkey] = {
+            "verdict": v, "cited": _cited, "falsifiable": _falsifiable,
+            "structured": _structured, "explained": _explained,
+            "admissible": _gate is None, "gate": _gate,
+            "counted": False, "reason": None}
         if v == "supports":
             bd["supports"] += 1
             if _circularity_flag(p.get("evidence_independence")):
@@ -2403,14 +2412,15 @@ def compute_hypothesis_score(h) -> dict:
                 # capped at weak (not strong independent confirmation).
                 if hyp_grounding == "standing_prior":
                     bd["circular_softened"] += 1
-                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m, _xsys, _rel, _obs, _gate))
+                    decisive.append((+1, min(sw, _STRENGTH_W["weak"]), _evidence_key(p), _m, _xsys, _rel, _obs, _gate, _pdkey))
                 else:
                     bd["circular_discounted"] += 1    # 0 contribution, not decisive
+                    pred_detail[_pdkey]["reason"] = "accommodation"
             else:
-                decisive.append((+1, sw, _evidence_key(p), _m, _xsys, _rel, _obs, _gate))
+                decisive.append((+1, sw, _evidence_key(p), _m, _xsys, _rel, _obs, _gate, _pdkey))
         elif v == "contradicts":
             bd["contradicts"] += 1
-            decisive.append((-1, sw, _evidence_key(p), _m, _xsys, _rel, _obs, _gate))
+            decisive.append((-1, sw, _evidence_key(p), _m, _xsys, _rel, _obs, _gate, _pdkey))
         elif v == "neutral":
             logit -= 0.20; bd["neutral"] += 1          # mild evidence against
         elif v == "blocked":
@@ -2427,7 +2437,7 @@ def compute_hypothesis_score(h) -> dict:
         claimed_obs = set()    # OBSERVABLE identities already counted (robustness dedup)
         same = sorted([d for d in decisive if d[0] == direction],
                       key=lambda d: -d[1])
-        for _dir, sw, ev, margin, xsys, rel, obs, gate in same:
+        for _dir, sw, ev, margin, xsys, rel, obs, gate, pdkey in same:
             if xsys:
                 # CROSS-SYSTEM / borrowed-analog evidence (a different material / reaction /
                 # mechanism class): it can SUGGEST but never ESTABLISH. Capped at weak,
@@ -2436,6 +2446,7 @@ def compute_hypothesis_score(h) -> dict:
                 # borrowed analog must not drive a hypothesis to 'reliable'. (cross_system
                 # short-circuits reliability — one defect, one attenuation, never both.)
                 bd["cross_system_attenuated"] += 1
+                pred_detail.get(pdkey, {})["reason"] = "cross_system"
                 logit += direction * min(sw, _STRENGTH_W["weak"]) * _margin_factor(margin) \
                     * (1.25 if direction < 0 else 1.0)
                 continue
@@ -2461,12 +2472,16 @@ def compute_hypothesis_score(h) -> dict:
                     # never hard-falsifies — belief, not standing. Tracked per-facet so the
                     # breakdown shows exactly which gate failed (and the briefing can nudge it).
                     bd[gate + "_excluded"] += 1
+                    pred_detail.get(pdkey, {})["reason"] = gate
                 elif rel in _RELIABILITY_NONCOUNTING:
                     # weak-provenance (contested/anecdotal): moves belief a little but can
                     # NOT make a hypothesis 'reliable', and never falsifies — mirrors cross_system.
                     bd["low_reliability_excluded"] += 1
+                    pred_detail.get(pdkey, {})["reason"] = "low_reliability"
                 else:
                     n_decisive += 1
+                    if pdkey in pred_detail:
+                        pred_detail[pdkey]["counted"] = True
                     if ev:
                         claimed |= ev
                     if obs:
@@ -2479,8 +2494,10 @@ def compute_hypothesis_score(h) -> dict:
                         strong_contra = True
             elif shares_ev:
                 bd["correlated_attenuated"] += 1
+                pred_detail.get(pdkey, {})["reason"] = "shared_evidence"
             else:                       # same observable, different method → robustness
                 bd["robustness_attenuated"] += 1
+                pred_detail.get(pdkey, {})["reason"] = "robustness"
             logit += direction * weight * (1.25 if direction < 0 else 1.0)
     computed = 1.0 / (1.0 + math.exp(-logit))
     if strong_contra:
@@ -2500,6 +2517,8 @@ def compute_hypothesis_score(h) -> dict:
         "coverage": coverage,
         "conflict": round(conflict, 2),
         "breakdown": bd,
+        "predictions": pred_detail,   # per-prediction admissibility (cited/falsifiable/
+        # structured/explained), whether it counted toward n_decisive, and if not, why
         "reliable": reliable,
         "note": ("Computed from the prediction verdicts (the ONLY source of "
                  "confidence). "

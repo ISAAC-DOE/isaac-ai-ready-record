@@ -1485,21 +1485,22 @@ elif page == "Discovery":
                 f"<div style='background:{bar_fill};width:{pct}%;height:9px;"
                 f"border-radius:5px'></div></div></div>")
 
-        def _ranking_html(rows, theme="dark"):
+        def _ranking_html(rows, theme="dark", height=320):
             # Master-detail ranking: confidence bars on the left; hovering one fills a side
             # panel with that hypothesis's full prediction breakdown (validated / invalidated
-            # / inconclusive / pending). A self-contained iframe so the hover panel can't be
-            # clipped the way a floating st.markdown tooltip would be.
+            # / inconclusive / pending), and for each evaluated prediction the admissibility
+            # gates (cited / falsifiable / structured / explained) + whether it counts toward
+            # n_decisive (and if not, why). A self-contained iframe so nothing clips.
             pal = branding.palette(theme)
             P = json.dumps({"text": pal["text"], "muted": pal["muted"],
                             "accent": pal["accent"], "err": pal["error"]})
             data = json.dumps(rows)
-            _hh = max(170, 64 + len(rows) * 48)
+            _hh = height
             tmpl = r"""<html><head><style>
 html,body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:transparent;}
 #wrap{display:flex;gap:14px;align-items:flex-start;}
-#bars{flex:1 1 56%;min-width:0;}
-#panel{flex:1 1 44%;background:__SURF__;border:1px solid __BORDER__;border-radius:10px;
+#bars{flex:1 1 54%;min-width:0;}
+#panel{flex:1 1 46%;background:__SURF__;border:1px solid __BORDER__;border-radius:10px;
  padding:12px 14px;overflow:auto;max-height:__HH__px;color:__TEXT__;font-size:12.5px;
  line-height:1.5;box-sizing:border-box;}
 .row{padding:7px 8px;border-radius:8px;}
@@ -1515,17 +1516,34 @@ html,body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;backgrou
 .unrel{color:__ERR__;}
 .ph{color:__MUTED__;font-style:italic;}
 .pgrp{margin-top:9px;}
-.pitem{margin:3px 0 2px 2px;}
+.pitem{margin:5px 0 2px 2px;}
+.gates{margin:3px 0 7px 18px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
+.g{font-size:9.5px;padding:1px 6px;border-radius:7px;border:1px solid;white-space:nowrap;}
+.why{font-size:10px;}
 </style></head><body>
 <div id="wrap"><div id="bars"></div>
-<div id="panel"><div class="ph">Hover a hypothesis to see its predictions — and which are
- validated, invalidated, or still pending.</div></div></div>
+<div id="panel"><div class="ph">Hover a hypothesis to see its predictions — which are
+ validated / invalidated / pending, and for each, which of the decisiveness criteria
+ (cited · falsifiable · structured · explained · independent) it already meets.</div></div></div>
 <script>
 const R=__DATA__, P=__PAL__;
+const GREEN='#3a9d6b';
 const bars=document.getElementById('bars'), panel=document.getElementById('panel');
-const CAT={validated:['✅','#3a9d6b'],invalidated:['❌',P.err],
+const CAT={validated:['✅',GREEN],invalidated:['❌',P.err],
            inconclusive:['◌',P.muted],pending:['⏳',P.muted]};
+const REASON={accommodation:'circular — parameters fit to this same data',
+ cross_system:'borrowed from a different system (suggestive only)',
+ low_reliability:'weak-provenance source',
+ shared_evidence:'rests on the same evidence as another (counted once)',
+ robustness:'same observable, different method (robustness, not independence)',
+ uncited:'not yet cited to a record or computation',
+ unfalsifiable:'no falsification criterion stated',
+ unstructured:'missing direction / reference condition',
+ unexplained:'no rationale recorded'};
 function esc(s){return (s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+function chip(label, ok){var c=ok?GREEN:P.muted;
+ return '<span class="g" style="border-color:'+c+';color:'+c+';opacity:'+(ok?1:0.65)+'">'
+   +(ok?'✓':'✗')+' '+label+'</span>';}
 R.forEach(function(h,i){
  const d=document.createElement('div'); d.className='row'; d.dataset.i=i; d.style.opacity=h.dead?0.5:1;
  const fill=h.dead?P.muted:P.accent;
@@ -1546,7 +1564,7 @@ function show(i){
  s+='<div style="color:'+P.text+';margin:4px 0 8px">'+esc(h.statement)+'</div>';
  s+='<div style="color:'+P.muted+';font-size:11.5px;margin-bottom:4px">'+h.preds.length
    +' prediction(s) · ✅ '+h.nv+'  ❌ '+h.ni+'  ⏳ '+h.npd
-   +(h.reliable?' · <span style="color:#3a9d6b">reliable</span>'
+   +(h.reliable?' · <span style="color:'+GREEN+'">reliable</span>'
               :' · <span class="unrel">'+h.n_decisive+' decisive → provisional</span>')+'</div>';
  [['validated','Validated (supports)'],['invalidated','Invalidated (contradicts)'],
   ['inconclusive','Ran, inconclusive'],['pending','Pending (not yet run)']].forEach(function(g){
@@ -1554,8 +1572,19 @@ function show(i){
   const ic=CAT[g[0]][0], col=CAT[g[0]][1];
   s+='<div class="pgrp"><b style="color:'+col+';font-size:11px;text-transform:uppercase;letter-spacing:.04em">'
     +ic+' '+g[1]+' ('+items.length+')</b>';
-  items.forEach(function(p){ s+='<div class="pitem">'+ic+' '+esc(p.name)
-    +(p.strength?' <span style="color:'+P.muted+'">· '+esc(p.strength)+'</span>':'')+'</div>'; });
+  items.forEach(function(p){
+   s+='<div class="pitem">'+ic+' '+esc(p.name)
+     +(p.strength?' <span style="color:'+P.muted+'">· '+esc(p.strength)+'</span>':'')+'</div>';
+   if(p.evaluated){
+    s+='<div class="gates">'+chip('cited',p.cited)+chip('falsifiable',p.falsifiable)
+      +chip('structured',p.structured)+chip('explained',p.explained);
+    if(p.counted) s+='<span class="why" style="color:'+GREEN+'">→ counts as an independent decisive test</span>';
+    else if(p.cat==='inconclusive') s+='<span class="why" style="color:'+P.muted+'">→ ran, no decisive effect</span>';
+    else { var r=REASON[p.reason]||(p.admissible?'shares evidence with another test':'missing a criterion above');
+           s+='<span class="why" style="color:'+P.muted+'">→ not decisive yet: '+r+'</span>'; }
+    s+='</div>';
+   }
+  });
   s+='</div>';
  });
  if(!h.preds.length) s+='<div class="ph">No predictions attached yet — this hypothesis has no falsifiers.</div>';
@@ -1568,7 +1597,7 @@ function show(i){
                     .replace("__BORDERSOFT__", pal["border_soft"])
                     .replace("__TEXT__", pal["text"]).replace("__MUTED__", pal["muted"])
                     .replace("__ERR__", pal["error"]).replace("__ACCSOFT__", pal["accent_soft"])
-                    .replace("__HH__", str(_hh - 24)))
+                    .replace("__HH__", str(_hh - 20)))
 
         def _constellation_html(payload, theme="dark"):
             dark = theme != "light"
@@ -2325,9 +2354,11 @@ requestAnimationFrame(loop);
                 _rows = []
                 for h in hyps:
                     _sc = discovery.compute_hypothesis_score(h)
+                    _pd = _sc.get("predictions") or {}
                     _ps, _nv, _ni, _npd = [], 0, 0, 0
                     for p in h["predictions"]:
-                        if p.get("work_status") == "evaluated":
+                        _ev = p.get("work_status") == "evaluated"
+                        if _ev:
                             _v = discovery.normalize_verdict(p.get("verdict"))
                             if _v == "supports":
                                 _cat = "validated"; _nv += 1
@@ -2337,8 +2368,14 @@ requestAnimationFrame(loop);
                                 _cat = "inconclusive"; _npd += 1
                         else:
                             _cat = "pending"; _npd += 1
-                        _ps.append({"name": p.get("descriptor_name") or p.get("label") or "—",
-                                    "strength": p.get("strength") or "", "cat": _cat})
+                        _g = _pd.get(p.get("prediction_id") or p.get("id"), {})
+                        _ps.append({
+                            "name": p.get("descriptor_name") or p.get("label") or "—",
+                            "strength": p.get("strength") or "", "cat": _cat, "evaluated": _ev,
+                            "cited": bool(_g.get("cited")), "falsifiable": bool(_g.get("falsifiable")),
+                            "structured": bool(_g.get("structured")), "explained": bool(_g.get("explained")),
+                            "counted": bool(_g.get("counted")), "admissible": bool(_g.get("admissible")),
+                            "reason": _g.get("reason")})
                     _rows.append({
                         "label": h["label"] or "H",
                         "color": _hcolor.get(h["label"], "#C97A3C"),
@@ -2348,8 +2385,18 @@ requestAnimationFrame(loop);
                         "n_decisive": _sc.get("n_decisive", 0),
                         "reliable": bool(_sc.get("reliable")),
                         "nv": _nv, "ni": _ni, "npd": _npd, "preds": _ps})
-                components.html(_ranking_html(_rows, st.session_state.ui_theme),
-                                height=max(170, 64 + len(_rows) * 48))
+
+                # size the iframe to the TALLEST detail panel so nothing clips at the bottom
+                def _panel_px(r):
+                    _px = 96 + 22 * (1 + len(r["statement"]) // 46)   # header+counts + statement wrap
+                    _cats = {}
+                    for _p in r["preds"]:
+                        _cats[_p["cat"]] = _cats.get(_p["cat"], 0) + 1
+                    for _c, _n in _cats.items():
+                        _px += 26 + _n * (44 if _c != "pending" else 22)  # group hdr + items (eval ~2 lines)
+                    return _px + 28
+                _H = min(820, max([64 + len(_rows) * 48] + [_panel_px(r) for r in _rows]))
+                components.html(_ranking_html(_rows, st.session_state.ui_theme, _H), height=_H)
 
             def _status_line():
                 _st = brief.get("settled", {"supported": [], "eliminated": []})
