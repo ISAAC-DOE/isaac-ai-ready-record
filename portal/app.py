@@ -118,42 +118,48 @@ if database.is_discovery_db_configured() and \
     PAGES.insert(PAGES.index("About"), "Discovery")
 
 # --- Top bar: one level — [logo  ☰]  ·····  [theme  ● DB Online  user | logout] ---
+# Wrapped in a container carrying an .isaac-topbar-marker sentinel so the design-system
+# CSS can pin the whole bar `position:sticky; top:0` (it stays visible while scrolling).
 # vertical_alignment="center" puts the logo, hamburger, theme toggle, DB status and
 # user/logout all on the SAME horizontal line.
-logo_col, burger_col, _spacer_col, theme_col, status_col, user_col = st.columns(
-    [2.3, 0.7, 3.4, 1.1, 1.5, 2.4], vertical_alignment="center")
-with logo_col:
-    branding.header_logo(st.session_state.ui_theme, width=185)
-with burger_col:
-    with st.popover("☰", use_container_width=True, help="Menu"):
-        for p in PAGES:
-            label = p
-            # Show pending count badge for Admin Review
-            if p == "Admin Review" and db_connected:
-                try:
-                    pending = database.count_pending_proposals()
-                    if pending > 0:
-                        label = f"{p} ({pending})"
-                except Exception:
-                    pass
-            if st.button(label, key=f"nav_{p}", use_container_width=True,
-                         type="primary" if p == st.session_state.current_page else "secondary"):
-                st.session_state.current_page = p
-                st.rerun()
-with theme_col:
-    _is_dark = st.session_state.ui_theme == "dark"
-    if st.button("Light" if _is_dark else "Dark", key="theme_toggle",
-                 use_container_width=True, help="Switch between dark and light mode"):
-        st.session_state.ui_theme = "light" if _is_dark else "dark"
-        st.query_params["theme"] = st.session_state.ui_theme
-        st.rerun()
-with status_col:
-    branding.status_dot(db_connected, "DB Online" if db_connected else "DB Offline")
-with user_col:
-    _logout_url = "https://isaac.slac.stanford.edu/outpost.goauthentik.io/flows/logout/?rd=https://isaac.slac.stanford.edu/"
-    st.markdown(
-        f"**{current_username}** &nbsp;|&nbsp; [Logout]({_logout_url})"
-    )
+with st.container():
+    st.markdown('<div class="isaac-topbar-marker"></div>', unsafe_allow_html=True)
+    logo_col, burger_col, _spacer_col, theme_col, status_col, user_col = st.columns(
+        [2.3, 0.7, 3.9, 0.55, 1.5, 2.4], vertical_alignment="center")
+    with logo_col:
+        branding.header_logo(st.session_state.ui_theme, width=185)
+    with burger_col:
+        with st.popover("☰", use_container_width=True, help="Menu"):
+            for p in PAGES:
+                label = p
+                # Show pending count badge for Admin Review
+                if p == "Admin Review" and db_connected:
+                    try:
+                        pending = database.count_pending_proposals()
+                        if pending > 0:
+                            label = f"{p} ({pending})"
+                    except Exception:
+                        pass
+                if st.button(label, key=f"nav_{p}", use_container_width=True,
+                             type="primary" if p == st.session_state.current_page else "secondary"):
+                    st.session_state.current_page = p
+                    st.rerun()
+    with theme_col:
+        _is_dark = st.session_state.ui_theme == "dark"
+        # Sun in dark mode (click → light), moon in light mode (click → dark).
+        if st.button("☀️" if _is_dark else "🌙", key="theme_toggle",
+                     use_container_width=True,
+                     help="Switch to light mode" if _is_dark else "Switch to dark mode"):
+            st.session_state.ui_theme = "light" if _is_dark else "dark"
+            st.query_params["theme"] = st.session_state.ui_theme
+            st.rerun()
+    with status_col:
+        branding.status_dot(db_connected, "DB Online" if db_connected else "DB Offline")
+    with user_col:
+        _logout_url = "https://isaac.slac.stanford.edu/outpost.goauthentik.io/flows/logout/?rd=https://isaac.slac.stanford.edu/"
+        st.markdown(
+            f"**{current_username}** &nbsp;|&nbsp; [Logout]({_logout_url})"
+        )
 
 page = st.session_state.current_page
 
@@ -2463,10 +2469,10 @@ requestAnimationFrame(loop);
 
             # --- Calm-landing helpers (the chosen view) ---
             def _leader_card_html():
-                # Returns the leader card's inner HTML (shared .lx* classes) for the
-                # two-up flex row, or "" if there's no live hypothesis.
+                # Returns (inner HTML, text-length estimate) for the two-up flex row,
+                # or ("", 0) if there's no live hypothesis.
                 if not _alive:
-                    return ""
+                    return "", 0
                 _ld = max(_alive, key=lambda h: float(h["confidence"] or 0))
                 _sc = discovery.compute_hypothesis_score(_ld)
                 _conf = float(_ld["confidence"] or 0)
@@ -2488,7 +2494,8 @@ requestAnimationFrame(loop);
                     f"<span class='lxbig'>{_conf:.2f}</span>"
                     f"<span class='lxchip' style='border:1px solid {_chipcol};color:{_chipcol}'>{_chip}</span></div>"
                     f"<div class='lxstmt'>{html.escape(_ld.get('statement') or '')}</div>"
-                    f"<div class='lxsub'>{html.escape(_why)}</div></div>")
+                    f"<div class='lxsub'>{html.escape(_why)}</div></div>",
+                    len(_ld.get('statement') or '') + len(_why) + 60)
 
             def _next_moves_html():
                 # The single most valuable next move: what it is + why, briefly. No repeat
@@ -2496,7 +2503,7 @@ requestAnimationFrame(loop);
                 _ne = brief.get("next_experiment") or data.get("next_experiment")
                 _recs = brief.get("recommended_actions") or []
                 if not (_ne and (_ne.get("rationale") or _ne.get("title"))) and not _recs:
-                    return ""
+                    return "", 0
                 _pal = branding.palette(st.session_state.ui_theme)
                 _ld = (max(_alive, key=lambda h: float(h["confidence"] or 0))
                        if _alive else None)
@@ -2527,48 +2534,51 @@ requestAnimationFrame(loop);
                     _title = _recs[0].split(" — ")[0].split(". ")[0].strip()
                     _why = ""
                     _tags = [_tag_for(_recs[0])]
-                if len(_title) > 92:
-                    _title = _title[:89] + "…"
-                if len(_why) > 175:
-                    _why = _why[:172] + "…"
-                return (
-                    f"<div class='lxc' style='border-left:4px solid {_pal['accent']}'>"
-                    f"<div class='lxlab'>Next move · most valuable</div>"
-                    f"<div class='lxmtags'>{' · '.join(_tags)}</div>"
-                    f"<div class='lxmtitle'>{html.escape(_title)}</div>"
-                    + (f"<div class='lxsub'>{html.escape(_why)}</div>" if _why else "")
-                    + "</div>")
+                if len(_title) > 120:
+                    _title = _title[:117] + "…"
+                if len(_why) > 420:
+                    _why = _why[:417] + "…"
+                _h = (f"<div class='lxc' style='border-left:4px solid {_pal['accent']}'>"
+                      f"<div class='lxlab'>Next move · most valuable</div>"
+                      f"<div class='lxmtags'>{' · '.join(_tags)}</div>"
+                      f"<div class='lxmtitle'>{html.escape(_title)}</div>"
+                      + (f"<div class='lxsub'>{html.escape(_why)}</div>" if _why else "")
+                      + "</div>")
+                return _h, len(_title) + len(_why) + 60
 
             def _render_lead_and_moves():
-                # The leading explanation and the next move, side by side (st.columns — the
-                # reliable way to get two columns in Streamlit), one shared type scale.
-                _lc = _leader_card_html()
-                _nm = _next_moves_html()
+                # Leading explanation + next move in ONE iframe as a flex row, so they're
+                # EXACTLY equal height (flex stretch) and each card SCROLLS if its text is
+                # long — nothing gets clipped. Iframe height is sized to the taller card.
+                _lc, _ll = _leader_card_html()
+                _nm, _nl = _next_moves_html()
                 if not _lc and not _nm:
                     st.caption("No live hypotheses yet — the agent hasn't proposed one.")
                     return
                 _p = branding.palette(st.session_state.ui_theme)
-                _css = ("<style>"
-                        ".lxc{box-sizing:border-box;border:1px solid %(bd)s;border-radius:12px;"
-                        "padding:15px 18px;min-height:215px;}"
-                        ".lxlab{font-size:0.72em;letter-spacing:.12em;text-transform:uppercase;color:%(mut)s;}"
-                        ".lxname{font-size:1.12em;font-weight:700;}"
-                        ".lxbig{font-size:1.5em;font-weight:700;color:%(txt)s;font-variant-numeric:tabular-nums;}"
-                        ".lxchip{font-size:0.74em;border-radius:20px;padding:2px 11px;}"
-                        ".lxstmt{color:%(txt)s;font-size:0.96em;line-height:1.5;margin-top:9px;}"
-                        ".lxsub{color:%(mut)s;font-size:0.85em;line-height:1.5;margin-top:9px;}"
-                        ".lxmtags{font-size:0.70em;color:%(acc)s;text-transform:uppercase;"
-                        "letter-spacing:.06em;font-weight:700;margin-top:9px;}"
-                        ".lxmtitle{font-weight:700;color:%(txt)s;font-size:1.04em;margin-top:5px;}"
-                        "</style>") % {"bd": _p["border"], "mut": _p["muted"],
-                                       "txt": _p["text"], "acc": _p["accent"]}
-                st.markdown(_css, unsafe_allow_html=True)
-                if _lc and _nm:
-                    _c1, _c2 = st.columns(2, gap="medium")
-                    _c1.markdown(_lc, unsafe_allow_html=True)
-                    _c2.markdown(_nm, unsafe_allow_html=True)
-                else:
-                    st.markdown(_lc or _nm, unsafe_allow_html=True)
+                _both = bool(_lc and _nm)
+                _cards = (_lc or "") + (_nm or "")
+                _maxlen = max(_ll, _nl)
+                _hh = int(min(420, max(200, 96 + (_maxlen / 46) * 22)))
+                _doc = ("<html><head><style>"
+                        "html,body{height:100%%;margin:0;background:transparent;"
+                        "font-family:-apple-system,Segoe UI,Roboto,sans-serif;}"
+                        ".lxr{display:flex;gap:14px;height:100%%;box-sizing:border-box;align-items:stretch;}"
+                        ".lxc{flex:1 1 0;min-width:0;overflow:auto;box-sizing:border-box;"
+                        "border:1px solid %(bd)s;border-radius:12px;padding:15px 18px;}"
+                        ".lxlab{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:%(mut)s;}"
+                        ".lxname{font-size:18px;font-weight:700;}"
+                        ".lxbig{font-size:24px;font-weight:700;color:%(txt)s;font-variant-numeric:tabular-nums;}"
+                        ".lxchip{font-size:11.5px;border-radius:20px;padding:2px 11px;}"
+                        ".lxstmt{color:%(txt)s;font-size:15px;line-height:1.5;margin-top:9px;}"
+                        ".lxsub{color:%(mut)s;font-size:13.5px;line-height:1.55;margin-top:9px;}"
+                        ".lxmtags{font-size:11px;color:%(acc)s;text-transform:uppercase;"
+                        "letter-spacing:.05em;font-weight:700;margin-top:9px;}"
+                        ".lxmtitle{font-weight:700;color:%(txt)s;font-size:16px;margin-top:5px;line-height:1.35;}"
+                        "</style></head><body><div class='lxr'>%(cards)s</div></body></html>"
+                        ) % {"bd": _p["border"], "mut": _p["muted"], "txt": _p["text"],
+                              "acc": _p["accent"], "cards": _cards}
+                components.html(_doc, height=_hh + 6)
 
             def _ranking_block():
                 st.markdown("#### How the explanations rank")

@@ -109,10 +109,31 @@ html, body, [class*="css"], .stMarkdown, .stButton, .stSelectbox, .stTextInput {
 [data-testid="stMarkdownContainer"] {{ color: {p['text']}; }}
 
 /* Quiet the chrome; calmer measure + generous bottom rhythm */
-#MainMenu, footer, header [data-testid="stToolbar"] {{ visibility: hidden; }}
-/* The native header bar is hidden but still occupies ~3.75rem at the very top;
-   clear it so the first element (the logo) isn't clipped under it. */
-.block-container {{ max-width: 1080px; padding: 4rem 2rem 4rem; }}
+#MainMenu, footer {{ visibility: hidden; }}
+/* Remove the native top bar entirely so it can't overlap (or out-z-index) our own
+   sticky top bar; we render every control ourselves below. */
+[data-testid="stHeader"], [data-testid="stToolbar"] {{ display: none; }}
+.block-container {{ max-width: 1080px; padding: 1.1rem 2rem 4rem; }}
+
+/* ---- Sticky top bar ---------------------------------------------------------
+   The header columns (logo · menu · theme · DB status · user) are wrapped in a
+   st.container() carrying an .isaac-topbar-marker sentinel. Pin the vertical block
+   that holds that marker to the top of the scroll area so the bar stays visible as
+   the page scrolls. :has(> elementContainer …) matches ONLY the inner container,
+   not the page-level block (whose marker is a deeper descendant). */
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .isaac-topbar-marker) {{
+    position: sticky; top: 0; z-index: 1000;
+    background: {p['bg']};
+    padding: 0.55rem 0 0.5rem;
+    margin-bottom: 0.4rem;
+    border-bottom: 1px solid {p['border_soft']};
+}}
+.isaac-topbar-marker {{ display: none; }}
+/* Compact controls in the bar: the ☰ menu and ☀️/🌙 toggle read as icons, not slabs. */
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .isaac-topbar-marker)
+    .stButton > button,
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .isaac-topbar-marker)
+    [data-testid="stPopoverButton"] {{ padding-left: 0.4rem; padding-right: 0.4rem; }}
 
 /* Brand logo sizing — theme legibility handled by swapping the asset itself
    (white art on dark, dark art on light), see render_header/render_footer. */
