@@ -2189,203 +2189,397 @@ requestAnimationFrame(loop);
             if meta:
                 st.caption(meta)
 
-            # ---------- RESUMABLE pending work — the first thing you should see ----
-            _pw = brief.get("pending_work", {})
-            if _pw.get("items"):
-                _n = _pw["count"]
-                _accent = branding.palette(st.session_state.ui_theme)["accent"]
-                _rows = ""
-                _now = datetime.now(timezone.utc)
-                for _it in _pw["items"]:
-                    _age = ""
-                    try:
-                        _t = datetime.fromisoformat(str(_it.get("started_at")).replace("Z", "+00:00"))
-                        _hrs = (_now - _t).total_seconds() / 3600.0
-                        _age = (f"{int(_hrs)}h ago" if _hrs >= 1
-                                else f"{int(_hrs*60)}m ago")
-                    except Exception:
-                        pass
-                    _kind_icon = {"literature": "📚", "compute": "🖥️"}.get(_it.get("kind"), "⏳")
-                    _rows += (f"<div style='margin:3px 0'>{_kind_icon} "
-                              f"<b>{_it.get('kind')}</b> · {(_it.get('summary') or _it.get('ref') or '')[:70]} "
-                              f"<span style='opacity:.7'>· {_it.get('status')} · {_age}</span></div>")
+            # ============ LANDING LAYOUT (Calm / Hero / Classic) ============
+            # Three switchable landing layouts, so a first-time viewer isn't buried.
+            # Persisted via the `landing` query param so the 5s auto-refresh keeps the
+            # choice. Calm = slimmed first-impression view; Hero = Calm with the living
+            # constellation on top; Classic = the original dense view (unchanged).
+            _LANDINGS = {"calm": "✨ Calm", "hero": "🌌 Living hero", "classic": "▦ Classic"}
+            _lq = st.query_params.get("landing")
+            if "disc_landing" not in st.session_state:
+                st.session_state.disc_landing = _lq if _lq in _LANDINGS else "calm"
+            landing = st.radio(
+                "Landing", list(_LANDINGS.keys()),
+                format_func=lambda k: _LANDINGS[k], horizontal=True,
+                label_visibility="collapsed", key="disc_landing")
+            if st.query_params.get("landing") != landing:
+                st.query_params["landing"] = landing
+
+            # shared provenance — the leader card + constellation both need it
+            _preds0 = [p for h in hyps for p in h["predictions"]]
+            _evids0 = sorted({rid for p in _preds0
+                              for rid in (p.get("evidence_record_ids") or [])})
+            prov = discovery.resolve_record_summaries(_evids0)
+
+            def _cesc(s):
+                return (str(s or "").replace("&", "&amp;").replace("<", "&lt;")
+                        .replace(">", "&gt;"))
+
+            def _constellation_payload():
+                ev_idx = brief.get("evidence_index", {})
+                n_desc = len(ev_idx)
+                n_ev = len({rid for _h in hyps for _p in _h["predictions"]
+                            for rid in (_p.get("evidence_record_ids") or [])})
+                try:
+                    corpus = database.count_records()
+                except Exception:
+                    corpus = 0
+                _cn, _cl = [], []
+                for _h in hyps:
+                    _tip = (f"<b>{_cesc(_h['label'])}</b> · {_cesc(_h['status'])} · "
+                            f"{round(float(_h['confidence'] or 0)*100)}%<br>"
+                            f"<span style='opacity:.85'>{_cesc((_h.get('statement') or '')[:150])}</span>")
+                    _cn.append({"id": _h["hypothesis_id"], "label": _h["label"] or "H",
+                                "kind": "hyp", "conf": float(_h["confidence"] or 0),
+                                "status": _h["status"],
+                                "color": _hcolor.get(_h["label"], "#C97A3C"), "tip": _tip})
+                for _h in hyps:
+                    for _p in _h["predictions"]:
+                        _pid = _p["prediction_id"]
+                        _ptip = (f"<b>{_cesc(_p.get('descriptor_name'))}</b> "
+                                 f"<span style='opacity:.7'>(prediction · {_cesc(_h['label'])})</span>"
+                                 f"<br>verdict: {_cesc(_p.get('verdict') or '—')} "
+                                 f"({_cesc(_p.get('strength') or '—')})")
+                        _cn.append({"id": _pid, "label": _p.get("descriptor_name") or "",
+                                    "kind": "pred", "verdict": _p.get("verdict"),
+                                    "strength": _p.get("strength"), "tip": _ptip})
+                        _cl.append({"source": _pid, "target": _h["hypothesis_id"], "rel": "pred",
+                                    "verdict": _p.get("verdict"), "strength": _p.get("strength")})
+                        for _rid in (_p.get("evidence_record_ids") or [])[:6]:
+                            _enid = _rid + "|" + _pid
+                            _mat = prov.get(_rid, {}).get("material", "")
+                            _cn.append({"id": _enid, "label": _rid, "kind": "evid",
+                                        "tip": f"<b>evidence</b><br>{_cesc(_mat[:60])}<br><code>{_cesc(_rid)}</code>"})
+                            _cl.append({"source": _enid, "target": _pid, "rel": "evid"})
+                        for _ci, _cr in enumerate((_p.get("compute_runs") or [])[:4]):
+                            _eng = _cr.get("engine") or _cr.get("backend") or "compute"
+                            _cid = f"calc{_ci}|{_pid}"
+                            _cn.append({"id": _cid, "label": _eng, "kind": "calc",
+                                        "tip": f"<b>computation</b><br>{_cesc(_eng)}"})
+                            _cl.append({"source": _cid, "target": _pid, "rel": "calc"})
+                for _r in relations:
+                    _cl.append({"source": _r["from_hypothesis_id"],
+                                "target": _r["to_hypothesis_id"], "rel": _r["relation_type"]})
+                _ds_ids = ((data["project"].get("dataset") or {}).get("record_ids")) or []
+                _cited = {_rid for _h in hyps for _p in _h["predictions"]
+                          for _rid in (_p.get("evidence_record_ids") or [])}
+                for _rid in _ds_ids[:140]:
+                    if _rid in _cited:
+                        continue
+                    _cn.append({"id": "inv|" + _rid, "label": _rid, "kind": "involved",
+                                "tip": f"<b>in-scope record</b><br><code>{_cesc(_rid)}</code>"})
+                for _name, _v in list(ev_idx.items())[:200]:
+                    _cn.append({"id": "scr|" + _name, "label": _name, "kind": "screened",
+                                "n": (_v or {}).get("n", 1),
+                                "tip": f"<b>screened descriptor</b><br>{_cesc(_name)}"})
+                return {"nodes": _cn, "links": _cl,
+                        "corpus": {"records": corpus or 0, "screened": n_desc,
+                                   "involved": len(set(_ds_ids)), "cited": n_ev}}
+
+            def _leader_card():
+                if not _alive:
+                    st.caption("No live hypotheses yet — the agent hasn't proposed one.")
+                    return
+                _ld = max(_alive, key=lambda h: float(h["confidence"] or 0))
+                _sc = discovery.compute_hypothesis_score(_ld)
+                _conf = float(_ld["confidence"] or 0)
+                _pal = branding.palette(st.session_state.ui_theme)
+                _col = _hcolor.get(_ld["label"], _pal["accent"])
+                _nd = _sc.get("n_decisive", 0)
+                if _ld["status"] == "supported" or (_sc.get("reliable") and _nd >= 2):
+                    _chip, _chipcol = "confirmed", "#3a9d6b"
+                    _why = "Confirmed — at least 2 independent decisive tests agree."
+                else:
+                    _chip, _chipcol = "provisional", _pal["muted"]
+                    _why = (f"Ahead, but not yet confirmed. ISAAC promotes a hypothesis only "
+                            f"after 2 independent decisive tests agree — {_nd} so far. It "
+                            f"reports the rank and tells you when it isn't certain. By design.")
                 st.markdown(
-                    f"<div style='border:1px solid {_accent}; border-left:4px solid {_accent};"
-                    f"border-radius:10px; padding:12px 16px; margin:6px 0 4px;'>"
-                    f"<div style='font-weight:700; color:{_accent}'>⏳ Resumable — "
-                    f"{_n} pending step(s) started but not yet reconciled</div>"
-                    f"<div style='font-size:0.86em; opacity:.85; margin:4px 0 6px'>"
-                    f"An agent kicked these off and couldn't wait. Once they finish, "
-                    f"<b>resume this project with an agent</b> to poll &amp; ingest the "
-                    f"results — it's worth coming back for.</div>{_rows}</div>",
-                    unsafe_allow_html=True)
-            else:
-                # Positive confirmation so the absence isn't ambiguous (no banner used
-                # to be indistinguishable from 'feature not working').
-                st.caption("✓ No pending external steps — this project is fully "
-                           "reconciled (no literature query or calculation left "
-                           "awaiting a result).")
+                    f"<div style='border:1px solid {_pal['border']};border-left:4px solid {_col};"
+                    f"border-radius:12px;padding:14px 18px;margin:10px 0 6px'>"
+                    f"<div style='font-size:0.72em;letter-spacing:0.12em;text-transform:uppercase;"
+                    f"color:{_pal['muted']}'>Leading explanation</div>"
+                    f"<div style='display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:5px'>"
+                    f"<span style='font-size:1.15em;font-weight:700;color:{_col}'>{html.escape(_ld['label'] or 'H')}</span>"
+                    f"<span style='font-size:1.55em;font-weight:700;color:{_pal['text']};"
+                    f"font-variant-numeric:tabular-nums'>{_conf:.2f}</span>"
+                    f"<span style='font-size:0.74em;border:1px solid {_chipcol};color:{_chipcol};"
+                    f"border-radius:20px;padding:2px 11px'>{_chip}</span></div>"
+                    f"<div style='color:{_pal['text']};margin-top:9px;font-size:1.0em'>"
+                    f"{html.escape(_ld.get('statement') or '')}</div>"
+                    f"<div style='color:{_pal['muted']};margin-top:8px;font-size:0.83em'>{html.escape(_why)}</div>"
+                    f"</div>", unsafe_allow_html=True)
 
-            settled = brief.get("settled", {"supported": [], "eliminated": []})
-            c1, c2, c3, c4, c5 = st.columns(5)
-            c1.metric("Hypotheses", len(hyps))
-            c2.metric("Supported", len(settled.get("supported", [])))
-            c3.metric("Eliminated", len(settled.get("eliminated", [])))
-            c4.metric("Validated preds", len(brief.get("validated_predictions", [])))
-            c5.metric("Compute running", len(brief.get("pending_compute", [])))
+            def _ranking_block():
+                st.markdown("#### How the explanations rank")
+                st.caption("Confidence is **computed** from the prediction verdicts — never "
+                           "authored. A score from fewer than 2 decisive verdicts is still "
+                           "provisional.")
+                st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
+                                         h["status"], _hcolor.get(h["label"], "#C97A3C"),
+                                         score=discovery.compute_hypothesis_score(h))
+                                    for h in hyps) or "_No hypotheses yet._",
+                            unsafe_allow_html=True)
 
-            open_n = len(brief.get("open_questions", []))
-            running = len(brief.get("pending_compute", []))
-            failed_n = len(brief.get("failed_compute", []))
-            needs = sum(1 for h in hyps if h["status"] == "needs_more_data")
-            _failed_txt = f" · 🚫 {failed_n} compute failed (re-run, no score effect)" if failed_n else ""
-            st.caption(f"⏳ **Pending** — {open_n} prediction(s) open · {running} compute "
-                       f"running{_failed_txt} · {needs} hypothes(es) need more data")
+            def _status_line():
+                _st = brief.get("settled", {"supported": [], "eliminated": []})
+                _pal = branding.palette(st.session_state.ui_theme)
+                _parts = [f"{len(hyps)} hypotheses",
+                          f"{len(brief.get('validated_predictions', []))} prediction(s) validated",
+                          f"{len(brief.get('open_questions', []))} open"]
+                _run = len(brief.get("pending_compute", []))
+                if _run:
+                    _parts.append(f"{_run} compute running")
+                _pw = brief.get("pending_work", {})
+                if _pw.get("items"):
+                    _parts.append(f"⟳ {_pw['count']} resumable")
+                st.markdown(
+                    f"<div style='color:{_pal['muted']};font-size:0.85em;margin:6px 0 2px'>"
+                    + "  ·  ".join(_parts) + "</div>", unsafe_allow_html=True)
+                if _pw.get("items"):
+                    with st.expander(f"⟳ Resumable work — {_pw['count']} pending step(s)"):
+                        st.caption("An agent kicked these off and couldn't wait. Resume the "
+                                   "project with an agent to poll & ingest the results.")
+                        for _it in _pw["items"]:
+                            _ki = {"literature": "📚", "compute": "🖥️"}.get(_it.get("kind"), "⏳")
+                            st.markdown(f"- {_ki} **{_it.get('kind')}** · "
+                                        f"{(_it.get('summary') or _it.get('ref') or '')[:80]} "
+                                        f"· {_it.get('status')}")
 
-            # ---------- THE PUNCHLINE — lead with the answer (what we can say NOW) ----------
-            _hl = brief.get("headline") or {}
-            if _hl.get("units"):
-                _v = _hl.get("verdict", "undetermined")
-                _vicon = {"supported": "✅", "contested": "⚖️",
-                          "undetermined": "🔍", "no_result_yet": "🔍"}.get(_v, "🔍")
-                st.markdown(f"#### {_vicon} {_hl.get('one_liner', '')}")
-                if _hl.get("_fail_loud"):
-                    st.caption("⚠ " + _hl["_fail_loud"])
-
-            # ---------- Convergence: progress = distance to a decision, not leader conf ----
-            _conv = brief.get("convergence", {})
-            if _conv.get("contested_clusters"):
-                _dd = _conv.get("decision_distance", 0)
-                _icon = ("🟢" if _dd <= 0.1 else "🟡" if _dd <= 0.2 else "🟠"
-                         if _dd < 0.8 else "🔴")
-                st.info(f"{_icon} **Decision distance {_dd}** — {_conv.get('headline','')}")
-                for _cl in _conv["contested_clusters"]:
-                    if _cl["state"] in ("blocked_on_experiment", "no_discriminating_test"):
-                        _be = (" → " + ", ".join(_cl["blocking_experiments"])
-                               if _cl.get("blocking_experiments") else "")
-                        if _cl.get("equivalence_class"):
-                            st.caption(f"⚖️ **Equivalence class** {{{', '.join(_cl['survivors'])}}} "
-                                       f"— observationally identical on current data, so "
-                                       f"this is ONE class, decided only by the "
-                                       f"experiment{_be}")
-                        else:
-                            st.caption(f"Contested: {', '.join(_cl['survivors'])} — "
-                                       f"{_cl['_reads']}{_be}")
-
-            # ---------- Scientific-rigor check (live, from method_compliance) -------
-            _mc = brief.get("method_compliance", {})
-            _issues = []
-            if not _mc.get("enough_competing_hypotheses", True):
-                _issues.append(("Needs ≥2 competing hypotheses", []))
-            _issue_map = [
-                ("Hypotheses with no falsifying prediction",
-                 _mc.get("hypotheses_without_falsifying_prediction")),
-                ("⚠ UNRELIABLE score — <2 decisive verdicts (can't validate/falsify)",
-                 _mc.get("unreliable_scores_too_few_predictions")),
-                ("Hypotheses with too FEW predictions (need a set ≥2, aim 3-4)",
-                 _mc.get("hypotheses_below_min_predictions")),
-                ("Hypotheses whose predictions all use ONE descriptor (impoverished)",
-                 _mc.get("hypotheses_with_single_descriptor")),
-                ("Predictions missing structured fields (direction/reference/magnitude)",
-                 _mc.get("predictions_missing_structured_fields")),
-                ("Predictions missing provenance (origin)",
-                 _mc.get("predictions_missing_origin_provenance")),
-                ("Predictions missing a falsification criterion",
-                 _mc.get("predictions_missing_falsification_criterion")),
-                ("⚠ Circular confirmations (model fit to the data it's tested on)",
-                 [c.get("prediction") if isinstance(c, dict) else c
-                  for c in (_mc.get("circular_confirmations") or [])]),
-                ("⚠ Supersessions with no discriminating observable (refinement vs new?)",
-                 _mc.get("supersessions_without_discriminating_observable")),
-                ("Supports verdicts missing a use-novelty (evidence_independence) declaration",
-                 _mc.get("supports_without_independence_declaration")),
-                ("High-confidence claims never independently reviewed",
-                 _mc.get("high_confidence_without_independent_review")),
-                ("Compute/model verdicts missing an MLflow replay trace",
-                 _mc.get("compute_verdicts_missing_mlflow_trace")),
-                ("⚠ Decisive verdicts NOT cited to data (no record, no compute — unauditable)",
-                 _mc.get("decisive_verdicts_uncited_to_data")),
-                ("📊 Declared-dataset records UNUSED (may break a confound)",
-                 _mc.get("dataset_records_unused")),
-            ]
-            for _lbl, _items in _issue_map:
-                if _items:
-                    _issues.append((_lbl, _items))
-            if _mc.get("dataset_of_interest_undeclared"):
-                _issues.append(("No dataset of interest declared — scope not anchored", []))
-            if _mc.get("shared_premise_unaudited"):
-                _issues.append(("⚠ Shared premise unaudited — survivors share an untested "
-                                "assumption; state & test it, and add a "
-                                "'none-of-the-above' residual hypothesis", []))
-            _rr = brief.get("rigor_review", {})
-            _crit = _rr.get("open_findings", []) or []
-            _n_checks = len(_issues) + len(_crit)
-            if _n_checks:
-                _hdr = f"🔬 Scientific rigor — {_n_checks} open"
-                if _rr.get("open_critical"):
-                    _hdr = (f"⚠ 🔬 Scientific rigor — {_rr['open_critical']} CRITICAL"
-                            f" · {_n_checks} open total")
-                _hdr += "  · click to review"
-                # COLLAPSED by default — the audit is important but it should not bury the
-                # ranking/answer above the fold. The header carries the critical count.
-                with st.expander(_hdr, expanded=False):
-                    if _issues:
-                        st.caption("**Automated checks** — live audit against the method "
-                                   "+ epistemic guardrails (use-novelty; individuation).")
-                        for _lbl, _items in _issues:
-                            _detail = (" — " + ", ".join(str(x) for x in _items[:6])
-                                       ) if _items else ""
-                            st.markdown(f"- **{_lbl}**{_detail}")
-                    if _crit:
-                        st.caption("**Independent critic findings** — raised by an "
-                                   "adversarial reviewer (a separate agent). Resolve "
-                                   "(fix/justify) or dismiss each.")
-                        _sev_icon = {"critical": "🔴", "major": "🟠", "minor": "🟡"}
-                        for _f in _crit:
-                            _ic = _sev_icon.get(_f.get("severity"), "•")
-                            _tgt = (f" · {_f.get('target_type')}:{_f.get('target_id')}"
-                                    if _f.get("target_id") else "")
-                            st.markdown(f"- {_ic} **[{_f.get('category')}]** "
-                                        f"{_f.get('summary')}{_tgt}")
-                            if _is_owner:
-                                _rc1, _rc2, _ = st.columns([1, 1, 4])
-                                if _rc1.button("Resolve", key=f"rfres_{_f['finding_id']}"):
-                                    discovery.resolve_rigor_finding(
-                                        _f["finding_id"], status="resolved",
-                                        actor=owner)
-                                    st.rerun()
-                                if _rc2.button("Dismiss", key=f"rfdis_{_f['finding_id']}"):
-                                    discovery.resolve_rigor_finding(
-                                        _f["finding_id"], status="dismissed",
-                                        actor=owner)
-                                    st.rerun()
-            else:
-                st.caption("🔬 Scientific rigor — all checks clear (and no open critic "
-                           "findings).")
-            _recs = brief.get("recommended_actions") or []
-            if _recs:
-                with st.expander(f"🧭 What the agent should do next — {len(_recs)} "
-                                 "action(s), from the briefing", expanded=False):
-                    st.caption("The platform derives this to-do from the live state; the "
+            def _diagnostics_compact():
+                _recs = brief.get("recommended_actions") or []
+                _rr = brief.get("rigor_review", {})
+                _oc = _rr.get("open_critical", 0)
+                _lbl = "🔬 Rigor & what the agent does next"
+                if _recs:
+                    _lbl += f" — {len(_recs)} action(s)"
+                if _oc:
+                    _lbl = f"⚠ {_lbl} · {_oc} critical"
+                with st.expander(_lbl, expanded=False):
+                    st.caption("The platform audits its own rigor and derives the to-do; the "
                                "agent reads it from the briefing — no human prompt needed.")
-                    for _a in _recs:
+                    for _a in _recs[:14]:
                         st.markdown(f"- {_a}")
+                    if not _recs:
+                        st.caption("All clear — no open actions.")
+                with st.expander("🧭 Briefing — exactly what the agent reads as ground truth",
+                                 expanded=False):
+                    st.json(brief)
 
-            st.markdown("#### Hypothesis ranking")
-            st.caption("Confidence is **computed** from the prediction verdicts — never "
-                       "authored. A score from fewer than 2 decisive verdicts is flagged "
-                       "⚠ unreliable.")
-            st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
-                                     h["status"], _hcolor.get(h["label"], "#C97A3C"),
-                                     score=discovery.compute_hypothesis_score(h))
-                                for h in hyps) or "_No hypotheses yet._",
+            if landing == "classic":
+                # ---------- RESUMABLE pending work — the first thing you should see ----
+                _pw = brief.get("pending_work", {})
+                if _pw.get("items"):
+                    _n = _pw["count"]
+                    _accent = branding.palette(st.session_state.ui_theme)["accent"]
+                    _rows = ""
+                    _now = datetime.now(timezone.utc)
+                    for _it in _pw["items"]:
+                        _age = ""
+                        try:
+                            _t = datetime.fromisoformat(str(_it.get("started_at")).replace("Z", "+00:00"))
+                            _hrs = (_now - _t).total_seconds() / 3600.0
+                            _age = (f"{int(_hrs)}h ago" if _hrs >= 1
+                                    else f"{int(_hrs*60)}m ago")
+                        except Exception:
+                            pass
+                        _kind_icon = {"literature": "📚", "compute": "🖥️"}.get(_it.get("kind"), "⏳")
+                        _rows += (f"<div style='margin:3px 0'>{_kind_icon} "
+                                  f"<b>{_it.get('kind')}</b> · {(_it.get('summary') or _it.get('ref') or '')[:70]} "
+                                  f"<span style='opacity:.7'>· {_it.get('status')} · {_age}</span></div>")
+                    st.markdown(
+                        f"<div style='border:1px solid {_accent}; border-left:4px solid {_accent};"
+                        f"border-radius:10px; padding:12px 16px; margin:6px 0 4px;'>"
+                        f"<div style='font-weight:700; color:{_accent}'>⏳ Resumable — "
+                        f"{_n} pending step(s) started but not yet reconciled</div>"
+                        f"<div style='font-size:0.86em; opacity:.85; margin:4px 0 6px'>"
+                        f"An agent kicked these off and couldn't wait. Once they finish, "
+                        f"<b>resume this project with an agent</b> to poll &amp; ingest the "
+                        f"results — it's worth coming back for.</div>{_rows}</div>",
                         unsafe_allow_html=True)
+                else:
+                    # Positive confirmation so the absence isn't ambiguous (no banner used
+                    # to be indistinguishable from 'feature not working').
+                    st.caption("✓ No pending external steps — this project is fully "
+                               "reconciled (no literature query or calculation left "
+                               "awaiting a result).")
 
-            with st.expander("🧭 Briefing — exactly what the agent reads as ground truth"):
-                st.caption("Server-curated digest (not the full firehose). The agent "
-                           "reconciles its reasoning to this at the start of every turn; "
-                           "if a change isn't written back here, it didn't happen.")
-                st.json(brief)
+                settled = brief.get("settled", {"supported": [], "eliminated": []})
+                c1, c2, c3, c4, c5 = st.columns(5)
+                c1.metric("Hypotheses", len(hyps))
+                c2.metric("Supported", len(settled.get("supported", [])))
+                c3.metric("Eliminated", len(settled.get("eliminated", [])))
+                c4.metric("Validated preds", len(brief.get("validated_predictions", [])))
+                c5.metric("Compute running", len(brief.get("pending_compute", [])))
+
+                open_n = len(brief.get("open_questions", []))
+                running = len(brief.get("pending_compute", []))
+                failed_n = len(brief.get("failed_compute", []))
+                needs = sum(1 for h in hyps if h["status"] == "needs_more_data")
+                _failed_txt = f" · 🚫 {failed_n} compute failed (re-run, no score effect)" if failed_n else ""
+                st.caption(f"⏳ **Pending** — {open_n} prediction(s) open · {running} compute "
+                           f"running{_failed_txt} · {needs} hypothes(es) need more data")
+
+                # ---------- THE PUNCHLINE — lead with the answer (what we can say NOW) ----------
+                _hl = brief.get("headline") or {}
+                if _hl.get("units"):
+                    _v = _hl.get("verdict", "undetermined")
+                    _vicon = {"supported": "✅", "contested": "⚖️",
+                              "undetermined": "🔍", "no_result_yet": "🔍"}.get(_v, "🔍")
+                    st.markdown(f"#### {_vicon} {_hl.get('one_liner', '')}")
+                    if _hl.get("_fail_loud"):
+                        st.caption("⚠ " + _hl["_fail_loud"])
+
+                # ---------- Convergence: progress = distance to a decision, not leader conf ----
+                _conv = brief.get("convergence", {})
+                if _conv.get("contested_clusters"):
+                    _dd = _conv.get("decision_distance", 0)
+                    _icon = ("🟢" if _dd <= 0.1 else "🟡" if _dd <= 0.2 else "🟠"
+                             if _dd < 0.8 else "🔴")
+                    st.info(f"{_icon} **Decision distance {_dd}** — {_conv.get('headline','')}")
+                    for _cl in _conv["contested_clusters"]:
+                        if _cl["state"] in ("blocked_on_experiment", "no_discriminating_test"):
+                            _be = (" → " + ", ".join(_cl["blocking_experiments"])
+                                   if _cl.get("blocking_experiments") else "")
+                            if _cl.get("equivalence_class"):
+                                st.caption(f"⚖️ **Equivalence class** {{{', '.join(_cl['survivors'])}}} "
+                                           f"— observationally identical on current data, so "
+                                           f"this is ONE class, decided only by the "
+                                           f"experiment{_be}")
+                            else:
+                                st.caption(f"Contested: {', '.join(_cl['survivors'])} — "
+                                           f"{_cl['_reads']}{_be}")
+
+                # ---------- Scientific-rigor check (live, from method_compliance) -------
+                _mc = brief.get("method_compliance", {})
+                _issues = []
+                if not _mc.get("enough_competing_hypotheses", True):
+                    _issues.append(("Needs ≥2 competing hypotheses", []))
+                _issue_map = [
+                    ("Hypotheses with no falsifying prediction",
+                     _mc.get("hypotheses_without_falsifying_prediction")),
+                    ("⚠ UNRELIABLE score — <2 decisive verdicts (can't validate/falsify)",
+                     _mc.get("unreliable_scores_too_few_predictions")),
+                    ("Hypotheses with too FEW predictions (need a set ≥2, aim 3-4)",
+                     _mc.get("hypotheses_below_min_predictions")),
+                    ("Hypotheses whose predictions all use ONE descriptor (impoverished)",
+                     _mc.get("hypotheses_with_single_descriptor")),
+                    ("Predictions missing structured fields (direction/reference/magnitude)",
+                     _mc.get("predictions_missing_structured_fields")),
+                    ("Predictions missing provenance (origin)",
+                     _mc.get("predictions_missing_origin_provenance")),
+                    ("Predictions missing a falsification criterion",
+                     _mc.get("predictions_missing_falsification_criterion")),
+                    ("⚠ Circular confirmations (model fit to the data it's tested on)",
+                     [c.get("prediction") if isinstance(c, dict) else c
+                      for c in (_mc.get("circular_confirmations") or [])]),
+                    ("⚠ Supersessions with no discriminating observable (refinement vs new?)",
+                     _mc.get("supersessions_without_discriminating_observable")),
+                    ("Supports verdicts missing a use-novelty (evidence_independence) declaration",
+                     _mc.get("supports_without_independence_declaration")),
+                    ("High-confidence claims never independently reviewed",
+                     _mc.get("high_confidence_without_independent_review")),
+                    ("Compute/model verdicts missing an MLflow replay trace",
+                     _mc.get("compute_verdicts_missing_mlflow_trace")),
+                    ("⚠ Decisive verdicts NOT cited to data (no record, no compute — unauditable)",
+                     _mc.get("decisive_verdicts_uncited_to_data")),
+                    ("📊 Declared-dataset records UNUSED (may break a confound)",
+                     _mc.get("dataset_records_unused")),
+                ]
+                for _lbl, _items in _issue_map:
+                    if _items:
+                        _issues.append((_lbl, _items))
+                if _mc.get("dataset_of_interest_undeclared"):
+                    _issues.append(("No dataset of interest declared — scope not anchored", []))
+                if _mc.get("shared_premise_unaudited"):
+                    _issues.append(("⚠ Shared premise unaudited — survivors share an untested "
+                                    "assumption; state & test it, and add a "
+                                    "'none-of-the-above' residual hypothesis", []))
+                _rr = brief.get("rigor_review", {})
+                _crit = _rr.get("open_findings", []) or []
+                _n_checks = len(_issues) + len(_crit)
+                if _n_checks:
+                    _hdr = f"🔬 Scientific rigor — {_n_checks} open"
+                    if _rr.get("open_critical"):
+                        _hdr = (f"⚠ 🔬 Scientific rigor — {_rr['open_critical']} CRITICAL"
+                                f" · {_n_checks} open total")
+                    _hdr += "  · click to review"
+                    # COLLAPSED by default — the audit is important but it should not bury the
+                    # ranking/answer above the fold. The header carries the critical count.
+                    with st.expander(_hdr, expanded=False):
+                        if _issues:
+                            st.caption("**Automated checks** — live audit against the method "
+                                       "+ epistemic guardrails (use-novelty; individuation).")
+                            for _lbl, _items in _issues:
+                                _detail = (" — " + ", ".join(str(x) for x in _items[:6])
+                                           ) if _items else ""
+                                st.markdown(f"- **{_lbl}**{_detail}")
+                        if _crit:
+                            st.caption("**Independent critic findings** — raised by an "
+                                       "adversarial reviewer (a separate agent). Resolve "
+                                       "(fix/justify) or dismiss each.")
+                            _sev_icon = {"critical": "🔴", "major": "🟠", "minor": "🟡"}
+                            for _f in _crit:
+                                _ic = _sev_icon.get(_f.get("severity"), "•")
+                                _tgt = (f" · {_f.get('target_type')}:{_f.get('target_id')}"
+                                        if _f.get("target_id") else "")
+                                st.markdown(f"- {_ic} **[{_f.get('category')}]** "
+                                            f"{_f.get('summary')}{_tgt}")
+                                if _is_owner:
+                                    _rc1, _rc2, _ = st.columns([1, 1, 4])
+                                    if _rc1.button("Resolve", key=f"rfres_{_f['finding_id']}"):
+                                        discovery.resolve_rigor_finding(
+                                            _f["finding_id"], status="resolved",
+                                            actor=owner)
+                                        st.rerun()
+                                    if _rc2.button("Dismiss", key=f"rfdis_{_f['finding_id']}"):
+                                        discovery.resolve_rigor_finding(
+                                            _f["finding_id"], status="dismissed",
+                                            actor=owner)
+                                        st.rerun()
+                else:
+                    st.caption("🔬 Scientific rigor — all checks clear (and no open critic "
+                               "findings).")
+                _recs = brief.get("recommended_actions") or []
+                if _recs:
+                    with st.expander(f"🧭 What the agent should do next — {len(_recs)} "
+                                     "action(s), from the briefing", expanded=False):
+                        st.caption("The platform derives this to-do from the live state; the "
+                                   "agent reads it from the briefing — no human prompt needed.")
+                        for _a in _recs:
+                            st.markdown(f"- {_a}")
+
+                st.markdown("#### Hypothesis ranking")
+                st.caption("Confidence is **computed** from the prediction verdicts — never "
+                           "authored. A score from fewer than 2 decisive verdicts is flagged "
+                           "⚠ unreliable.")
+                st.markdown("".join(_bar(h["label"], h["statement"], h["confidence"],
+                                         h["status"], _hcolor.get(h["label"], "#C97A3C"),
+                                         score=discovery.compute_hypothesis_score(h))
+                                    for h in hyps) or "_No hypotheses yet._",
+                            unsafe_allow_html=True)
+
+                with st.expander("🧭 Briefing — exactly what the agent reads as ground truth"):
+                    st.caption("Server-curated digest (not the full firehose). The agent "
+                               "reconciles its reasoning to this at the start of every turn; "
+                               "if a change isn't written back here, it didn't happen.")
+                    st.json(brief)
+            elif landing == "hero":
+                if hyps:
+                    components.html(_constellation_html(_constellation_payload(),
+                                    st.session_state.ui_theme), height=520)
+                    st.caption("The living map of the whole investigation — drag to rotate. "
+                               "The brightest, most central node is the current front-runner; "
+                               "outer rings are the evidence and the screened corpus it weighed.")
+                _leader_card()
+                _ranking_block()
+                _status_line()
+                _diagnostics_compact()
+            else:  # calm
+                _leader_card()
+                _ranking_block()
+                _status_line()
+                _diagnostics_compact()
 
             preds = [p for h in hyps for p in h["predictions"]]
             evidence_ids = sorted({rid for p in preds
