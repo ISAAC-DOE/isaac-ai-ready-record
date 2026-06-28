@@ -34,8 +34,10 @@ if "ui_theme" not in st.session_state:
     _qp_theme = st.query_params.get("theme")
     st.session_state.ui_theme = _qp_theme if _qp_theme in ("dark", "light") else "dark"
 
-# ISAAC logo + design system at the top of every page
-branding.render_header(st.session_state.ui_theme)
+# Design system at the top of every page. The ISAAC logo now lives IN the top bar
+# (built below, once db_connected / identity / PAGES are known) so the logo and the
+# hamburger/theme/status/user controls all sit on ONE level.
+branding.inject_theme(st.session_state.ui_theme)
 
 # Initialize database tables on startup (if configured)
 if database.is_db_configured():
@@ -115,17 +117,15 @@ if database.is_discovery_db_configured() and \
         os.environ.get("DISCOVERY_HIDDEN", "").lower() not in ("1", "true", "yes", "on"):
     PAGES.insert(PAGES.index("About"), "Discovery")
 
-# --- Top navigation bar: hamburger menu + theme toggle + DB status + user info ---
-nav_col, theme_col, status_col, user_col = st.columns([5, 1, 1, 2])
-with theme_col:
-    _is_dark = st.session_state.ui_theme == "dark"
-    if st.button("Light" if _is_dark else "Dark", key="theme_toggle",
-                 use_container_width=True, help="Switch between dark and light mode"):
-        st.session_state.ui_theme = "light" if _is_dark else "dark"
-        st.query_params["theme"] = st.session_state.ui_theme
-        st.rerun()
-with nav_col:
-    with st.popover("Menu"):
+# --- Top bar: one level — [logo  ☰]  ·····  [theme  ● DB Online  user | logout] ---
+# vertical_alignment="center" puts the logo, hamburger, theme toggle, DB status and
+# user/logout all on the SAME horizontal line.
+logo_col, burger_col, _spacer_col, theme_col, status_col, user_col = st.columns(
+    [2.3, 0.7, 3.4, 1.1, 1.5, 2.4], vertical_alignment="center")
+with logo_col:
+    branding.header_logo(st.session_state.ui_theme, width=185)
+with burger_col:
+    with st.popover("☰", use_container_width=True, help="Menu"):
         for p in PAGES:
             label = p
             # Show pending count badge for Admin Review
@@ -140,6 +140,13 @@ with nav_col:
                          type="primary" if p == st.session_state.current_page else "secondary"):
                 st.session_state.current_page = p
                 st.rerun()
+with theme_col:
+    _is_dark = st.session_state.ui_theme == "dark"
+    if st.button("Light" if _is_dark else "Dark", key="theme_toggle",
+                 use_container_width=True, help="Switch between dark and light mode"):
+        st.session_state.ui_theme = "light" if _is_dark else "dark"
+        st.query_params["theme"] = st.session_state.ui_theme
+        st.rerun()
 with status_col:
     branding.status_dot(db_connected, "DB Online" if db_connected else "DB Offline")
 with user_col:
