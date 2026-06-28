@@ -2386,16 +2386,10 @@ requestAnimationFrame(loop);
                         "reliable": bool(_sc.get("reliable")),
                         "nv": _nv, "ni": _ni, "npd": _npd, "preds": _ps})
 
-                # size the iframe to the TALLEST detail panel so nothing clips at the bottom
-                def _panel_px(r):
-                    _px = 96 + 22 * (1 + len(r["statement"]) // 46)   # header+counts + statement wrap
-                    _cats = {}
-                    for _p in r["preds"]:
-                        _cats[_p["cat"]] = _cats.get(_p["cat"], 0) + 1
-                    for _c, _n in _cats.items():
-                        _px += 26 + _n * (44 if _c != "pending" else 22)  # group hdr + items (eval ~2 lines)
-                    return _px + 28
-                _H = min(820, max([64 + len(_rows) * 48] + [_panel_px(r) for r in _rows]))
+                # Height follows the BARS (left column); the detail panel SCROLLS within it
+                # (overflow:auto) instead of stretching the iframe — so a long prediction list
+                # never leaves a tall empty gap under the bars.
+                _H = max(220, 46 * len(_rows) + 26)
                 components.html(_ranking_html(_rows, st.session_state.ui_theme, _H), height=_H)
 
             def _status_line():
