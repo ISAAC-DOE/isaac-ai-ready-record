@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.56-provisional",
+        "version": "0.57-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -900,12 +900,13 @@ def get_manifest() -> dict:
                         "mlflow_run_url + evidence_independence. RELIABILITY GATES: a decisive "
                         "verdict counts toward 'reliable' ONLY if it is a COMPLETE, AUDITABLE "
                         "test — CITED (a record or compute_run), its prediction FALSIFIABLE "
-                        "(has a falsification_criterion) and STRUCTURED (direction + "
-                        "reference_condition), AND the verdict EXPLAINED (carries a rationale). "
-                        "A verdict missing any facet still moves belief but earns no standing. "
-                        "So always give your decisive verdicts a rationale, and give your "
-                        "predictions the full structure (descriptor+direction+reference_condition"
-                        "+magnitude+falsification_criterion). THIS is what moves the "
+                        "(has a falsification_criterion) and STRUCTURED (a real `direction` "
+                        "plus a `reference_condition` for a measured trend OR an "
+                        "`output_quantity` for a calculation), AND the verdict EXPLAINED "
+                        "(carries a rationale). A verdict missing any facet still moves belief "
+                        "but earns no standing. So always give your decisive verdicts a "
+                        "rationale, and give your predictions the full structure (see "
+                        "field_shapes.prediction). THIS is what moves the "
                         "hypothesis's confidence — the platform recomputes & stores it "
                         "from all the verdicts (scoring_model). Use verdict='blocked' when "
                         "the evidence isn't validly comparable (schema gate). If the "
@@ -968,17 +969,46 @@ def get_manifest() -> dict:
             "PUT /predictions/{id}/evaluate with verdict + evidence + final mlflow_run_url"],
         "field_shapes": {
             "prediction": {"_for": "a hypothesis carries a SET of these (>=2, aim 3-4), "
-                       "spanning DIFFERENT descriptors — each fully structured, never "
-                       "one crammed string.",
-                       "descriptor_name": "the measurable (e.g. faradaic_efficiency.C2H4, "
-                       "adsorption_energy.CO, a partial current) — VARY it across the set",
-                       "direction": "↑ / ↓ / non-monotonic / flat",
-                       "reference_condition": "vs WHAT baseline (e.g. 'vs pure-Cu')",
-                       "magnitude": "how much (qualitative ok, e.g. 'scales with X')",
-                       "falsification_criterion": "the observation that REJECTS the "
+                       "spanning DIFFERENT measurables — each STRUCTURED into discrete "
+                       "fields, not a claim packed into descriptor_name with a prose "
+                       "falsifier.",
+                       "descriptor_name": "the MEASURABLE itself (e.g. faradaic_efficiency."
+                       "CH4, adsorption_energy.CO, a partial current) — NOT a sentence. "
+                       "'CH4_rises_at_89pct' is a claim: the rise belongs in `direction`, "
+                       "the 89% in `reference_condition`. VARY it across the set.",
+                       "direction": "REQUIRED — which way the measurable goes if the "
+                       "hypothesis holds: ↑ / ↓ / non-monotonic / flat (or a clear "
+                       "synonym). A vague verb ('changes', 'depends', 'reproduces', "
+                       "'differs') is NOT a direction — name the SIGN.",
+                       "reference_condition": "MEASURED-TREND predictions: vs WHAT baseline "
+                       "/ between which SPECIFIC points (e.g. 'vs pure-Cu', '80%→89% Cu') — "
+                       "not a generic 'vs baseline'.",
+                       "output_quantity": "CALCULATION predictions: the named computed "
+                       "CONTRAST quantity whose value/sign is predicted (e.g. "
+                       "'ΔE_CO(Au-adjacent) − ΔE_CO(pure-Cu)', 'OCCO ΔG vs CO coverage') — a "
+                       "quantity with symbols/units, NOT a sentence and not a copy of "
+                       "descriptor_name. The comparison lives IN the quantity; it also keys "
+                       "methodological comparability.",
+                       "magnitude": "how much (qualitative ok, e.g. 'a few points', 'scales "
+                       "with X') — advisory.",
+                       "falsification_criterion": "the observation/value that REJECTS the "
                        "hypothesis",
                        "discriminates": "[{hypothesis_label, expected}]",
-                       "origin": "see prediction_origin"},
+                       "origin": "see prediction_origin",
+                       "_structured": "Counts toward 'decisive' only if STRUCTURED: a "
+                       "`direction` PLUS a `reference_condition` (measured trend) or an "
+                       "`output_quantity` (calculation). The info is usually already in your "
+                       "descriptor name + falsifier — put it in the FIELDS. Backfill omitted "
+                       "fields IN PLACE via PUT /predictions/{id}.",
+                       "_examples": [
+                           "TREND — {descriptor_name:'faradaic_efficiency.CH4', "
+                           "direction:'↑', reference_condition:'80%→89% Cu (vs the 80% "
+                           "peak)', falsification_criterion:'if CH4 is flat/down at 89% the "
+                           "CO-starved-interior reading is wrong'}",
+                           "CALCULATION — {descriptor_name:'adsorption_energy.CO', "
+                           "direction:'↓ (weaker)', output_quantity:'ΔE_CO(Au-adjacent) − "
+                           "ΔE_CO(pure-Cu)', falsification_criterion:'if Au STRENGTHENS Cu "
+                           "CO binding, Au is electronic not CO-supply'}"]},
             "origin": {"type": "agent_reasoning|literature|prior_result|human",
                        "summary": "str", "reasoning": "str",
                        "sources": "[{record_id|doi|hypothesis}]"},
@@ -2179,6 +2209,17 @@ def compute_convergence(hyps, relations, next_experiment=None) -> dict:
 # --- Prediction-based confidence scoring -----------------------------------
 
 _STRENGTH_W = {"strong": 1.0, "moderate": 0.6, "weak": 0.3}
+# A prediction is STRUCTURED only if its `direction` names a real SIGN. These vague
+# verbs are non-empty but say nothing falsifiable ("it changes / it depends") — they do
+# NOT structure a prediction. (↑/↓/non-monotonic/flat and clear synonyms like
+# up/down/increases/weaker pass; these do not.)
+_VACUOUS_DIRECTION = {
+    "", "tbd", "n/a", "na", "?", "~", ".", "-", "—", "none specified",
+    "changes", "change", "changed", "differs", "differ", "different", "depends",
+    "depend", "varies", "vary", "varying", "affects", "affect", "matches", "match",
+    "reproduces", "reproduce", "consistent", "related", "correlates", "correlated",
+    "shifts", "shift", "responds",
+}
 # Correlated evidence is not independent: a same-direction decisive verdict that
 # rests on records ALREADY counted contributes only a fraction (you can't confirm a
 # hypothesis twice with the same data, nor manufacture 'reliability' by stacking
@@ -2312,8 +2353,10 @@ def compute_hypothesis_score(h) -> dict:
         number, because cross-method agreement is informative, but less than a fresh test) and
         does NOT add to n_decisive. So varying the FUNCTIONAL on one observable can harden
         belief but CANNOT by itself make a one-observable hypothesis 'reliable' — only a
-        DIFFERENT discriminating observable can. Opt-in: omit observable_key and independence
-        is judged on evidence identity alone (as before).
+        DIFFERENT discriminating observable can. The observable defaults to an explicit
+        observable_key, else a calc prediction's `output_quantity` (the computed quantity IS
+        its observable) — so cloned same-output_quantity predictions are robustness, not
+        independence; with neither set, independence is judged on evidence identity alone.
       • CITED-TO-DATA: a decisive verdict that links NEITHER a record (evidence_record_ids)
         NOR a compute_run still moves belief but does NOT count toward n_decisive and never
         trips the falsification cap. You cannot be 'reliable' — or refute — on evidence you
@@ -2321,8 +2364,9 @@ def compute_hypothesis_score(h) -> dict:
         low-reliability: belief, not standing).
       • ADMISSIBLE-TO-COUNT: a decisive verdict counts toward n_decisive (and can hard-falsify)
         ONLY if it is a complete, auditable test — CITED (record/compute_run), FALSIFIABLE
-        (its prediction states a falsification_criterion), STRUCTURED (direction + reference_
-        condition; magnitude stays an advisory nudge), and EXPLAINED (carries a rationale).
+        (its prediction states a falsification_criterion), STRUCTURED (a real DIRECTION plus
+        EITHER a reference_condition [measured trend] OR an output_quantity [calculation];
+        magnitude stays an advisory nudge), and EXPLAINED (carries a rationale).
         Any verdict failing a facet still moves belief but earns no standing (belief, not
         standing — like cross_system). So 'reliable' = >=2 such complete, independent decisive
         verdicts — a hypothesis earns standing only on a SET of genuinely auditable tests, never
@@ -2372,23 +2416,31 @@ def compute_hypothesis_score(h) -> dict:
         _m = p.get("margin")
         _xsys = bool(p.get("cross_system"))   # evidence from a DIFFERENT system/mechanism class
         _rel = p.get("reliability_tier")      # server-derived trust tier (None = opt-out, as-today)
-        _obs = (str(p.get("observable_key")).strip() or None) if p.get("observable_key") else None
+        # OBSERVABLE for robustness-dedup: an explicit observable_key, else the calc
+        # prediction's output_quantity (the computed quantity IS its observable) — so two
+        # predictions on the SAME output_quantity are robustness (attenuated, not counted),
+        # not two independent decisive verdicts. Empty on both → judged on evidence identity.
+        _obs = (str(p.get("observable_key") or p.get("output_quantity") or "").strip() or None)
         # ADMISSIBILITY GATES for RELIABILITY. A decisive verdict ALWAYS moves belief, but it
         # confers RELIABILITY (counts toward n_decisive) and can hard-falsify ONLY if it is a
         # complete, auditable test. Four facets, each tracked distinctly so the breakdown
         # shows WHY a verdict didn't count (belief-not-standing, like cross_system):
         #   • CITED        — linked to a record or compute_run (not floating).
         #   • FALSIFIABLE  — its prediction states a falsification_criterion (a real test).
-        #   • STRUCTURED   — direction + reference_condition (which way, vs what baseline);
-        #                    magnitude stays an advisory nudge as it's often qualitative.
+        #   • STRUCTURED   — a real DIRECTION (which way / what sign) PLUS one of: a
+        #                    reference_condition (measured TREND: vs what baseline) OR an
+        #                    output_quantity (CALCULATION: the named computed contrast
+        #                    quantity, e.g. a ΔΔE). magnitude stays an advisory nudge.
         #   • EXPLAINED    — the verdict carries a rationale (the WHY — auditability).
         # So 'reliable' = >=2 cited, falsifiable, structured, explained, INDEPENDENT decisive
         # verdicts: a hypothesis earns standing only on a SET of genuinely auditable tests.
         _cited = bool(p.get("evidence_record_ids") or p.get("compute_runs")
                       or _verified_literature(p))
         _falsifiable = bool((p.get("falsification_criterion") or "").strip())
-        _structured = bool((p.get("direction") or "").strip()) and \
+        _dirv = (p.get("direction") or "").strip()
+        _structured = (bool(_dirv) and _dirv.lower() not in _VACUOUS_DIRECTION) and (
             bool((p.get("reference_condition") or "").strip())
+            or bool((p.get("output_quantity") or "").strip()))
         _explained = bool((p.get("rationale") or "").strip())
         # the FIRST failing gate (None ⇒ fully admissible → counts toward reliability)
         _gate = (None if (_cited and _falsifiable and _structured and _explained)
@@ -2691,13 +2743,19 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                 preds_without_origin.append(_ptag)
             if not p.get("falsification_criterion"):
                 preds_without_criterion.append(_ptag)
-            # Structured shape (per the spec): a prediction must carry descriptor +
-            # direction + reference_condition + magnitude + falsification_criterion —
-            # not a single crammed string. Flag any missing the core structural fields.
-            _missing_struct = [f for f in ("direction", "reference_condition", "magnitude")
-                               if not p.get(f)]
-            if _missing_struct:
-                preds_missing_structure.append(f"{_ptag} [{','.join(_missing_struct)}]")
+            # Structured shape — MIRRORS the scoring gate exactly (so we never nag a
+            # prediction the scorer already counts): a real `direction` (sign, not a vague
+            # verb) PLUS a `reference_condition` (measured trend) OR an `output_quantity`
+            # (calculation). magnitude is advisory and NOT part of this gate.
+            _need = []
+            _dv = (p.get("direction") or "").strip()
+            if not _dv or _dv.lower() in _VACUOUS_DIRECTION:
+                _need.append("direction")
+            if not ((p.get("reference_condition") or "").strip()
+                    or (p.get("output_quantity") or "").strip()):
+                _need.append("reference_condition_or_output_quantity")
+            if _need:
+                preds_missing_structure.append(f"{_ptag} [{','.join(_need)}]")
             # Auditability: a verdict that leaned on COMPUTE or a fitted MODEL must
             # carry an mlflow_run_url (the replay trace). Pure-data verdicts are not
             # flagged — only the compute/model-backed ones that should be traceable.
@@ -3020,11 +3078,13 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "energy, a different product's FE).")
     if preds_missing_structure:
         recommended_actions.append(
-            f"Complete the STRUCTURE of {len(preds_missing_structure)} prediction(s) "
-            "missing direction / reference_condition / magnitude — fill them IN PLACE via "
-            "PUT /predictions/{id} (do NOT re-POST, which duplicates). A prediction is "
-            "{descriptor, direction, reference_condition, magnitude, "
-            "falsification_criterion}, not one crammed string.")
+            f"STRUCTURE {len(preds_missing_structure)} prediction(s) — each needs a real "
+            "`direction` (↑/↓/non-monotonic/flat — not 'changes'/'depends'/'reproduces') "
+            "PLUS a `reference_condition` (measured trend: vs WHAT baseline) OR an "
+            "`output_quantity` (calculation: the named computed quantity). The info is "
+            "usually already in your descriptor name + falsifier — move it into the FIELDS, "
+            "IN PLACE via PUT /predictions/{id} (don't re-POST). Only then does the verdict "
+            "count toward 'decisive'.")
     if preds_without_origin:
         recommended_actions.append(
             f"Add origin provenance to {len(preds_without_origin)} prediction(s).")

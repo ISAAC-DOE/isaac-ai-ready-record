@@ -32,7 +32,8 @@ def _pred(verdict=None, strength=None, work_status="evaluated",
           evidence_record_ids=None, evidence_independence=None, margin=None,
           cross_system=None, reliability_tier=None, compute_runs=None,
           observable_key=None, falsification_criterion="default-falsifier",
-          direction="up", reference_condition="vs baseline", rationale="because"):
+          direction="up", reference_condition="vs baseline", rationale="because",
+          output_quantity=None):
     # A decisive verdict counts toward reliability only if it is a COMPLETE auditable test:
     # CITED + FALSIFIABLE + STRUCTURED (direction+reference_condition) + EXPLAINED (rationale).
     # A BARE _pred defaults to all of these (a normal admissible verdict); to test a failing
@@ -47,7 +48,7 @@ def _pred(verdict=None, strength=None, work_status="evaluated",
             "compute_runs": compute_runs, "observable_key": observable_key,
             "falsification_criterion": falsification_criterion,
             "direction": direction, "reference_condition": reference_condition,
-            "rationale": rationale}
+            "rationale": rationale, "output_quantity": output_quantity}
 
 
 def _run(mlflow=None, slurm=None):
@@ -540,6 +541,43 @@ def test_gate_precedence_is_cited_then_falsifiable_then_structured_then_explaine
         _pred("supports", "strong", evidence_record_ids=[], direction=None)))
     assert s["breakdown"]["uncited_excluded"] == 1
     assert s["breakdown"]["unstructured_excluded"] == 0
+
+
+def test_calc_prediction_is_structured_via_output_quantity():
+    # A CALCULATION prediction has no reference_condition but names a computed contrast
+    # quantity → structured via (direction + output_quantity), counts toward decisive.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", direction="↓", reference_condition=None,
+              output_quantity="dE_CO(Au-adj) - dE_CO(pureCu)"),
+        _pred("supports", "strong", direction="non-monotonic", reference_condition=None,
+              output_quantity="OCCO dG vs CO coverage"),
+    ))
+    assert s["n_decisive"] == 2 and s["reliable"] is True
+    assert s["breakdown"]["unstructured_excluded"] == 0
+
+
+def test_vacuous_direction_is_unstructured():
+    # 'changes'/'depends' are non-empty but say nothing falsifiable → NOT structured.
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", direction="changes"),
+        _pred("supports", "strong", direction="depends", reference_condition=None,
+              output_quantity="some_quantity"),
+    ))
+    assert s["n_decisive"] == 0 and s["reliable"] is False
+    assert s["breakdown"]["unstructured_excluded"] == 2
+
+
+def test_same_output_quantity_is_robustness_not_two_independent():
+    # Two calc verdicts on the SAME output_quantity (no explicit observable_key), different
+    # evidence → robustness, not two independent decisive verdicts (can't fake reliability).
+    s = compute_hypothesis_score(_h(
+        _pred("supports", "strong", direction="↓", reference_condition=None,
+              output_quantity="dDE_CO"),
+        _pred("supports", "strong", direction="↓", reference_condition=None,
+              output_quantity="dDE_CO"),
+    ))
+    assert s["n_decisive"] == 1 and s["reliable"] is False
+    assert s["breakdown"]["robustness_attenuated"] == 1
 
 
 def test_fully_admissible_verdicts_confer_reliability():
