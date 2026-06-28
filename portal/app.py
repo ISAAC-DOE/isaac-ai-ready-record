@@ -1485,6 +1485,117 @@ elif page == "Discovery":
                 f"<div style='background:{bar_fill};width:{pct}%;height:9px;"
                 f"border-radius:5px'></div></div></div>")
 
+        def _genesis_html(payload, theme="dark"):
+            # GENESIS — how the hypotheses were conceived, staged as abductive reasoning:
+            # the OBSERVATION (a surprising anomaly the human handed over) → the QUESTION →
+            # the competing mechanisms revealed ONE AT A TIME, each a receipt (a real source
+            # + its reading of the data) → the NULL set apart. Self-contained animated iframe;
+            # autoplay + replay; reduced-motion shows the final frame. Sequence, not a grid.
+            pal = branding.palette(theme)
+            P = json.dumps({"text": pal["text"], "muted": pal["muted"], "accent": pal["accent"],
+                            "surface": pal["surface"], "border": pal["border"],
+                            "border_soft": pal["border_soft"]})
+            data = json.dumps(payload)
+            tmpl = r"""<html><head><style>
+html,body{margin:0;background:transparent;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:__TEXT__;}
+#g{padding:6px 4px 2px;}
+.k{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:__MUTED__;}
+#obswrap{display:flex;gap:18px;align-items:center;}
+#chart{flex:0 0 280px;}
+#obscap{flex:1;min-width:0;opacity:0;transition:opacity .7s ease;}
+#obscap .big{font-size:18px;font-weight:600;margin:3px 0 4px;color:__TEXT__;}
+#obscap .say{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:__ACCENT__;font-style:italic;}
+#q{margin:16px 0 6px;font-size:17px;font-weight:600;color:__TEXT__;opacity:0;
+ transform:translateY(6px);transition:opacity .6s ease,transform .6s ease;}
+#cards{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;}
+.card{flex:1 1 200px;min-width:180px;border:1px solid __BORDER__;border-left:3px solid var(--c);
+ border-radius:10px;padding:10px 12px;background:__SURFACE__;opacity:0;transform:translateY(8px);
+ transition:opacity .5s ease,transform .5s ease;}
+.card.null{border-style:dashed;border-left-style:dashed;opacity:.92;}
+.card .nm{font-weight:700;font-size:13px;color:var(--c);}
+.card .mech{font-size:12px;color:__TEXT__;margin:4px 0 6px;line-height:1.4;}
+.card .src{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10px;color:__MUTED__;}
+.card .tag{font-size:9.5px;color:__MUTED__;text-transform:uppercase;letter-spacing:.06em;}
+#replay{margin-top:12px;font-size:11px;color:__MUTED__;background:none;border:1px solid __BORDER_SOFT__;
+ border-radius:14px;padding:3px 12px;cursor:pointer;}
+#replay:hover{color:__ACCENT__;border-color:__ACCENT__;}
+.curve{fill:none;stroke:__ACCENT__;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.axis{stroke:__BORDER_SOFT__;stroke-width:1;}
+</style></head><body><div id="g">
+<div id="obswrap">
+ <svg id="chart" viewBox="0 0 280 140"></svg>
+ <div id="obscap">
+  <div class="k">Observation · handed to ISAAC</div>
+  <div class="big" id="obstitle"></div>
+  <div class="say">“this shouldn't happen — explain it.”</div>
+ </div>
+</div>
+<div id="q"></div>
+<div id="cards"></div>
+<button id="replay">↻ replay genesis</button>
+</div>
+<script>
+const D=__DATA__, P=__PAL__;
+const chart=document.getElementById('chart'), cards=document.getElementById('cards');
+const obscap=document.getElementById('obscap'), q=document.getElementById('q');
+document.getElementById('obstitle').textContent=D.observation;
+q.textContent=D.question;
+function esc(s){return (s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+// ---- the anomaly curve (drawn) ----
+const W=280,H=140,m={l:8,r:8,t:10,b:16};
+function X(x){return m.l+(W-m.l-m.r)*x;}
+function Y(y){var ymax=Math.max.apply(null,D.curve.map(function(p){return p[1];}))||1;
+ return H-m.b-(H-m.t-m.b)*(y/ymax);}
+var path='', dotx=0,doty=0,peakx=0;
+D.curve.forEach(function(p,i){path+=(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)+' ';});
+var pk=D.curve.reduce(function(a,b){return b[1]>a[1]?b:a;});peakx=pk[0];
+var an=D.curve[D.curve.length-1];dotx=an[0];doty=an[1];   // the downturn point
+chart.innerHTML='<line class="axis" x1="'+m.l+'" y1="'+(H-m.b)+'" x2="'+(W-m.r)+'" y2="'+(H-m.b)+'"/>'
+ +'<path class="curve" d="'+path+'"/>'
+ +'<line id="amark" x1="'+X(dotx).toFixed(1)+'" y1="'+(m.t)+'" x2="'+X(dotx).toFixed(1)+'" y2="'+(H-m.b)+'" stroke="'+P.accent+'" stroke-width="1" stroke-dasharray="2,3" opacity="0"/>'
+ +'<circle id="adot" cx="'+X(dotx).toFixed(1)+'" cy="'+Y(doty).toFixed(1)+'" r="3.5" fill="'+P.accent+'" opacity="0"/>'
+ +'<text id="alab" x="'+X(dotx).toFixed(1)+'" y="'+(m.t+8)+'" fill="'+P.accent+'" font-size="9" text-anchor="middle" opacity="0">anomaly</text>';
+const cpath=chart.querySelector('.curve');
+const L=cpath.getTotalLength();cpath.style.strokeDasharray=L;cpath.style.strokeDashoffset=L;
+cpath.style.transition='stroke-dashoffset 1.1s cubic-bezier(.22,1,.36,1)';
+// ---- build cards (hidden) ----
+D.hyps.forEach(function(h,i){
+ var d=document.createElement('div');d.className='card'+(h.is_null?' null':'');d.style.setProperty('--c',h.color);
+ d.innerHTML='<div class="nm">'+esc(h.label)+'</div>'
+  +'<div class="mech">'+esc(h.mech)+'</div>'
+  +'<div class="src">'+(h.is_null?'⌜ the null — predicts NO downturn':'⌜ '+esc(h.source))+'</div>'
+  +'<div class="tag">'+(h.is_null?'the null we must rule out':esc(h.grounding||'standing prior'))+'</div>';
+ cards.appendChild(d);
+});
+const cardEls=cards.querySelectorAll('.card');
+var timers=[];
+function clearT(){timers.forEach(clearTimeout);timers=[];}
+function at(ms,fn){timers.push(setTimeout(fn,ms));}
+function play(){
+ clearT();
+ cpath.style.strokeDashoffset=L;obscap.style.opacity=0;q.style.opacity=0;q.style.transform='translateY(6px)';
+ ['amark','adot','alab'].forEach(function(id){chart.querySelector('#'+id).setAttribute('opacity','0');});
+ cardEls.forEach(function(c){c.style.opacity=0;c.style.transform='translateY(8px)';});
+ void cpath.getBoundingClientRect();
+ at(120,function(){cpath.style.strokeDashoffset=0;});                 // draw the curve
+ at(1250,function(){chart.querySelector('#amark').setAttribute('opacity','0.8');
+   chart.querySelector('#adot').setAttribute('opacity','1');chart.querySelector('#alab').setAttribute('opacity','0.9');});
+ at(1500,function(){obscap.style.opacity=1;});                        // the observation + surprise
+ at(2900,function(){q.style.opacity=1;q.style.transform='translateY(0)';}); // the question
+ cardEls.forEach(function(c,i){at(3700+i*420,function(){c.style.opacity=(c.classList.contains('null')?0.92:1);c.style.transform='translateY(0)';});});
+}
+document.getElementById('replay').addEventListener('click',play);
+if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+ cpath.style.transition='none';cpath.style.strokeDashoffset=0;obscap.style.opacity=1;q.style.opacity=1;q.style.transform='none';
+ ['amark','adot','alab'].forEach(function(id){chart.querySelector('#'+id).setAttribute('opacity','0.9');});
+ cardEls.forEach(function(c){c.style.opacity=1;c.style.transform='none';});
+}else{play();}
+</script></body></html>"""
+            return (tmpl.replace("__DATA__", data).replace("__PAL__", P)
+                    .replace("__TEXT__", pal["text"]).replace("__MUTED__", pal["muted"])
+                    .replace("__ACCENT__", pal["accent"]).replace("__SURFACE__", pal["surface"])
+                    .replace("__BORDER_SOFT__", pal["border_soft"]).replace("__BORDER__", pal["border"]))
+
         def _ranking_html(rows, theme="dark", height=320, note=""):
             # Master-detail ranking: confidence bars on the left; hovering one fills a side
             # panel with that hypothesis's full prediction breakdown (validated / invalidated
@@ -2611,10 +2722,58 @@ requestAnimationFrame(loop);
                     f"✓ Reliable = ≥2 cited, falsifiable, structured, explained verdicts</div>",
                     unsafe_allow_html=True)
 
-            tabImpact, tabReplay, tabA, tabB, tabE, tabC, tabJ = st.tabs([
-                "🌊 Decision journey", "🎬 Replay", "🧪 Hypotheses & provenance",
-                "✅ Validation board", "🔎 Evidence & matrix", "📊 Compute ledger",
-                "📓 Journal"])
+            tabGenesis, tabImpact, tabReplay, tabA, tabB, tabE, tabC, tabJ = st.tabs([
+                "✨ Genesis", "🌊 Decision journey", "🎬 Replay",
+                "🧪 Hypotheses & provenance", "✅ Validation board",
+                "🔎 Evidence & matrix", "📊 Compute ledger", "📓 Journal"])
+
+            # ---- ✨ Genesis: how the hypotheses were conceived (observation → contenders) ----
+            with tabGenesis:
+                st.markdown("#### How these explanations were conceived")
+                if not hyps:
+                    st.caption("_No hypotheses yet._")
+                else:
+                    def _src_of(_h):
+                        _o = _h.get("origin") or {}
+                        for _s in (_o.get("sources") or []):
+                            _d = _s.get("doi") or _s.get("record_id") or _s.get("hypothesis")
+                            if _d:
+                                return _d
+                        return (_h.get("grounding") or "reasoning")
+
+                    def _is_null(_h):
+                        _t = ((_h.get("mechanism") or "") + " "
+                              + ((_h.get("origin") or {}).get("reasoning") or "")).lower()
+                        return ("no downturn" in _t or "monotonic" in _t
+                                or "null" in _t or "ensemble" in (_h.get("label") or "").lower())
+
+                    def _mech_of(_h):
+                        _m = _h.get("mechanism")
+                        if isinstance(_m, dict):
+                            _m = _m.get("summary") or _m.get("text") or json.dumps(_m)
+                        return (str(_m or _h.get("statement") or "")[:140])
+                    _gh = []
+                    for _h in hyps:
+                        _gh.append({"label": _h["label"] or "H",
+                                    "color": _hcolor.get(_h["label"], "#C97A3C"),
+                                    "mech": _mech_of(_h),
+                                    "grounding": (_h.get("grounding") or "").replace("_", " "),
+                                    "source": _src_of(_h), "is_null": _is_null(_h)})
+                    _obs = (proj.get("goal") or "an unexpected trend in the data")
+                    if len(_obs) > 120:
+                        _obs = _obs[:117] + "…"
+                    _gpay = {
+                        "observation": _obs,
+                        "question": "What mechanism would explain it — and which rivals does it beat?",
+                        # a representative volcano (peak then downturn) — the shape of the anomaly
+                        "curve": [[0.03, 0.0], [0.2, 0.02], [0.5, 0.05], [0.67, 0.09],
+                                  [0.8, 0.18], [0.89, 0.10]],
+                        "hyps": _gh}
+                    components.html(_genesis_html(_gpay, st.session_state.ui_theme), height=380)
+                    st.caption("ISAAC posed the mechanisms the field actually debates — each "
+                               "grounded in the literature and read against your data. The "
+                               "dashed card is the **null** it kept on the board to rule out. "
+                               "↻ replay to watch the reasoning unfold.")
 
             # ---- 🎬 Replay Studio: a data-driven "video" of the whole discovery ----
             with tabReplay:
