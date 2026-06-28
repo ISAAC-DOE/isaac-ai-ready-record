@@ -2462,10 +2462,11 @@ requestAnimationFrame(loop);
                 st.caption(meta)
 
             # --- Calm-landing helpers (the chosen view) ---
-            def _leader_card():
+            def _leader_card_html():
+                # Returns the leader card's inner HTML (shared .lx* classes) for the
+                # two-up flex row, or "" if there's no live hypothesis.
                 if not _alive:
-                    st.caption("No live hypotheses yet — the agent hasn't proposed one.")
-                    return
+                    return ""
                 _ld = max(_alive, key=lambda h: float(h["confidence"] or 0))
                 _sc = discovery.compute_hypothesis_score(_ld)
                 _conf = float(_ld["confidence"] or 0)
@@ -2477,35 +2478,25 @@ requestAnimationFrame(loop);
                     _why = "Confirmed — at least 2 independent decisive tests agree."
                 else:
                     _chip, _chipcol = "provisional", _pal["muted"]
-                    _why = (f"Ahead, but not yet confirmed. ISAAC promotes a hypothesis only "
-                            f"after 2 independent decisive tests agree — {_nd} so far. It "
-                            f"reports the rank and tells you when it isn't certain. By design.")
-                st.markdown(
-                    f"<div style='border:1px solid {_pal['border']};border-left:4px solid {_col};"
-                    f"border-radius:12px;padding:14px 18px;margin:10px 0 6px'>"
-                    f"<div style='font-size:0.72em;letter-spacing:0.12em;text-transform:uppercase;"
-                    f"color:{_pal['muted']}'>Leading explanation</div>"
+                    _why = (f"Ahead, not yet confirmed — a hypothesis is promoted only after "
+                            f"2 independent decisive tests agree ({_nd} so far). By design.")
+                return (
+                    f"<div class='lxc' style='border-left:4px solid {_col}'>"
+                    f"<div class='lxlab'>Leading explanation</div>"
                     f"<div style='display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:5px'>"
-                    f"<span style='font-size:1.15em;font-weight:700;color:{_col}'>{html.escape(_ld['label'] or 'H')}</span>"
-                    f"<span style='font-size:1.55em;font-weight:700;color:{_pal['text']};"
-                    f"font-variant-numeric:tabular-nums'>{_conf:.2f}</span>"
-                    f"<span style='font-size:0.74em;border:1px solid {_chipcol};color:{_chipcol};"
-                    f"border-radius:20px;padding:2px 11px'>{_chip}</span></div>"
-                    f"<div style='color:{_pal['text']};margin-top:9px;font-size:1.0em'>"
-                    f"{html.escape(_ld.get('statement') or '')}</div>"
-                    f"<div style='color:{_pal['muted']};margin-top:8px;font-size:0.83em'>{html.escape(_why)}</div>"
-                    f"</div>", unsafe_allow_html=True)
+                    f"<span class='lxname' style='color:{_col}'>{html.escape(_ld['label'] or 'H')}</span>"
+                    f"<span class='lxbig'>{_conf:.2f}</span>"
+                    f"<span class='lxchip' style='border:1px solid {_chipcol};color:{_chipcol}'>{_chip}</span></div>"
+                    f"<div class='lxstmt'>{html.escape(_ld.get('statement') or '')}</div>"
+                    f"<div class='lxsub'>{html.escape(_why)}</div></div>")
 
-            def _next_moves():
-                # The next most valuable thing to do — up to 3, #1 with WHY it's #1. Sourced
-                # from the agent's own discriminating next_experiment + the briefing's
-                # recommended_actions. The hero line answers "why do more even at high
-                # confidence": belief != confirmation; a provisional leader needs proving,
-                # a confirmed one needs hardening / the last rival ruled out.
+            def _next_moves_html():
+                # Returns the next-moves card's inner HTML (shared .lx* classes), or "".
+                # Shows ONLY #1 (the most valuable move) by default; #2/#3 reveal on hover.
                 _ne = brief.get("next_experiment") or data.get("next_experiment")
                 _recs = brief.get("recommended_actions") or []
                 if not (_ne and (_ne.get("rationale") or _ne.get("title"))) and not _recs:
-                    return
+                    return ""
                 _pal = branding.palette(st.session_state.ui_theme)
                 _c = _pal["accent"]
                 _ld = (max(_alive, key=lambda h: float(h["confidence"] or 0))
@@ -2533,61 +2524,85 @@ requestAnimationFrame(loop);
                     _tags = []
                     if _ne.get("discriminates"):
                         _tags.append("⚔️ decides between rivals")
-                    _tags.append("🔓 would confirm the leader" if not _rel
-                                 else "🧪 hardens the result")
+                    _tags.append("🔓 confirms the leader" if not _rel else "🧪 hardens it")
                     _tags.append("📉 could falsify it")
                     _why = (_ne.get("rationale") or "")
-                    if len(_why) > 260:
-                        _why = _why[:257] + "…"
-                    _moves.append({"n": 1, "title": _ne.get("title")
-                                   or "Run the discriminating experiment",
-                                   "why": _why, "tags": _tags})
+                    if len(_why) > 150:
+                        _why = _why[:147] + "…"
+                    _t1 = _ne.get("title") or "Run the discriminating experiment"
+                    if len(_t1) > 88:
+                        _t1 = _t1[:85] + "…"
+                    _moves.append({"n": 1, "title": _t1, "why": _why, "tags": _tags})
                 for _a in _recs:
                     if len(_moves) >= 3:
                         break
-                    _t = _a.split(" — ")[0].split(". ")[0].strip()[:96]
+                    _t = _a.split(" — ")[0].split(". ")[0].strip()[:80]
                     _moves.append({"n": len(_moves) + 1, "title": _t,
                                    "why": "", "tags": [_tag_for(_a)]})
                 if not _moves:
-                    return
+                    return ""
                 if _ld and not _rel:
-                    _hero = (f"Leading at <b>{_conf:.2f}</b> — but provisional. Here's what "
-                             "would <b>prove</b> it, and what could <b>break</b> it:")
+                    _hero = (f"Leading at <b>{_conf:.2f}</b>, still provisional — the move that "
+                             "would <b>prove</b> it (or <b>break</b> it):")
                 elif _ld and _rel:
-                    _hero = (f"Confirmed at <b>{_conf:.2f}</b> — here's what would "
+                    _hero = (f"Confirmed at <b>{_conf:.2f}</b> — the move that would "
                              "<b>harden</b> it or rule out the last rival:")
                 else:
-                    _hero = "What's most worth doing next:"
-                _rows = ""
-                for _mv in _moves:
-                    _tagstr = " · ".join(_mv["tags"])
-                    if _mv["n"] == 1:
+                    _hero = "The most valuable thing to do next:"
+                _m1 = _moves[0]
+                _more = ""
+                if len(_moves) > 1:
+                    _rows = ""
+                    for _mv in _moves[1:]:
                         _rows += (
-                            f"<div style='border-left:3px solid {_c};padding:6px 0 6px 12px;"
-                            f"margin:9px 0 6px'>"
-                            f"<div style='font-size:0.70em;color:{_c};text-transform:uppercase;"
-                            f"letter-spacing:0.08em;font-weight:700'>#1 most valuable · "
-                            f"{_tagstr}</div>"
-                            f"<div style='font-weight:700;color:{_pal['text']};margin:3px 0;"
-                            f"font-size:1.0em'>{html.escape(_mv['title'])}</div>"
-                            + (f"<div style='color:{_pal['muted']};font-size:0.86em;"
-                               f"line-height:1.45'>{html.escape(_mv['why'])}</div>"
-                               if _mv["why"] else "") + "</div>")
-                    else:
-                        _rows += (
-                            f"<div style='display:flex;gap:10px;align-items:baseline;"
-                            f"padding:5px 0;border-top:1px solid {_pal['border_soft']}'>"
-                            f"<span style='color:{_pal['muted']};font-weight:700'>{_mv['n']}</span>"
-                            f"<span style='flex:1;color:{_pal['text']};font-size:0.9em'>"
-                            f"{html.escape(_mv['title'])} <span style='color:{_pal['muted']};"
-                            f"font-size:0.85em'>— {_mv['tags'][0]}</span></span></div>")
-                st.markdown(
-                    f"<div style='border:1px solid {_pal['border']};border-left:4px solid {_c};"
-                    f"border-radius:12px;padding:13px 18px;margin:6px 0'>"
-                    f"<div style='font-size:0.72em;letter-spacing:0.12em;text-transform:uppercase;"
-                    f"color:{_pal['muted']}'>Next moves · ranked by value</div>"
-                    f"<div style='color:{_pal['text']};margin:5px 0 2px;font-size:0.95em'>"
-                    f"{_hero}</div>{_rows}</div>", unsafe_allow_html=True)
+                            f"<div class='lxmrow'><span style='color:{_pal['muted']};"
+                            f"font-weight:700'>{_mv['n']}</span><span style='flex:1'>"
+                            f"{html.escape(_mv['title'])} <span style='color:{_pal['muted']}'>— "
+                            f"{_mv['tags'][0]}</span></span></div>")
+                    _more = (f"<div class='lxhint'>↓ {len(_moves) - 1} more on hover</div>"
+                             f"<div class='lxmore'>{_rows}</div>")
+                return (
+                    f"<div class='lxc moves' style='border-left:4px solid {_c}'>"
+                    f"<div class='lxlab'>Next move · ranked by value</div>"
+                    f"<div class='lxstmt' style='font-size:0.92em'>{_hero}</div>"
+                    f"<div class='lxmtags'>{' · '.join(_m1['tags'])}</div>"
+                    f"<div class='lxmtitle'>{html.escape(_m1['title'])}</div>"
+                    + (f"<div class='lxsub' style='margin-top:3px'>{html.escape(_m1['why'])}</div>"
+                       if _m1["why"] else "")
+                    + _more + "</div>")
+
+            def _render_lead_and_moves():
+                # Two equal-height columns: the leading explanation and the next move,
+                # one shared type scale. Falls back to one card (or a note) gracefully.
+                _lc = _leader_card_html()
+                _nm = _next_moves_html()
+                if not _lc and not _nm:
+                    st.caption("No live hypotheses yet — the agent hasn't proposed one.")
+                    return
+                _p = branding.palette(st.session_state.ui_theme)
+                _css = ("<style>"
+                        ".lxr{display:flex;gap:14px;align-items:stretch;flex-wrap:wrap;margin:10px 0 6px;}"
+                        ".lxc{flex:1 1 320px;min-width:280px;box-sizing:border-box;"
+                        "border:1px solid %(bd)s;border-radius:12px;padding:15px 18px;}"
+                        ".lxlab{font-size:0.72em;letter-spacing:.12em;text-transform:uppercase;color:%(mut)s;}"
+                        ".lxname{font-size:1.12em;font-weight:700;}"
+                        ".lxbig{font-size:1.5em;font-weight:700;color:%(txt)s;font-variant-numeric:tabular-nums;}"
+                        ".lxchip{font-size:0.74em;border-radius:20px;padding:2px 11px;}"
+                        ".lxstmt{color:%(txt)s;font-size:0.96em;line-height:1.5;margin-top:9px;}"
+                        ".lxsub{color:%(mut)s;font-size:0.83em;line-height:1.45;margin-top:8px;}"
+                        ".lxmtags{font-size:0.70em;color:%(acc)s;text-transform:uppercase;"
+                        "letter-spacing:.06em;font-weight:700;margin-top:9px;}"
+                        ".lxmtitle{font-weight:700;color:%(txt)s;font-size:1.0em;margin-top:3px;}"
+                        ".lxhint{font-size:0.78em;color:%(mut)s;margin-top:10px;}"
+                        ".lxmore{max-height:0;overflow:hidden;opacity:0;"
+                        "transition:max-height .25s ease,opacity .25s ease;}"
+                        ".lxmrow{display:flex;gap:9px;padding:6px 0;border-top:1px solid %(bds)s;font-size:0.86em;color:%(txt)s;}"
+                        ".lxc.moves:hover .lxmore{max-height:200px;opacity:1;}"
+                        ".lxc.moves:hover .lxhint{opacity:0;height:0;margin:0;}"
+                        "</style>") % {"bd": _p["border"], "bds": _p["border_soft"],
+                                       "mut": _p["muted"], "txt": _p["text"], "acc": _p["accent"]}
+                st.markdown(_css + f"<div class='lxr'>{_lc}{_nm}</div>",
+                            unsafe_allow_html=True)
 
             def _ranking_block():
                 st.markdown("#### How the explanations rank")
@@ -2696,8 +2711,7 @@ requestAnimationFrame(loop);
             # → the tabs (constellation + river). The diagnostic expanders (status,
             # resumable, rigor, briefing) are rendered AFTER the tabs (see end of function)
             # so they don't break that flow.
-            _leader_card()
-            _next_moves()
+            _render_lead_and_moves()
             _ranking_block()
 
             preds = [p for h in hyps for p in h["predictions"]]
