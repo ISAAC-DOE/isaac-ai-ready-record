@@ -3348,7 +3348,7 @@ requestAnimationFrame(loop);
                         _markers.append({"t": _t_pos, "type": e["event_type"],
                                          "summary": _summary, "deltas": _deltas,
                                          "hyp_ids": _hyp_ids})
-                    st.markdown("**The river of belief** — how confidence in each mechanism "
+                    st.markdown("**Confidence trajectories** — how confidence in each mechanism "
                                 "evolved as evidence arrived")
                     components.html(_river_html(
                         {"steps": _steps,
@@ -3363,7 +3363,7 @@ requestAnimationFrame(loop);
                                "run — the leader swells, eliminated mechanisms thin out. Dashed "
                                "marks are where evidence or compute landed — **hover one** to see "
                                "what happened and which beliefs moved (and by how much). On "
-                               "resume, new evidence extends the river: the discovery's "
+                               "resume, new evidence extends each trajectory: the discovery's "
                                "evolution, live.")
 
             # ---- E: Evidence index (by descriptor) + discrimination matrix ----
