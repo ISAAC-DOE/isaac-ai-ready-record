@@ -555,11 +555,13 @@ def records_query():
     SELECT/WITH only, single statement, statement timeout, row cap 500, least-privilege
     read-only DB role — delegates to database.execute_readonly_query.
 
-    Access: ANY authenticated user may query, but a non-admin is scoped to the `records`
-    table (operational/log/ACL tables are admin-only). Admins may also read other
-    non-system tables. The records table schema:
-    records(record_id CHAR(26), record_type, record_domain, data JSONB, version,
-    content_hash, created_at). JSONB paths: data->'context'->'electrochemistry'->>'reaction'.
+    Access: ANY authenticated user may read NON-SENSITIVE tables — `records`,
+    `record_history`, `vocabulary_cache` (the controlled ontology), `templates`. SENSITIVE
+    tables (usage/access logs with PII, `record_acl`, `vocabulary_proposals`) are admin-only.
+    Enforced in two layers: the in-code belt (database._AGENT_FORBIDDEN_TABLES) and the
+    isaac_readonly role's grants (see docs/READONLY_QUERY_GRANTS.md).
+    records schema: records(record_id CHAR(26), record_type, record_domain, data JSONB,
+    version, content_hash, created_at). JSONB: data->'context'->'electrochemistry'->>'reaction'.
     """
     body = request.get_json(silent=True) or {}
     sql = body.get("sql", "")
