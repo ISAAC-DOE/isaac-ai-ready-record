@@ -416,6 +416,10 @@ def init_discovery_tables():
         # compute_running | evaluated.
         cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS "
                     "work_status TEXT NOT NULL DEFAULT 'awaiting_evidence'")
+        # evidence_pins: {record_id, version, content_hash} snapshot at evaluate-time, so a
+        # later MATERIAL edit to a cited record can be flagged (drift) for re-examination.
+        # Sidecar to evidence_record_ids (TEXT[]) — the scorer's dedup key is untouched.
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS evidence_pins JSONB")
         cur.execute('''
             CREATE TABLE IF NOT EXISTS hyp_events (
                 id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -1013,6 +1017,19 @@ def record_snapshot(record_id: str, version: int):
                        ORDER BY archived_at DESC LIMIT 1''', (record_id, version))
         r = cur.fetchone()
         return r["data"] if r else None
+    finally:
+        cur.close(); conn.close()
+
+
+def record_version_hash(record_id: str):
+    """Lightweight {version, content_hash} for a record, or None. Read-only — the discovery
+    side calls this to PIN cited evidence and later detect drift, without coupling to the
+    record's data or the records DB write path."""
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute("SELECT version, content_hash FROM records WHERE record_id=%s", (record_id,))
+        r = cur.fetchone()
+        return {"version": r["version"], "content_hash": r["content_hash"]} if r else None
     finally:
         cur.close(); conn.close()
 

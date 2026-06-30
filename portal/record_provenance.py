@@ -139,3 +139,33 @@ def diff_paths(old: dict, new: dict) -> list:
 
     walk(old or {}, new or {}, "")
     return changes
+
+
+def evidence_drift(predictions, current_hashes) -> list:
+    """Detect cited evidence that was MATERIALLY edited since it was used to reason.
+
+    Only considers predictions that carry a VERDICT — i.e. evidence actually used for a
+    hypothesis. Records merely browsed in a project (no verdict) are never flagged.
+
+    predictions:    [{prediction_id, hypothesis, verdict,
+                      evidence_pins:[{record_id, version, content_hash}]}]
+    current_hashes: {record_id: current_content_hash}  (None => unknown, stay silent)
+    Returns one entry per drifted (prediction, record): {prediction_id, hypothesis,
+    record_id, pinned_version, pinned_hash, current_hash}.
+    """
+    out = []
+    for p in predictions or []:
+        if not p.get("verdict"):
+            continue  # not used for a hypothesis verdict -> no warning
+        for pin in (p.get("evidence_pins") or []):
+            rid, pinned = pin.get("record_id"), pin.get("content_hash")
+            if not rid or not pinned:
+                continue  # legacy/unpinned -> cannot detect, stay silent
+            cur = current_hashes.get(rid)
+            if cur is not None and cur != pinned:
+                out.append({"prediction_id": p.get("prediction_id"),
+                            "hypothesis": p.get("hypothesis"),
+                            "record_id": rid,
+                            "pinned_version": pin.get("version"),
+                            "pinned_hash": pinned, "current_hash": cur})
+    return out

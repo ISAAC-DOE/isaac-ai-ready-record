@@ -1843,13 +1843,16 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
         row = cur.fetchone()
         if row is None:
             return False
+        # Pin the cited evidence at evaluate-time so a later MATERIAL edit can be flagged
+        # (drift). Re-evaluating re-pins -> the warning self-clears.
+        _pins = _pin_evidence(evidence_record_ids)
         cur.execute(
             """UPDATE hyp_predictions
                   SET verdict=%s, strength=%s, evidence_record_ids=%s,
                       rationale=%s, mlflow_run_url=%s, evidence_independence=%s,
                       margin=%s, cross_system=%s, reliability_tier=%s,
                       reliability_basis=%s, observable_key=%s, literature=%s,
-                      work_status='evaluated', updated_at=NOW()
+                      evidence_pins=%s, work_status='evaluated', updated_at=NOW()
                 WHERE prediction_id=%s""",
             (verdict, strength, evidence_record_ids, rationale, mlflow_run_url,
              json.dumps(evidence_independence) if evidence_independence is not None
@@ -1859,6 +1862,7 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
              json.dumps(reliability_basis) if reliability_basis is not None else None,
              (observable_key or None),
              json.dumps(lit_clean) if lit_clean is not None else None,
+             json.dumps(_pins) if _pins else None,
              prediction_id))
         _circ = _circularity_flag(evidence_independence)
         _detail = rationale
@@ -2711,6 +2715,53 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
 
 # --- Briefing (the curated "universal truth" digest the agent reads first) --
 
+def _pin_evidence(evidence_record_ids):
+    """Snapshot {record_id, version, content_hash} for each cited record at evaluate-time
+    (read-only cross-DB lookup into the records store). Degrades to no pin for an id whose
+    lookup fails — pinning is best-effort and never blocks an evaluation."""
+    pins = []
+    for rid in (evidence_record_ids or []):
+        try:
+            vh = database.record_version_hash(rid)
+        except Exception:
+            vh = None
+        if vh:
+            pins.append({"record_id": rid, "version": vh.get("version"),
+                         "content_hash": vh.get("content_hash")})
+    return pins
+
+
+def _evidence_drift_for(hyps):
+    """Pull-based drift check: for predictions that carry a VERDICT (evidence actually used
+    for a hypothesis — browsed-but-unused records are ignored), re-hash their cited records
+    and flag any materially edited since the pin. Read-only; degrades to [] on any
+    records-DB hiccup (never blocks a briefing). NEVER touches a score."""
+    import record_provenance as _rp
+    preds, rids = [], set()
+    for h in (hyps or []):
+        for p in (h.get("predictions") or []):
+            if not p.get("verdict"):
+                continue
+            pins = p.get("evidence_pins") or []
+            if not pins:
+                continue
+            preds.append({"prediction_id": p.get("prediction_id"), "hypothesis": h.get("label"),
+                          "verdict": p.get("verdict"), "evidence_pins": pins})
+            for pin in pins:
+                if pin.get("record_id") and pin.get("content_hash"):
+                    rids.add(pin["record_id"])
+    if not rids:
+        return []
+    current = {}
+    for rid in rids:
+        try:
+            vh = database.record_version_hash(rid)
+        except Exception:
+            vh = None
+        current[rid] = (vh or {}).get("content_hash")
+    return _rp.evidence_drift(preds, current)
+
+
 def get_briefing(project_id, owner_identity=None) -> dict | None:
     """A compact, server-curated summary of where the project stands RIGHT NOW —
     the canonical ground truth both the human header and the agent consume.
@@ -3146,6 +3197,23 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "its turn (human_directive event). The prompt is a method input; a trace "
             "without it can't be reproduced.")
 
+    # EVIDENCE DRIFT: cited records MATERIALLY edited since they were used for a verdict.
+    # Advisory only — a flag to re-examine; it NEVER moves a score (re-evaluate to re-pin,
+    # and the warning clears itself). Records merely browsed (no verdict) are not flagged.
+    evidence_drift = _evidence_drift_for(hyps)
+    if evidence_drift:
+        _by_hyp = {}
+        for _d in evidence_drift:
+            _by_hyp.setdefault(_d["hypothesis"], set()).add(_d["record_id"])
+        for _h, _rids in _by_hyp.items():
+            _ids = list(_rids)
+            recommended_actions.append(
+                f"⚠ EVIDENCE REVISED: {len(_rids)} record(s) you CITED on {_h} "
+                f"({', '.join(_ids[:4])}{'…' if len(_ids) > 4 else ''}) were edited since you "
+                "used them to reason. RE-EXAMINE the affected verdict(s) and re-evaluate to "
+                "re-pin (the warning clears itself). This did NOT change any score — confidence "
+                "stays on the evidence you actually weighed.")
+
     return {
         "project_id": project_id,
         "title": proj["title"],
@@ -3162,6 +3230,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         "open_questions": open_q,
         "pending_compute": pending_compute,
         "failed_compute": failed_compute,   # crashed/non-converged calcs — re-run to-dos, no score effect
+        "evidence_drift": evidence_drift,    # cited records edited since used — re-examine, NO score effect
         "discrimination_matrix": matrix,
         "convergence": convergence,
         "pending_work": pending_work,
@@ -3177,6 +3246,9 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "hypotheses_with_single_descriptor": hyps_single_descriptor,
             "predictions_missing_structured_fields": preds_missing_structure,
             "unreliable_scores_too_few_predictions": unreliable_scores,
+            "verdicts_resting_on_revised_evidence": [
+                {"hypothesis": _d["hypothesis"], "record_id": _d["record_id"],
+                 "prediction_id": _d["prediction_id"]} for _d in evidence_drift],
             "predictions_missing_origin_provenance": preds_without_origin,
             "predictions_missing_falsification_criterion": preds_without_criterion,
             "decisive_verdicts_unexplained": preds_unexplained,

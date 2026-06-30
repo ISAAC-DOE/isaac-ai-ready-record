@@ -132,3 +132,29 @@ def test_diff_paths_added_key():
     ch = rp.diff_paths({"descriptors": {"x": 1}}, {"descriptors": {"x": 1, "y": 9}})
     assert any(c["path"] == "descriptors.y" and c["old"] is None and c["new"] == 9 for c in ch)
     assert not rp.diff_paths(BASE, copy.deepcopy(BASE))
+
+
+# ---- evidence drift (discovery integration) -------------------------------
+
+def test_drift_flags_only_cited_for_a_verdict():
+    preds = [
+        {"prediction_id": "P1", "hypothesis": "H-A", "verdict": "supports",
+         "evidence_pins": [{"record_id": "R1", "version": 1, "content_hash": "h1"}]},
+        {"prediction_id": "P2", "hypothesis": "H-A", "verdict": None,   # browsed, not used
+         "evidence_pins": [{"record_id": "R2", "version": 1, "content_hash": "hX"}]},
+    ]
+    drift = rp.evidence_drift(preds, {"R1": "h2", "R2": "hY"})  # both records changed
+    assert len(drift) == 1 and drift[0]["record_id"] == "R1" and drift[0]["hypothesis"] == "H-A"
+
+
+def test_drift_silent_when_unchanged():
+    preds = [{"prediction_id": "P1", "hypothesis": "H", "verdict": "contradicts",
+              "evidence_pins": [{"record_id": "R1", "version": 2, "content_hash": "h"}]}]
+    assert rp.evidence_drift(preds, {"R1": "h"}) == []
+
+
+def test_drift_skips_unpinned_and_unknown():
+    preds = [{"prediction_id": "P", "hypothesis": "H", "verdict": "supports",
+              "evidence_pins": [{"record_id": "R1", "content_hash": None},   # legacy
+                                {"record_id": "R2", "content_hash": "h"}]}]   # current unknown
+    assert rp.evidence_drift(preds, {"R2": None}) == []
