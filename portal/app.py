@@ -1373,6 +1373,64 @@ elif page == "API Documentation":
 
     st.divider()
 
+    # --- Edit a record you own ---
+    st.markdown("#### Edit a Record (your own)")
+    st.code("PUT /portal/api/records/<record_id>", language="text")
+    st.markdown("""
+    Update an **existing** record by re-submitting the **complete** record JSON.
+    `POST` cannot overwrite (it is insert-only); editing always goes through `PUT`.
+
+    **Who may edit:** the record's **owner** (whoever submitted it — your identity is
+    stamped automatically on upload), an explicit **collaborator** (see below), or an
+    **admin**. Anyone else gets `403`.
+
+    - Ownership never changes on an edit. The previous version is **archived** (recoverable)
+      and the record's `version` is bumped.
+    - Optional `If-Match: <version>` header → safe against concurrent edits
+      (`412` if the version moved, `409` on a concurrent write).
+    - Optional `change_note` (in the body or `?change_note=`) records *why* you edited.
+    """)
+    st.code('''curl -X PUT https://isaac.slac.stanford.edu/portal/api/records/<record_id> \\
+  -H "Content-Type: application/json" -H "Authorization: Bearer <token>" \\
+  -H "If-Match: 1" \\
+  -d '<the full, updated record JSON>' ''', language="bash")
+    st.markdown("Returns `200 {success, version, content_hash, change_class}`.")
+
+    st.divider()
+
+    # --- Collaborators (co-author ACL) ---
+    st.markdown("#### Collaborators — let a co-author edit your record")
+    st.markdown("""
+    The record **owner** (or an admin) can grant another portal user editor access, so
+    co-authors can edit without being an admin. Collaborators are keyed on portal username.
+    """)
+    st.code("""GET    /portal/api/records/<record_id>/collaborators
+POST   /portal/api/records/<record_id>/collaborators      {"identity": "<username>"}
+DELETE /portal/api/records/<record_id>/collaborators/<username>""", language="text")
+
+    st.divider()
+
+    # --- History / diff ---
+    st.markdown("#### Version History & Diff")
+    st.code("""GET /portal/api/records/<record_id>/history
+GET /portal/api/records/<record_id>/diff?from=<v>&to=<v|current>""", language="text")
+    st.markdown("Every edit is versioned and archived; `history` lists versions (actor, "
+                "when, change note), `diff` shows the field-level changes between two versions.")
+
+    st.divider()
+
+    # --- Admin: owner reassignment ---
+    st.markdown("#### Correct a Record's Owner (admin only)")
+    st.code("""PATCH /portal/api/records/<record_id>/owner   {"uploaded_by": "<username>", "reason": "..."}
+PATCH /portal/api/records/owner               {"record_ids": [...], "uploaded_by": "<username>", "reason": "..."}""", language="text")
+    st.markdown("""
+    **Admin only.** Corrects who owns a record (e.g. a batch ingested under the wrong
+    identity). Archived + audited; the new owner can then self-serve edits. This is the
+    **only** way ownership changes — a normal edit never transfers it.
+    """)
+
+    st.divider()
+
     # --- Python example ---
     st.subheader("Python Example")
     st.markdown("List records and fetch a single record using `requests`:")
