@@ -1349,7 +1349,9 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
         low = stripped.lower()
         hit = [tbl for tbl in _AGENT_FORBIDDEN_TABLES if re.search(r'\b' + tbl + r'\b', low)]
         if hit:
-            raise ValueError(f"nano-ISAAC may only query scientific records, not {hit[0]}.")
+            raise ValueError(
+                f"This query is scoped to the scientific `records` table; "
+                f"`{hit[0]}` is an operational table and is restricted to admins.")
 
     # Single statement only — reject stacked statements (a ';' that is not the
     # trailing one we already stripped). Defeats "SELECT 1; <anything>".
