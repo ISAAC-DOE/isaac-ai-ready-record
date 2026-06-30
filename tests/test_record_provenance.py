@@ -7,9 +7,12 @@ re-save reads as a change) or misses real edits. These tests pin that contract.
 """
 import copy
 import json
+import sys
+from pathlib import Path
 import pytest
 
-from portal import record_provenance as rp
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "portal"))
+import record_provenance as rp  # noqa: E402
 
 
 def _jsonb_roundtrip(rec):

@@ -3,7 +3,10 @@
 These pin every authorization decision the editing feature can make. If any of these
 flips, an unauthorized edit or an ACL escalation became possible.
 """
-from portal import record_authz as az
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "portal"))
+import record_authz as az  # noqa: E402
 
 OWNED = {"attribution": {"uploaded_by": "mahajan"}}
 UNOWNED = {"attribution": {}}                 # legacy record, no uploaded_by
