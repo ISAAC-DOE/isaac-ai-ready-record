@@ -1456,6 +1456,49 @@ elif page == "API Documentation":
 
     st.divider()
 
+    # --- Query records (read-only SQL) ---
+    st.markdown("#### Query Records (read-only SQL)")
+    st.code("POST /portal/api/records/query", language="text")
+    st.markdown("""
+    Run a **read-only** `SELECT`/`WITH` over the records (and other non-sensitive reference
+    tables). Open to any authenticated user. Guardrails: a **single** statement, no writes/DDL,
+    no system catalogs, a statement timeout, and `LIMIT` capped at **500**.
+    Body: `{"sql": "SELECT ...", "max_rows": 100}`.
+
+    The scientific content is a JSONB column `data`. Use `->` to get a JSON value and `->>`
+    to get it **as text**:
+    """)
+    st.markdown("`data->'context'` (object) · "
+                "`data->'context'->'electrochemistry'->>'reaction'` (text) · "
+                "`data->'descriptors'->'faradaic_efficiency'->>'C2H4'` (text)")
+    st.markdown("**Example queries:**")
+    st.code("""-- columns + a nested JSONB value as text
+SELECT record_id, record_type,
+       data->'context'->'electrochemistry'->>'reaction' AS reaction
+FROM records LIMIT 20;
+
+-- filter on a nested JSONB field
+SELECT record_id FROM records
+WHERE data->'context'->'electrochemistry'->>'reaction' = 'CO2RR'
+LIMIT 50;
+
+-- count records by type
+SELECT record_type, COUNT(*) AS n FROM records GROUP BY record_type ORDER BY n DESC;""",
+            language="sql")
+    st.markdown("**curl.** Heads-up: JSONB keys need single quotes *inside* the SQL, which "
+                "collide with a single-quoted shell `-d '...'`. Simplest fix — put the body in "
+                "a file:")
+    st.code("""cat > q.json <<'EOF'
+{"sql": "SELECT record_id, data->'context'->'electrochemistry'->>'reaction' AS reaction FROM records LIMIT 5"}
+EOF
+curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -X POST https://isaac.slac.stanford.edu/portal/api/records/query -d @q.json""",
+            language="bash")
+    st.markdown("Returns `{\"rows\": [...], \"row_count\": N, \"truncated_at\": <max|null>}`. "
+                "A malformed query returns a clear `400 {\"error\": \"SQL error: ...\"}`. "
+                "Sensitive tables (usage/access logs, ACLs, proposals) are admin-only.")
+
+    st.divider()
+
     # --- Edit a record you own ---
     st.markdown("#### Edit a Record (your own)")
     st.code("PUT /portal/api/records/<record_id>", language="text")
