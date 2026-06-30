@@ -16,6 +16,7 @@ import json
 import time
 import logging
 import functools
+import hmac
 from pathlib import Path
 
 import requests as http_requests
@@ -64,6 +65,14 @@ AUTHENTIK_INTERNAL_URL = os.environ.get(
 )
 ALLOWED_GROUPS = {"admin", "researcher"}
 ADMIN_GROUPS = {"admin"}
+
+# Shared secret authenticating the isaac-mlflow auth-proxy (a separate service,
+# separate namespace) when it asks the portal whether a user may read/write a
+# Discovery project's MLflow experiment — see /portal/api/internal/discovery_access.
+# Server-to-server only; the proxy presents it in the X-Mlflow-Proxy header.
+# Unset => the internal endpoint refuses every call (fail-closed), so a
+# misconfigured deploy denies access rather than leaking it.
+MLFLOW_PROXY_SECRET = os.environ.get("MLFLOW_PROXY_SECRET", "")
 
 # ---------------------------------------------------------------------------
 # Startup: ensure DB tables exist and vocabulary cache is current
@@ -1006,6 +1015,89 @@ def discovery_unshare_project(project_id, identity):
     if not ok:
         return jsonify({"error": "not found or not yours"}), 404
     return jsonify({"ok": True, "revoked": identity}), 200
+
+
+# ---------------------------------------------------------------------------
+# Internal: MLflow auth-proxy per-project ACL
+# ---------------------------------------------------------------------------
+# The isaac-mlflow auth-proxy gates MLflow access per Discovery project by
+# reusing THIS portal's share model as the single source of truth (one MLflow
+# experiment per project, named ISAAC-Discovery-<project_id>). These routes are
+# authenticated by the X-Mlflow-Proxy shared secret — NOT a user Bearer token:
+# the proxy calls them as itself, server-to-server, in-cluster.
+def _proxy_secret_ok(req) -> bool:
+    """Constant-time check of the X-Mlflow-Proxy shared secret. Fail-closed when
+    the secret is unset (a misconfigured proxy gets denied, never waved through)."""
+    if not MLFLOW_PROXY_SECRET:
+        return False
+    return hmac.compare_digest(req.headers.get("X-Mlflow-Proxy", ""), MLFLOW_PROXY_SECRET)
+
+
+def _discovery_access(identity, project_id, cur=None) -> dict:
+    """Resolve {exists, read, write} for (identity, project_id) using the same
+    owner/share logic the rest of Discovery uses. Pass an open cursor to reuse
+    one connection across a batch; otherwise opens/closes its own."""
+    own_conn = cur is None
+    conn = None
+    if own_conn:
+        conn = database.get_discovery_db_connection()
+        cur = conn.cursor()
+    try:
+        cur.execute("SELECT 1 FROM hyp_projects WHERE project_id=%s", (project_id,))
+        if cur.fetchone() is None:
+            return {"exists": False, "read": False, "write": False}
+        return {
+            "exists": True,
+            "read": bool(discovery._can_read(cur, project_id, identity)),
+            "write": bool(discovery._can_write(cur, project_id, identity)),
+        }
+    finally:
+        if own_conn:
+            cur.close()
+            conn.close()
+
+
+@app.route("/portal/api/internal/discovery_access", methods=["GET"])
+def discovery_access_check():
+    if not _proxy_secret_ok(request):
+        return jsonify({"error": "forbidden"}), 403
+    identity = request.args.get("identity")
+    project_id = request.args.get("project_id")
+    if not identity or not project_id:
+        return jsonify({"error": "identity and project_id are required"}), 400
+    return jsonify(_discovery_access(identity, project_id)), 200
+
+
+@app.route("/portal/api/internal/discovery_access", methods=["POST"])
+def discovery_access_check_batch():
+    """Batch variant: {identity, project_ids:[...]} -> {pid: {exists,read,write}}.
+    Lets the proxy resolve a whole experiments/search page in one round-trip."""
+    if not _proxy_secret_ok(request):
+        return jsonify({"error": "forbidden"}), 403
+    d = request.get_json(silent=True) or {}
+    identity = d.get("identity")
+    project_ids = d.get("project_ids")
+    if not identity or not isinstance(project_ids, list):
+        return jsonify({"error": "identity and project_ids[] are required"}), 400
+    conn = database.get_discovery_db_connection()
+    cur = conn.cursor()
+    out = {}
+    try:
+        for pid in project_ids:
+            if not isinstance(pid, str):
+                continue
+            try:
+                out[pid] = _discovery_access(identity, pid, cur=cur)
+            except Exception:
+                # One bad project_id must not 500 the whole page; reset the
+                # aborted transaction so the shared cursor stays usable, and
+                # fail closed for this entry.
+                conn.rollback()
+                out[pid] = {"exists": False, "read": False, "write": False}
+    finally:
+        cur.close()
+        conn.close()
+    return jsonify(out), 200
 
 
 @app.route("/portal/api/projects/<project_id>", methods=["DELETE"])

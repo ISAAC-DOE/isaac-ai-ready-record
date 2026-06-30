@@ -206,6 +206,31 @@ The dashboard renders `compute_submitted` / `compute_running` predictions as
 - Use the event-type, `work_status`, `status`, and `verdict` vocabularies above
   verbatim.
 
+## Experiment tracking (MLflow) — same key, per-project access
+
+Trace logging goes to **ISAAC-MLflow**. Point your client at it with **your portal
+API key** — the same Bearer token you already use here, no separate credential:
+
+```bash
+export MLFLOW_TRACKING_URI="https://isaac.slac.stanford.edu/isaac-mlflow/api/external"
+export MLFLOW_TRACKING_TOKEN="<your portal API key>"   # pip install mlflow==3.12.0
+```
+```python
+import mlflow
+mlflow.set_experiment(f"ISAAC-Discovery-{project_id}")   # one experiment per project
+mlflow.anthropic.autolog()                               # capture LLM-call traces
+with mlflow.start_run(run_name="turn-…"):
+    ...                                                  # your reasoning + compute
+```
+
+**Access is gated per project, in lockstep with sharing.** You can read/write the
+experiment for a project you own or that's shared with you — and no one else's.
+Sharing a project (`POST /projects/{id}/share`) shares its traces too; a read-only
+share can view but not log. Put the resulting run URL back on the dashboard
+(`mlflow_run_url`) so the two cross-link. Everyone — in-cluster and external —
+uses this same token-authenticated endpoint; there is no tokenless in-cluster
+shortcut, so per-project access always applies.
+
 ## The invariant
 
 **If it is not on the dashboard, it did not happen.** The dashboard is the shared

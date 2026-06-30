@@ -1221,6 +1221,27 @@ def get_manifest() -> dict:
                 "convention": "One MLflow experiment per project, named "
                     "`ISAAC-Discovery-<project_id>`; one run per hypothesis (or per "
                     "project for the reasoning stream).",
+                "tracking_uri": "Set MLFLOW_TRACKING_URI to "
+                    "https://isaac.slac.stanford.edu/isaac-mlflow/api/external and "
+                    "MLFLOW_TRACKING_TOKEN to YOUR portal API key — the SAME Bearer "
+                    "token you already use for these endpoints (generate it on the "
+                    "portal API Keys page; no separate MLflow credential). "
+                    "`pip install mlflow==3.12.0`; the client sends the token "
+                    "automatically. This one endpoint serves everyone — in-cluster "
+                    "and external callers alike go through the auth-proxy with a "
+                    "token, so per-project gating always applies (there is no "
+                    "tokenless in-cluster shortcut).",
+                "access": "Access is gated PER PROJECT, in lockstep with portal "
+                    "sharing: you may read/write the experiment for a project you OWN "
+                    "or that is shared with you, and no one else's. Sharing a project "
+                    "(POST /projects/{id}/share) shares its MLflow traces too — there "
+                    "is no separate grant. Write needs owner or a write-share; a "
+                    "read-only share can VIEW traces but not log to them.",
+                "trace_the_llm": "Call mlflow.set_experiment(f'ISAAC-Discovery-{project_id}') "
+                    "then mlflow.anthropic.autolog() (or the autolog for your SDK) once "
+                    "at startup, so every model call in the turn is captured as a trace "
+                    "(spans, tokens, latency) under the experiment's Traces tab. Wrap "
+                    "each turn in `with mlflow.start_run(run_name=...)`.",
                 "log_every_thinking_step": "After you POST each dashboard event "
                     "(canonical), MIRROR it to MLflow: mlflow.log_text(json.dumps(step), "
                     "f'reasoning/{n:04d}.json') and increment a 'reasoning_step' metric, "
@@ -1368,6 +1389,19 @@ def _can_read(cur, project_id, identity):
     if _is_owner(cur, project_id, identity):
         return True
     cur.execute("SELECT 1 FROM hyp_project_shares WHERE project_id=%s AND identity=%s",
+                (project_id, identity))
+    return cur.fetchone() is not None
+
+
+def _can_write(cur, project_id, identity):
+    """Owner OR a collaborator granted WRITE access. Read-only shares cannot
+    write. Mirrors _can_read but requires access='write' on the share row. Used
+    by the MLflow auth-proxy ACL endpoint to decide who may log to a project's
+    experiment (vs. only view it)."""
+    if _is_owner(cur, project_id, identity):
+        return True
+    cur.execute("SELECT 1 FROM hyp_project_shares "
+                "WHERE project_id=%s AND identity=%s AND access='write'",
                 (project_id, identity))
     return cur.fetchone() is not None
 
