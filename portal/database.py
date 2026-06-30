@@ -1404,8 +1404,20 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
         # but accepts a bound parameter so no value is f-string-interpolated.
         # is_local=true applies it for this transaction only.
         cur.execute("SELECT set_config('statement_timeout', %s, true)", (str(int(timeout_ms)),))
-        cur.execute(stripped)
-        rows = cur.fetchall()
+        try:
+            cur.execute(stripped)
+            rows = cur.fetchall()
+        except Exception as qe:
+            conn.rollback()
+            # 42501 = insufficient_privilege: the read-only role lacks SELECT on a table that
+            # IS allowed by the in-code belt but not yet GRANTed (see READONLY_QUERY_GRANTS.md).
+            # Surface a clear message instead of a 500.
+            if getattr(qe, "pgcode", None) == "42501":
+                raise ValueError(
+                    "Read access to that table is not enabled yet. The `records` table is "
+                    "available now; other non-sensitive tables (record_history, "
+                    "vocabulary_cache, templates) are pending a DB grant — ask an admin.")
+            raise
         conn.rollback()
         return [dict(row) for row in rows]
     finally:
