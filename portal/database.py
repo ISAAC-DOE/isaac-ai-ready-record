@@ -184,6 +184,31 @@ def init_tables():
         cur.execute('CREATE INDEX IF NOT EXISTS idx_record_history_rid ON record_history(record_id)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_records_data_gin ON records USING GIN (data)')
 
+        # --- Record versioning + provenance (2026-06-30) ---------------------
+        # Additive, idempotent migrations. `version` constant-default NOT NULL is a
+        # metadata-only change on PG11+ (no table rewrite). content_hash backfills
+        # separately (nullable). These let downstream reasoning pin & detect drift.
+        cur.execute("ALTER TABLE records ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1")
+        cur.execute("ALTER TABLE records ADD COLUMN IF NOT EXISTS content_hash CHAR(64)")
+        cur.execute("ALTER TABLE record_history ADD COLUMN IF NOT EXISTS version INT")
+        cur.execute("ALTER TABLE record_history ADD COLUMN IF NOT EXISTS content_hash CHAR(64)")
+        cur.execute("ALTER TABLE record_history ADD COLUMN IF NOT EXISTS change_note TEXT")
+        cur.execute("ALTER TABLE record_history ADD COLUMN IF NOT EXISTS change_class TEXT")
+
+        # Explicit co-author edit grants (keyed on Authentik username, never ORCID).
+        # role is constrained to 'editor' — there is no higher tier to escalate to.
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS record_acl (
+                record_id CHAR(26) NOT NULL,
+                grantee_identity TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'editor' CHECK (role IN ('editor')),
+                granted_by TEXT,
+                granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (record_id, grantee_identity)
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_record_acl_rid ON record_acl(record_id)')
+
         # Create portal access log table
         cur.execute('''
             CREATE TABLE IF NOT EXISTS portal_access_log (
@@ -737,6 +762,9 @@ def save_record(record_data: dict, *, skip_validation: bool = False,
     if not record_domain:
         raise ValueError("record_domain is required")
 
+    import record_provenance as _rp  # pure-logic, deferred like validation
+    chash = _rp.content_hash(record_data)
+
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -747,19 +775,23 @@ def save_record(record_data: dict, *, skip_validation: bool = False,
             # its id. Editing an owned record goes through PUT (update).
             try:
                 cur.execute('''
-                    INSERT INTO records (record_id, record_type, record_domain, data)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO records (record_id, record_type, record_domain, data, content_hash)
+                    VALUES (%s, %s, %s, %s, %s)
                     RETURNING record_id
-                ''', (record_id, record_type, record_domain, json.dumps(record_data)))
+                ''', (record_id, record_type, record_domain, json.dumps(record_data), chash))
             except psycopg2.errors.UniqueViolation:
                 conn.rollback()
                 raise RecordExistsError(record_id)
         elif mode == "update":
+            # NOTE: the user PUT/edit path uses update_record_versioned() (transactional,
+            # version-CAS, archived). This branch remains for non-edit internal callers and
+            # still bumps version + stamps the hash so no door writes stale provenance.
             cur.execute('''
-                UPDATE records SET record_type = %s, record_domain = %s, data = %s
+                UPDATE records SET record_type = %s, record_domain = %s, data = %s,
+                       content_hash = %s, version = version + 1
                 WHERE record_id = %s
                 RETURNING record_id
-            ''', (record_type, record_domain, json.dumps(record_data), record_id))
+            ''', (record_type, record_domain, json.dumps(record_data), chash, record_id))
             if cur.fetchone() is None:
                 conn.rollback()
                 raise RecordNotFoundError(record_id)
@@ -767,14 +799,16 @@ def save_record(record_data: dict, *, skip_validation: bool = False,
             return record_id.strip()
         else:  # "upsert" — admin/migration paths only (never a user door)
             cur.execute('''
-                INSERT INTO records (record_id, record_type, record_domain, data)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO records (record_id, record_type, record_domain, data, content_hash)
+                VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (record_id) DO UPDATE SET
                     record_type = EXCLUDED.record_type,
                     record_domain = EXCLUDED.record_domain,
-                    data = EXCLUDED.data
+                    data = EXCLUDED.data,
+                    content_hash = EXCLUDED.content_hash,
+                    version = records.version + 1
                 RETURNING record_id
-            ''', (record_id, record_type, record_domain, json.dumps(record_data)))
+            ''', (record_id, record_type, record_domain, json.dumps(record_data), chash))
 
         result = cur.fetchone()
         conn.commit()
@@ -782,6 +816,164 @@ def save_record(record_data: dict, *, skip_validation: bool = False,
     finally:
         cur.close()
         conn.close()
+
+
+class VersionConflictError(Exception):
+    """Optimistic-concurrency / If-Match failure on a versioned edit (-> HTTP 409/412)."""
+
+
+def update_record_versioned(record_id: str, new_data: dict, *, actor: str | None,
+                            change_note: str | None = None, if_match=None,
+                            action: str = "update") -> dict:
+    """The ONE transactional edit path for owned records (PUT).
+
+    In a single transaction: validate (chokepoint) -> SELECT ... FOR UPDATE ->
+    archive the PRIOR snapshot -> UPDATE ... WHERE version=expected (compare-and-swap).
+    Preserves the original owner (an edit never transfers ownership). Stamps version+1 and
+    the recomputed content_hash. Returns {record_id, version, content_hash, change_class}.
+    Raises RecordNotFoundError, VersionConflictError, validation.ValidationError.
+    """
+    import record_provenance as _rp
+    import validation
+    if not record_id:
+        raise ValueError("record_id is required")
+    new_data = dict(new_data or {})
+    new_data["record_id"] = record_id  # force path id; never trust a body-supplied id
+    result = validation.validate_record_full(new_data)
+    if not result["valid"]:
+        raise validation.ValidationError(result)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT data, version, content_hash FROM records WHERE record_id=%s FOR UPDATE",
+                    (record_id,))
+        row = cur.fetchone()
+        if row is None:
+            conn.rollback()
+            raise RecordNotFoundError(record_id)
+        cur_version, prior_data, prior_hash = row["version"], (row["data"] or {}), row["content_hash"]
+        if if_match is not None and int(if_match) != int(cur_version):
+            conn.rollback()
+            raise VersionConflictError(f"expected version {if_match}, current {cur_version}")
+
+        # Ownership is immutable on edit: re-stamp the existing owner over whatever the body says.
+        prior_owner = (prior_data.get("attribution") or {}).get("uploaded_by")
+        if prior_owner is not None:
+            new_data.setdefault("attribution", {})["uploaded_by"] = prior_owner
+
+        new_hash = _rp.content_hash(new_data)
+        baseline = prior_hash or _rp.content_hash(prior_data)  # legacy rows may have NULL hash
+        change_class = "material" if new_hash != baseline else "metadata"
+
+        cur.execute('''INSERT INTO record_history
+                       (record_id, action, actor, data, version, content_hash, change_note, change_class)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s)''',
+                    (record_id, action, actor, json.dumps(prior_data), cur_version,
+                     prior_hash, change_note, change_class))
+        cur.execute('''UPDATE records
+                       SET data=%s, content_hash=%s, version=version+1,
+                           record_type=%s, record_domain=%s
+                       WHERE record_id=%s AND version=%s
+                       RETURNING version''',
+                    (json.dumps(new_data), new_hash, new_data.get("record_type"),
+                     new_data.get("record_domain"), record_id, cur_version))
+        upd = cur.fetchone()
+        if upd is None:  # someone else committed an edit between our SELECT and UPDATE
+            conn.rollback()
+            raise VersionConflictError("concurrent edit detected")
+        conn.commit()
+        return {"record_id": record_id, "version": upd["version"],
+                "content_hash": new_hash, "change_class": change_class}
+    finally:
+        cur.close()
+        conn.close()
+
+
+def reassign_owner(record_id: str, new_owner: str, *, actor: str | None, reason: str) -> int:
+    """ADMIN-ONLY ownership correction. Archives the prior state
+    (action='reassign_owner', class='metadata'), sets attribution.uploaded_by, bumps
+    version. content_hash is unchanged (attribution is excluded from the scientific hash),
+    so this NEVER triggers downstream re-examination. Returns the new version."""
+    import record_provenance as _rp
+    if not new_owner or not str(new_owner).strip():
+        raise ValueError("new owner identity required")
+    if not reason or not str(reason).strip():
+        raise ValueError("a reason is required for an ownership reassignment")
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT data, version, content_hash FROM records WHERE record_id=%s FOR UPDATE",
+                    (record_id,))
+        row = cur.fetchone()
+        if row is None:
+            conn.rollback()
+            raise RecordNotFoundError(record_id)
+        data, cur_version, prior_hash = (row["data"] or {}), row["version"], row["content_hash"]
+        cur.execute('''INSERT INTO record_history
+                       (record_id, action, actor, data, version, content_hash, change_note, change_class)
+                       VALUES (%s,'reassign_owner',%s,%s,%s,%s,%s,'metadata')''',
+                    (record_id, actor, json.dumps(data), cur_version, prior_hash, reason))
+        data.setdefault("attribution", {})["uploaded_by"] = new_owner
+        new_hash = _rp.content_hash(data)  # == prior content hash (attribution not hashed)
+        cur.execute('''UPDATE records SET data=%s, content_hash=%s, version=version+1
+                       WHERE record_id=%s AND version=%s RETURNING version''',
+                    (json.dumps(data), new_hash, record_id, cur_version))
+        upd = cur.fetchone()
+        if upd is None:
+            conn.rollback()
+            raise VersionConflictError("concurrent edit during reassign")
+        conn.commit()
+        return upd["version"]
+    finally:
+        cur.close()
+        conn.close()
+
+
+# --- Co-author ACL (explicit editor grants, keyed on username) -------------
+
+def acl_add_editor(record_id: str, grantee: str, granted_by: str | None) -> bool:
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute('''INSERT INTO record_acl (record_id, grantee_identity, role, granted_by)
+                       VALUES (%s,%s,'editor',%s)
+                       ON CONFLICT (record_id, grantee_identity)
+                       DO UPDATE SET granted_by=EXCLUDED.granted_by, granted_at=NOW()''',
+                    (record_id, grantee, granted_by))
+        conn.commit(); return True
+    finally:
+        cur.close(); conn.close()
+
+
+def acl_remove_editor(record_id: str, grantee: str) -> bool:
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM record_acl WHERE record_id=%s AND grantee_identity=%s",
+                    (record_id, grantee))
+        removed = cur.rowcount > 0
+        conn.commit(); return removed
+    finally:
+        cur.close(); conn.close()
+
+
+def acl_list(record_id: str) -> list:
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute('''SELECT grantee_identity, role, granted_by, granted_at
+                       FROM record_acl WHERE record_id=%s ORDER BY granted_at''', (record_id,))
+        return [dict(r) for r in cur.fetchall()]
+    finally:
+        cur.close(); conn.close()
+
+
+def acl_editor_usernames(record_id: str) -> set:
+    """The set of usernames holding an editor grant — consumed by the authz resolver."""
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute("SELECT grantee_identity FROM record_acl WHERE record_id=%s", (record_id,))
+        return {r["grantee_identity"] for r in cur.fetchall()}
+    finally:
+        cur.close(); conn.close()
 
 
 def get_record(record_id: str) -> dict:
