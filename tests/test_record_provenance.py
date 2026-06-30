@@ -118,3 +118,17 @@ def test_unicode_nfc_equivalence():
 def test_block_presence_change_is_material():
     no_comp = copy.deepcopy(BASE); no_comp.pop("descriptors")
     assert rp.is_material(BASE, no_comp)
+
+
+def test_diff_paths_reports_field_changes():
+    a = {"descriptors": {"x": 1}, "attribution": {"uploaded_by": "a"}}
+    b = {"descriptors": {"x": 2}, "attribution": {"uploaded_by": "b"}}
+    paths = {c["path"]: (c["old"], c["new"]) for c in rp.diff_paths(a, b)}
+    assert paths["descriptors.x"] == (1, 2)
+    assert paths["attribution.uploaded_by"] == ("a", "b")
+
+
+def test_diff_paths_added_key():
+    ch = rp.diff_paths({"descriptors": {"x": 1}}, {"descriptors": {"x": 1, "y": 9}})
+    assert any(c["path"] == "descriptors.y" and c["old"] is None and c["new"] == 9 for c in ch)
+    assert not rp.diff_paths(BASE, copy.deepcopy(BASE))

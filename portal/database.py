@@ -976,6 +976,34 @@ def acl_editor_usernames(record_id: str) -> set:
         cur.close(); conn.close()
 
 
+# --- History / diff --------------------------------------------------------
+
+def record_history(record_id: str) -> list:
+    """Version history, oldest first. Ordered by archived_at (legacy rows have NULL
+    version, so we never order by version)."""
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute('''SELECT action, actor, archived_at, version, content_hash,
+                              change_note, change_class
+                       FROM record_history WHERE record_id=%s ORDER BY archived_at''',
+                    (record_id,))
+        return [dict(r) for r in cur.fetchall()]
+    finally:
+        cur.close(); conn.close()
+
+
+def record_snapshot(record_id: str, version: int):
+    """The archived record data for a specific prior version, or None."""
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute('''SELECT data FROM record_history WHERE record_id=%s AND version=%s
+                       ORDER BY archived_at DESC LIMIT 1''', (record_id, version))
+        r = cur.fetchone()
+        return r["data"] if r else None
+    finally:
+        cur.close(); conn.close()
+
+
 def get_record(record_id: str) -> dict:
     """
     Retrieve a record by its ID.

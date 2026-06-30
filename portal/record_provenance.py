@@ -110,3 +110,32 @@ def classify_change(old: dict, new: dict) -> str:
     """Server-computed change class — authoritative; never trust a client-supplied class
     for the drift gate. Returns 'material' or 'metadata'."""
     return "material" if is_material(old, new) else "metadata"
+
+
+_MISSING = object()
+
+
+def diff_paths(old: dict, new: dict) -> list:
+    """Field-level changes between two whole records, as [{path, old, new}]. Compares the
+    full record (not just the scientific projection) so a human/agent sees every change."""
+    changes = []
+
+    def walk(o, n, path):
+        if isinstance(o, dict) or isinstance(n, dict):
+            od = o if isinstance(o, dict) else {}
+            nd = n if isinstance(n, dict) else {}
+            for k in sorted(set(od) | set(nd)):
+                walk(od.get(k, _MISSING), nd.get(k, _MISSING), f"{path}.{k}" if path else k)
+        elif isinstance(o, list) or isinstance(n, list):
+            ol = o if isinstance(o, list) else []
+            nl = n if isinstance(n, list) else []
+            for i in range(max(len(ol), len(nl))):
+                walk(ol[i] if i < len(ol) else _MISSING,
+                     nl[i] if i < len(nl) else _MISSING, f"{path}[{i}]")
+        elif o != n:
+            changes.append({"path": path,
+                            "old": None if o is _MISSING else o,
+                            "new": None if n is _MISSING else n})
+
+    walk(old or {}, new or {}, "")
+    return changes

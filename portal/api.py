@@ -97,6 +97,8 @@ _TOKEN_CACHE_TTL = 300  # 5 minutes
 # database.save_record() re-enforces the same validation internally.
 # ---------------------------------------------------------------------------
 import validation  # noqa: E402  (same import style as database/ontology)
+import record_authz  # noqa: E402  (pure edit-authorization logic)
+import record_provenance  # noqa: E402  (content hashing / diff)
 
 ISAAC_SCHEMA = validation.ISAAC_SCHEMA
 ISAAC_VALIDATOR = validation.ISAAC_VALIDATOR
@@ -169,7 +171,9 @@ def _get_auth_info():
         token_info = _validate_bearer_token(token)
         if token_info:
             if any(g in ALLOWED_GROUPS for g in token_info["groups"]):
-                return {"method": "bearer_token", "user": token_info["user"]}
+                # Carry groups so admin can be derived ONCE per request (no 2nd Authentik call).
+                return {"method": "bearer_token", "user": token_info["user"],
+                        "groups": token_info["groups"]}
             logger.warning(
                 "Token valid for user %s but groups %s not in %s",
                 token_info["user"], token_info["groups"], ALLOWED_GROUPS,
@@ -246,12 +250,17 @@ def _require_auth(fn):
 
 
 def _caller_is_admin() -> bool:
-    """True if the request's Bearer token belongs to an admin group."""
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        return False
-    info = _validate_bearer_token(auth[7:])
-    return bool(info and any(g in ADMIN_GROUPS for g in info.get("groups", [])))
+    """True iff the authenticated caller is in an admin group. Reads the identity+groups
+    validated ONCE by the auth decorator (request.auth_info), avoiding a second Authentik
+    round-trip that could diverge from the first."""
+    info = getattr(request, "auth_info", None)
+    if info is None:
+        # Defensive: a route not behind @_require_auth/@_require_admin.
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return False
+        info = _validate_bearer_token(auth[7:]) or {}
+    return any(g in ADMIN_GROUPS for g in info.get("groups", []))
 
 
 def _require_admin(fn):
@@ -418,8 +427,17 @@ def create_record():
         # supplying its id (use PUT to edit your OWN record). Admins may opt into
         # upsert with ?allow_update=true for ingestion/migration tooling.
         allow_update = _caller_is_admin() and request.args.get("allow_update") == "true"
-        record_id = database.save_record(
-            data, uploaded_by=caller, mode=("upsert" if allow_update else "insert"))
+        rid = data.get("record_id")
+        if allow_update and rid and database.get_record(rid) is not None:
+            # Admin re-submitting an existing id goes through the versioned, ARCHIVED edit
+            # path — no un-versioned upsert back-door. Ownership is preserved.
+            res = database.update_record_versioned(
+                rid, data, actor=caller, change_note="admin upsert (allow_update)")
+            resp = {"success": True, "record_id": rid, "updated": True, "version": res["version"]}
+            if result.get("warnings"):
+                resp["warnings"] = result["warnings"]
+            return jsonify(resp), 200
+        record_id = database.save_record(data, uploaded_by=caller, mode="insert")
         resp = {"success": True, "record_id": record_id}
         # Warnings tier: accepted-but-improvable feedback travels with the 201
         if result.get("warnings"):
@@ -733,7 +751,7 @@ def update_record(record_id):
         return jsonify({"success": False, "reason": "invalid_json",
                         "message": "Request body is not valid JSON"}), 400
 
-    caller = (_get_auth_info() or {}).get("user")
+    caller = (request.auth_info or {}).get("user")
     try:
         existing = database.get_record(record_id)
     except Exception:
@@ -743,39 +761,202 @@ def update_record(record_id):
         return jsonify({"success": False, "reason": "not_found",
                         "message": "Record not found. Use POST to create a new record."}), 404
 
-    owner = (existing.get("attribution") or {}).get("uploaded_by")
-    if not _caller_is_admin() and (owner is None or owner != caller):
+    # Authorization: admin OR owner OR an explicit co-author (record_acl editor).
+    acl_editors = database.acl_editor_usernames(record_id)
+    allowed, _why = record_authz.can_edit_record(
+        existing, caller, _caller_is_admin(), acl_editors=acl_editors)
+    if not allowed:
+        owner = record_authz.record_owner(existing)
         return jsonify({
             "success": False, "reason": "forbidden",
-            "message": "You may only edit records you submitted. This record is owned by "
-                       f"'{owner or 'unknown'}'.",
+            "message": ("You may only edit records you submitted, or were added to as a "
+                        f"collaborator. This record is owned by '{owner or 'unknown'}'."),
         }), 403
 
-    # Force the path id; preserve the ORIGINAL owner (an edit does not transfer
-    # ownership). Validation happens inside save_record (the chokepoint).
-    data["record_id"] = record_id
-    result = validation.validate_record_full(data)
-    if not result["valid"]:
-        return jsonify({"success": False, "reason": "validation_failed",
-                        "schema_errors": result["schema_errors"],
-                        "vocabulary_errors": result["vocabulary_errors"],
-                        "semantic_errors": result["semantic_errors"],
-                        "errors": result["errors"]}), 400
+    # `change_note` (the WHY) travels alongside but is not part of the record body.
+    if isinstance(data, dict):
+        change_note = data.pop("change_note", None)
+    else:
+        change_note = None
+    change_note = change_note or request.args.get("change_note")
+    # Optimistic concurrency: optional `If-Match: <version>` guards against lost updates.
+    if_match = request.headers.get("If-Match")
 
-    database.archive_record(record_id, existing, "update", caller)
     try:
-        database.save_record(data, uploaded_by=owner, mode="update")
+        res = database.update_record_versioned(
+            record_id, data, actor=caller, change_note=change_note, if_match=if_match)
+    except validation.ValidationError as ve:
+        return jsonify({"success": False, "reason": "validation_failed", **ve.result}), 400
     except database.RecordNotFoundError:
         return jsonify({"success": False, "reason": "not_found"}), 404
+    except database.VersionConflictError as vc:
+        return jsonify({"success": False, "reason": "version_conflict", "message": str(vc),
+                        "hint": "Re-fetch the record and retry, optionally with If-Match: <version>."}), 409
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "reason": "bad_request",
+                        "message": "If-Match must be an integer version."}), 400
     except Exception:
         logger.exception("Database error updating record %s", record_id)
         return jsonify({"error": "internal server error"}), 500
 
-    logger.info("Record %s updated by %s (owner %s)", record_id, caller, owner)
-    resp = {"success": True, "record_id": record_id, "updated": True}
-    if result.get("warnings"):
-        resp["warnings"] = result["warnings"]
-    return jsonify(resp), 200
+    logger.info("Record %s updated by %s (class=%s -> v%s)",
+                record_id, caller, res["change_class"], res["version"])
+    return jsonify({"success": True, "record_id": record_id, "updated": True,
+                    "version": res["version"], "content_hash": res["content_hash"],
+                    "change_class": res["change_class"]}), 200
+
+
+# --- Co-author collaborators (record ACL) ---------------------------------
+
+@app.route("/portal/api/records/<record_id>/collaborators", methods=["GET"])
+@_require_auth
+def list_collaborators(record_id):
+    """List the owner + explicitly-granted editors of a record."""
+    existing = database.get_record(record_id)
+    if existing is None:
+        return jsonify({"error": "Record not found"}), 404
+    return jsonify({"record_id": record_id,
+                    "owner": record_authz.record_owner(existing),
+                    "collaborators": database.acl_list(record_id)}), 200
+
+
+@app.route("/portal/api/records/<record_id>/collaborators", methods=["POST"])
+@_require_auth
+def add_collaborator(record_id):
+    """Owner (or admin) grants another portal user editor access to THIS record."""
+    body = request.get_json(silent=True) or {}
+    grantee = (body.get("identity") or "").strip()
+    role = body.get("role", "editor")
+    caller = (request.auth_info or {}).get("user")
+    existing = database.get_record(record_id)
+    if existing is None:
+        return jsonify({"error": "Record not found"}), 404
+    if not record_authz.can_manage_acl(existing, caller, _caller_is_admin()):
+        return jsonify({"success": False, "reason": "forbidden",
+                        "message": "Only the record's owner or an admin may add collaborators."}), 403
+    ok, err = record_authz.validate_grant(role, grantee, record_authz.record_owner(existing))
+    if not ok:
+        return jsonify({"success": False, "reason": err}), 400
+    database.acl_add_editor(record_id, grantee, caller)
+    logger.info("Record %s: %s granted editor to %s", record_id, caller, grantee)
+    return jsonify({"success": True, "record_id": record_id,
+                    "collaborator": grantee, "role": "editor"}), 201
+
+
+@app.route("/portal/api/records/<record_id>/collaborators/<identity>", methods=["DELETE"])
+@_require_auth
+def remove_collaborator(record_id, identity):
+    """Owner (or admin) revokes a collaborator's editor access."""
+    caller = (request.auth_info or {}).get("user")
+    existing = database.get_record(record_id)
+    if existing is None:
+        return jsonify({"error": "Record not found"}), 404
+    if not record_authz.can_manage_acl(existing, caller, _caller_is_admin()):
+        return jsonify({"success": False, "reason": "forbidden",
+                        "message": "Only the record's owner or an admin may remove collaborators."}), 403
+    removed = database.acl_remove_editor(record_id, identity)
+    return jsonify({"success": True, "record_id": record_id, "removed": removed}), 200
+
+
+# --- Record history + diff -------------------------------------------------
+
+@app.route("/portal/api/records/<record_id>/history", methods=["GET"])
+@_require_auth
+def get_record_history(record_id):
+    """Version history of a record (actor, when, change class + note, content hash)."""
+    if database.get_record(record_id) is None:
+        return jsonify({"error": "Record not found"}), 404
+    return jsonify({"record_id": record_id, "history": database.record_history(record_id)}), 200
+
+
+@app.route("/portal/api/records/<record_id>/diff", methods=["GET"])
+@_require_auth
+def get_record_diff(record_id):
+    """Field-level diff between two versions (?from=<v>&to=<v|current>)."""
+    current = database.get_record(record_id)
+    if current is None:
+        return jsonify({"error": "Record not found"}), 404
+    try:
+        v_from = int(request.args["from"])
+    except (KeyError, ValueError):
+        return jsonify({"error": "query param 'from' (integer version) is required"}), 400
+    to_arg = request.args.get("to", "current")
+    old = database.record_snapshot(record_id, v_from)
+    if old is None:
+        return jsonify({"error": f"version {v_from} not found in history"}), 404
+    if to_arg == "current":
+        new = current
+    else:
+        try:
+            new = database.record_snapshot(record_id, int(to_arg)) or current
+        except ValueError:
+            return jsonify({"error": "'to' must be an integer version or 'current'"}), 400
+    return jsonify({"record_id": record_id, "from": v_from, "to": to_arg,
+                    "material": record_provenance.is_material(old, new),
+                    "changes": record_provenance.diff_paths(old, new)}), 200
+
+
+# --- Admin: correct a record's owner (the ONLY ownership-transfer path) ----
+
+@app.route("/portal/api/records/<record_id>/owner", methods=["PATCH"])
+@_require_admin
+def reassign_record_owner(record_id):
+    """ADMIN-only: correct who owns a record (e.g. a batch ingested under the wrong
+    identity). Archived + audited; the new owner can then self-serve edits. Cosmetic to
+    the scientific content, so it never invalidates downstream reasoning."""
+    body = request.get_json(silent=True) or {}
+    new_owner = (body.get("uploaded_by") or body.get("owner") or "").strip()
+    reason = (body.get("reason") or "").strip()
+    actor = (request.auth_info or {}).get("user")
+    if not new_owner:
+        return jsonify({"success": False, "reason": "missing_owner",
+                        "message": "Provide uploaded_by (the new owner username)."}), 400
+    if not reason:
+        return jsonify({"success": False, "reason": "missing_reason",
+                        "message": "A reason is required (audited)."}), 400
+    try:
+        version = database.reassign_owner(record_id, new_owner, actor=actor, reason=reason)
+    except database.RecordNotFoundError:
+        return jsonify({"success": False, "reason": "not_found"}), 404
+    except ValueError as ve:
+        return jsonify({"success": False, "reason": "bad_request", "message": str(ve)}), 400
+    except Exception:
+        logger.exception("Owner reassign failed for %s", record_id)
+        return jsonify({"error": "internal server error"}), 500
+    logger.info("Record %s owner -> %s by %s (%s)", record_id, new_owner, actor, reason)
+    return jsonify({"success": True, "record_id": record_id,
+                    "uploaded_by": new_owner, "version": version}), 200
+
+
+@app.route("/portal/api/records/owner", methods=["PATCH"])
+@_require_admin
+def reassign_record_owner_bulk():
+    """ADMIN-only bulk owner correction: {record_ids:[...], uploaded_by, reason}. Each is
+    reassigned + archived independently; returns per-record results."""
+    body = request.get_json(silent=True) or {}
+    ids = body.get("record_ids") or []
+    new_owner = (body.get("uploaded_by") or "").strip()
+    reason = (body.get("reason") or "").strip()
+    actor = (request.auth_info or {}).get("user")
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"success": False, "reason": "missing_record_ids"}), 400
+    if len(ids) > 500:
+        return jsonify({"success": False, "reason": "too_many", "message": "max 500 per call"}), 400
+    if not new_owner or not reason:
+        return jsonify({"success": False, "reason": "missing_owner_or_reason"}), 400
+    results = []
+    for rid in ids:
+        try:
+            v = database.reassign_owner(rid, new_owner, actor=actor, reason=reason)
+            results.append({"record_id": rid, "ok": True, "version": v})
+        except database.RecordNotFoundError:
+            results.append({"record_id": rid, "ok": False, "reason": "not_found"})
+        except Exception as exc:
+            logger.exception("bulk reassign failed for %s", rid)
+            results.append({"record_id": rid, "ok": False, "reason": "error", "message": str(exc)})
+    ok_n = sum(1 for r in results if r["ok"])
+    logger.info("Bulk owner reassign by %s -> %s: %d/%d ok", actor, new_owner, ok_n, len(ids))
+    return jsonify({"success": True, "reassigned": ok_n, "total": len(ids), "results": results}), 200
 
 
 # --- Delete record (admin only) -------------------------------------------
