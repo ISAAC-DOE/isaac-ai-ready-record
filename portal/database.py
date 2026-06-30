@@ -1309,8 +1309,8 @@ def count_records() -> int:
 # user. Sensitivity rationale: these five carry login/usage PII (incl. client IPs), or
 # access-control / moderation identities.
 #   The TRUE enforcement is the isaac_readonly role's grants (DB level); this is the in-code
-#   belt. KEEP THE TWO IN SYNC — when opening a table here, Dean must GRANT SELECT on it to
-#   isaac_readonly (and keep REVOKE on the five below). See docs/READONLY_QUERY_GRANTS.md.
+#   belt. KEEP THE TWO IN SYNC — when opening a table here, the records-DB owner must GRANT
+#   SELECT on it to isaac_readonly (and keep REVOKE on the five sensitive tables below).
 _AGENT_FORBIDDEN_TABLES = (
     "api_requests",          # usage log — usernames, endpoints, client IPs
     "portal_access_log",     # login activity — usernames, timestamps
@@ -1411,7 +1411,7 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
             conn.rollback()
             pgcode = getattr(qe, "pgcode", None)
             # 42501 = insufficient_privilege: read-only role lacks SELECT on a table that IS
-            # allowed by the in-code belt but not yet GRANTed (see READONLY_QUERY_GRANTS.md).
+            # allowed by the in-code belt but not yet GRANTed to isaac_readonly at the DB.
             if pgcode == "42501":
                 raise ValueError(
                     "Read access to that table is not enabled yet. The `records` table is "

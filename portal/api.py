@@ -559,7 +559,7 @@ def records_query():
     `record_history`, `vocabulary_cache` (the controlled ontology), `templates`. SENSITIVE
     tables (usage/access logs with PII, `record_acl`, `vocabulary_proposals`) are admin-only.
     Enforced in two layers: the in-code belt (database._AGENT_FORBIDDEN_TABLES) and the
-    isaac_readonly role's grants (see docs/READONLY_QUERY_GRANTS.md).
+    isaac_readonly role's DB-level grants.
     records schema: records(record_id CHAR(26), record_type, record_domain, data JSONB,
     version, content_hash, created_at). JSONB: data->'context'->'electrochemistry'->>'reaction'.
     """
