@@ -266,6 +266,8 @@ def init_tables():
         conn.commit()
         cur.close()
         conn.close()
+        # One-time: stamp content_hash on pre-versioning records (idempotent, no-op after).
+        backfill_content_hashes()
         return True
     except Exception as e:
         print(f"Error initializing tables: {e}")
@@ -1032,6 +1034,35 @@ def record_version_hash(record_id: str):
         return {"version": r["version"], "content_hash": r["content_hash"]} if r else None
     finally:
         cur.close(); conn.close()
+
+
+def backfill_content_hashes(max_rows: int = 20000) -> int:
+    """One-time, idempotent: stamp content_hash on records created before versioning (rows
+    where it is NULL), so drift detection works for the existing corpus. Re-runs are no-ops.
+    Exception-safe — never blocks startup."""
+    import record_provenance as _rp
+    done = 0
+    try:
+        conn = get_db_connection(); cur = conn.cursor()
+        try:
+            cur.execute("SELECT record_id, data FROM records WHERE content_hash IS NULL LIMIT %s",
+                        (max_rows,))
+            for r in cur.fetchall():
+                try:
+                    h = _rp.content_hash(r["data"] or {})
+                    cur.execute("UPDATE records SET content_hash=%s "
+                                "WHERE record_id=%s AND content_hash IS NULL", (h, r["record_id"]))
+                    done += 1
+                except Exception:
+                    logger.exception("hash backfill failed for %s", r.get("record_id"))
+            conn.commit()
+        finally:
+            cur.close(); conn.close()
+        if done:
+            logger.info("content_hash backfill stamped %d record(s)", done)
+    except Exception:
+        logger.exception("content_hash backfill aborted")
+    return done
 
 
 def get_record(record_id: str) -> dict:
