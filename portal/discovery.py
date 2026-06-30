@@ -2752,13 +2752,10 @@ def _evidence_drift_for(hyps):
                     rids.add(pin["record_id"])
     if not rids:
         return []
-    current = {}
-    for rid in rids:
-        try:
-            vh = database.record_version_hash(rid)
-        except Exception:
-            vh = None
-        current[rid] = (vh or {}).get("content_hash")
+    try:
+        current = database.record_hashes(list(rids))  # one query, not N
+    except Exception:
+        return []
     return _rp.evidence_drift(preds, current)
 
 
