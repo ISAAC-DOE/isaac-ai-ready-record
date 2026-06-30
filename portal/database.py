@@ -1036,6 +1036,20 @@ def record_version_hash(record_id: str):
         cur.close(); conn.close()
 
 
+def record_hashes(record_ids) -> dict:
+    """Batch {record_id: content_hash} for many records in ONE query — used by the drift
+    check so a briefing is one query, not N (the project view auto-refreshes)."""
+    ids = [r for r in (record_ids or []) if r]
+    if not ids:
+        return {}
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute("SELECT record_id, content_hash FROM records WHERE record_id = ANY(%s)", (ids,))
+        return {r["record_id"]: r["content_hash"] for r in cur.fetchall()}
+    finally:
+        cur.close(); conn.close()
+
+
 def backfill_content_hashes(max_rows: int = 20000) -> int:
     """One-time, idempotent: stamp content_hash on records created before versioning (rows
     where it is NULL), so drift detection works for the existing corpus. Re-runs are no-ops.
