@@ -12,19 +12,40 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "portal"))
 from database import execute_readonly_query  # noqa: E402
 
 
-# Non-admin (agent_mode=True) must be scoped to `records` — operational tables denied.
+# Non-admin (agent_mode=True): SENSITIVE tables are denied (PII / access-control / moderation).
 @pytest.mark.parametrize("sql", [
     "SELECT * FROM api_requests",
     "SELECT username FROM portal_access_log",
     "SELECT * FROM record_acl",
-    "SELECT * FROM record_history",
+    "SELECT * FROM vocabulary_sync_log",
     "SELECT * FROM vocabulary_proposals",
     "WITH x AS (SELECT 1) SELECT * FROM api_requests",
     "SELECT r.record_id FROM records r JOIN record_acl a ON true",
 ])
-def test_agent_mode_blocks_operational_tables(sql):
+def test_agent_mode_blocks_sensitive_tables(sql):
     with pytest.raises(ValueError):
         execute_readonly_query(sql, agent_mode=True)
+
+
+# Non-admin: NON-sensitive reference/scientific tables ARE allowed (pass the in-code belt;
+# they only fail later reaching the DB in this env — never with the scope ValueError).
+@pytest.mark.parametrize("sql", [
+    "SELECT * FROM record_history LIMIT 1",
+    "SELECT term FROM vocabulary_cache LIMIT 1",
+    "SELECT * FROM templates LIMIT 1",
+])
+def test_agent_mode_allows_non_sensitive_tables(sql):
+    with pytest.raises(Exception) as ei:
+        execute_readonly_query(sql, agent_mode=True)
+    assert "restricted to admins" not in str(ei.value)
+
+
+def test_denylist_is_exactly_the_sensitive_set():
+    # If a NEW table is added to the records DB, this fails until it's consciously classified.
+    from database import _AGENT_FORBIDDEN_TABLES
+    assert set(_AGENT_FORBIDDEN_TABLES) == {
+        "api_requests", "portal_access_log", "vocabulary_sync_log",
+        "vocabulary_proposals", "record_acl"}
 
 
 # These must be rejected in EITHER mode (admin or researcher) — universal guards.

@@ -1302,13 +1302,21 @@ def count_records() -> int:
         conn.close()
 
 
-# Tables the nano-ISAAC agent may read. Its scope is scientific records only;
-# operational/control tables (usage logs, proposals, ACLs, history) are off-limits
-# even though the `isaac` DB role technically has SELECT on them. (The true scoping
-# is Dean's isaac_readonly role with REVOKE on these; this is the in-code belt.)
+# SENSITIVE records-DB tables: readable ONLY by admins via /records/query (and never by
+# nano-ISAAC). Everything else in this DB — `records`, `record_history` (version history of
+# public records), `templates` (form scaffolding), `vocabulary_cache` (the controlled
+# ontology) — is non-sensitive reference/scientific data, open read-only to ANY authenticated
+# user. Sensitivity rationale: these five carry login/usage PII (incl. client IPs), or
+# access-control / moderation identities.
+#   The TRUE enforcement is the isaac_readonly role's grants (DB level); this is the in-code
+#   belt. KEEP THE TWO IN SYNC — when opening a table here, Dean must GRANT SELECT on it to
+#   isaac_readonly (and keep REVOKE on the five below). See docs/READONLY_QUERY_GRANTS.md.
 _AGENT_FORBIDDEN_TABLES = (
-    "api_requests", "portal_access_log", "vocabulary_proposals", "vocabulary_cache",
-    "vocabulary_sync_log", "templates", "record_history", "record_acl",
+    "api_requests",          # usage log — usernames, endpoints, client IPs
+    "portal_access_log",     # login activity — usernames, timestamps
+    "vocabulary_sync_log",   # operational sync log
+    "vocabulary_proposals",  # proposer/reviewer identities + moderation state
+    "record_acl",            # who-can-edit-what (access-control / collaboration graph)
 )
 
 
