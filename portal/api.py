@@ -548,14 +548,18 @@ def records_batch():
 
 
 @app.route("/portal/api/records/query", methods=["POST"])
-@_require_admin
+@_require_auth
 def records_query():
     """
     Guarded read-only SQL: {"sql": "SELECT ...", "max_rows": 100}.
-    SELECT/WITH only, statement timeout, row cap 500 — delegates to
-    database.execute_readonly_query. The records table schema:
-    records(record_id CHAR(26), record_type, record_domain, data JSONB,
-    created_at). JSONB paths: data->'context'->'electrochemistry'->>'reaction' etc.
+    SELECT/WITH only, single statement, statement timeout, row cap 500, least-privilege
+    read-only DB role — delegates to database.execute_readonly_query.
+
+    Access: ANY authenticated user may query, but a non-admin is scoped to the `records`
+    table (operational/log/ACL tables are admin-only). Admins may also read other
+    non-system tables. The records table schema:
+    records(record_id CHAR(26), record_type, record_domain, data JSONB, version,
+    content_hash, created_at). JSONB paths: data->'context'->'electrochemistry'->>'reaction'.
     """
     body = request.get_json(silent=True) or {}
     sql = body.get("sql", "")
@@ -563,7 +567,9 @@ def records_query():
     if not sql.strip():
         return jsonify({"error": "Body must include non-empty 'sql'"}), 400
     try:
-        rows = database.execute_readonly_query(sql, max_rows=max_rows)
+        # Non-admin: restrict to the records table (agent_mode denies operational tables).
+        rows = database.execute_readonly_query(
+            sql, max_rows=max_rows, agent_mode=not _caller_is_admin())
         return jsonify({"rows": rows, "row_count": len(rows),
                         "truncated_at": max_rows if len(rows) >= max_rows else None}), 200
     except ValueError as ve:
