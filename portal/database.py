@@ -819,7 +819,14 @@ def save_record(record_data: dict, *, skip_validation: bool = False,
 
 
 class VersionConflictError(Exception):
-    """Optimistic-concurrency / If-Match failure on a versioned edit (-> HTTP 409/412)."""
+    """A concurrent edit was detected at write time (the version moved between our read and
+    write) -> HTTP 409."""
+
+
+class PreconditionFailedError(Exception):
+    """An explicit `If-Match: <version>` did not match the current version, or was malformed
+    -> HTTP 412. Distinct from a race so clients can tell a stale precondition from a
+    genuine concurrent edit."""
 
 
 def update_record_versioned(record_id: str, new_data: dict, *, actor: str | None,
@@ -853,9 +860,15 @@ def update_record_versioned(record_id: str, new_data: dict, *, actor: str | None
             conn.rollback()
             raise RecordNotFoundError(record_id)
         cur_version, prior_data, prior_hash = row["version"], (row["data"] or {}), row["content_hash"]
-        if if_match is not None and int(if_match) != int(cur_version):
-            conn.rollback()
-            raise VersionConflictError(f"expected version {if_match}, current {cur_version}")
+        if if_match is not None:
+            try:
+                want = int(str(if_match).strip().strip('"'))
+            except (TypeError, ValueError):
+                conn.rollback()
+                raise PreconditionFailedError(f"malformed If-Match: {if_match!r}")
+            if want != int(cur_version):
+                conn.rollback()
+                raise PreconditionFailedError(f"expected version {want}, current {cur_version}")
 
         # Ownership is immutable on edit: re-stamp the existing owner over whatever the body says.
         prior_owner = (prior_data.get("attribution") or {}).get("uploaded_by")

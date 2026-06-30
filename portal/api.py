@@ -431,8 +431,12 @@ def create_record():
         if allow_update and rid and database.get_record(rid) is not None:
             # Admin re-submitting an existing id goes through the versioned, ARCHIVED edit
             # path — no un-versioned upsert back-door. Ownership is preserved.
-            res = database.update_record_versioned(
-                rid, data, actor=caller, change_note="admin upsert (allow_update)")
+            try:
+                res = database.update_record_versioned(
+                    rid, data, actor=caller, change_note="admin upsert (allow_update)")
+            except database.VersionConflictError as vc:
+                return jsonify({"success": False, "reason": "version_conflict",
+                                "message": str(vc)}), 409
             resp = {"success": True, "record_id": rid, "updated": True, "version": res["version"]}
             if result.get("warnings"):
                 resp["warnings"] = result["warnings"]
@@ -789,12 +793,13 @@ def update_record(record_id):
         return jsonify({"success": False, "reason": "validation_failed", **ve.result}), 400
     except database.RecordNotFoundError:
         return jsonify({"success": False, "reason": "not_found"}), 404
+    except database.PreconditionFailedError as pf:
+        # The caller's If-Match did not match the current version (or was malformed).
+        return jsonify({"success": False, "reason": "precondition_failed", "message": str(pf),
+                        "hint": "Re-fetch the record; its version moved."}), 412
     except database.VersionConflictError as vc:
         return jsonify({"success": False, "reason": "version_conflict", "message": str(vc),
-                        "hint": "Re-fetch the record and retry, optionally with If-Match: <version>."}), 409
-    except (ValueError, TypeError):
-        return jsonify({"success": False, "reason": "bad_request",
-                        "message": "If-Match must be an integer version."}), 400
+                        "hint": "A concurrent edit landed first — re-fetch and retry."}), 409
     except Exception:
         logger.exception("Database error updating record %s", record_id)
         return jsonify({"error": "internal server error"}), 500
@@ -918,6 +923,8 @@ def reassign_record_owner(record_id):
         version = database.reassign_owner(record_id, new_owner, actor=actor, reason=reason)
     except database.RecordNotFoundError:
         return jsonify({"success": False, "reason": "not_found"}), 404
+    except database.VersionConflictError as vc:
+        return jsonify({"success": False, "reason": "version_conflict", "message": str(vc)}), 409
     except ValueError as ve:
         return jsonify({"success": False, "reason": "bad_request", "message": str(ve)}), 400
     except Exception:
