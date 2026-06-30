@@ -4,6 +4,8 @@ import json
 import requests
 import ontology
 import database
+import record_authz
+import validation
 import branding
 import agent
 import discovery
@@ -973,53 +975,134 @@ elif page == "Saved Records":
     if not db_connected:
         st.warning("Database not connected. Configure PGHOST, PGUSER, PGPASSWORD, PGDATABASE environment variables.")
     else:
-        # Refresh button
         if st.button("Refresh"):
             st.rerun()
 
+        # --- Filters ---
+        with st.expander("Filters", expanded=False):
+            fc1, fc2, fc3 = st.columns(3)
+            f_type = fc1.text_input("Record type", key="sr_ftype").strip()
+            f_domain = fc2.text_input("Domain", key="sr_fdomain").strip()
+            f_mat = fc3.text_input("Material contains", key="sr_fmat").strip()
+        filters = {}
+        if f_type:
+            filters["record_type"] = f_type
+        if f_domain:
+            filters["record_domain"] = f_domain
+        if f_mat:
+            filters["material_contains"] = f_mat
+
+        # --- Pagination ---
+        pc1, pc2, pc3 = st.columns([1, 1, 2])
+        page_size = pc1.selectbox("Per page", [25, 50, 100], index=1, key="sr_psize")
+        page_num = int(pc2.number_input("Page", min_value=1, value=1, step=1, key="sr_pnum"))
+        offset = (page_num - 1) * int(page_size)
+
         try:
-            record_count = database.count_records()
-            st.write(f"Total records: **{record_count}**")
+            rows, total = database.list_records(limit=int(page_size), offset=offset,
+                                                filters=filters or None)
+            total_pages = max(1, (total + int(page_size) - 1) // int(page_size))
+            pc3.markdown(f"&nbsp;\n\n**{total}** records · page **{page_num}** of **{total_pages}**")
 
-            if record_count > 0:
-                records, _total = database.list_records(limit=50)
-
-                # Display as table
-                df = pd.DataFrame(records)
+            if rows:
+                df = pd.DataFrame(rows)
                 df.columns = ["Record ID", "Type", "Domain", "Created At"]
-                st.dataframe(df, width='stretch')
+                st.dataframe(df, width='stretch', hide_index=True)
 
-                # View record detail
                 st.divider()
-                st.subheader("View Record Detail")
-
-                record_ids = [r['record_id'] for r in records]
-                selected_id = st.selectbox("Select Record", record_ids)
-
+                st.subheader("Record detail")
+                selected_id = st.selectbox("Select a record on this page",
+                                           [r["record_id"] for r in rows], key="sr_sel")
                 if selected_id:
                     record_data = database.get_record(selected_id)
                     if record_data:
-                        st.json(record_data)
+                        owner = record_authz.record_owner(record_data)
+                        acl_editors = database.acl_editor_usernames(selected_id)
+                        can_edit, _why = record_authz.can_edit_record(
+                            record_data, current_username, user_is_admin, acl_editors=acl_editors)
+                        can_acl = record_authz.can_manage_acl(
+                            record_data, current_username, user_is_admin)
 
-                        # Download button
-                        json_str = json.dumps(record_data, indent=2)
-                        st.download_button(
-                            label="Download JSON",
-                            data=json_str,
-                            file_name=f"isaac_record_{selected_id}.json",
-                            mime="application/json"
-                        )
+                        st.caption(f"Owner: **{owner or 'unowned'}**"
+                                   + ("  ·  ✏️ you can edit this record" if can_edit else ""))
+                        st.json(record_data, expanded=False)
+                        st.download_button("Download JSON", json.dumps(record_data, indent=2),
+                                           file_name=f"isaac_record_{selected_id}.json",
+                                           mime="application/json")
 
-                        # Record deletion is intentionally NOT available from the
-                        # web interface. Deleting a record is an irreversible,
-                        # high-trust operation; it is exposed ONLY through the
-                        # admin-authenticated API (DELETE /portal/api/records/<id>,
-                        # which validates the Bearer-token admin group and archives
-                        # the record to history). The web identity is proxy-header
-                        # derived and must never gate destructive actions.
+                        # --- Edit (owner / collaborator / admin) ---
+                        if can_edit:
+                            with st.expander("✏️ Edit this record"):
+                                st.caption("Edit the JSON and save the **complete** record. The "
+                                           "previous version is archived; ownership never changes.")
+                                edited = st.text_area("Record JSON",
+                                                      value=json.dumps(record_data, indent=2),
+                                                      height=360, key=f"sr_edit_{selected_id}")
+                                note = st.text_input("Change note (why you edited)",
+                                                     key=f"sr_note_{selected_id}")
+                                if st.button("💾 Save changes", key=f"sr_save_{selected_id}"):
+                                    try:
+                                        new_data = json.loads(edited)
+                                    except json.JSONDecodeError as je:
+                                        st.error(f"Not valid JSON: {je}")
+                                    else:
+                                        try:
+                                            res = database.update_record_versioned(
+                                                selected_id, new_data, actor=current_username,
+                                                change_note=(note or None))
+                                            st.success(f"Saved as version {res['version']} "
+                                                       f"({res['change_class']} change).")
+                                            st.rerun()
+                                        except validation.ValidationError as ve:
+                                            st.error("Validation failed — fix and retry:")
+                                            st.json(ve.result)
+                                        except database.VersionConflictError:
+                                            st.warning("This record changed meanwhile — refresh and retry.")
+                                        except Exception as ee:
+                                            st.error(f"Could not save: {ee}")
+                        else:
+                            st.info("You can view this record. Only its owner, a collaborator, "
+                                    "or an admin can edit it.")
+
+                        # --- Collaborators (owner / admin) ---
+                        if can_acl:
+                            with st.expander("👥 Collaborators — let a co-author edit this record"):
+                                for c in database.acl_list(selected_id):
+                                    cc1, cc2 = st.columns([4, 1])
+                                    cc1.write(f"**{c['grantee_identity']}** · editor "
+                                              f"(added by {c.get('granted_by') or '?'})")
+                                    if cc2.button("Remove",
+                                                  key=f"sr_rm_{selected_id}_{c['grantee_identity']}"):
+                                        database.acl_remove_editor(selected_id, c['grantee_identity'])
+                                        st.rerun()
+                                ng = st.text_input("Add collaborator (portal username)",
+                                                   key=f"sr_addc_{selected_id}").strip()
+                                if st.button("Add editor", key=f"sr_addbtn_{selected_id}"):
+                                    ok, err = record_authz.validate_grant("editor", ng, owner)
+                                    if not ok:
+                                        st.error(f"Cannot add collaborator: {err}")
+                                    else:
+                                        database.acl_add_editor(selected_id, ng, current_username)
+                                        st.rerun()
+
+                        # --- Version history ---
+                        with st.expander("🕓 Version history"):
+                            hist = database.record_history(selected_id)
+                            if hist:
+                                st.dataframe(pd.DataFrame([{
+                                    "When": h.get("archived_at"), "Action": h.get("action"),
+                                    "By": h.get("actor"), "Version": h.get("version"),
+                                    "Class": h.get("change_class"),
+                                    "Note": h.get("change_note")} for h in hist]),
+                                    width='stretch', hide_index=True)
+                            else:
+                                st.caption("No prior versions — this record hasn't been edited yet.")
+                # Deletion is intentionally NOT in the web UI — it stays admin-API only
+                # (DELETE /portal/api/records/<id>), archived to history. The proxy-header
+                # web identity must never gate a destructive action.
             else:
-                st.info("No records found. Create records using the Record Validator or Record Form.")
-
+                st.info("No records match these filters." if filters
+                        else "No records found. Create one via the Record Validator or Record Form.")
         except Exception as e:
             st.error(f"Error loading records: {e}")
 
@@ -2554,6 +2637,23 @@ requestAnimationFrame(loop);
             _leader_label = (max(_alive, key=lambda h: float(h["confidence"] or 0))["label"]
                              if _alive else None)
             brief = discovery.get_briefing(pid, owner) or {}
+
+            # ---------- EVIDENCE-DRIFT TAG ----------
+            # Records CITED for a verdict (used to reason) were edited since. Advisory; never
+            # changes a score. Records merely browsed in the dataset never appear here.
+            _drift = brief.get("evidence_drift") or []
+            if _drift:
+                _dh = {}
+                for _d in _drift:
+                    _dh.setdefault(_d.get("hypothesis"), set()).add(_d.get("record_id"))
+                _lines = "; ".join(
+                    f"**{_h}** ({len(_r)} record{'s' if len(_r) != 1 else ''})"
+                    for _h, _r in _dh.items())
+                st.warning(
+                    f"**Evidence revised since used** — {_lines}. A record cited on these "
+                    "hypotheses was edited after you reasoned on it. Re-examine the affected "
+                    "verdict(s) and re-evaluate to re-pin (this tag clears itself). It did "
+                    "**not** change any score.", icon="⚠️")
 
             # ---------- BRIEFING HEADER (the universal-truth digest) ----------
             # Title + the project's unique DB id (so you can tell the agent "continue
