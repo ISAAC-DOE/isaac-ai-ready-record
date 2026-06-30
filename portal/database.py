@@ -1409,15 +1409,21 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
             rows = cur.fetchall()
         except Exception as qe:
             conn.rollback()
-            # 42501 = insufficient_privilege: the read-only role lacks SELECT on a table that
-            # IS allowed by the in-code belt but not yet GRANTed (see READONLY_QUERY_GRANTS.md).
-            # Surface a clear message instead of a 500.
-            if getattr(qe, "pgcode", None) == "42501":
+            pgcode = getattr(qe, "pgcode", None)
+            # 42501 = insufficient_privilege: read-only role lacks SELECT on a table that IS
+            # allowed by the in-code belt but not yet GRANTed (see READONLY_QUERY_GRANTS.md).
+            if pgcode == "42501":
                 raise ValueError(
                     "Read access to that table is not enabled yet. The `records` table is "
                     "available now; other non-sensitive tables (record_history, "
                     "vocabulary_cache, templates) are pending a DB grant — ask an admin.")
-            raise
+            # Any other Postgres error (bad column/function, syntax, timeout) is the USER's
+            # query — surface the first line of the DB message as a 400, not a 500. It's about
+            # their own SELECT over the public records schema, so nothing sensitive leaks.
+            if pgcode:
+                _msg = (getattr(qe, "pgerror", None) or str(qe) or "query error").strip()
+                raise ValueError(f"SQL error: {_msg.splitlines()[0]}")
+            raise  # connection/unexpected -> genuine 500
         conn.rollback()
         return [dict(row) for row in rows]
     finally:
