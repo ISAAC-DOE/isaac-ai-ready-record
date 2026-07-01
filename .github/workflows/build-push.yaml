@@ -16,7 +16,25 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/isaac-ai-ready-record
 
 jobs:
+  # Gate: build the image ONLY if the test battery passes. Previously this
+  # workflow and the Validation Battery both fired on push:main with NO
+  # dependency between them, so a red suite could still build + ship to prod
+  # (only the local ship.sh pytest gated it). `needs: test` makes a failing
+  # test physically block the build, the GHCR push, AND the deploy.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install jsonschema rfc3339-validator PyYAML GitPython requests pytest flask flask-cors
+      - name: Run validation battery
+        run: pytest tests/ -q
+
   build-and-push:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: write
