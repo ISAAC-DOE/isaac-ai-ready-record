@@ -22,8 +22,10 @@ _STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 # Theme-specific assets: white artwork on dark backgrounds, dark (inverted)
 # artwork on light backgrounds, so every logo stays legible in both modes. The
 # *_dark.png variants are pre-generated (committed) — no runtime image lib needed.
-_LOGO = {"dark": os.path.join(_STATIC_DIR, "ISAAC_full_horizontal_white.png"),
-         "light": os.path.join(_STATIC_DIR, "ISAAC_full_horizontal_dark.png")}
+# The HEADER wordmark is a VECTOR (SVG) so it stays razor-sharp at any size / DPR
+# — the raster was blurring the fine tagline when scaled down into the top bar.
+_LOGO_SVG = {"dark": os.path.join(_STATIC_DIR, "ISAAC_full_horizontal_white.svg"),
+             "light": os.path.join(_STATIC_DIR, "ISAAC_full_horizontal_dark.svg")}
 _PARTNERS = {"dark": os.path.join(_STATIC_DIR, "ISAAC_partners_footer_white.png"),
              "light": os.path.join(_STATIC_DIR, "ISAAC_partners_footer_dark.png")}
 _DOE = {"dark": os.path.join(_STATIC_DIR, "DOE_White_Seal_White_Lettering_Horizontal.png"),
@@ -34,21 +36,34 @@ def _asset(mapping: dict, mode: str) -> str:
     return mapping.get(mode, mapping["dark"])
 
 
+def _svg_logo_img(mode: str, width: int) -> str:
+    """INLINE the theme-matched vector wordmark. Vector => crisp at any pixel
+    density (fixes the blurry raster tagline). Inline <svg> (not a data: URI) is
+    used deliberately: Streamlit's frontend sanitizer keeps inline SVG shapes but
+    tends to strip `data:image/svg+xml` in <img>. `width` sizes it; the viewBox
+    preserves aspect ratio."""
+    with open(_asset(_LOGO_SVG, mode), "r", encoding="utf-8") as fh:
+        svg = fh.read().strip()
+    # Give the root <svg> a display width (aspect from its viewBox). Idempotent:
+    # our generated file has no width/height on the root element.
+    svg = svg.replace("<svg ", f'<svg width="{int(width)}" ', 1)
+    return f'<div style="line-height:0;font-size:0">{svg}</div>'
+
+
 def render_header(mode: str = "dark"):
     """Render the ISAAC logo top-left and inject the design system for the mode.
 
-    Uses st.image as the very first element (top-left of the content). NOT
-    st.logo — that renders into the sidebar, which this portal hides entirely, so
-    st.logo never appears. The asset itself switches per theme (white/dark)."""
-    st.image(_asset(_LOGO, mode), width=240)
+    The wordmark is the very first element (top-left). The asset switches per
+    theme (white on dark / dark on light)."""
+    st.markdown(_svg_logo_img(mode, 240), unsafe_allow_html=True)
     inject_theme(mode)
 
 
 def header_logo(mode: str = "dark", width: int = 190):
-    """Just the theme-matched ISAAC logo, for placing INSIDE a custom header row
-    (a vertical-centered st.columns bar). Does NOT inject the theme — call
+    """Just the theme-matched ISAAC wordmark, for placing INSIDE a custom header
+    row (a vertical-centered st.columns bar). Does NOT inject the theme — call
     inject_theme(mode) once, separately, before the bar."""
-    st.image(_asset(_LOGO, mode), width=width)
+    st.markdown(_svg_logo_img(mode, width), unsafe_allow_html=True)
 
 
 def render_footer(mode: str = "dark"):
