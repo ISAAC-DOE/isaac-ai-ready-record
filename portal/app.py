@@ -12,11 +12,8 @@ import discovery
 import os
 import re
 import html
-import importlib
 import streamlit.components.v1 as components
 from datetime import datetime, timezone, timedelta
-
-importlib.reload(ontology)
 
 # Page Config — hide the default sidebar entirely
 st.set_page_config(page_title="ISAAC Portal", layout="wide", initial_sidebar_state="collapsed")

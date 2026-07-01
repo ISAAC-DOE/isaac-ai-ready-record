@@ -6,8 +6,31 @@ PostgreSQL connection for vocabulary, templates, and records storage
 import os
 import json
 import re
+import functools
 import logging
 from datetime import datetime
+
+
+def _run_once(fn):
+    """Run an idempotent initializer AT MOST ONCE per process — and only latch on
+    success (a falsy return retries next call). Streamlit re-executes app.py on
+    every rerun and calls init_tables()/init_discovery_tables() each time; this
+    module is imported once (never importlib.reload'd), so a module-level latch
+    here collapses the per-rerun DDL/init storm — the ~27 CREATE/ALTER/INDEX
+    statements — to a single execution per process. THIS is the Streamlit half of
+    the summit-scale connection burst."""
+    state = {"done": False}
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        if state["done"]:
+            return True
+        result = fn(*args, **kwargs)
+        if result:
+            state["done"] = True
+        return result
+    wrapper._once_state = state  # exposed so tests can prove the guard is applied
+    return wrapper
 
 # psycopg2 is required to actually talk to Postgres, but importing this module must
 # NOT require the driver — the portal's pure-logic layer (e.g. discovery scoring) is
@@ -91,6 +114,7 @@ def test_db_connection():
         return False
 
 
+@_run_once
 def init_tables():
     """Initialize database tables if they don't exist"""
     if not is_db_configured():
@@ -321,6 +345,7 @@ def test_discovery_db_connection():
         return False
 
 
+@_run_once
 def init_discovery_tables():
     """Bootstrap the isaac_discovery schema on startup (idempotent, non-fatal).
 

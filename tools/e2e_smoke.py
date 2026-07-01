@@ -137,6 +137,40 @@ def check_discovery_authz():
         http("DELETE", f"/projects/{pid}")
 
 
+def check_api_concurrency():
+    """Prove the API serves concurrent requests from MULTIPLE gunicorn workers on
+    the LIVE portal (not the old single sync worker that serialized everything and
+    caused the summit failure). Fires a burst of concurrent /health calls and
+    checks (a) all succeed under concurrency and (b) >=2 distinct worker PIDs
+    answered — direct evidence of a multi-worker pool, immune to network-timing
+    noise. /health is public, so no token is used."""
+    import concurrent.futures
+    print("\n  -- API concurrency (summit fix) --")
+    N = 20
+
+    def one(_):
+        try:
+            resp = urllib.request.urlopen(
+                urllib.request.Request(API + "/health", method="GET"), timeout=15)
+            return resp.status, json.loads(resp.read() or b"{}").get("worker_pid")
+        except urllib.error.HTTPError as e:
+            return e.code, None
+        except Exception:
+            return 0, None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=N) as ex:
+        results = list(ex.map(one, range(N)))
+    ok = sum(1 for c, _ in results if c == 200)
+    check(f"concurrency: all {N} concurrent /health succeed (no fall-over)", ok == N,
+          f"{ok}/{N} ok")
+    pids = {p for _, p in results if p}
+    if not pids:
+        print("  [SKIP] worker_pid absent — old image likely still serving; re-run after rollout.")
+    else:
+        check(f"concurrency: served by >=2 gunicorn workers (distinct PIDs: {len(pids)})",
+              len(pids) >= 2, f"only {len(pids)} distinct PID(s) — single-worker? {pids}")
+
+
 def main():
     print(f"ISAAC e2e smoke vs {API}")
 
@@ -221,6 +255,9 @@ def main():
 
     # 6. Discovery per-project authorization (write-IDOR) — live checkpoint
     check_discovery_authz()
+
+    # 7. API concurrency (multi-worker gunicorn) — summit-fix live checkpoint
+    check_api_concurrency()
 
     print()
     if failures:
