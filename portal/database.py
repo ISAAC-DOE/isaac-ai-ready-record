@@ -1303,20 +1303,22 @@ def count_records() -> int:
 
 
 # SENSITIVE records-DB tables: readable ONLY by admins via /records/query (and never by
-# nano-ISAAC). Everything else in this DB — `records`, `record_history` (version history of
-# public records), `templates` (form scaffolding), `vocabulary_cache` (the controlled
-# ontology) — is non-sensitive reference/scientific data, open read-only to ANY authenticated
-# user. Sensitivity rationale: these five carry login/usage PII (incl. client IPs), or
-# access-control / moderation identities.
+# nano-ISAAC). The NON-sensitive reference/scientific data open read-only to ANY authenticated
+# user is `records`, `templates` (form scaffolding), and `vocabulary_cache` (the controlled
+# ontology). Everything in the tuple below is admin-only. Sensitivity rationale: these carry
+# login/usage PII (incl. client IPs), access-control / moderation identities, OR — for
+# record_history — the editor identity (`actor`) plus full JSONB snapshots of archived,
+# superseded, and DELETED record versions, i.e. an audit log, not public science.
 #   The TRUE enforcement is the isaac_readonly role's grants (DB level); this is the in-code
 #   belt. KEEP THE TWO IN SYNC — when opening a table here, the records-DB owner must GRANT
-#   SELECT on it to isaac_readonly (and keep REVOKE on the five sensitive tables below).
+#   SELECT on it to isaac_readonly (and keep REVOKE on the sensitive tables below).
 _AGENT_FORBIDDEN_TABLES = (
     "api_requests",          # usage log — usernames, endpoints, client IPs
     "portal_access_log",     # login activity — usernames, timestamps
     "vocabulary_sync_log",   # operational sync log
     "vocabulary_proposals",  # proposer/reviewer identities + moderation state
     "record_acl",            # who-can-edit-what (access-control / collaboration graph)
+    "record_history",        # audit log: editor identity (actor) + archived/deleted snapshots
 )
 
 
@@ -1414,9 +1416,9 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
             # allowed by the in-code belt but not yet GRANTed to isaac_readonly at the DB.
             if pgcode == "42501":
                 raise ValueError(
-                    "Read access to that table is not enabled yet. The `records` table is "
-                    "available now; other non-sensitive tables (record_history, "
-                    "vocabulary_cache, templates) are pending a DB grant — ask an admin.")
+                    "Read access to that table is not enabled. The `records`, `templates`, "
+                    "and `vocabulary_cache` tables are open to all authenticated users; other "
+                    "tables are admin-only — ask an admin.")
             # Any other Postgres error (bad column/function, syntax, timeout) is the USER's
             # query — surface the first line of the DB message as a 400, not a 500. It's about
             # their own SELECT over the public records schema, so nothing sensitive leaks.

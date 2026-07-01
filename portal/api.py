@@ -556,8 +556,9 @@ def records_query():
     read-only DB role — delegates to database.execute_readonly_query.
 
     Access: ANY authenticated user may read NON-SENSITIVE tables — `records`,
-    `record_history`, `vocabulary_cache` (the controlled ontology), `templates`. SENSITIVE
-    tables (usage/access logs with PII, `record_acl`, `vocabulary_proposals`) are admin-only.
+    `vocabulary_cache` (the controlled ontology), `templates`. SENSITIVE tables (usage/access
+    logs with PII, `record_acl`, `vocabulary_proposals`, and `record_history` — an audit log
+    carrying editor identity + archived/deleted record snapshots) are admin-only.
     Enforced in two layers: the in-code belt (database._AGENT_FORBIDDEN_TABLES) and the
     isaac_readonly role's DB-level grants.
     records schema: records(record_id CHAR(26), record_type, record_domain, data JSONB,

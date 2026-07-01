@@ -1495,7 +1495,8 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -X PO
             language="bash")
     st.markdown("Returns `{\"rows\": [...], \"row_count\": N, \"truncated_at\": <max|null>}`. "
                 "A malformed query returns a clear `400 {\"error\": \"SQL error: ...\"}`. "
-                "Sensitive tables (usage/access logs, ACLs, proposals) are admin-only.")
+                "Sensitive tables (usage/access logs, ACLs, proposals, and record_history — "
+                "the edit audit log) are admin-only.")
 
     st.divider()
 
