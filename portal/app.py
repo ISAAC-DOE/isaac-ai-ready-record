@@ -1360,10 +1360,27 @@ elif page == "API Keys":
                         st.caption(f"{_expired_hidden} expired key(s) hidden.")
                     for key_info in keys:
                         ident = key_info["identifier"]
-                        created = key_info.get("created", "unknown")
+                        created = str(key_info.get("created", "unknown")).replace("T", " ")[:16]
+                        # Show when each key expires (date + days left) so users can rotate
+                        # before it dies; older keys created before the expiry change never
+                        # expire.
+                        if not key_info.get("expiring", True):
+                            _exp_str = "never expires"
+                        else:
+                            _exp_str = "expiry unknown"
+                            _e = key_info.get("expires")
+                            if _e:
+                                try:
+                                    _edt = datetime.fromisoformat(str(_e).replace("Z", "+00:00"))
+                                    _days = (_edt - datetime.now(timezone.utc)).days
+                                    _exp_str = (f"expires {_edt.strftime('%Y-%m-%d')} "
+                                                f"({_days} day{'' if _days == 1 else 's'} left)")
+                                except Exception:
+                                    _exp_str = f"expires {str(_e)[:10]}"
                         col1, col2 = st.columns([4, 1])
                         with col1:
-                            st.text(f"{ident}  (created: {created})")
+                            st.text(ident)
+                            st.caption(f"created {created} · {_exp_str}")
                         with col2:
                             if st.button("Revoke", key=f"revoke_{ident}"):
                                 if not ident.startswith(f"isaac-api-{_safe_username}-"):
