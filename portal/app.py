@@ -1238,9 +1238,13 @@ elif page == "API Keys":
                     # Bounded TTL: keys expire so a leaked key cannot be used
                     # indefinitely. Identity (user_pk) is resolved from the
                     # edge-trusted username (C1), so a key can only be minted
-                    # for the authenticated caller. (C3)
-                    _ttl_days = 90
-                    _expires = (datetime.now(timezone.utc) + timedelta(days=_ttl_days)).isoformat()
+                    # for the authenticated caller. (C3).
+                    # NOTE: for intent="api" Authentik IGNORES any client "expires" and
+                    # forces the lifetime to the tenant's Default token duration
+                    # (TokenSerializer.validate: "expires cannot be overridden"). So we
+                    # request an expiring token and read back the REAL expiry below rather
+                    # than assert a TTL we don't control. The duration is configured in
+                    # Authentik (tenant Default token duration).
                     create_resp = requests.post(
                         f"{authentik_api_url}/api/v3/core/tokens/",
                         headers=admin_headers,
@@ -1250,7 +1254,6 @@ elif page == "API Keys":
                             "user": user_pk,
                             "description": f"ISAAC Portal API key for {current_username}",
                             "expiring": True,
-                            "expires": _expires,
                         },
                         timeout=10,
                     )
@@ -1267,7 +1270,23 @@ elif page == "API Keys":
                     key_resp.raise_for_status()
                     key_value = key_resp.json()["key"]
 
-                    st.success(f"API key created (expires in {_ttl_days} days). Copy it now — it will not be shown again.")
+                    # Report the ACTUAL expiry Authentik assigned (tenant default), so we
+                    # never promise a lifetime the portal doesn't control.
+                    _expires_display = "unknown — check the list below"
+                    try:
+                        info_resp = requests.get(
+                            f"{authentik_api_url}/api/v3/core/tokens/{identifier}/",
+                            headers=admin_headers,
+                            timeout=5,
+                        )
+                        if info_resp.ok:
+                            _exp = info_resp.json().get("expires")
+                            if _exp:
+                                _expires_display = str(_exp).replace("T", " ")[:16] + " UTC"
+                    except Exception:
+                        pass
+
+                    st.success(f"API key created (expires {_expires_display}). Copy it now — it will not be shown again.")
                     st.code(key_value, language="text")
                     st.markdown("**Usage:**")
                     st.code(
@@ -1282,22 +1301,63 @@ elif page == "API Keys":
             st.divider()
             st.subheader("Your API Keys")
             try:
-                list_resp = requests.get(
-                    f"{authentik_api_url}/api/v3/core/tokens/",
-                    headers=admin_headers,
-                    params={"user__pk": user_pk, "intent": "api"},
-                    timeout=5,
-                )
-                list_resp.raise_for_status()
-
-                keys = [
-                    t for t in list_resp.json().get("results", [])
-                    if t.get("identifier", "").startswith(f"isaac-api-{_safe_username}-")
-                ]
+                # Authentik's token filter accepts `user__username` (NOT `user__pk`, which
+                # it silently ignores — that ignored filter caused BOTH the old "showed
+                # other users' keys" bug and this "no keys" bug). The list is paginated
+                # (default 20/page) and includes EXPIRED tokens, so a user who regenerated
+                # daily can have their newest key pushed past page 1: page through all of
+                # them. Keep the identifier prefix as defense-in-depth so only this user's
+                # ISAAC-minted keys are shown.
+                keys = []
+                _expired_hidden = 0
+                _now = datetime.now(timezone.utc)
+                _page = 1
+                while _page and _page <= 50:  # hard cap (>5000 tokens is impossible per user)
+                    list_resp = requests.get(
+                        f"{authentik_api_url}/api/v3/core/tokens/",
+                        headers=admin_headers,
+                        params={
+                            "user__username": current_username,
+                            "intent": "api",
+                            "page_size": 100,
+                            "page": _page,
+                            "ordering": "-expires,identifier",  # unique tiebreaker => stable paging
+                        },
+                        timeout=5,
+                    )
+                    list_resp.raise_for_status()
+                    _body = list_resp.json()
+                    for t in _body.get("results", []):
+                        if not t.get("identifier", "").startswith(f"isaac-api-{_safe_username}-"):
+                            continue
+                        # Hide already-expired tokens: they can't authenticate and Authentik
+                        # removes them on its own. The endpoint returns expired tokens too
+                        # (including_expired), so a daily-regenerating user would otherwise see
+                        # dozens of dead rows. Show only usable keys.
+                        _exp = t.get("expires")
+                        _active = True
+                        if t.get("expiring", True) and _exp:
+                            try:
+                                _active = datetime.fromisoformat(str(_exp).replace("Z", "+00:00")) > _now
+                            except Exception:
+                                _active = True  # unparseable -> don't hide
+                        if _active:
+                            keys.append(t)
+                        else:
+                            _expired_hidden += 1
+                    _next = _body.get("pagination", {}).get("next")  # page number, 0 on last page
+                    if not _next:
+                        break
+                    _page = _next
 
                 if not keys:
                     st.info("You have no API keys. Generate one above.")
+                    if _expired_hidden:
+                        st.caption(f"({_expired_hidden} expired key(s) hidden — expired keys "
+                                   "can't be used and are removed automatically.)")
                 else:
+                    if _expired_hidden:
+                        st.caption(f"{_expired_hidden} expired key(s) hidden.")
                     for key_info in keys:
                         ident = key_info["identifier"]
                         created = key_info.get("created", "unknown")
