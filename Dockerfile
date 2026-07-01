@@ -20,6 +20,9 @@ COPY data/ data/
 COPY schema/ schema/
 COPY examples/ examples/
 COPY tools/ tools/
+# Gunicorn tuning (multi-worker/threaded) — auto-loaded from WORKDIR /app so it
+# applies to `gunicorn portal.api:app` however the API container is launched.
+COPY gunicorn.conf.py .
 
 # Set ownership
 RUN chown -R appuser:appuser /app
@@ -36,7 +39,8 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8501/_stcore/health || exit 1
 
 # Run Streamlit (default)
-# To run the Flask API sidecar instead or alongside:
+# To run the Flask API sidecar instead or alongside (gunicorn auto-loads
+# /app/gunicorn.conf.py for multi-worker/threaded concurrency):
 #   As a sidecar container:  CMD ["gunicorn", "-b", "0.0.0.0:8502", "portal.api:app"]
 #   Or directly:             CMD ["python", "portal/api.py"]
 #   Both processes together: use the start.sh entrypoint below

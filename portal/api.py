@@ -322,8 +322,15 @@ def _validate_vocabulary(data: dict) -> list:
 
 @app.route("/portal/api/health", methods=["GET"])
 def health():
-    """Health check for Kubernetes liveness/readiness probes."""
-    return jsonify({"status": "healthy", "service": "isaac-portal-api"})
+    """Health check for Kubernetes liveness/readiness probes.
+
+    Reports the serving worker's PID so a concurrency probe can prove the API is
+    running multiple gunicorn workers (not the old single sync worker) — a burst
+    of concurrent /health calls answered by >=2 distinct PIDs is direct evidence,
+    immune to network-timing noise.
+    """
+    return jsonify({"status": "healthy", "service": "isaac-portal-api",
+                    "worker_pid": os.getpid()})
 
 
 # --- Combined schema (base + vocabulary enums) ----------------------------

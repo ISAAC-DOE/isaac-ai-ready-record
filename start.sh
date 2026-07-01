@@ -16,7 +16,7 @@
 set -e
 
 echo "Starting ISAAC Portal API on port ${PORT:-8502}..."
-gunicorn -b 0.0.0.0:${PORT:-8502} portal.api:app --access-logfile - --error-logfile - &
+gunicorn -c /app/gunicorn.conf.py -b 0.0.0.0:${PORT:-8502} portal.api:app &
 API_PID=$!
 
 echo "Starting Streamlit on port 8501..."
