@@ -1012,6 +1012,101 @@ def _disc_identity():
     return (request.auth_info or {}).get("user")
 
 
+# --- Discovery per-project authorization (fixes the write-IDOR) --------------
+# Every discovery MUTATION must prove the caller may WRITE the target project:
+# admin OR owner OR a write-share (discovery._can_write). Read-shares and
+# unrelated authenticated users get 403 — previously they could evaluate
+# predictions / edit hypotheses / delete runs on ANY project by id. Resolvers
+# map a route's path param to the owning project_id (None => 404).
+def _disc_project_of(kind, child_id):
+    """Resolve the owning project_id for a child resource, or None if missing."""
+    queries = {
+        "prediction": ("SELECT h.project_id FROM hyp_predictions p "
+                       "JOIN hyp_hypotheses h ON h.hypothesis_id=p.hypothesis_id "
+                       "WHERE p.prediction_id=%s"),
+        "hypothesis": "SELECT project_id FROM hyp_hypotheses WHERE hypothesis_id=%s",
+        "finding":    "SELECT project_id FROM hyp_rigor_findings WHERE finding_id=%s",
+        "async":      "SELECT project_id FROM hyp_async_tasks WHERE task_id=%s",
+        "run":        ("SELECT h.project_id FROM hyp_compute_runs r "
+                       "JOIN hyp_predictions p ON p.prediction_id=r.prediction_id "
+                       "JOIN hyp_hypotheses h ON h.hypothesis_id=p.hypothesis_id "
+                       "WHERE r.run_id=%s"),
+    }
+    conn = database.get_discovery_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(queries[kind], (child_id,))
+        row = cur.fetchone()
+        return row["project_id"] if row else None
+    finally:
+        cur.close()
+        conn.close()
+
+
+def _disc_authz(project_id, *, write):
+    """True iff the caller may READ (write=False) or WRITE (write=True) the project.
+    Admin bypasses. Opens a short-lived discovery-DB read to consult the shares table."""
+    if _caller_is_admin():
+        return True
+    ident = _disc_identity()
+    if not ident:
+        return False
+    conn = database.get_discovery_db_connection()
+    cur = conn.cursor()
+    try:
+        check = discovery._can_write if write else discovery._can_read
+        return bool(check(cur, project_id, ident))
+    finally:
+        cur.close()
+        conn.close()
+
+
+def _require_disc_access(resolver, *, write):
+    """Route decorator (sits BELOW @_require_auth): authorize the caller for
+    READ/WRITE on the project this route targets. `resolver(kwargs) -> project_id`
+    (None => 404). 403 if the caller lacks the access. Fail-closed on any error."""
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            try:
+                pid = resolver(kwargs)
+            except Exception:
+                logger.exception("discovery authz resolver failed")
+                return jsonify({"error": "internal server error"}), 500
+            if not pid:
+                return jsonify({"error": "not found"}), 404
+            if not _disc_authz(pid, write=write):
+                return jsonify({
+                    "error": "forbidden",
+                    "message": ("You do not have "
+                                + ("write" if write else "read")
+                                + " access to this project."),
+                }), 403
+            return fn(*args, **kwargs)
+        # Marker so a CI completeness test can prove every discovery mutation
+        # route carries a gate (propagates up through @_require_auth's functools.wraps).
+        wrapper._disc_authz_mode = "write" if write else "read"
+        return wrapper
+    return deco
+
+
+# Resolver constants — keep one per path-param shape so each route is a one-liner.
+_R_PROJECT = lambda kw: kw.get("project_id")                              # noqa: E731
+_R_PRED    = lambda kw: _disc_project_of("prediction", kw["prediction_id"])  # noqa: E731
+_R_HYP     = lambda kw: _disc_project_of("hypothesis", kw["hypothesis_id"])  # noqa: E731
+_R_FINDING = lambda kw: _disc_project_of("finding", kw["finding_id"])     # noqa: E731
+_R_ASYNC   = lambda kw: _disc_project_of("async", kw["task_id"])          # noqa: E731
+_R_RUN     = lambda kw: _disc_project_of("run", kw["run_id"])             # noqa: E731
+
+
+def _require_disc_write(resolver):
+    return _require_disc_access(resolver, write=True)
+
+
+def _require_disc_read(resolver):
+    return _require_disc_access(resolver, write=False)
+
+
 @app.route("/portal/api/literature/search", methods=["POST"])
 @_require_auth
 def literature_search():
@@ -1098,6 +1193,7 @@ def discovery_get_project(project_id):
 
 @app.route("/portal/api/projects/<project_id>", methods=["PUT", "PATCH"])
 @_require_auth
+@_require_disc_write(_R_PROJECT)
 def discovery_update_project(project_id):
     """Update project-level fields after creation — chiefly material_system (and reaction/
     goal). Owner-only. The descriptor-keyed evidence index keys off material_system."""
@@ -1136,6 +1232,7 @@ def discovery_context(project_id):
 
 @app.route("/portal/api/projects/<project_id>/resume_check", methods=["POST"])
 @_require_auth
+@_require_disc_write(_R_PROJECT)
 def discovery_resume_check(project_id):
     """A resuming agent posts what it believes the state is; the platform diffs it
     against the computed ground truth and returns a comprehension report (mismatches to
@@ -1165,6 +1262,7 @@ def discovery_evidence(project_id):
 
 @app.route("/portal/api/projects/<project_id>/evidence_overrides", methods=["PUT"])
 @_require_auth
+@_require_disc_write(_R_PROJECT)
 def discovery_evidence_overrides(project_id):
     d = request.get_json(silent=True) or {}
     ok = discovery.set_evidence_overrides(
@@ -1177,6 +1275,7 @@ def discovery_evidence_overrides(project_id):
 
 @app.route("/portal/api/projects/<project_id>/dataset", methods=["PUT"])
 @_require_auth
+@_require_disc_write(_R_PROJECT)
 def discovery_set_dataset(project_id):
     d = request.get_json(silent=True) or {}
     if not isinstance(d.get("record_ids"), list):
@@ -1309,6 +1408,7 @@ def discovery_delete_project(project_id):
 
 @app.route("/portal/api/predictions/<prediction_id>", methods=["PUT", "PATCH"])
 @_require_auth
+@_require_disc_write(_R_PRED)
 def discovery_update_prediction(prediction_id):
     """Complete/sharpen a prediction's STRUCTURE in place (direction, reference_condition,
     magnitude, falsification_criterion, label, discriminates, origin) WITHOUT touching its
@@ -1329,6 +1429,7 @@ def discovery_update_prediction(prediction_id):
 
 @app.route("/portal/api/predictions/<prediction_id>/status", methods=["PUT"])
 @_require_auth
+@_require_disc_write(_R_PRED)
 def discovery_set_prediction_status(prediction_id):
     d = request.get_json(silent=True) or {}
     ws = d.get("work_status")
@@ -1345,6 +1446,7 @@ def discovery_set_prediction_status(prediction_id):
 
 @app.route("/portal/api/projects/<project_id>/hypotheses", methods=["POST"])
 @_require_auth
+@_require_disc_write(_R_PROJECT)
 def discovery_create_hypothesis(project_id):
     d = request.get_json(silent=True) or {}
     if not d.get("statement"):
@@ -1361,6 +1463,7 @@ def discovery_create_hypothesis(project_id):
 
 @app.route("/portal/api/hypotheses/<hypothesis_id>", methods=["PUT"])
 @_require_auth
+@_require_disc_write(_R_HYP)
 def discovery_update_hypothesis(hypothesis_id):
     d = request.get_json(silent=True) or {}
     # NOTE: confidence is COMPUTED from prediction verdicts, never set here. Only
@@ -1376,6 +1479,7 @@ def discovery_update_hypothesis(hypothesis_id):
 
 @app.route("/portal/api/hypotheses/<hypothesis_id>/refine", methods=["PUT"])
 @_require_auth
+@_require_disc_write(_R_HYP)
 def discovery_refine_hypothesis(hypothesis_id):
     d = request.get_json(silent=True) or {}
     v = discovery.refine_hypothesis(
@@ -1389,6 +1493,7 @@ def discovery_refine_hypothesis(hypothesis_id):
 
 @app.route("/portal/api/hypotheses/<hypothesis_id>/predictions", methods=["POST"])
 @_require_auth
+@_require_disc_write(_R_HYP)
 def discovery_create_prediction(hypothesis_id):
     d = request.get_json(silent=True) or {}
     if not d.get("descriptor_name"):
@@ -1407,6 +1512,7 @@ def discovery_create_prediction(hypothesis_id):
 
 @app.route("/portal/api/hypotheses/<hypothesis_id>/relations", methods=["POST"])
 @_require_auth
+@_require_disc_write(_R_HYP)
 def discovery_add_relation(hypothesis_id):
     d = request.get_json(silent=True) or {}
     rel = discovery.normalize_relation(d.get("relation_type"))
@@ -1426,6 +1532,7 @@ def discovery_add_relation(hypothesis_id):
 
 @app.route("/portal/api/hypotheses/<hypothesis_id>/relations", methods=["DELETE"])
 @_require_auth
+@_require_disc_write(_R_HYP)
 def discovery_delete_relation(hypothesis_id):
     d = request.get_json(silent=True) or {}
     if not d.get("to_hypothesis_id") or not d.get("relation_type"):
@@ -1438,6 +1545,7 @@ def discovery_delete_relation(hypothesis_id):
 
 @app.route("/portal/api/projects/<project_id>/rigor/findings", methods=["GET"])
 @_require_auth
+@_require_disc_read(_R_PROJECT)
 def discovery_list_rigor_findings(project_id):
     findings = discovery.list_rigor_findings(
         project_id, status=request.args.get("status"))
@@ -1446,6 +1554,7 @@ def discovery_list_rigor_findings(project_id):
 
 @app.route("/portal/api/projects/<project_id>/rigor/findings", methods=["POST"])
 @_require_auth
+@_require_disc_write(_R_PROJECT)
 def discovery_create_rigor_finding(project_id):
     d = request.get_json(silent=True) or {}
     if not d.get("summary"):
@@ -1462,6 +1571,7 @@ def discovery_create_rigor_finding(project_id):
 
 @app.route("/portal/api/rigor/findings/<finding_id>", methods=["PUT"])
 @_require_auth
+@_require_disc_write(_R_FINDING)
 def discovery_resolve_rigor_finding(finding_id):
     d = request.get_json(silent=True) or {}
     ok = discovery.resolve_rigor_finding(
@@ -1474,6 +1584,7 @@ def discovery_resolve_rigor_finding(finding_id):
 
 @app.route("/portal/api/projects/<project_id>/async", methods=["GET"])
 @_require_auth
+@_require_disc_read(_R_PROJECT)
 def discovery_list_async(project_id):
     return jsonify({"tasks": discovery.list_async_tasks(
         project_id, status=request.args.get("status"))}), 200
@@ -1481,6 +1592,7 @@ def discovery_list_async(project_id):
 
 @app.route("/portal/api/projects/<project_id>/async", methods=["POST"])
 @_require_auth
+@_require_disc_write(_R_PROJECT)
 def discovery_create_async(project_id):
     d = request.get_json(silent=True) or {}
     if not d.get("kind"):
@@ -1497,6 +1609,7 @@ def discovery_create_async(project_id):
 
 @app.route("/portal/api/async/<task_id>", methods=["PUT"])
 @_require_auth
+@_require_disc_write(_R_ASYNC)
 def discovery_resolve_async(task_id):
     d = request.get_json(silent=True) or {}
     ok = discovery.resolve_async_task(task_id, status=d.get("status", "done"),
@@ -1508,6 +1621,7 @@ def discovery_resolve_async(task_id):
 
 @app.route("/portal/api/predictions/<prediction_id>/runs", methods=["POST"])
 @_require_auth
+@_require_disc_write(_R_PRED)
 def discovery_create_run(prediction_id):
     d = request.get_json(silent=True) or {}
     rid = discovery.create_compute_run(
@@ -1523,6 +1637,7 @@ def discovery_create_run(prediction_id):
 
 @app.route("/portal/api/runs/<run_id>", methods=["DELETE"])
 @_require_auth
+@_require_disc_write(_R_RUN)
 def discovery_delete_run(run_id):
     if not discovery.delete_compute_run(run_id):
         return jsonify({"error": "run not found"}), 404
@@ -1531,6 +1646,7 @@ def discovery_delete_run(run_id):
 
 @app.route("/portal/api/runs/<run_id>", methods=["PUT"])
 @_require_auth
+@_require_disc_write(_R_RUN)
 def discovery_update_run(run_id):
     d = request.get_json(silent=True) or {}
     ok = discovery.update_compute_run(
@@ -1544,6 +1660,7 @@ def discovery_update_run(run_id):
 
 @app.route("/portal/api/predictions/<prediction_id>/evaluate", methods=["PUT"])
 @_require_auth
+@_require_disc_write(_R_PRED)
 def discovery_evaluate_prediction(prediction_id):
     d = request.get_json(silent=True) or {}
     if not d.get("verdict"):
@@ -1564,6 +1681,7 @@ def discovery_evaluate_prediction(prediction_id):
 
 @app.route("/portal/api/projects/<project_id>/events", methods=["POST"])
 @_require_auth
+@_require_disc_write(_R_PROJECT)
 def discovery_add_event(project_id):
     d = request.get_json(silent=True) or {}
     etype, summary = d.get("event_type"), d.get("summary")
@@ -1584,6 +1702,7 @@ def discovery_add_event(project_id):
 
 @app.route("/portal/api/projects/<project_id>/next_experiment", methods=["PUT"])
 @_require_auth
+@_require_disc_write(_R_PROJECT)
 def discovery_set_next_experiment(project_id):
     # REPLACE semantics: the full payload is stored (all keys preserved); send the
     # complete object each PUT.

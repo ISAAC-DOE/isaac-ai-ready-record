@@ -18,7 +18,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install jsonschema rfc3339-validator PyYAML GitPython requests pytest
+          pip install jsonschema rfc3339-validator PyYAML GitPython requests pytest flask flask-cors
 
       - name: Run validation battery
         run: |
