@@ -114,6 +114,10 @@ def test_db_connection():
         return False
 
 
+# Fixed key for the schema-init advisory lock (any stable bigint unique to this app).
+_INIT_TABLES_LOCK = 728_141_001
+
+
 @_run_once
 def init_tables():
     """Initialize database tables if they don't exist"""
@@ -122,7 +126,15 @@ def init_tables():
 
     try:
         conn = get_db_connection()
+        conn.autocommit = False  # real transaction so the xact lock holds until commit
         cur = conn.cursor()
+        # Serialize concurrent schema init across pods/replicas (multiple gunicorn
+        # masters + the Streamlit process all run this at boot; a rolling deploy overlaps
+        # old and new). A TRANSACTION-level advisory lock (auto-released at commit/
+        # rollback) — NOT a session-level one, which would not survive pgbouncer
+        # transaction pooling. The second booter blocks here, then runs the idempotent
+        # DDL below as a fast no-op. Removes the CREATE/ALTER/trigger boot race.
+        cur.execute("SELECT pg_advisory_xact_lock(%s)", (_INIT_TABLES_LOCK,))
 
         # API usage log (api-usage-dashboard, 2026-06-14)
         cur.execute('''
@@ -363,7 +375,11 @@ def init_discovery_tables():
         return False
     try:
         conn = get_discovery_db_connection()
+        conn.autocommit = False  # real transaction so the xact lock holds until commit
         cur = conn.cursor()
+        # Serialize concurrent discovery-schema init across pods (pgbouncer-safe xact
+        # lock; a separate DB from records, hence an independent lock space).
+        cur.execute("SELECT pg_advisory_xact_lock(%s)", (_INIT_TABLES_LOCK,))
         # Bookkeeping / migration marker. Single-row table keyed by a constant.
         cur.execute('''
             CREATE TABLE IF NOT EXISTS discovery_meta (

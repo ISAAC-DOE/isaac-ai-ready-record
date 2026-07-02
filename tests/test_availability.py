@@ -73,3 +73,39 @@ def test_init_functions_are_guarded():
     # Streamlit rerun cannot re-issue the 27-statement DDL storm.
     assert hasattr(database.init_tables, "_once_state")
     assert hasattr(database.init_discovery_tables, "_once_state")
+
+
+# --- (3) advisory-locked schema init (no multi-pod DDL race) -------------------
+
+def test_init_tables_takes_advisory_lock_before_ddl(monkeypatch):
+    """Schema init must acquire a TRANSACTION-level advisory lock BEFORE any DDL, so
+    concurrent pods/replicas can't race the CREATE/ALTER/trigger statements. Uses xact
+    (not session) lock so it survives pgbouncer transaction pooling."""
+    executed = []
+
+    class _C:
+        def execute(self, sql, *a, **k): executed.append(str(sql))
+        def fetchone(self): return None
+        def fetchall(self): return []
+        def close(self): pass
+
+    class _Conn:
+        autocommit = True
+        def cursor(self, *a, **k): return _C()
+        def commit(self): pass
+        def rollback(self): pass
+        def close(self): pass
+
+    monkeypatch.setattr(database, "is_db_configured", lambda: True)
+    monkeypatch.setattr(database, "get_db_connection", lambda: _Conn())
+    database.init_tables._once_state["done"] = False  # force it to run this test
+    try:
+        database.init_tables()
+    finally:
+        database.init_tables._once_state["done"] = False  # don't leak the latch to other tests
+
+    lock_i = next((i for i, s in enumerate(executed) if "pg_advisory_xact_lock" in s), None)
+    ddl_i = next((i for i, s in enumerate(executed)
+                  if "CREATE TABLE" in s or "ALTER TABLE" in s), None)
+    assert lock_i is not None, "init_tables must take pg_advisory_xact_lock"
+    assert ddl_i is not None and lock_i < ddl_i, "the advisory lock must be acquired BEFORE any DDL"
