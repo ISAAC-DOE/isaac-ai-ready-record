@@ -1090,18 +1090,28 @@ def backfill_content_hashes(max_rows: int = 20000) -> int:
         conn = get_db_connection(); cur = conn.cursor()
         try:
             stale = f"{_rp._HASH_VERSION}:%"  # rows NOT matching this are NULL/legacy/older-algo
-            cur.execute("SELECT record_id, data FROM records "
+            cur.execute("SELECT record_id FROM records "
                         "WHERE content_hash IS NULL OR content_hash NOT LIKE %s LIMIT %s",
                         (stale, max_rows))
-            for r in cur.fetchall():
+            for rid in [r["record_id"] for r in cur.fetchall()]:
                 try:
-                    h = _rp.content_hash(r["data"] or {})
-                    cur.execute("UPDATE records SET content_hash=%s WHERE record_id=%s "
-                                "AND (content_hash IS NULL OR content_hash NOT LIKE %s)",
-                                (h, r["record_id"], stale))
+                    # Re-read the row UNDER LOCK and hash the CURRENT data, not the scan-time
+                    # snapshot: during a rolling deploy an old (v1) pod could edit the row
+                    # between the scan and the update, and stamping a stale hash would leave
+                    # content_hash describing the wrong data. FOR UPDATE serializes against
+                    # update_record_versioned's FOR UPDATE; the re-checked WHERE also skips a
+                    # row a concurrent writer already migrated.
+                    cur.execute("SELECT data FROM records WHERE record_id=%s "
+                                "AND (content_hash IS NULL OR content_hash NOT LIKE %s) FOR UPDATE",
+                                (rid, stale))
+                    locked = cur.fetchone()
+                    if locked is None:
+                        continue
+                    h = _rp.content_hash(locked["data"] or {})
+                    cur.execute("UPDATE records SET content_hash=%s WHERE record_id=%s", (h, rid))
                     done += 1
                 except Exception:
-                    logger.exception("hash backfill failed for %s", r.get("record_id"))
+                    logger.exception("hash backfill failed for %s", rid)
             conn.commit()
         finally:
             cur.close(); conn.close()
