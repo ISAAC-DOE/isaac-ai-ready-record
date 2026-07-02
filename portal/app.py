@@ -189,7 +189,10 @@ with st.container(key="isaac_topbar"):
     with status_col:
         branding.status_dot(db_connected, "DB Online" if db_connected else "DB Offline")
     with user_col:
-        _logout_url = "https://isaac.slac.stanford.edu/outpost.goauthentik.io/flows/logout/?rd=https://isaac.slac.stanford.edu/"
+        # Authentik session-invalidation flow; ?next=/ lands on the landing page
+        # afterwards. (The old /outpost.goauthentik.io/flows/logout/ path 404s,
+        # and /sign_out is itself auth-gated — bounces to login when expired.)
+        _logout_url = "https://isaac.slac.stanford.edu/auth/if/flow/default-invalidation-flow/?next=%2F"
         branding.user_chip(current_username, _logout_url)
 
 page = st.session_state.current_page
