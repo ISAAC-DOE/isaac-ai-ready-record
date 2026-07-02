@@ -119,6 +119,24 @@ def _vocab_categories(section):
     return ontology.get_categories(section)
 
 
+# Dashboard aggregates: several queries each, admin-only, same for all viewers, and
+# tolerant of brief staleness. Short TTL so the Dashboard doesn't re-run them on every
+# rerun. NOT record data.
+@st.cache_data(ttl=60, show_spinner=False)
+def _dashboard_stats():
+    return database.get_dashboard_stats()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _access_stats():
+    return database.get_access_stats()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _api_usage_stats(days):
+    return database.get_api_usage_stats(days)
+
+
 PAGES = ["Dashboard", "Ontology Editor", "Record Form", "Record Validator", "Saved Records", "nano ISAAC", "API Keys", "API Documentation", "About"]
 if user_is_admin:
     # Insert Admin Review after Ontology Editor
@@ -415,8 +433,8 @@ if page == "Dashboard":
         st.info("Database not connected. Configure PGHOST, PGUSER, PGPASSWORD, PGDATABASE environment variables.")
     else:
         try:
-            stats = database.get_dashboard_stats()
-            access = database.get_access_stats()
+            stats = _dashboard_stats()
+            access = _access_stats()
 
             # --- Row 1: Status Cards ---
             c1, c2, c3, c4 = st.columns(4)
@@ -479,7 +497,7 @@ if page == "Dashboard" and db_connected:
     st.subheader("API Usage")
     try:
         days = st.selectbox("Window", [7, 30, 90], index=1, format_func=lambda d: f"last {d} days")
-        usage = database.get_api_usage_stats(days)
+        usage = _api_usage_stats(days)
         u1, u2, u3, u4 = st.columns(4)
         u1.metric("API Requests", f"{usage['total_requests']:,}")
         u2.metric("Distinct Users", usage['distinct_users'])
