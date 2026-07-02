@@ -82,21 +82,25 @@ def render_footer(mode: str = "dark"):
 # Design tokens. Dark deep-ink is canonical; light is the toggle alternate.
 # One accent per surface, full stop.
 # ---------------------------------------------------------------------------
+# Deep Field palette — shared design language with the isaac.slac landing page
+# (deep-navy ground, one disciplined teal accent, Newsreader serif headings).
 PALETTES = {
     "dark": {
-        "bg": "#0B0F14", "surface": "#11161D", "surface_raised": "#161C24",
-        "text": "#E6EAF0", "muted": "#8B94A3",
-        "border": "rgba(255,255,255,0.10)", "border_soft": "rgba(255,255,255,0.06)",
-        "accent": "#5EC8C0", "accent_hover": "#7AD6CF", "accent_soft": "rgba(94,200,192,0.06)",
-        "on_accent": "#0B0F14", "error": "#E0726A",
-        "code_bg": "#0D1219",
+        "bg": "#06142A", "surface": "#0A2138", "surface_raised": "#0D2947",
+        "text": "#EAF1F8", "muted": "#93A4B8",
+        "border": "rgba(255,255,255,0.10)", "border_soft": "rgba(255,255,255,0.08)",
+        "accent": "#5FC2BC", "accent_hover": "#7FD4CD", "accent_soft": "rgba(95,194,188,0.08)",
+        "on_accent": "#06142A", "error": "#E0726A",
+        "primary": "#0D7377", "primary_hover": "#13948C", "on_primary": "#FFFFFF",
+        "code_bg": "#08192E",
     },
     "light": {
         "bg": "#FFFFFF", "surface": "#F4F6F8", "surface_raised": "#FFFFFF",
-        "text": "#0B0F14", "muted": "#5A6472",
+        "text": "#0B1B2E", "muted": "#5A6472",
         "border": "rgba(0,0,0,0.10)", "border_soft": "rgba(0,0,0,0.06)",
         "accent": "#0E8C84", "accent_hover": "#0B736C", "accent_soft": "rgba(14,140,132,0.08)",
         "on_accent": "#FFFFFF", "error": "#C0392B",
+        "primary": "#0D7377", "primary_hover": "#0B736C", "on_primary": "#FFFFFF",
         "code_bg": "#F4F6F8",
     },
 }
@@ -112,10 +116,10 @@ def inject_theme(mode: str = "dark"):
     p = PALETTES.get(mode, PALETTES["dark"])
     st.markdown(f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 html, body, [class*="css"], .stMarkdown, .stButton, .stSelectbox, .stTextInput {{
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 }}
 
 /* App canvas */
@@ -163,9 +167,9 @@ html, body, [class*="css"], .stMarkdown, .stButton, .stSelectbox, .stTextInput {
 .isaac-spectral-line {{ display: none; }}
 
 /* ---- Type scale (modular ~1.18; every level sized) ---- */
-h1, [data-testid="stHeading"] h1 {{ font-weight: 700 !important; font-size: 2.0rem !important;
-    line-height: 1.15; letter-spacing: -0.025em; color: {p['text']}; margin: 0 0 1.25rem; }}
-h2 {{ font-weight: 600 !important; font-size: 1.45rem !important; line-height: 1.25;
+h1, [data-testid="stHeading"] h1 {{ font-family: 'Newsreader', Georgia, serif; font-weight: 400 !important; font-size: 2.2rem !important;
+    line-height: 1.15; letter-spacing: -0.02em; color: {p['text']}; margin: 0 0 1.25rem; }}
+h2 {{ font-family: 'Newsreader', Georgia, serif; font-weight: 400 !important; font-size: 1.6rem !important; line-height: 1.25;
     letter-spacing: -0.015em; color: {p['text']}; margin: 2.25rem 0 1rem; }}
 h3 {{ font-weight: 600 !important; font-size: 1.15rem !important; line-height: 1.3;
     letter-spacing: -0.01em; color: {p['text']}; margin: 1.75rem 0 0.75rem; }}
@@ -202,7 +206,7 @@ h4 {{ font-weight: 600 !important; font-size: 0.78rem !important; text-transform
 
 /* Dataframes: Inter for text, mono+tabular for figures, uppercase muted headers */
 [data-testid="stDataFrame"] {{ border: 1px solid {p['border_soft']}; border-radius: 10px;
-    font-family: 'Inter', sans-serif; font-size: 0.85rem; }}
+    font-family: 'Public Sans', sans-serif; font-size: 0.85rem; }}
 [data-testid="stDataFrame"] [role="columnheader"] {{ font-weight: 600; text-transform: uppercase;
     letter-spacing: 0.05em; font-size: 0.7rem; color: {p['muted']}; }}
 [data-testid="stDataFrame"] [role="gridcell"] {{ font-variant-numeric: tabular-nums lining-nums; }}
@@ -224,9 +228,9 @@ h4 {{ font-weight: 600 !important; font-size: 0.78rem !important; text-transform
 .stButton > button:hover, [data-testid^="stBaseButton-"]:hover {{
     border-color: {p['accent']}; color: {p['accent']}; background: {p['accent_soft']}; }}
 [data-testid="stBaseButton-primary"], .stButton > button[kind="primary"] {{
-    background: {p['accent']}; color: {p['on_accent']}; border-color: {p['accent']}; }}
+    background: {p['primary']}; color: {p['on_primary']}; border-color: {p['primary']}; }}
 [data-testid="stBaseButton-primary"]:hover, .stButton > button[kind="primary"]:hover {{
-    background: {p['accent_hover']}; color: {p['on_accent']}; border-color: {p['accent_hover']}; }}
+    background: {p['primary_hover']}; color: {p['on_primary']}; border-color: {p['primary_hover']}; }}
 
 /* Popover menu (portals outside .stApp — set bg explicitly for dark mode) */
 [data-testid="stPopover"], [data-testid="stPopoverBody"],
