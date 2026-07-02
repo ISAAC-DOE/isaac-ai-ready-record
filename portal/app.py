@@ -3202,11 +3202,17 @@ requestAnimationFrame(loop);
                                 return _d
                         return (_h.get("grounding") or "reasoning")
 
+                    def _flat_txt(_v):
+                        # mechanism/reasoning may be structured (dict) — flatten to text
+                        if isinstance(_v, dict):
+                            _v = _v.get("summary") or _v.get("text") or json.dumps(_v)
+                        return str(_v or "")
+
                     def _is_null(_h):
-                        _t = ((_h.get("mechanism") or "") + " "
-                              + ((_h.get("origin") or {}).get("reasoning") or "")).lower()
+                        _t = (_flat_txt(_h.get("mechanism")) + " "
+                              + _flat_txt((_h.get("origin") or {}).get("reasoning"))).lower()
                         return ("no downturn" in _t or "monotonic" in _t
-                                or "null" in _t or "ensemble" in (_h.get("label") or "").lower())
+                                or "null" in _t or "ensemble" in str(_h.get("label") or "").lower())
 
                     def _mech_of(_h):
                         _m = _h.get("mechanism")
@@ -3219,7 +3225,7 @@ requestAnimationFrame(loop);
                         return str(_o.get("reasoning") or _o.get("summary") or "")[:150]
 
                     def _ground_label(_h):
-                        _g = (_h.get("grounding") or "").lower()
+                        _g = str(_h.get("grounding") or "").lower()
                         if _g == "standing_prior":
                             return "from the literature"
                         if _g == "ad_hoc":
