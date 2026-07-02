@@ -86,13 +86,22 @@ def test_new_prediction_inserts(monkeypatch):
     assert conn.committed
 
 
-def test_output_quantity_distinguishes(monkeypatch):
-    """Same descriptor with a DIFFERENT output_quantity is a different prediction:
-    the dedupe key must be the pair, not descriptor_name alone."""
+def test_dedupe_keys_on_full_scientific_tuple(monkeypatch):
+    """The dedupe key must be the FULL scientific tuple — descriptor_name,
+    output_quantity, direction, reference_condition, falsification_criterion —
+    all NULL-safe. A coarser key (descriptor+output_quantity alone) collapsed
+    distinct falsifiers on the same descriptor and broke independence scoring:
+    caught LIVE by e2e_smoke's scoring scenario (three predictions identical
+    except for their falsification_criterion). This pins the refined key."""
     cur, _ = _patch(monkeypatch, None)
     discovery.create_prediction(
         "01HYP0000000000000000000AA", "faradaic_efficiency.C2H4",
-        output_quantity="partial_current_density", actor="agent")
+        output_quantity="partial_current_density",
+        direction="decrease", reference_condition="vs baseline",
+        falsification_criterion="if FE rises, H1 is false", actor="agent")
     dedupe = [s for s in cur.executed if "SELECT prediction_id FROM hyp_predictions" in s]
-    assert dedupe and "output_quantity IS NOT DISTINCT FROM" in dedupe[0], \
-        "dedupe must key on (descriptor_name, output_quantity), NULL-safely"
+    assert dedupe, "must attempt dedupe before INSERT"
+    for field in ("output_quantity", "direction", "reference_condition",
+                  "falsification_criterion"):
+        assert f"{field} IS NOT DISTINCT FROM" in dedupe[0], \
+            f"dedupe key must include {field} (NULL-safely)"
