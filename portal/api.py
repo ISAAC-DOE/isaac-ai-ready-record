@@ -573,7 +573,7 @@ def records_query():
     """
     body = request.get_json(silent=True) or {}
     sql = body.get("sql", "")
-    max_rows = min(int(body.get("max_rows", 100)), 500)
+    max_rows = max(1, min(int(body.get("max_rows", 100)), 500))
     if not sql.strip():
         return jsonify({"error": "Body must include non-empty 'sql'"}), 400
     try:

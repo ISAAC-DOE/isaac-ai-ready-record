@@ -75,3 +75,69 @@ def test_plain_select_passes_guard_until_db():
     with pytest.raises(Exception) as ei:
         execute_readonly_query("SELECT record_id FROM records LIMIT 1", agent_mode=True)
     assert not isinstance(ei.value, ValueError) or "records" not in str(ei.value).lower()
+
+
+def test_row_cap_uses_named_cursor_and_fetchmany(monkeypatch):
+    """The row cap MUST be enforced by a server-side NAMED cursor + fetchmany(max_rows),
+    never fetchall() (which buffered the whole result and let the old string-LIMIT cap be
+    bypassed by a `LIMIT` substring in a column name). Mocks the connection so it runs
+    offline — this is the DB-path coverage the guard tests otherwise lack."""
+    import database as _db
+    seen = {"named": None, "fetchmany_n": None, "fetchall": False}
+
+    class _Cur:
+        def __init__(self, name=None):
+            self.name = name
+        def execute(self, *a, **k):
+            return None
+        def fetchmany(self, n):
+            seen["fetchmany_n"] = n
+            return [{"ok": 1}] * min(n, 5)
+        def fetchall(self):
+            seen["fetchall"] = True
+            return []
+        def close(self):
+            return None
+
+    class _Conn:
+        autocommit = False
+        def cursor(self, name=None, cursor_factory=None):
+            if name:
+                seen["named"] = name
+            return _Cur(name=name)
+        def rollback(self):
+            return None
+        def close(self):
+            return None
+
+    monkeypatch.setattr(_db, "get_readonly_db_connection", lambda: _Conn())
+    rows = _db.execute_readonly_query("SELECT record_id FROM records", max_rows=3)
+    assert seen["named"] == "isaac_ro_query", "must open a server-side NAMED cursor"
+    assert seen["fetchmany_n"] == 3, "must fetch exactly max_rows (the hard cap)"
+    assert seen["fetchall"] is False, "must NOT use fetchall (unbounded buffer)"
+    assert rows == [{"ok": 1}, {"ok": 1}, {"ok": 1}]
+
+
+def test_max_rows_is_floored_at_one(monkeypatch):
+    """max_rows <= 0 must not reach fetchmany as 0/negative (FETCH FORWARD 0/-n)."""
+    import database as _db
+    captured = {}
+
+    class _Cur:
+        def __init__(self, name=None): pass
+        def execute(self, *a, **k): return None
+        def fetchmany(self, n): captured["n"] = n; return []
+        def fetchall(self): return []
+        def close(self): return None
+
+    class _Conn:
+        autocommit = False
+        def cursor(self, name=None, cursor_factory=None): return _Cur(name=name)
+        def rollback(self): return None
+        def close(self): return None
+
+    monkeypatch.setattr(_db, "get_readonly_db_connection", lambda: _Conn())
+    _db.execute_readonly_query("SELECT 1", max_rows=0)
+    assert captured["n"] == 1
+    _db.execute_readonly_query("SELECT 1", max_rows=-5)
+    assert captured["n"] == 1

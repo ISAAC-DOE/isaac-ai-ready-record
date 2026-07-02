@@ -1361,7 +1361,9 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
       (H2; defense-in-depth — the deployed `isaac` role is already NON-superuser)
     - Runs as the least-privilege PGUSER_RO role, inside a READ ONLY transaction,
       with a statement timeout (C2)
-    - A LIMIT clause is enforced (appended if missing)
+    - The row cap is enforced by a server-side cursor + fetchmany(max_rows) — it
+      cannot be defeated by a `LIMIT` substring in a column name or a trailing
+      comment (the old string-append bug), and it bounds set-returning queries
     - agent_mode=True (nano-ISAAC): additionally restricts reads to the `records`
       table — operational/control tables are rejected by name
 
@@ -1377,6 +1379,7 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
     Raises:
         ValueError: If the query is not a safe read-only SELECT/WITH
     """
+    max_rows = max(1, min(int(max_rows), 500))  # floor at 1, hard cap 500 (fetchmany size)
     stripped = sql.strip().rstrip(";")
     upper = stripped.upper()
 
@@ -1415,9 +1418,17 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
     if re.search(forbidden_ident, upper):
         raise ValueError("Query references a forbidden system object or function.")
 
-    # Enforce LIMIT if not present
-    if "LIMIT" not in upper:
-        stripped += f" LIMIT {max_rows}"
+    # The row cap is enforced by a SERVER-SIDE cursor + fetchmany(max_rows) below,
+    # NOT by appending a LIMIT to the SQL text. The old string-append was bypassable
+    # — a `LIMIT` substring in a column name (the real descriptor
+    # `limiting_current_density`!) skipped it, and a trailing `--` comment ate it —
+    # and fetchall() then buffered the whole result. A streaming named cursor makes
+    # the cap uncircumventable for streaming plans (seq scans, target-list
+    # set-returning fns) — we fetch at most max_rows then close, so Postgres never
+    # materializes the rest. Blocking plans (aggregates, unindexed ORDER BY,
+    # FROM-clause SRFs) still run to completion, bounded by statement_timeout (as
+    # they were under the old LIMIT). The whole DECLARE->FETCH->CLOSE->ROLLBACK
+    # stays in ONE transaction, so it is safe under pgbouncer transaction pooling.
 
     conn = get_readonly_db_connection()
     cur = conn.cursor()
@@ -1431,9 +1442,11 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
         # but accepts a bound parameter so no value is f-string-interpolated.
         # is_local=true applies it for this transaction only.
         cur.execute("SELECT set_config('statement_timeout', %s, true)", (str(int(timeout_ms)),))
+        qcur = conn.cursor(name="isaac_ro_query", cursor_factory=RealDictCursor)
         try:
-            cur.execute(stripped)
-            rows = cur.fetchall()
+            qcur.execute(stripped)
+            rows = qcur.fetchmany(max_rows)  # hard cap — cannot be defeated by the SQL text
+            qcur.close()
         except Exception as qe:
             conn.rollback()
             pgcode = getattr(qe, "pgcode", None)

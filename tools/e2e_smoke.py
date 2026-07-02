@@ -281,6 +281,18 @@ def main():
     check("read-only SQL query works", code == 200 and resp.get("rows") and "n" in resp["rows"][0])
     code, resp = http("POST", "/records/query", {"sql": "DELETE FROM records"})
     check("destructive SQL rejected", code == 400)
+    # Row cap must hold even when a 'LIMIT' substring appears in a column name
+    # (the real descriptor `limiting_current_density` used to defeat the cap).
+    code, resp = http("POST", "/records/query",
+                      {"sql": "SELECT record_id, 'x' AS limiting_col FROM records", "max_rows": 1})
+    check("SQL guard: row cap holds despite 'LIMIT' in a column name",
+          code == 200 and resp.get("row_count", 99) <= 1, f"row_count={resp.get('row_count')}")
+    # The server-side named cursor must still run a legit CTE (don't break real queries).
+    code, resp = http("POST", "/records/query",
+                      {"sql": "WITH x AS (SELECT record_id FROM records) SELECT * FROM x",
+                       "max_rows": 3})
+    check("SQL guard: CTE query still works (named cursor)",
+          code == 200 and isinstance(resp.get("rows"), list), str(resp)[:120])
     code, resp = http("GET", f"/records/{rid}/quality")
     check("quality endpoint recomputes report", code == 200 and "warnings" in json.dumps(resp) or code == 200)
     code, resp = http("GET", f"/records/{rid}/suggestions")
