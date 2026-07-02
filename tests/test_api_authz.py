@@ -143,6 +143,17 @@ _EXEMPT_ENDPOINTS = {
 _MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
 
 
+def test_health_reports_version_and_pid(client):
+    """/health (public) exposes the build version + worker pid so a deploy is
+    confirmable live and concurrency is provable."""
+    r = client.get("/portal/api/health")
+    assert r.status_code == 200
+    j = r.get_json()
+    assert j.get("status") == "healthy"
+    assert "version" in j
+    assert "worker_pid" in j
+
+
 def test_every_discovery_mutation_route_is_gated():
     """A new discovery mutation endpoint that forgets @_require_disc_write fails
     here — this is the guard that would have caught the original IDOR."""

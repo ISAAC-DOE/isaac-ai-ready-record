@@ -330,6 +330,7 @@ def health():
     immune to network-timing noise.
     """
     return jsonify({"status": "healthy", "service": "isaac-portal-api",
+                    "version": os.environ.get("ISAAC_BUILD_VERSION", "dev"),
                     "worker_pid": os.getpid()})
 
 

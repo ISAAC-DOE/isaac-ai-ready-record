@@ -247,6 +247,7 @@ def main():
     # 1. health
     code, body = http("GET", "/health")
     check("health", code == 200 and body.get("status") == "healthy")
+    print(f"  deployed version: {body.get('version', '?')}")  # confirm WHICH image is live
 
     # 2. validate: good passes, bad fails
     good = json.loads(EXAMPLE.read_text())

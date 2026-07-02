@@ -38,6 +38,12 @@ EXPOSE 8502
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8501/_stcore/health || exit 1
 
+# Build-version stamp: CI sets it to the released vN.N.N; 'dev' for local builds.
+# Exposed on GET /portal/api/health so a deployment can be CONFIRMED live. Placed
+# late so bumping the version does not invalidate the dependency layers above.
+ARG ISAAC_BUILD_VERSION=dev
+ENV ISAAC_BUILD_VERSION=$ISAAC_BUILD_VERSION
+
 # Run Streamlit (default)
 # To run the Flask API sidecar instead or alongside (gunicorn auto-loads
 # /app/gunicorn.conf.py for multi-worker/threaded concurrency):
