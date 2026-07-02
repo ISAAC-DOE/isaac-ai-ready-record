@@ -1380,6 +1380,13 @@ _AGENT_FORBIDDEN_TABLES = (
     "record_history",        # audit log: editor identity (actor) + archived/deleted snapshots
 )
 
+# The records-DB tables OPEN to any authenticated user via /records/query. Together
+# with _AGENT_FORBIDDEN_TABLES (admin-only), this must cover EVERY table init_tables
+# creates — a test introspects the DDL and fails on any UNCLASSIFIED table, so a new
+# table can never silently ship readable-by-default. (The isaac_readonly DB GRANT is
+# the real gate; this keeps the in-code belt honest as the schema grows.)
+_AGENT_PUBLIC_TABLES = ("records", "templates", "vocabulary_cache")
+
 
 def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
                            agent_mode: bool = False) -> list:

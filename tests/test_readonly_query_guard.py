@@ -41,11 +41,34 @@ def test_agent_mode_allows_non_sensitive_tables(sql):
 
 
 def test_denylist_is_exactly_the_sensitive_set():
-    # If a NEW table is added to the records DB, this fails until it's consciously classified.
+    # Pins the exact admin-only set (a change here is a conscious security decision).
     from database import _AGENT_FORBIDDEN_TABLES
     assert set(_AGENT_FORBIDDEN_TABLES) == {
         "api_requests", "portal_access_log", "vocabulary_sync_log",
         "vocabulary_proposals", "record_acl", "record_history"}
+
+
+def test_every_records_table_is_classified():
+    """Defense-in-depth completeness: EVERY table init_tables creates in the records DB
+    must be explicitly classified — sensitive (admin-only, _AGENT_FORBIDDEN_TABLES) or
+    public (_AGENT_PUBLIC_TABLES). A NEW table added without classifying it FAILS here,
+    so it can't silently ship readable-by-default. (The isaac_readonly GRANT is the real
+    gate; this keeps the in-code belt honest.) Introspects the init_tables DDL from
+    source so it stays offline. Discovery-DB tables (a separate DB, not reachable via
+    /records/query) are intentionally out of scope."""
+    import re
+    import database
+    src = Path(database.__file__).read_text()
+    body = src[src.index("def init_tables"):src.index("def init_discovery_tables")]
+    created = set(re.findall(r"CREATE TABLE (?:IF NOT EXISTS )?(\w+)", body))
+    assert created, "sanity: expected to find CREATE TABLE statements in init_tables"
+    classified = set(database._AGENT_FORBIDDEN_TABLES) | set(database._AGENT_PUBLIC_TABLES)
+    unclassified = created - classified
+    assert not unclassified, (
+        f"records-DB table(s) not classified: {sorted(unclassified)} — add each to "
+        f"_AGENT_FORBIDDEN_TABLES (admin-only) or _AGENT_PUBLIC_TABLES (public).")
+    # the declared public set must be real tables, not stale entries
+    assert set(database._AGENT_PUBLIC_TABLES) <= created
 
 
 # These must be rejected in EITHER mode (admin or researcher) — universal guards.
