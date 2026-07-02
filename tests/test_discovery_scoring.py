@@ -899,3 +899,48 @@ def test_coverage_and_conflict_math():
     assert s["coverage"] == 0.5
     # conflict = min(1,1)/(1+1) = 0.5 (one support vs one contradict)
     assert s["conflict"] == 0.5
+
+
+# --- determinism: score is a pure function of the evidence SET (not order) -----
+
+def _p_id(pid, ev, verdict="supports", strength="strong"):
+    """An admissible prediction with a STABLE prediction_id (as in production —
+    the id is the greedy independence tiebreak)."""
+    p = _pred(verdict=verdict, strength=strength, evidence_record_ids=ev)
+    p["prediction_id"] = pid
+    return p
+
+
+def test_score_is_order_invariant():
+    """THE non-determinism CRITICAL: the same SET of verdicts must yield identical
+    confidence / n_decisive / reliable regardless of prediction order. The
+    reviewer's repro — evidence {r1,r2},{r1},{r2} — used to flip `reliable` and the
+    stored confidence based purely on DB fetch order. Exhaustive over permutations."""
+    preds = [_p_id("p1", ["r1", "r2"]), _p_id("p2", ["r1"]), _p_id("p3", ["r2"])]
+    base = compute_hypothesis_score(_h(*preds))
+    for perm in itertools.permutations(preds):
+        s = compute_hypothesis_score(_h(*perm))
+        assert s["computed_confidence"] == base["computed_confidence"], (
+            f"confidence not order-invariant: {s['computed_confidence']} "
+            f"!= {base['computed_confidence']} for order "
+            f"{[p['prediction_id'] for p in perm]}")
+        assert s["n_decisive"] == base["n_decisive"]
+        assert s["reliable"] == base["reliable"]
+
+
+def test_score_order_invariant_mixed_directions():
+    """A larger mixed set (supports + a contradiction, some shared evidence, tied
+    strengths) — still fully order-invariant."""
+    preds = [
+        _p_id("a", ["r1", "r2"]),
+        _p_id("b", ["r1"]),
+        _p_id("c", ["r3"]),
+        _p_id("d", ["r2"], verdict="contradicts"),
+        _p_id("e", ["r3"], strength="moderate"),
+    ]
+    base = compute_hypothesis_score(_h(*preds))
+    for perm in itertools.permutations(preds):
+        s = compute_hypothesis_score(_h(*perm))
+        assert s["computed_confidence"] == base["computed_confidence"]
+        assert s["n_decisive"] == base["n_decisive"]
+        assert s["reliable"] == base["reliable"]
