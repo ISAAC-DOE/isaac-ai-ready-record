@@ -174,6 +174,37 @@ def check_scoring_determinism():
         http("DELETE", f"/projects/{pid}")
 
 
+def check_provenance_regen():
+    """A pipeline REGENERATION (new descriptors.outputs[].generated_utc, identical numbers)
+    must be classified 'metadata' — NOT 'material' — so it doesn't bump the record version
+    or false-trigger evidence-drift. A real scientific change must still be 'material'.
+    Uses the PUT response's change_class (server-computed). Non-destructive."""
+    print("\n  -- provenance (regeneration is not material) --")
+    good = json.loads(EXAMPLE.read_text())
+    rid = str(ULID())
+    good["record_id"] = rid
+    good["sample"]["material"]["name"] = "E2E PROVENANCE TEST (auto-deleted)"
+    code, _ = http("POST", "/records", good)
+    if code != 201:
+        check("provenance setup: POST record", False, f"code {code}")
+        return
+    try:
+        regen = copy.deepcopy(good)
+        regen["descriptors"]["outputs"][0]["generated_utc"] = "2099-01-01T00:00:00Z"  # regen only
+        code, r = http("PUT", f"/records/{rid}", regen)
+        check("provenance: regeneration (new generated_utc, same numbers) => 'metadata'",
+              code == 200 and r.get("change_class") == "metadata",
+              f"code={code} change_class={r.get('change_class')}")
+        mat = copy.deepcopy(regen)
+        mat["sample"]["material"]["name"] = "E2E PROVENANCE — MATERIALLY CHANGED"
+        code, r = http("PUT", f"/records/{rid}", mat)
+        check("provenance: a real scientific change => 'material'",
+              code == 200 and r.get("change_class") == "material",
+              f"code={code} change_class={r.get('change_class')}")
+    finally:
+        http("DELETE", f"/records/{rid}")
+
+
 def check_api_concurrency():
     """Prove the API serves concurrent requests from MULTIPLE gunicorn workers on
     the LIVE portal (not the old single sync worker that serialized everything and
@@ -312,6 +343,9 @@ def main():
 
     # 8. Discovery scoring reliability — determinism-fix live checkpoint
     check_scoring_determinism()
+
+    # 9. Provenance — regeneration is metadata, not material (drift-fix checkpoint)
+    check_provenance_regen()
 
     print()
     if failures:

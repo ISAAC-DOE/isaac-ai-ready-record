@@ -33,6 +33,17 @@ SCIENTIFIC_BLOCKS = (
 # same checksum) is cosmetic; a new checksum is material.
 _ASSET_LOCATOR_KEYS = {"uri", "url", "href", "location", "path", "filepath", "filename"}
 
+# PROCESSING-PROVENANCE keys — WHEN / BY-WHAT a value was produced, not the value.
+# These appear nested inside hashed blocks: descriptors.outputs[].{generated_utc,
+# generated_by} and context...{converted_utc, converted_by} (the RHE-conversion
+# stamp). Re-running a pipeline or re-doing a conversion restamps them even when the
+# NUMBERS are identical — a cosmetic re-save, not a scientific change — so they are
+# stripped (anywhere they occur) before hashing, matching the module's "timestamps
+# are EXCLUDED" contract. Otherwise every regeneration spuriously bumps the record
+# version and false-triggers evidence-drift. Add a key here + bump _HASH_VERSION if
+# the schema grows another processing-provenance field.
+_PROCESSING_META_KEYS = {"generated_utc", "generated_by", "converted_utc", "converted_by"}
+
 
 def _canon(obj):
     """Recursively normalize a JSON value into a JSONB-stable, hashable form.
@@ -73,6 +84,19 @@ def _project_assets(assets):
     return out
 
 
+def _strip_processing_metadata(obj):
+    """Recursively drop WHO/WHEN-processed provenance keys (_PROCESSING_META_KEYS)
+    anywhere in the scientific projection, so identical numbers hash identically
+    regardless of WHEN or BY WHAT they were produced — analogous to how assets keep
+    checksums but drop locators."""
+    if isinstance(obj, dict):
+        return {k: _strip_processing_metadata(v) for k, v in obj.items()
+                if k not in _PROCESSING_META_KEYS}
+    if isinstance(obj, list):
+        return [_strip_processing_metadata(v) for v in obj]
+    return obj
+
+
 def scientific_projection(record: dict) -> dict:
     """The whitelist projection of a record that defines its scientific identity."""
     if not isinstance(record, dict):
@@ -82,7 +106,9 @@ def scientific_projection(record: dict) -> dict:
         if block in record:  # presence matters: a block going from present->absent is material
             value = record[block]
             proj[block] = _project_assets(value) if block == "assets" else value
-    return _canon(proj)
+    # Drop processing-provenance timestamps/agents wherever they nest (descriptors.
+    # outputs[].generated_*, context...converted_*) BEFORE canonicalizing.
+    return _canon(_strip_processing_metadata(proj))
 
 
 def canonical_json(record: dict) -> str:
@@ -95,9 +121,25 @@ def canonical_json(record: dict) -> str:
     )
 
 
+# Algorithm-version prefix on every hash. Bump when the canonicalization changes
+# (e.g. a newly-excluded field) so drift compares SAME-version hashes only — a legacy
+# pin never false-fires against a re-hashed record; it simply needs re-pinning.
+_HASH_VERSION = "v2"
+
+
+def hash_algorithm_version(h):
+    """The algorithm-version prefix of a content_hash ('v2'), or None for a legacy
+    unversioned (bare-hex) hash."""
+    if isinstance(h, str) and ":" in h:
+        return h.split(":", 1)[0]
+    return None
+
+
 def content_hash(record: dict) -> str:
-    """sha256 hex of the record's scientific content. Stable across JSONB round-trips."""
-    return hashlib.sha256(canonical_json(record).encode("utf-8")).hexdigest()
+    """Versioned sha256 of the record's scientific content ('v2:<hex>'). Stable across
+    JSONB round-trips AND across pipeline regeneration (generation metadata excluded)."""
+    digest = hashlib.sha256(canonical_json(record).encode("utf-8")).hexdigest()
+    return f"{_HASH_VERSION}:{digest}"
 
 
 def is_material(old: dict, new: dict) -> bool:
@@ -162,7 +204,14 @@ def evidence_drift(predictions, current_hashes) -> list:
             if not rid or not pinned:
                 continue  # legacy/unpinned -> cannot detect, stay silent
             cur = current_hashes.get(rid)
-            if cur is not None and cur != pinned:
+            if cur is None:
+                continue  # unknown -> stay silent
+            # Compare SAME algorithm-version only: a legacy (unversioned) pin vs a v2
+            # current hash is NOT drift — it just needs re-pinning. This is what keeps
+            # the hash-version migration from firing a wave of false drift.
+            if hash_algorithm_version(pinned) != hash_algorithm_version(cur):
+                continue
+            if cur != pinned:
                 out.append({"prediction_id": p.get("prediction_id"),
                             "hypothesis": p.get("hypothesis"),
                             "record_id": rid,

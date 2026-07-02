@@ -161,3 +161,85 @@ def test_drift_skips_unpinned_and_unknown():
               "evidence_pins": [{"record_id": "R1", "content_hash": None},   # legacy
                                 {"record_id": "R2", "content_hash": "h"}]}]   # current unknown
     assert rp.evidence_drift(preds, {"R2": None}) == []
+
+
+# --- generation metadata (REAL schema shape) must NOT move the hash ------------
+# The BASE fixture above uses a toy descriptors shape with no outputs[]; the real
+# schema puts a REQUIRED generated_utc + generated_by inside descriptors.outputs[],
+# and those must be excluded from the hash (else every pipeline regeneration reads as
+# a material change and false-triggers drift). This is the gap the review flagged.
+
+def _rec_with_gen(gen_utc, agent="auto-catalysis-agent", value=0.31):
+    r = copy.deepcopy(BASE)
+    r["descriptors"] = {"outputs": [{
+        "label": "CO2RR performance",
+        "generated_utc": gen_utc,
+        "generated_by": {"agent": agent, "version": "1.2.0", "author": "pipeline"},
+        "descriptors": [{"name": "overpotential", "value": value, "unit": "V"}],
+    }]}
+    return r
+
+
+def test_regeneration_only_is_not_material():
+    t0 = _rec_with_gen("2026-06-04T15:24:31Z", agent="agent-A")
+    t1 = _rec_with_gen("2026-07-01T09:00:00Z", agent="agent-B")  # new time+agent, SAME numbers
+    assert rp.content_hash(t0) == rp.content_hash(t1)
+    assert rp.classify_change(t0, t1) == "metadata"
+    assert rp.is_material(t0, t1) is False
+
+
+def test_real_descriptor_value_change_is_material():
+    a = _rec_with_gen("2026-06-04T15:24:31Z", value=0.31)
+    b = _rec_with_gen("2026-06-04T15:24:31Z", value=0.42)  # same time, different NUMBER
+    assert rp.content_hash(a) != rp.content_hash(b)
+    assert rp.classify_change(a, b) == "material"
+
+
+def test_generation_metadata_stable_across_jsonb_roundtrip():
+    r = _rec_with_gen("2026-06-04T15:24:31Z")
+    assert rp.content_hash(r) == rp.content_hash(_jsonb_roundtrip(r))
+
+
+# --- hash is versioned; drift compares same-version only -----------------------
+
+def test_content_hash_is_versioned():
+    h = rp.content_hash(BASE)
+    assert h.startswith("v2:")
+    assert rp.hash_algorithm_version(h) == "v2"
+    assert rp.hash_algorithm_version("deadbeef" * 8) is None  # legacy bare hex -> no version
+
+
+def test_drift_skips_cross_version_pins():
+    """A legacy (unversioned) pin vs a v2 current hash must NOT read as drift — it just
+    needs re-pinning. This keeps the hash-version migration from firing false drift."""
+    v2_current = rp.content_hash(BASE)          # 'v2:...'
+    legacy_pin = v2_current.split(":", 1)[1]    # bare hex, as older pins were stored
+    preds = [{"prediction_id": "p1", "hypothesis": "H", "verdict": "supports",
+              "evidence_pins": [{"record_id": "R1", "version": 1, "content_hash": legacy_pin}]}]
+    assert rp.evidence_drift(preds, {"R1": v2_current}) == []
+
+
+def test_drift_fires_within_same_version():
+    h_old = rp.content_hash(_rec_with_gen("t", value=0.31))
+    h_new = rp.content_hash(_rec_with_gen("t", value=0.99))
+    preds = [{"prediction_id": "p1", "hypothesis": "H", "verdict": "supports",
+              "evidence_pins": [{"record_id": "R1", "version": 1, "content_hash": h_old}]}]
+    assert len(rp.evidence_drift(preds, {"R1": h_new})) == 1   # changed -> drift
+    assert rp.evidence_drift(preds, {"R1": h_old}) == []        # same -> none
+
+
+def test_nested_conversion_metadata_is_stripped():
+    """context...converted_utc / converted_by are processing provenance nested inside a
+    HASHED block — re-doing a potential conversion restamps them but the science is
+    unchanged, so the hash must not move. The conversion CONSTANT changing IS material."""
+    a = copy.deepcopy(BASE)
+    a["context"] = {"electrochemistry": {"potential_vs_RHE": {
+        "rhe_conversion_offset_V": 0.21,
+        "converted_utc": "2026-06-01T00:00:00Z", "converted_by": "calc-A"}}}
+    b = copy.deepcopy(a)
+    b["context"]["electrochemistry"]["potential_vs_RHE"].update(
+        converted_utc="2099-09-09T00:00:00Z", converted_by="calc-B")  # provenance only
+    assert rp.content_hash(a) == rp.content_hash(b)
+    c = copy.deepcopy(a)
+    c["context"]["electrochemistry"]["potential_vs_RHE"]["rhe_conversion_offset_V"] = 0.42
+    assert rp.content_hash(a) != rp.content_hash(c)  # real conversion constant -> material
