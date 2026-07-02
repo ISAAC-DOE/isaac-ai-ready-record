@@ -2525,8 +2525,15 @@ def compute_hypothesis_score(h) -> dict:
     for direction in (+1, -1):
         claimed = set()        # evidence-record / calc identities already counted
         claimed_obs = set()    # OBSERVABLE identities already counted (robustness dedup)
+        # Deterministic TOTAL order for the greedy independence pass: strongest
+        # first, then SMALLEST evidence footprint first (claims fewer records ->
+        # better approximates the maximum independent set), then the unique
+        # prediction key. Previously the key was strength-only, so equal-strength
+        # verdicts fell back to Python's stable sort = arbitrary DB fetch order ->
+        # non-deterministic n_decisive/`reliable`, and a STORED confidence that
+        # could differ from the DISPLAYED one for identical evidence.
         same = sorted([d for d in decisive if d[0] == direction],
-                      key=lambda d: -d[1])
+                      key=lambda d: (-d[1], len(d[2] or ()), str(d[8])))
         for _dir, sw, ev, margin, xsys, rel, obs, gate, pdkey in same:
             if xsys:
                 # CROSS-SYSTEM / borrowed-analog evidence (a different material / reaction /
@@ -2686,7 +2693,8 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
                           cross_system, reliability_tier, observable_key,
                           falsification_criterion, direction, reference_condition,
                           rationale, literature
-                     FROM hyp_predictions WHERE hypothesis_id=%s""", (hypothesis_id,))
+                     FROM hyp_predictions WHERE hypothesis_id=%s
+                     ORDER BY prediction_id""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]
     # Attach each prediction's compute-run IDENTITIES so the STORED confidence dedups
     # the-same-calculation-twice exactly as the display path does (calc fingerprinting
