@@ -151,7 +151,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.57-provisional",
+        "version": "0.58-provisional",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -251,7 +251,11 @@ def get_manifest() -> dict:
                 "an `origin` (how you arrived at it — reasoning + sources), and a "
                 "`grounding` ('standing_prior' if established/literature — cite it; "
                 "'ad_hoc' if derived from this dataset). A single unopposed hypothesis is "
-                "not a discovery, it is an assumption.",
+                "not a discovery, it is an assumption. ALWAYS include one RESIDUAL/NULL "
+                "competitor — 'the effect is an artifact of noise / replicate scatter / "
+                "confound' — framed falsifiably and QUANTIFIED (e.g. effect size vs "
+                "replicate scatter), so the field's skepticism is a scored hypothesis, "
+                "not an afterthought.",
                 "2. ENUMERATE falsifiers: for EACH hypothesis, register the SET of "
                 "predictions whose observed outcome would KILL it — not one token "
                 "prediction, the full discriminating set. A hypothesis with no falsifier "
@@ -282,12 +286,22 @@ def get_manifest() -> dict:
                 "'reliable' on verdicts linked to nothing, and it floats unconnected in the "
                 "evidence graph / constellation. You do NOT set confidence — the platform "
                 "COMPUTES it from your verdicts (see scoring_model) and the ranking moves "
-                "automatically.",
+                "automatically. MINIMUM EVIDENCE SWEEP: before any concluding verdict on a "
+                "claimed trend, evaluate it at EVERY matched condition present in the "
+                "dataset (matched potential, matched current density, matched feed) — in "
+                "blinded replications of the same project, ALL run-to-run confidence "
+                "variance traced to evidence selection, not scoring. And a verdict "
+                "anchored on an UNREPLICATED extreme point (an n=1 condition cell — e.g. "
+                "a single electrode at a composition endpoint) MUST say so in its "
+                "rationale.",
                 "7. PROPOSE the single most discriminating next experiment via "
                 "/next_experiment.",
             ],
             "non_negotiables": [
                 "Every hypothesis is falsifiable and carries >=1 falsifying prediction.",
+                "Every project carries an explicit residual/null competitor (artifact/"
+                "noise/confound), quantified against replicate scatter — checked by the "
+                "independent rigor review.",
                 "Every prediction carries an `origin` (provenance) AND a "
                 "`falsification_criterion`.",
                 "Evidence is methodological-compatibility-gated before it counts.",
@@ -843,7 +857,10 @@ def get_manifest() -> dict:
                         "output_quantity, discriminates:[{hypothesis_label,expected}], "
                         "origin}. Each hypothesis needs a SET (>=2, aim 3-4) spanning "
                         "DIFFERENT descriptors — not one token prediction on one "
-                        "measurable. See field_shapes.prediction."},
+                        "measurable. IDEMPOTENT on (hypothesis_id, descriptor_name, "
+                        "output_quantity): re-POSTing the same prediction (e.g. after an "
+                        "interrupt/resume) returns the existing prediction_id, never a "
+                        "duplicate. See field_shapes.prediction."},
             {"m": "PUT", "path": "/predictions/{id}",
              "purpose": "COMPLETE/sharpen a prediction's STRUCTURE in place {direction, "
                         "reference_condition, magnitude, falsification_criterion, label, "
@@ -1599,16 +1616,22 @@ def get_project(project_id, owner_identity=None) -> dict | None:
             (project_id,))
         hypotheses = cur.fetchall()
         for h in hypotheses:
+            h.pop("id", None)  # internal row-id: ULIDs are the ONLY public ids
             cur.execute(
                 """SELECT * FROM hyp_predictions WHERE hypothesis_id=%s
                    ORDER BY created_at""",
                 (h["hypothesis_id"],))
             h["predictions"] = cur.fetchall()
             for p in h["predictions"]:
+                # Never expose the numeric row-id: agents mistook it for the id the
+                # /predictions/{id}/* endpoints take (which is the ULID) -> 404s.
+                p.pop("id", None)
                 cur.execute(
                     """SELECT * FROM hyp_compute_runs WHERE prediction_id=%s
                        ORDER BY created_at""", (p["prediction_id"],))
                 p["compute_runs"] = cur.fetchall()
+                for r in p["compute_runs"]:
+                    r.pop("id", None)
         cur.execute(
             """SELECT * FROM hyp_hypothesis_relations WHERE project_id=%s
                ORDER BY created_at""", (project_id,))
@@ -1747,6 +1770,19 @@ def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=N
         project_id = _project_of_hypothesis(cur, hypothesis_id)
         if project_id is None:
             return None
+        # IDEMPOTENT on (hypothesis_id, descriptor_name, output_quantity) — same
+        # pattern as compute runs (slurm_job_id): a resumed/interrupted agent that
+        # re-POSTs the same prediction gets the existing ULID back, never a duplicate.
+        # (Live-reproducibility feedback: runs-idempotency "saved us repeatedly".)
+        cur.execute(
+            """SELECT prediction_id FROM hyp_predictions
+                WHERE hypothesis_id=%s AND descriptor_name=%s
+                  AND output_quantity IS NOT DISTINCT FROM %s
+                LIMIT 1""",
+            (hypothesis_id, descriptor_name, output_quantity))
+        existing = cur.fetchone()
+        if existing:
+            return existing["prediction_id"]
         prediction_id = new_ulid()
         cur.execute(
             """INSERT INTO hyp_predictions
