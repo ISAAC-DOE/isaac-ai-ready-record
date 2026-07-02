@@ -102,6 +102,23 @@ if db_connected and os.environ.get("WIKI_REPO_URL"):
 if "current_page" not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
+# --- Cached vocabulary reads -------------------------------------------------
+# The controlled vocabulary is near-static but was queried from the DB on EVERY
+# Streamlit rerun (get_sections + get_categories run up to 5x per form/validator
+# render). Cache it briefly so a rerun/keystroke/theme-toggle doesn't re-hit the
+# DB. Process-global (same for all users) + short TTL: a newly-APPROVED term shows
+# within the TTL (approvals are a rare admin action). ONLY stable/stale-tolerant
+# reads are cached here — record data (get_record/list_records) is NEVER cached.
+@st.cache_data(ttl=120, show_spinner=False)
+def _vocab_sections():
+    return ontology.get_sections()
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _vocab_categories(section):
+    return ontology.get_categories(section)
+
+
 PAGES = ["Dashboard", "Ontology Editor", "Record Form", "Record Validator", "Saved Records", "nano ISAAC", "API Keys", "API Documentation", "About"]
 if user_is_admin:
     # Insert Admin Review after Ontology Editor
@@ -279,7 +296,7 @@ def generate_mermaid_code(active_section=None, active_category=None):
     Generates Mermaid JS syntax for the ontology tree.
     Includes click events to open Wiki pages in new tab.
     """
-    all_sections = ontology.get_sections()
+    all_sections = _vocab_sections()
     # Canonical order first, then any extras not in the predefined list
     sections = [s for s in SECTION_ORDER if s in all_sections]
     sections += [s for s in all_sections if s not in SECTION_ORDER]
@@ -321,7 +338,7 @@ def generate_mermaid_code(active_section=None, active_category=None):
 
         # Drill down if active section
         if is_active_sec:
-            cats = ontology.get_categories(sec)
+            cats = _vocab_categories(sec)
             subblocks = {}
 
             for cat_key in cats:
@@ -498,7 +515,7 @@ elif page == "Ontology Editor":
     st.header("Living Ontology")
     st.info("Browse the ISAAC vocabulary below. Numbered sections mirror the record blocks; Units and Record Info are cross-cutting vocabularies (units and root fields appear inside records, not as blocks). Use the Propose form to suggest changes.")
 
-    all_sections = ontology.get_sections()
+    all_sections = _vocab_sections()
     sections = [s for s in SECTION_ORDER if s in all_sections]
     sections += [s for s in all_sections if s not in SECTION_ORDER]
 
@@ -535,7 +552,7 @@ elif page == "Ontology Editor":
         st.subheader("1. Browse")
         selected_section = st.selectbox("Select Schema Section", sections, format_func=get_display_name)
 
-        categories_dict = ontology.get_categories(selected_section)
+        categories_dict = _vocab_categories(selected_section)
         categories = list(categories_dict.keys())
 
         if categories:
@@ -561,7 +578,7 @@ elif page == "Ontology Editor":
 
         if proposal_type == "Add Term":
             prop_section = st.selectbox("Section", sections, index=sections.index(selected_section) if selected_section in sections else 0, key="prop_sec_term")
-            prop_cats = list(ontology.get_categories(prop_section).keys())
+            prop_cats = list(_vocab_categories(prop_section).keys())
             prop_category = st.selectbox("Category", prop_cats, key="prop_cat_term") if prop_cats else None
             prop_term = st.text_input("New Term", placeholder="e.g. rotating_cylinder", key="prop_term_input")
             prop_term_desc = st.text_area(
