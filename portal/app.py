@@ -180,7 +180,7 @@ with st.container(key="isaac_topbar"):
     with theme_col:
         _is_dark = st.session_state.ui_theme == "dark"
         # Sun in dark mode (click → light), moon in light mode (click → dark).
-        if st.button("☀️" if _is_dark else "🌙", key="theme_toggle",
+        if st.button("◐", key="theme_toggle",
                      use_container_width=True,
                      help="Switch to light mode" if _is_dark else "Switch to dark mode"):
             st.session_state.ui_theme = "light" if _is_dark else "dark"
@@ -190,9 +190,7 @@ with st.container(key="isaac_topbar"):
         branding.status_dot(db_connected, "DB Online" if db_connected else "DB Offline")
     with user_col:
         _logout_url = "https://isaac.slac.stanford.edu/outpost.goauthentik.io/flows/logout/?rd=https://isaac.slac.stanford.edu/"
-        st.markdown(
-            f"**{current_username}** &nbsp;|&nbsp; [Logout]({_logout_url})"
-        )
+        branding.user_chip(current_username, _logout_url)
 
 page = st.session_state.current_page
 
@@ -420,8 +418,11 @@ def generate_mermaid_code(active_section=None, active_category=None):
 # PAGE: Dashboard
 # =============================================================================
 if page == "Dashboard":
-    st.title("ISAAC AI-Ready Record Portal")
-    st.markdown("### The Middleware for Scientific Semantics")
+    branding.page_header(
+        "The repository at a glance",
+        eyebrow="ISAAC · AI-ready records",
+        description="Standardized records of interpreted scientific knowledge — "
+                    "each one traceable to the evidence that earned it.")
 
     if not db_connected:
         # Graceful offline state

@@ -185,7 +185,40 @@ h4 {{ font-weight: 600 !important; font-size: 0.78rem !important; text-transform
 
 /* Reusable mono eyebrow */
 .isaac-eyebrow {{ font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem;
-    text-transform: uppercase; letter-spacing: 0.09em; color: {p['muted']}; font-weight: 500; }}
+    text-transform: uppercase; letter-spacing: 0.09em; color: {p['accent']}; font-weight: 500; }}
+
+/* Deep Field page opening (page_header helper) */
+.isaac-page-title {{ font-family: 'Newsreader', Georgia, serif; font-weight: 400;
+    font-size: 2.3rem; line-height: 1.12; letter-spacing: -0.02em;
+    color: {p['text']}; margin: 0 0 0.6rem; }}
+.isaac-page-lede {{ font-size: 0.98rem; line-height: 1.6; color: {p['muted']};
+    max-width: 62ch; margin: 0 0 1.6rem; }}
+
+/* Top bar: quiet icon controls (menu + theme), mono identity, hairline logout */
+.st-key-isaac_topbar [data-testid="stPopoverButton"],
+.st-key-isaac_topbar .stButton > button {{
+    background: transparent; border: 1px solid transparent; color: {p['muted']};
+    font-size: 1.0rem; }}
+.st-key-isaac_topbar [data-testid="stPopoverButton"]:hover,
+.st-key-isaac_topbar .stButton > button:hover {{
+    background: {p['accent_soft']}; border-color: {p['border_soft']}; color: {p['text']}; }}
+.isaac-logout {{ font-family: 'IBM Plex Mono', monospace; font-size: 0.74rem;
+    letter-spacing: 0.04em; color: {p['muted']} !important; margin-left: 14px;
+    padding-bottom: 1px; border-bottom: 1px solid {p['border_soft']}; }}
+.isaac-logout:hover {{ color: {p['accent']} !important; border-bottom-color: {p['accent']};
+    text-decoration: none !important; }}
+
+/* Nav popover: buttons read as a menu, not slabs — flat, left-aligned, hover tint;
+   the active page keeps a quiet accent text instead of a filled block. */
+[data-testid="stPopoverBody"] .stButton > button {{
+    background: transparent; border: none; border-radius: 6px;
+    text-align: left; justify-content: flex-start; font-weight: 500;
+    color: {p['text']}; padding: 0.45rem 0.7rem; }}
+[data-testid="stPopoverBody"] .stButton > button:hover {{
+    background: {p['accent_soft']}; color: {p['accent']}; border: none; }}
+[data-testid="stPopoverBody"] .stButton > button[kind="primary"],
+[data-testid="stPopoverBody"] [data-testid="stBaseButton-primary"] {{
+    background: {p['accent_soft']}; color: {p['accent']}; border: none; font-weight: 600; }}
 
 /* Status dot (ambient state — replaces traffic-light pills) */
 .isaac-dot {{ display: inline-block; width: 7px; height: 7px; border-radius: 50%;
@@ -294,3 +327,24 @@ def status_dot(up: bool, label: str):
     cls = "up" if up else "down"
     st.markdown(f'<span class="isaac-dot {cls}"></span><span class="isaac-status">{label}</span>',
                 unsafe_allow_html=True)
+
+
+def page_header(title: str, eyebrow: str = "", description: str = ""):
+    """Deep Field page opening: mono eyebrow -> serif headline -> muted lede.
+    The same rhythm as the landing page's numbered sections."""
+    parts = []
+    if eyebrow:
+        parts.append(f'<div class="isaac-eyebrow" style="margin-bottom:10px;">{eyebrow}</div>')
+    parts.append(f'<h1 class="isaac-page-title">{title}</h1>')
+    if description:
+        parts.append(f'<p class="isaac-page-lede">{description}</p>')
+    st.markdown("\n".join(parts), unsafe_allow_html=True)
+
+
+def user_chip(username: str, logout_url: str):
+    """Quiet mono identity + logout for the top bar (replaces bold markdown)."""
+    st.markdown(
+        f'<div style="text-align:right;white-space:nowrap;">'
+        f'<span class="isaac-status" style="text-transform:none;letter-spacing:0.02em;">{username}</span>'
+        f'<a href="{logout_url}" target="_self" class="isaac-logout">Log out</a></div>',
+        unsafe_allow_html=True)
