@@ -303,10 +303,13 @@ def get_manifest() -> dict:
                 "noise/confound), quantified against replicate scatter — checked by the "
                 "independent rigor review.",
                 "OPERATOR BRIEF: your FIRST logged event on a new project must be "
-                "event_type='operator_brief' carrying the VERBATIM instructions/prompt "
+                "event_type='human_directive' carrying the VERBATIM instructions/prompt "
                 "you were launched with (plus your model/session identifiers in "
-                "detail). A run whose initial conditions are unrecorded cannot be "
-                "reproduced — the journal must be lossless from the first token.",
+                "detail). ('operator_brief' is NOT an accepted event_type — use "
+                "'human_directive', the type the prime_directive and "
+                "field_shapes.human_directive already describe and the briefing counts.) "
+                "A run whose initial conditions are unrecorded cannot be reproduced — the "
+                "journal must be lossless from the first token.",
                 "BLINDED REPLICATES: if your operator brief declares this project a "
                 "blinded replicate, do NOT call GET /projects, and do not read, "
                 "reference, or search for any project other than the one you create — "
@@ -834,8 +837,6 @@ def get_manifest() -> dict:
                         "end-member may hold a discriminating contrast a confound hides."},
             {"m": "GET", "path": "/projects", "purpose": "List your projects."},
             {"m": "GET", "path": "/projects/{id}", "purpose": "Full project view."},
-            {"m": "POST", "path": "/projects/{id}/hypotheses",
-             "purpose": "Add a hypothesis (statement, label, origin, mechanism)."},
             {"m": "PUT", "path": "/hypotheses/{id}",
              "purpose": "Update a hypothesis's STATUS only {status, reason}. ALWAYS pass a "
                         "`reason` (WHY the status changed — e.g. why you eliminated it): it "
@@ -1109,8 +1110,10 @@ def get_manifest() -> dict:
             "logic in each prediction's `rationale` (method-compat check + direction + "
             "magnitude-vs-falsification + replication). One-line summaries are not "
             "enough — if it isn't recorded in full, it can't be audited. Any verdict "
-            "that leaned on COMPUTE or a fitted MODEL MUST carry an mlflow_run_url (the "
-            "replay trace); the briefing flags compute/model verdicts that lack one. "
+            "that leaned on COMPUTE or a fitted MODEL SHOULD carry an mlflow_run_url (the "
+            "replay trace); the briefing gives an ADVISORY flag for compute/model verdicts "
+            "that lack one (a registered compute_run with params+metrics already satisfies "
+            "auditability — the flag does not block reliability). "
             "Human prompts are provenance too: the verbatim directive that opens a "
             "human-prompted turn is its FIRST write, a `human_directive` event "
             "(self-reported, dashboard-only). The briefing flags substantial activity "
@@ -1181,9 +1184,10 @@ def get_manifest() -> dict:
                     "direction and correctly registers as a conflict, not redundancy.)",
                 "record_it": "Register each as a compute_run (POST /predictions/{id}/runs "
                     "{backend, engine, resource, slurm_job_id, mlflow_run_url, params, "
-                    "metrics}); a compute/model-backed verdict MUST carry an "
-                    "mlflow_run_url. And query isaac_data_sources for an EXISTING result "
-                    "before spending a calculation.",
+                    "metrics}); a compute/model-backed verdict SHOULD carry an "
+                    "mlflow_run_url (advisory — the compute_run's params/metrics are the "
+                    "minimum auditable record). And query isaac_data_sources for an "
+                    "EXISTING result before spending a calculation.",
                 "persist_results_as_records": {
                     "_what": "CLOSE THE LOOP — a calculation worth keeping becomes a "
                         "first-class ISAAC record so it never has to be recomputed and the "
@@ -2918,7 +2922,8 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             # don't need a citation; supports/contradicts do.
             if (p.get("work_status") == "evaluated"
                     and normalize_verdict(p.get("verdict")) in ("supports", "contradicts")
-                    and not (p.get("evidence_record_ids") or p.get("compute_runs"))):
+                    and not (p.get("evidence_record_ids") or p.get("compute_runs")
+                             or _verified_literature(p))):
                 preds_uncited.append(_ptag)
             # EXPLAINED: a decisive verdict must carry a rationale (the WHY) — else it earns
             # no reliability and the reasoning trail has a hole. Mirrors the uncited flag.
@@ -3150,11 +3155,12 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         _u = preds_uncited[:6]
         recommended_actions.append(
             f"CITE THE DATA: {len(preds_uncited)} decisive verdict(s) ({', '.join(_u)}) "
-            "attach NO evidence_record_ids AND NO compute_run — a supports/contradicts not "
-            "traceable to specific records or a calculation is UNAUDITABLE (and floats "
-            "unconnected in the evidence graph). For each, attach the record IDs it rests "
-            "on (even when you derived a proxy from raw records — cite those records) and/or "
-            "the compute_run that grounds it.")
+            "attach NO evidence_record_ids, NO compute_run, AND no verified literature DOI — "
+            "a supports/contradicts not traceable to specific records, a calculation, or a "
+            "verified citation is UNAUDITABLE (and floats unconnected in the evidence graph). "
+            "For each, attach the record IDs it rests on (even when you derived a proxy from "
+            "raw records — cite those records), the compute_run that grounds it, and/or a "
+            "verified peer-reviewed literature DOI.")
     if untested_with_idle_tools:
         recommended_actions.append(
             f"EXPLORE BEFORE YOU YIELD: {untested_with_idle_tools} are untested and this "
