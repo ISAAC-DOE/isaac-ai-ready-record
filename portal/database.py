@@ -483,6 +483,11 @@ def init_discovery_tables():
         ''')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_events_project '
                     'ON hyp_events (project_id, created_at DESC)')
+        # WHO reasoned (client-attested model identity) and WHY (the decision record:
+        # what was chosen, what was rejected, and on what grounds). Both nullable —
+        # every historical event keeps NULL and stays valid on read forever.
+        cur.execute("ALTER TABLE hyp_events ADD COLUMN IF NOT EXISTS actor_model JSONB")
+        cur.execute("ALTER TABLE hyp_events ADD COLUMN IF NOT EXISTS decision JSONB")
         # v2 (stubbed now): in-portal human<->agent chat.
         cur.execute('''
             CREATE TABLE IF NOT EXISTS hyp_messages (

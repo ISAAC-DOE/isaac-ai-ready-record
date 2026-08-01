@@ -27,6 +27,7 @@ import secrets
 import time
 
 import database
+import trace_provenance as _tp
 
 logger = logging.getLogger("isaac-discovery")
 
@@ -151,7 +152,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.59-provisional",
+        "version": "0.60-provenance",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -227,6 +228,20 @@ def get_manifest() -> dict:
             "WRITE after you act: every hypothesis, prediction, verdict, status "
             "change and compute run is an API write. If it is not on the dashboard, "
             "it did not happen — never hold project state only in your context.",
+            "SIGN EVERY WRITE: put `actor_model` on EVERY event you POST — "
+            "{provider, model_id, model_version} — naming the model that is actually "
+            "reasoning right now, i.e. YOU. Send it on every single event, not once per "
+            "project: if you hand off, resume, or are swapped mid-run, the trace must "
+            "show exactly where that happened. An unsigned write is an orphan — nobody "
+            "can later tell which model produced it, it cannot be compared across a "
+            "reproducibility set, and it is useless for training. Do not guess a model "
+            "id you are unsure of: send the fields you know and omit the rest.",
+            "SHOW THE ROAD NOT TAKEN: every `reasoning_step` MUST carry a `decision` — "
+            "{chose, rejected, because, blocked_on}. Name the alternatives you did NOT "
+            "take and WHY they lost, every time, including when the choice felt obvious. "
+            "`chose` on its own is logged but counted THIN in method_compliance. This is "
+            "the single highest-value thing you write: the outcome is recoverable from "
+            "the state, the discarded branch is recoverable from nothing.",
             "RECORD THE DIRECTIVE: if a human prompted this turn, the turn's FIRST "
             "WRITE is that prompt, copied VERBATIM into a `human_directive` event (the "
             "briefing GET is a read, so it still comes first; see "
@@ -982,7 +997,9 @@ def get_manifest() -> dict:
             "GET /briefing", "reason", "write each move (hypotheses/predictions/"
             "evaluate/status)",
             "POST /events per step — including event_type='reasoning_step' to record the "
-            "WHY (not just the state change), so a future resume inherits your thinking",
+            "WHY (not just the state change), so a future resume inherits your thinking. "
+            "EVERY event carries `actor_model` (who is reasoning); every reasoning_step "
+            "also carries `decision` {chose, rejected, because, blocked_on}",
             "PUT /next_experiment"],
         "compute_loop": [
             "FIRST query isaac_data_sources (+ literature) for an EXISTING value — don't "
@@ -998,6 +1015,34 @@ def get_manifest() -> dict:
             "PUT ... {work_status:'compute_running'} when it starts",
             "PUT /predictions/{id}/evaluate with verdict + evidence + final mlflow_run_url"],
         "field_shapes": {
+            "actor_model": {"_for": "WHO reasoned. Send on every belief-changing event "
+                       "(and ideally on reasoning_step too). A multi-account or "
+                       "multi-model run is UNINTERPRETABLE without it, and a trace with "
+                       "no model attached cannot be compared, reproduced or reused.",
+                       "provider": "str? e.g. anthropic | openai | xai | google",
+                       "model_id": "str? the model you are, e.g. claude-opus-5",
+                       "model_version": "str? snapshot/date pin if you have one",
+                       "harness": "str? the agent framework you run inside",
+                       "harness_version": "str?",
+                       "identity_trust": "SERVER-SET, never yours. Always "
+                       "'client_attested': the portal verifies your PRINCIPAL from the "
+                       "Bearer token, but it cannot verify which model you are. Sending "
+                       "this field does nothing — it is overwritten. Nothing in ISAAC "
+                       "will present your model claim as cryptographically verified."},
+            "decision": {"_for": "WHY. Attach to reasoning_step (and any event where a "
+                       "choice was made). The state change alone is not a trace: the "
+                       "branch you REJECTED is usually the informative one, and it is "
+                       "the part a later reader — or a model being trained on this — "
+                       "cannot reconstruct from the outcome.",
+                       "chose": "str — what you decided to do",
+                       "rejected": "[str] — the alternatives you considered and did NOT "
+                       "take. Name them even when the choice felt obvious.",
+                       "because": "[str] — the grounds. What made the chosen option win "
+                       "and the others lose.",
+                       "blocked_on": "[str]? — what stops you going further right now.",
+                       "_complete": "chose + (because OR rejected). A bare `chose` is "
+                       "recorded but flagged thin in method_compliance. `blocked_on` "
+                       "alone is a stall, not a decision."},
             "prediction": {"_for": "a hypothesis carries a SET of these (>=2, aim 3-4), "
                        "spanning DIFFERENT measurables — each STRUCTURED into discrete "
                        "fields, not a claim packed into descriptor_name with a prose "
@@ -1102,6 +1147,34 @@ def get_manifest() -> dict:
                                 "change_note": "str",
                                 "change_type": "refinement|reparameterization|rewording"},
         },
+        "provenance": {
+            "_what": "How ISAAC binds a verdict to the EXACT evidence it rested on. This "
+                     "is already enforced server-side; you get it for free, but only if "
+                     "you CITE. It is the reason a ranking from last year can still be "
+                     "audited today.",
+            "cite_to_bind": "Citing evidence_record_ids on /evaluate is what activates "
+                     "provenance. The server PINS each cited record at evaluate-time — "
+                     "{record_id, version, content_hash} — so the verdict is anchored to "
+                     "the exact content it read. An uncited verdict has nothing to bind "
+                     "and, per scoring_model, earns no standing either.",
+            "content_hash": "Records are versioned and content-hashed over the SCIENTIFIC "
+                     "blocks only (sample, system, context, measurement, descriptors, "
+                     "computation, links, assets). Ownership, tags, timestamps and "
+                     "routing are EXCLUDED, and assets hash by CHECKSUM rather than URI, "
+                     "so a re-host or a re-tag is cosmetic by construction. The hash "
+                     "carries an algorithm version, and only same-version hashes are "
+                     "compared.",
+            "evidence_drift": "If a cited record is MATERIALLY edited after you used it, "
+                     "the briefing raises evidence_drift naming the prediction and the "
+                     "record. It NEVER moves a score — it asks you to re-examine. "
+                     "Re-evaluating re-pins, and the warning self-clears.",
+            "records_vs_projects": "Two separate stores. The ISAAC RECORD repository is "
+                     "shared: every agent reads the same corpus, and that is the point. "
+                     "Discovery PROJECTS are private to their owner and whoever they are "
+                     "explicitly shared with — hypotheses, predictions, verdicts and the "
+                     "whole reasoning trace. A blinded replicate is isolated at the "
+                     "project layer while still standing on the common evidence base."
+        },
         "auditability": "Record EVERY decision point in BOTH places (dual-write): "
             "(1) POST an `event` to the dashboard with a `detail` carrying the full "
             "reasoning — this is canonical and drives the briefing; (2) mirror the same "
@@ -1114,7 +1187,13 @@ def get_manifest() -> dict:
             "Human prompts are provenance too: the verbatim directive that opens a "
             "human-prompted turn is its FIRST write, a `human_directive` event "
             "(self-reported, dashboard-only). The briefing flags substantial activity "
-            "with no directive on record.",
+            "with no directive on record. "
+            "WHO AND WHY: every belief-changing event should carry `actor_model` (which "
+            "model reasoned) and every reasoning_step a `decision` ({chose, rejected, "
+            "because, blocked_on}) — see field_shapes. Recording only what you did, and "
+            "never what you ruled out or why, yields a log rather than a trace: the "
+            "rejected branch is the part no later reader can reconstruct from the "
+            "outcome. method_compliance flags unattributed writes and thin decisions.",
         "integrations": {
             "isaac_data_sources": {
                 "purpose": "ISAAC is itself a primary KNOWLEDGE SOURCE — query it BEFORE "
@@ -1389,15 +1468,24 @@ def _verified_literature(p):
 
 def _append_event(cur, project_id, event_type, summary, *, detail=None,
                   hypothesis_id=None, evidence_record_ids=None,
-                  mlflow_run_url=None, actor=None):
-    """Insert one activity-feed row. Caller owns the transaction/commit."""
+                  mlflow_run_url=None, actor=None, actor_model=None, decision=None):
+    """Insert one activity-feed row. Caller owns the transaction/commit.
+
+    `actor_model` (WHO reasoned) and `decision` (WHY, incl. the rejected branch) are
+    normalized here and stored as JSONB. Both are optional: every existing caller and
+    every historical row simply carries NULL."""
+    _am = _tp.normalize_actor_model(actor_model)
+    _dec = _tp.normalize_decision(decision)
     cur.execute(
         """INSERT INTO hyp_events
              (project_id, hypothesis_id, event_type, summary, detail,
-              evidence_record_ids, mlflow_run_url, actor_identity)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+              evidence_record_ids, mlflow_run_url, actor_identity,
+              actor_model, decision)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
         (project_id, hypothesis_id, event_type, summary, detail,
-         evidence_record_ids, mlflow_run_url, actor))
+         evidence_record_ids, mlflow_run_url, actor,
+         json.dumps(_am) if _am else None,
+         json.dumps(_dec) if _dec else None))
     return cur.fetchone()["id"]
 
 
@@ -2796,6 +2884,28 @@ def _pin_evidence(evidence_record_ids):
     return pins
 
 
+_TRACE_AUDIT_WINDOW = 500
+
+
+def _events_for_trace(project_id, limit=_TRACE_AUDIT_WINDOW):
+    """Minimal event columns for the trace audit (who reasoned / why). Read-only.
+
+    BOUNDED on purpose: the audit is a nudge about current practice, not a historical
+    census, and a briefing must never carry a cost that grows without limit as a project
+    gets chattier. Newest-first + LIMIT rides the existing
+    (project_id, created_at DESC) index, so it never sorts the whole history."""
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id, event_type, actor_model, decision FROM hyp_events "
+                    "WHERE project_id=%s ORDER BY created_at DESC, id DESC LIMIT %s",
+                    (project_id, limit))
+        return cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+
 def _evidence_drift_for(hyps):
     """Pull-based drift check: for predictions that carry a VERDICT (evidence actually used
     for a hypothesis — browsed-but-unused records are ignored), re-hash their cited records
@@ -3263,6 +3373,15 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     # Advisory only — a flag to re-examine; it NEVER moves a score (re-evaluate to re-pin,
     # and the warning clears itself). Records merely browsed (no verdict) are not flagged.
     evidence_drift = _evidence_drift_for(hyps)
+    # WHO reasoned / WHY. Read-only, advisory, NEVER touches a score. Degrades to empty
+    # on any DB hiccup so it can never block a briefing.
+    try:
+        _trace_gaps = _tp.trace_gaps(_events_for_trace(project_id))
+    except Exception:
+        # Degrade to empty so a briefing is never blocked, but SAY SO: a silently and
+        # permanently empty provenance audit would look like perfect compliance.
+        logger.warning("trace audit unavailable for project %s", project_id, exc_info=True)
+        _trace_gaps = {}
     if evidence_drift:
         _by_hyp = {}
         for _d in evidence_drift:
@@ -3317,6 +3436,16 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "untested_hypotheses_with_idle_tools": untested_with_idle_tools,
             "unverified_or_fabricated_citations": fabricated_citations,
             "circular_confirmations": circular_confirmations,
+            "unattributed_belief_changing_events":
+                _trace_gaps.get("unattributed_belief_changing") or [],
+            "unattributed_belief_changing_count":
+                _trace_gaps.get("unattributed_belief_changing_count") or 0,
+            "reasoning_steps_with_incomplete_decision":
+                _trace_gaps.get("reasoning_steps_with_incomplete_decision") or [],
+            "reasoning_steps_with_incomplete_decision_count":
+                _trace_gaps.get("reasoning_steps_with_incomplete_decision_count") or 0,
+            "models_seen": _trace_gaps.get("models_seen") or {},
+            "trace_audit_window": _TRACE_AUDIT_WINDOW,
             "supports_without_independence_declaration": supports_without_independence,
             "supersessions_without_discriminating_observable": supersedes_without_discriminator,
             "high_confidence_without_independent_review": high_confidence_without_review,
@@ -3391,7 +3520,8 @@ def delete_project(project_id, owner_identity=None, is_admin=False) -> bool:
 # --- Events (the agent's reasoning transcript) -----------------------------
 
 def add_event(project_id, event_type, summary, *, detail=None, hypothesis_id=None,
-              evidence_record_ids=None, mlflow_run_url=None, actor=None) -> int | None:
+              evidence_record_ids=None, mlflow_run_url=None, actor=None,
+              actor_model=None, decision=None) -> int | None:
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -3401,7 +3531,8 @@ def add_event(project_id, event_type, summary, *, detail=None, hypothesis_id=Non
         eid = _append_event(cur, project_id, event_type, summary, detail=detail,
                             hypothesis_id=hypothesis_id,
                             evidence_record_ids=evidence_record_ids,
-                            mlflow_run_url=mlflow_run_url, actor=actor)
+                            mlflow_run_url=mlflow_run_url, actor=actor,
+                            actor_model=actor_model, decision=decision)
         conn.commit()
         return eid
     finally:
