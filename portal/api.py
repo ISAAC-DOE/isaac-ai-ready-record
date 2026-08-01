@@ -1702,7 +1702,8 @@ def discovery_add_event(project_id):
         project_id, etype, summary, detail=d.get("detail"),
         hypothesis_id=d.get("hypothesis_id"),
         evidence_record_ids=d.get("evidence_record_ids"),
-        mlflow_run_url=d.get("mlflow_run_url"), actor=_disc_identity())
+        mlflow_run_url=d.get("mlflow_run_url"), actor=_disc_identity(),
+        actor_model=d.get("actor_model"), decision=d.get("decision"))
     if eid is None:
         return jsonify({"error": "project not found"}), 404
     return jsonify({"event_id": eid}), 201

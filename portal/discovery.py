@@ -27,6 +27,7 @@ import secrets
 import time
 
 import database
+import trace_provenance as _tp
 
 logger = logging.getLogger("isaac-discovery")
 
@@ -1389,15 +1390,24 @@ def _verified_literature(p):
 
 def _append_event(cur, project_id, event_type, summary, *, detail=None,
                   hypothesis_id=None, evidence_record_ids=None,
-                  mlflow_run_url=None, actor=None):
-    """Insert one activity-feed row. Caller owns the transaction/commit."""
+                  mlflow_run_url=None, actor=None, actor_model=None, decision=None):
+    """Insert one activity-feed row. Caller owns the transaction/commit.
+
+    `actor_model` (WHO reasoned) and `decision` (WHY, incl. the rejected branch) are
+    normalized here and stored as JSONB. Both are optional: every existing caller and
+    every historical row simply carries NULL."""
+    _am = _tp.normalize_actor_model(actor_model)
+    _dec = _tp.normalize_decision(decision)
     cur.execute(
         """INSERT INTO hyp_events
              (project_id, hypothesis_id, event_type, summary, detail,
-              evidence_record_ids, mlflow_run_url, actor_identity)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+              evidence_record_ids, mlflow_run_url, actor_identity,
+              actor_model, decision)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
         (project_id, hypothesis_id, event_type, summary, detail,
-         evidence_record_ids, mlflow_run_url, actor))
+         evidence_record_ids, mlflow_run_url, actor,
+         json.dumps(_am) if _am else None,
+         json.dumps(_dec) if _dec else None))
     return cur.fetchone()["id"]
 
 
@@ -3391,7 +3401,8 @@ def delete_project(project_id, owner_identity=None, is_admin=False) -> bool:
 # --- Events (the agent's reasoning transcript) -----------------------------
 
 def add_event(project_id, event_type, summary, *, detail=None, hypothesis_id=None,
-              evidence_record_ids=None, mlflow_run_url=None, actor=None) -> int | None:
+              evidence_record_ids=None, mlflow_run_url=None, actor=None,
+              actor_model=None, decision=None) -> int | None:
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -3401,7 +3412,8 @@ def add_event(project_id, event_type, summary, *, detail=None, hypothesis_id=Non
         eid = _append_event(cur, project_id, event_type, summary, detail=detail,
                             hypothesis_id=hypothesis_id,
                             evidence_record_ids=evidence_record_ids,
-                            mlflow_run_url=mlflow_run_url, actor=actor)
+                            mlflow_run_url=mlflow_run_url, actor=actor,
+                            actor_model=actor_model, decision=decision)
         conn.commit()
         return eid
     finally:
