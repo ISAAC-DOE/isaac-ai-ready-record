@@ -190,3 +190,17 @@ class TestPolicyEnforcement:
 
     def test_garbage_policy_version_degrades_to_advisory(self):
         assert tp.enforcement_error("junk", "prediction_evaluated", None, None) is None
+
+
+class TestServerActor:
+    def test_server_actor_is_marked_client_attested_like_everything_else(self):
+        """The portal does not get to claim a stronger trust tier than an agent."""
+        assert tp.SERVER_ACTOR["identity_trust"] == "client_attested"
+
+    def test_server_actor_normalizes(self):
+        got = tp.normalize_actor_model(tp.SERVER_ACTOR)
+        assert got["model_id"] == "portal" and got["provider"] == "isaac"
+
+    def test_server_actor_satisfies_the_gate(self):
+        assert tp.enforcement_error(
+            60, "status_changed", tp.SERVER_ACTOR, None) is None
