@@ -1463,7 +1463,7 @@ def discovery_create_hypothesis(project_id):
         project_id, d["statement"], label=d.get("label"),
         hypothesis_type=d.get("hypothesis_type"), mechanism=d.get("mechanism"),
         origin=d.get("origin"), grounding=d.get("grounding"),
-        created_by=_disc_identity())
+        created_by=_disc_identity(), actor_model=d.get("actor_model"))
     if hid is None:
         return jsonify({"error": "project not found"}), 404
     return jsonify({"hypothesis_id": hid}), 201
@@ -1512,7 +1512,7 @@ def discovery_create_prediction(hypothesis_id):
         magnitude=d.get("magnitude"), output_quantity=d.get("output_quantity"),
         falsification_criterion=d.get("falsification_criterion"),
         discriminates=d.get("discriminates"), origin=d.get("origin"),
-        actor=_disc_identity())
+        actor=_disc_identity(), actor_model=d.get("actor_model"))
     if pid is None:
         return jsonify({"error": "hypothesis not found"}), 404
     return jsonify({"prediction_id": pid}), 201
@@ -1681,7 +1681,7 @@ def discovery_evaluate_prediction(prediction_id):
         margin=d.get("margin"), cross_system=d.get("cross_system"),
         reliability=d.get("reliability"),
         observable_key=d.get("observable_key"), literature=d.get("literature"),
-        actor=_disc_identity())
+        actor=_disc_identity(), actor_model=d.get("actor_model"))
     if not ok:
         return jsonify({"error": "prediction not found"}), 404
     return jsonify({"ok": True}), 200
@@ -1720,7 +1720,8 @@ def discovery_set_next_experiment(project_id):
     # REPLACE semantics: the full payload is stored (all keys preserved); send the
     # complete object each PUT.
     d = request.get_json(silent=True) or {}
-    ok = discovery.set_next_experiment(project_id, d, actor=_disc_identity())
+    ok = discovery.set_next_experiment(project_id, d, actor=_disc_identity(),
+                                       actor_model=d.get("actor_model"))
     if not ok:
         return jsonify({"error": "project not found or invalid payload"}), 404
     return jsonify({"ok": True}), 200
