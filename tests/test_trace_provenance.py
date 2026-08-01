@@ -149,3 +149,44 @@ class TestReviewFixes:
                               for i in range(1000)])
         assert len(gaps["unattributed_belief_changing"]) == 20
         assert gaps["unattributed_belief_changing_count"] == 1000
+
+
+class TestPolicyEnforcement:
+    """Policy-versioned enforcement: hold NEW projects to the contract without
+    retro-enforcing it on the legacy demos."""
+
+    def test_legacy_project_is_never_retro_enforced(self):
+        for et in ("prediction_evaluated", "reasoning_step", "hypothesis_created"):
+            assert tp.enforcement_error(None, et, None, None) is None
+
+    def test_older_policy_is_not_enforced(self):
+        assert tp.enforcement_error(59, "prediction_evaluated", None, None) is None
+
+    def test_unsigned_belief_changing_write_is_rejected(self):
+        err = tp.enforcement_error(60, "prediction_evaluated", None, None)
+        assert err and "actor_model" in err
+
+    def test_signed_belief_changing_write_passes(self):
+        assert tp.enforcement_error(
+            60, "prediction_evaluated", {"model_id": "m"}, None) is None
+
+    def test_reasoning_step_without_decision_is_rejected(self):
+        err = tp.enforcement_error(60, "reasoning_step", {"model_id": "m"}, None)
+        assert err and "decision" in err
+
+    def test_thin_decision_is_accepted_and_only_flagged(self):
+        """A hard gate on completeness would push agents to write nothing
+        rather than something partial."""
+        assert tp.enforcement_error(
+            60, "reasoning_step", {"model_id": "m"}, {"chose": "a"}) is None
+
+    def test_non_belief_changing_events_are_unaffected(self):
+        for et in ("agent_message", "compute_submitted", "resume_check"):
+            assert tp.enforcement_error(60, et, None, None) is None
+
+    def test_empty_actor_model_object_does_not_satisfy_the_gate(self):
+        err = tp.enforcement_error(60, "prediction_evaluated", {}, None)
+        assert err is not None
+
+    def test_garbage_policy_version_degrades_to_advisory(self):
+        assert tp.enforcement_error("junk", "prediction_evaluated", None, None) is None

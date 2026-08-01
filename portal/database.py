@@ -414,6 +414,11 @@ def init_discovery_tables():
         ''')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_hyp_projects_owner '
                     'ON hyp_projects (owner_identity, updated_at DESC)')
+        # The trace contract a project was BORN under. NULL = pre-enforcement (legacy):
+        # those projects keep working exactly as before. New projects are stamped with
+        # the current version and are held to it, so improving the contract never has to
+        # be traded against preserving old demos.
+        cur.execute("ALTER TABLE hyp_projects ADD COLUMN IF NOT EXISTS policy_version INT")
         cur.execute('''
             CREATE TABLE IF NOT EXISTS hyp_hypotheses (
                 id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

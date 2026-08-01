@@ -175,3 +175,46 @@ def trace_gaps(events, *, sample_cap: int = 20) -> dict:
         # which model" are different states and must not look alike.
         "single_model_trace": (len(models) == 1) if models else None,
     }
+
+
+# ---------------------------------------------------------------------------
+# Enforcement
+# ---------------------------------------------------------------------------
+# The trace contract version currently in force. A project is stamped with this at
+# creation and held to it for life; a project created before enforcement carries NULL
+# and is never retro-enforced. This is what lets the contract improve without either
+# breaking old projects or watering down the rules for new ones.
+CURRENT_POLICY_VERSION = 60
+
+
+def enforcement_error(project_policy_version, event_type, actor_model, decision):
+    """Return a human-readable rejection reason, or None if the write is acceptable.
+
+    Enforced ONLY for projects born at or after CURRENT_POLICY_VERSION. Legacy projects
+    (NULL) are advisory-only, exactly as before.
+
+    Two structural requirements, both cheap for a compliant agent and both impossible to
+    reconstruct after the fact if skipped:
+      * a belief-changing write must say WHICH MODEL made it
+      * a reasoning_step must carry a decision object
+
+    A THIN decision (chose with no grounds) is accepted here and flagged in
+    method_compliance instead: completeness is a quality judgement, and a hard gate on it
+    would push agents toward writing nothing rather than writing something partial.
+    """
+    try:
+        pv = int(project_policy_version)
+    except (TypeError, ValueError):
+        return None                      # legacy project: advisory only
+    if pv < CURRENT_POLICY_VERSION:
+        return None
+    if event_type in BELIEF_CHANGING and not normalize_actor_model(actor_model):
+        return ("policy_version %d requires `actor_model` on belief-changing events "
+                "(event_type=%s). Send {provider, model_id, model_version} naming the "
+                "model that is reasoning. An unsigned write cannot be attributed later."
+                % (pv, event_type))
+    if event_type == "reasoning_step" and not normalize_decision(decision):
+        return ("policy_version %d requires `decision` on reasoning_step. Send "
+                "{chose, rejected, because, blocked_on}: the branch you did NOT take "
+                "cannot be reconstructed from the outcome." % pv)
+    return None
