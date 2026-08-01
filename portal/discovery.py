@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.62-evidence-carries-the-quantity",
+        "version": "0.63-derivable-is-decidable",
         "policy_version": 60,
         "enforcement": {
             "_what": "The trace contract is ENFORCED, not advised, for projects created at "
@@ -335,14 +335,21 @@ def get_manifest() -> dict:
                 "before a record is allowed to count.",
                 "6. RENDER a verdict per prediction (supports | contradicts | neutral | "
                 "insufficient | blocked) with a strength and EXPLICIT reasoning via "
-                "/evaluate. CHECK THE QUANTITY IS THERE BEFORE YOU RULE: a decisive verdict "
-                "requires that the records you cite actually REPORT the descriptor under "
-                "test. A record measured under exactly the right conditions that does not "
-                "report your quantity cannot settle your prediction. AN ABSENT DESCRIPTOR IS "
-                "NOT A MEASURED ZERO — if nothing reports it, the honest verdict is "
-                "'insufficient', or submit the calculation and come back for it. Deciding an "
-                "undecidable prediction fabricates evidence, and the briefing reports it as "
-                "method_compliance.decisive_verdict_without_descriptor_in_evidence. "
+                "/evaluate. ESTABLISH THE QUANTITY BEFORE YOU RULE, and note that NOT "
+                "REPORTED is not the same as NOT KNOWABLE. The quantity is available to you "
+                "if ANY of these holds: (a) a cited record REPORTS the descriptor; (b) it is "
+                "DERIVABLE from what the cited records do report — above all a CLOSED PRODUCT "
+                "SLATE bounds an unreported channel, so if the reported faradaic efficiencies "
+                "already sum to total_faradaic_efficiency the missing product is bounded at "
+                "~0, and saying so is correct science rather than an assumption; or (c) you "
+                "obtain it from a compute run. ONLY when none of those holds is the prediction "
+                "genuinely undecidable, and then the honest verdict is 'insufficient' or a "
+                "submitted calculation. Do not invent a value. Equally, do NOT retreat to "
+                "'insufficient' when a conservation constraint settles the question: "
+                "over-caution discards real information and is its own failure. SAY WHICH "
+                "ROUTE YOU USED in the rationale. The briefing reports "
+                "method_compliance.decisive_verdict_without_descriptor_in_evidence when a "
+                "decisive verdict cites nothing that either reports or bounds the quantity. "
                 "CITE THE DATA — this is ENFORCED, not advisory: a "
                 "supports/contradicts MUST attach the evidence_record_ids it rests on "
                 "AND/OR the compute_run that grounds it. Even when you derived a proxy by "
@@ -3006,6 +3013,17 @@ def _descriptor_absent_from_evidence(hyps):
     because the quantity may legitimately come from a calculation rather than an archive.
     Read-only; degrades to [] on any records-DB hiccup so a briefing never blocks.
     """
+    # A closed product slate BOUNDS an unreported channel, so a record reporting
+    # total_faradaic_efficiency can settle a faradaic_efficiency.X prediction without
+    # carrying that descriptor. Treat it as satisfying the check.
+    #
+    # This exemption exists because the first version of this check did not have it, and it
+    # was wrong: four agents across three vendors correctly inferred FE(C2H4) on pure Au from
+    # H2 + CO summing exactly to the reported total, while the benchmark scored them as
+    # fabricating a measurement. They were right. Absent descriptor does not imply
+    # undecidable, and a compliance flag that says otherwise punishes the inference a good
+    # scientist should make.
+    _BOUNDING = {"total_faradaic_efficiency"}
     want = {}                      # descriptor_name -> {record_id}
     items = []
     for h in (hyps or []):
@@ -3030,6 +3048,9 @@ def _descriptor_absent_from_evidence(hyps):
     try:
         cur = conn.cursor()
         for desc, rids in want.items():
+            names = [desc]
+            if desc.startswith("faradaic_efficiency."):
+                names += sorted(_BOUNDING)
             cur.execute(
                 """SELECT record_id FROM records
                     WHERE record_id = ANY(%s)
@@ -3037,8 +3058,8 @@ def _descriptor_absent_from_evidence(hyps):
                         SELECT 1
                           FROM jsonb_array_elements(data->'descriptors'->'outputs') o,
                                jsonb_array_elements(o->'descriptors') d
-                         WHERE d->>'name' = %s)""",
-                (list(rids), desc))
+                         WHERE d->>'name' = ANY(%s))""",
+                (list(rids), names))
             have[desc] = {r["record_id"] for r in cur.fetchall()}
         cur.close()
     except Exception:
