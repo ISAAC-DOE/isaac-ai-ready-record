@@ -131,6 +131,28 @@ BELIEF_CHANGING = frozenset({
     "evidence_ingested", "human_directive", "project_created",
 })
 
+# Events that ONLY ever happen because an agent decided something. The portal writes the
+# row, but the science is the agent's, so a portal signature on one of these is a
+# MISATTRIBUTION rather than an honest server write.
+#
+# Found by running round 1: 89 of grok's 96 events were signed `isaac/portal`, including
+# every hypothesis_created, prediction_added and prediction_evaluated, because the
+# dedicated endpoints never accepted an actor_model to pass down. Meanwhile
+# `unattributed_belief_changing_count` read 0, because a portal signature counts as
+# attributed. The compliance surface said perfect while the trace could not say which
+# model produced the science. That is worse than a missing field: it is a confident
+# wrong answer, and a fine-tuning corpus built on it would be silently mislabelled.
+AGENT_INITIATED = frozenset({
+    "hypothesis_created", "prediction_added", "prediction_evaluated",
+    "next_experiment_proposed", "evidence_ingested", "reasoning_step",
+})
+
+
+def is_portal_signature(am) -> bool:
+    return (isinstance(am, dict)
+            and am.get("provider") == SERVER_ACTOR["provider"]
+            and am.get("model_id") == SERVER_ACTOR["model_id"])
+
 
 def trace_gaps(events, *, sample_cap: int = 20) -> dict:
     """Audit an event stream for attribution and decision completeness.
@@ -147,11 +169,18 @@ def trace_gaps(events, *, sample_cap: int = 20) -> dict:
             `actor_model`, `decision`.
     """
     unattributed, thin, models = [], [], {}
-    n_unattributed = n_thin = 0
+    misattributed = []
+    n_unattributed = n_thin = n_misattributed = 0
     for e in (events or []):
         etype = (e or {}).get("event_type")
         eid = (e or {}).get("id")
         am = (e or {}).get("actor_model")
+        # An agent's decision signed by the portal is a misattribution, and it must NOT
+        # be allowed to pass as attributed just because the field is populated.
+        if etype in AGENT_INITIATED and is_portal_signature(am):
+            n_misattributed += 1
+            if len(misattributed) < sample_cap:
+                misattributed.append(eid)
         if isinstance(am, dict) and am.get("model_id"):
             # Key by provider/model_id: two vendors can ship the same short model name,
             # and collapsing them would silently understate how many models ran.
@@ -170,6 +199,9 @@ def trace_gaps(events, *, sample_cap: int = 20) -> dict:
         "unattributed_belief_changing_count": n_unattributed,
         "reasoning_steps_with_incomplete_decision": thin,
         "reasoning_steps_with_incomplete_decision_count": n_thin,
+        # The agent's own science, recorded as though the portal had done it.
+        "agent_actions_signed_by_portal": misattributed,
+        "agent_actions_signed_by_portal_count": n_misattributed,
         "models_seen": models,
         # None (not True) when nothing is attributed at all: "one model" and "no idea
         # which model" are different states and must not look alike.

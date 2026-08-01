@@ -204,3 +204,50 @@ class TestServerActor:
     def test_server_actor_satisfies_the_gate(self):
         assert tp.enforcement_error(
             60, "status_changed", tp.SERVER_ACTOR, None) is None
+
+
+class TestMisattribution:
+    """Found live in replication round 1: 89 of 96 events on a completed run were signed
+    `isaac/portal`, including every hypothesis and every verdict, because the dedicated
+    endpoints never accepted an actor_model to pass down. `unattributed_*` read 0 the whole
+    time, because a portal signature IS a signature. A compliance surface that reports
+    perfect while the trace cannot name the model is worse than one reporting a gap."""
+
+    def test_hypothesis_signed_by_portal_is_counted_as_misattributed(self):
+        g = tp.trace_gaps([{"id": 1, "event_type": "hypothesis_created",
+                            "actor_model": tp.SERVER_ACTOR}])
+        assert g["agent_actions_signed_by_portal_count"] == 1
+        assert g["agent_actions_signed_by_portal"] == [1]
+
+    def test_misattribution_is_invisible_to_the_unattributed_counter(self):
+        """The exact blind spot: populated field, wrong actor, old metric reads clean."""
+        g = tp.trace_gaps([{"id": 1, "event_type": "prediction_evaluated",
+                            "actor_model": tp.SERVER_ACTOR}])
+        assert g["unattributed_belief_changing_count"] == 0
+        assert g["agent_actions_signed_by_portal_count"] == 1
+
+    def test_real_model_signature_is_not_misattributed(self):
+        g = tp.trace_gaps([{"id": 1, "event_type": "hypothesis_created",
+                            "actor_model": {"provider": "xai", "model_id": "grok-4.5"}}])
+        assert g["agent_actions_signed_by_portal_count"] == 0
+
+    def test_genuinely_server_side_events_are_not_flagged(self):
+        """project_created and status_changed really are the portal's, so signing them
+        with SERVER_ACTOR is honest and must stay silent."""
+        g = tp.trace_gaps([{"id": 1, "event_type": "project_created",
+                            "actor_model": tp.SERVER_ACTOR},
+                           {"id": 2, "event_type": "status_changed",
+                            "actor_model": tp.SERVER_ACTOR}])
+        assert g["agent_actions_signed_by_portal_count"] == 0
+
+    def test_unsigned_agent_action_is_unattributed_not_misattributed(self):
+        g = tp.trace_gaps([{"id": 1, "event_type": "hypothesis_created"}])
+        assert g["unattributed_belief_changing_count"] == 1
+        assert g["agent_actions_signed_by_portal_count"] == 0
+
+    def test_sample_is_capped_but_count_is_not(self):
+        evs = [{"id": i, "event_type": "prediction_added",
+                "actor_model": tp.SERVER_ACTOR} for i in range(50)]
+        g = tp.trace_gaps(evs, sample_cap=5)
+        assert len(g["agent_actions_signed_by_portal"]) == 5
+        assert g["agent_actions_signed_by_portal_count"] == 50

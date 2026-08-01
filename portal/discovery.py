@@ -255,9 +255,14 @@ def get_manifest() -> dict:
             "WRITE after you act: every hypothesis, prediction, verdict, status "
             "change and compute run is an API write. If it is not on the dashboard, "
             "it did not happen — never hold project state only in your context.",
-            "SIGN EVERY WRITE: put `actor_model` on EVERY event you POST — "
-            "{provider, model_id, model_version} — naming the model that is actually "
-            "reasoning right now, i.e. YOU. Send it on every single event, not once per "
+            "SIGN EVERY WRITE: put `actor_model` — {provider, model_id, model_version} — "
+            "in the BODY of every write you make, naming the model that is actually "
+            "reasoning right now, i.e. YOU. EVERY WRITE MEANS EVERY WRITE, not just "
+            "POST /events: `POST /projects/{id}/hypotheses`, `POST /hypotheses/{id}/predictions`, "
+            "`PUT /predictions/{id}` (the verdict) and `PUT /projects/{id}/next_experiment` "
+            "each take `actor_model` too, and those four ARE your science. A run that signs "
+            "only its events leaves every hypothesis and every verdict attributed to the "
+            "portal rather than to itself. Send it on every single write, not once per "
             "project: if you hand off, resume, or are swapped mid-run, the trace must "
             "show exactly where that happened. An unsigned write is an orphan — nobody "
             "can later tell which model produced it, it cannot be compared across a "
@@ -1179,6 +1184,17 @@ def get_manifest() -> dict:
                      "is already enforced server-side; you get it for free, but only if "
                      "you CITE. It is the reason a ranking from last year can still be "
                      "audited today.",
+            "who_reasoned": "Provenance answers TWO questions: which evidence a verdict "
+                     "rested on, and WHICH MODEL produced it. The second is `actor_model`, "
+                     "and it is accepted in the body of every scientific write, not only "
+                     "POST /events: hypotheses, predictions, verdicts and next_experiment "
+                     "all take it. Omit it there and the row is signed by the PORTAL, which "
+                     "records the platform as the author of your reasoning. The briefing "
+                     "reports that as method_compliance.agent_actions_signed_by_portal_count "
+                     "— it is tracked separately from `unattributed` because the field is "
+                     "populated, just with the wrong actor, so it will not show up as a "
+                     "missing-field gap. Model identity is `client_attested`: the portal "
+                     "records what you claim and never presents it as verified.",
             "cite_to_bind": "Citing evidence_record_ids on /evaluate is what activates "
                      "provenance. The server PINS each cited record at evaluate-time — "
                      "{record_id, version, content_hash} — so the verdict is anchored to "
@@ -1787,7 +1803,7 @@ def get_project(project_id, owner_identity=None) -> dict | None:
         conn.close()
 
 
-def set_next_experiment(project_id, payload, actor=None) -> bool:
+def set_next_experiment(project_id, payload, actor=None, actor_model=None) -> bool:
     """REPLACE the project's next_experiment with the full payload the agent
     sends — ALL keys preserved (no silent drop), plus a server proposed_at. PUT
     is replace-not-merge: send the complete object each time."""
@@ -1808,7 +1824,8 @@ def set_next_experiment(project_id, payload, actor=None) -> bool:
         _append_event(cur, project_id, "next_experiment_proposed",
                       f"Next experiment proposed: {desc} "
                       f"({payload.get('method', '')} @ {payload.get('facility', '')})",
-                      detail=payload.get("rationale"), actor=actor)
+                      detail=payload.get("rationale"), actor=actor,
+                      actor_model=actor_model, server_write=actor_model is None)
         conn.commit()
         return True
     finally:
@@ -1833,7 +1850,7 @@ def _snapshot_confidence(cur, project_id, hypothesis_id, confidence, *,
 
 def create_hypothesis(project_id, statement, *, label=None, hypothesis_type=None,
                       mechanism=None, origin=None, grounding=None,
-                      created_by=None) -> str | None:
+                      created_by=None, actor_model=None) -> str | None:
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -1851,10 +1868,13 @@ def create_hypothesis(project_id, statement, *, label=None, hypothesis_type=None
              json.dumps(origin) if origin is not None else None,
              normalize_grounding(grounding) if grounding is not None else None,
              0.5, created_by))
+        # server_write=False when the agent attested itself, so its signature is kept
+        # verbatim instead of being overwritten with the portal's.
         _append_event(cur, project_id, "hypothesis_created",
                       f"Hypothesis {label or ''} added: {statement[:120]}",
                       detail=_decision_why(origin, mechanism),
-                      hypothesis_id=hypothesis_id, actor=created_by)
+                      hypothesis_id=hypothesis_id, actor=created_by,
+                      actor_model=actor_model, server_write=actor_model is None)
         # born at the 0.5 PRIOR (no evidence yet); evidence moves it via evaluate
         _snapshot_confidence(cur, project_id, hypothesis_id, 0.5, source="created")
         cur.execute("UPDATE hyp_projects SET updated_at=NOW() WHERE project_id=%s",
@@ -1901,7 +1921,7 @@ def update_hypothesis(hypothesis_id, *, status=None, reason=None, actor=None, **
 def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=None,
                       reference_condition=None, magnitude=None, output_quantity=None,
                       falsification_criterion=None, discriminates=None, origin=None,
-                      actor=None) -> str | None:
+                      actor=None, actor_model=None) -> str | None:
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -1942,7 +1962,8 @@ def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=N
              json.dumps(origin) if origin is not None else None))
         _append_event(cur, project_id, "prediction_added",
                       f"Prediction added: {descriptor_name} ({direction or '?'})",
-                      detail=_decision_why(origin), hypothesis_id=hypothesis_id, actor=actor)
+                      detail=_decision_why(origin), hypothesis_id=hypothesis_id, actor=actor,
+                      actor_model=actor_model, server_write=actor_model is None)
         conn.commit()
         return prediction_id
     finally:
@@ -1954,7 +1975,8 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                         evidence_record_ids=None, rationale=None,
                         mlflow_run_url=None, evidence_independence=None,
                         margin=None, cross_system=None, reliability=None,
-                        observable_key=None, literature=None, actor=None) -> bool:
+                        observable_key=None, literature=None, actor=None,
+                        actor_model=None) -> bool:
     """Terminal verdict on a prediction. `evidence_independence` declares
     USE-NOVELTY: which evidence was used to BUILD/fit the supporting model vs to
     TEST it. {model_was_fit:bool, parameters_fit_to:[id], tested_against:[id],
@@ -2056,7 +2078,8 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                       f"{verdict} ({strength or '?'})",
                       detail=_detail, hypothesis_id=row["hypothesis_id"],
                       evidence_record_ids=evidence_record_ids,
-                      mlflow_run_url=mlflow_run_url, actor=actor)
+                      mlflow_run_url=mlflow_run_url, actor=actor,
+                      actor_model=actor_model, server_write=actor_model is None)
         # CANONICAL: confidence is recomputed from the verdicts and stored here —
         # this is the ONLY thing that moves a hypothesis's confidence.
         _recompute_and_store_confidence(cur, row["hypothesis_id"], actor=actor)
@@ -3481,6 +3504,14 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                 _trace_gaps.get("reasoning_steps_with_incomplete_decision") or [],
             "reasoning_steps_with_incomplete_decision_count":
                 _trace_gaps.get("reasoning_steps_with_incomplete_decision_count") or 0,
+            # An agent decision recorded under the portal's signature. Counted separately
+            # because it is NOT caught by unattributed_*: the field is populated, just
+            # with the wrong actor, so the compliance surface reads clean while the trace
+            # cannot say which model produced the science.
+            "agent_actions_signed_by_portal":
+                _trace_gaps.get("agent_actions_signed_by_portal") or [],
+            "agent_actions_signed_by_portal_count":
+                _trace_gaps.get("agent_actions_signed_by_portal_count") or 0,
             "models_seen": _trace_gaps.get("models_seen") or {},
             "trace_audit_window": _TRACE_AUDIT_WINDOW,
             "supports_without_independence_declaration": supports_without_independence,
