@@ -186,6 +186,14 @@ def trace_gaps(events, *, sample_cap: int = 20) -> dict:
 # breaking old projects or watering down the rules for new ones.
 CURRENT_POLICY_VERSION = 60
 
+# The portal itself is an actor. Several belief-changing events originate SERVER-side
+# (a project being created, a dataset being declared, a ranking recomputed), and they are
+# genuinely not the agent's reasoning. Signing them honestly keeps the compliance surface
+# meaningful: a project that opens with a phantom "unattributed" flag it cannot clear
+# teaches agents to ignore the flag.
+SERVER_ACTOR = {"provider": "isaac", "model_id": "portal", "harness": "server",
+                "identity_trust": "client_attested"}
+
 
 def enforcement_error(project_policy_version, event_type, actor_model, decision):
     """Return a human-readable rejection reason, or None if the write is acceptable.

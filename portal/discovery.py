@@ -1495,12 +1495,18 @@ def _verified_literature(p):
 
 def _append_event(cur, project_id, event_type, summary, *, detail=None,
                   hypothesis_id=None, evidence_record_ids=None,
-                  mlflow_run_url=None, actor=None, actor_model=None, decision=None):
+                  mlflow_run_url=None, actor=None, actor_model=None, decision=None,
+                  server_write=True):
     """Insert one activity-feed row. Caller owns the transaction/commit.
 
     `actor_model` (WHO reasoned) and `decision` (WHY, incl. the rejected branch) are
     normalized here and stored as JSONB. Both are optional: every existing caller and
     every historical row simply carries NULL."""
+    # Server-originated writes sign themselves. The CLIENT path (add_event) passes
+    # server_write=False, so an unsigned agent write is NEVER mislabelled as the portal's
+    # — it is either rejected by the policy gate or recorded honestly as unattributed.
+    if server_write and actor_model is None:
+        actor_model = _tp.SERVER_ACTOR
     _am = _tp.normalize_actor_model(actor_model)
     _dec = _tp.normalize_decision(decision)
     cur.execute(
@@ -1611,9 +1617,7 @@ def create_project(owner_identity, title, goal=None, material_system=None,
         # project_created is itself belief-changing; the server signs its own write so a
         # brand-new project does not open with an unattributed event it cannot fix.
         _append_event(cur, project_id, "project_created",
-                      f"Project created: {title}", actor=owner_identity,
-                      actor_model={"provider": "isaac", "model_id": "portal",
-                                   "harness": "server"})
+                      f"Project created: {title}", actor=owner_identity)
         conn.commit()
         return project_id
     finally:
@@ -3573,7 +3577,8 @@ def add_event(project_id, event_type, summary, *, detail=None, hypothesis_id=Non
                             hypothesis_id=hypothesis_id,
                             evidence_record_ids=evidence_record_ids,
                             mlflow_run_url=mlflow_run_url, actor=actor,
-                            actor_model=actor_model, decision=decision)
+                            actor_model=actor_model, decision=decision,
+                            server_write=False)
         conn.commit()
         return eid
     finally:
