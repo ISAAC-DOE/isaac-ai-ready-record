@@ -158,7 +158,19 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.60-provenance",
+        # `version` tracks the CONTRACT TEXT: bump whenever a clause changes in a way an
+        # agent could act on, even when nothing new is enforced. `policy_version` tracks
+        # ENFORCEMENT and bumps only when a gate is added, because it is stamped on projects
+        # for life and must not drift for a wording fix.
+        #
+        # 0.61 rewrote SIGN EVERY WRITE (actor_model belongs on the hypothesis, prediction,
+        # verdict and next_experiment paths, not only POST /events) and added
+        # provenance.who_reasoned. No new gate, so policy_version stays 60.
+        #
+        # Shipping 0.61's text under the 0.60 label would have been the real error: a
+        # reproducibility study pins the contract it measured, and two rounds run against
+        # different manifests bearing one version string are silently incomparable.
+        "version": "0.61-attribution",
         "policy_version": 60,
         "enforcement": {
             "_what": "The trace contract is ENFORCED, not advised, for projects created at "
