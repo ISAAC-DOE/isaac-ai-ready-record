@@ -228,6 +228,20 @@ def get_manifest() -> dict:
             "WRITE after you act: every hypothesis, prediction, verdict, status "
             "change and compute run is an API write. If it is not on the dashboard, "
             "it did not happen — never hold project state only in your context.",
+            "SIGN EVERY WRITE: put `actor_model` on EVERY event you POST — "
+            "{provider, model_id, model_version} — naming the model that is actually "
+            "reasoning right now, i.e. YOU. Send it on every single event, not once per "
+            "project: if you hand off, resume, or are swapped mid-run, the trace must "
+            "show exactly where that happened. An unsigned write is an orphan — nobody "
+            "can later tell which model produced it, it cannot be compared across a "
+            "reproducibility set, and it is useless for training. Do not guess a model "
+            "id you are unsure of: send the fields you know and omit the rest.",
+            "SHOW THE ROAD NOT TAKEN: every `reasoning_step` MUST carry a `decision` — "
+            "{chose, rejected, because, blocked_on}. Name the alternatives you did NOT "
+            "take and WHY they lost, every time, including when the choice felt obvious. "
+            "`chose` on its own is logged but counted THIN in method_compliance. This is "
+            "the single highest-value thing you write: the outcome is recoverable from "
+            "the state, the discarded branch is recoverable from nothing.",
             "RECORD THE DIRECTIVE: if a human prompted this turn, the turn's FIRST "
             "WRITE is that prompt, copied VERBATIM into a `human_directive` event (the "
             "briefing GET is a read, so it still comes first; see "
@@ -983,7 +997,9 @@ def get_manifest() -> dict:
             "GET /briefing", "reason", "write each move (hypotheses/predictions/"
             "evaluate/status)",
             "POST /events per step — including event_type='reasoning_step' to record the "
-            "WHY (not just the state change), so a future resume inherits your thinking",
+            "WHY (not just the state change), so a future resume inherits your thinking. "
+            "EVERY event carries `actor_model` (who is reasoning); every reasoning_step "
+            "also carries `decision` {chose, rejected, because, blocked_on}",
             "PUT /next_experiment"],
         "compute_loop": [
             "FIRST query isaac_data_sources (+ literature) for an EXISTING value — don't "
