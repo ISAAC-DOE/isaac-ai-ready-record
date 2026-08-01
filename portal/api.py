@@ -1698,12 +1698,16 @@ def discovery_add_event(project_id):
     if etype not in discovery.EVENT_TYPES:
         return jsonify({"error": f"unknown event_type; allowed: "
                                  f"{sorted(discovery.EVENT_TYPES)}"}), 400
-    eid = discovery.add_event(
-        project_id, etype, summary, detail=d.get("detail"),
-        hypothesis_id=d.get("hypothesis_id"),
-        evidence_record_ids=d.get("evidence_record_ids"),
-        mlflow_run_url=d.get("mlflow_run_url"), actor=_disc_identity(),
-        actor_model=d.get("actor_model"), decision=d.get("decision"))
+    try:
+        eid = discovery.add_event(
+            project_id, etype, summary, detail=d.get("detail"),
+            hypothesis_id=d.get("hypothesis_id"),
+            evidence_record_ids=d.get("evidence_record_ids"),
+            mlflow_run_url=d.get("mlflow_run_url"), actor=_disc_identity(),
+            actor_model=d.get("actor_model"), decision=d.get("decision"))
+    except discovery.TraceContractError as e:
+        return jsonify({"error": str(e), "policy_version":
+                        discovery._tp.CURRENT_POLICY_VERSION}), 400
     if eid is None:
         return jsonify({"error": "project not found"}), 404
     return jsonify({"event_id": eid}), 201

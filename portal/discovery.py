@@ -31,6 +31,12 @@ import trace_provenance as _tp
 
 logger = logging.getLogger("isaac-discovery")
 
+
+class TraceContractError(ValueError):
+    """A write rejected by the project's trace contract (policy_version). The caller
+    should surface this to the agent as a 400 with the reason text: it is actionable,
+    and the agent can retry the same write correctly."""
+
 # Crockford base32 (a subset of [0-9A-Z]); ULID-style 26-char ids, generated
 # server-side. Discovery ids are independent of records ULIDs (separate DB).
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -153,6 +159,27 @@ def get_manifest() -> dict:
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
         "version": "0.60-provenance",
+        "policy_version": 60,
+        "enforcement": {
+            "_what": "The trace contract is ENFORCED, not advised, for projects created at "
+                     "or after policy_version 60. A project is stamped with the contract "
+                     "it was BORN under and held to that for life; projects created "
+                     "earlier carry no stamp and are never retro-enforced. This is how "
+                     "the contract keeps improving without either breaking old work or "
+                     "diluting the rules for new work.",
+            "rejects_400": [
+                "belief-changing event with no `actor_model` (hypothesis_created, "
+                "prediction_added, prediction_evaluated, next_experiment_proposed, "
+                "status_changed, evidence_ingested, human_directive)",
+                "reasoning_step with no `decision` object"],
+            "flagged_not_rejected": [
+                "a THIN decision (`chose` with no `because` and no `rejected`) is "
+                "accepted and flagged in method_compliance. Completeness is a quality "
+                "judgement, and a hard gate on it would push you toward writing nothing "
+                "rather than something partial. Write the grounds anyway."],
+            "if_you_are_rejected": "The 400 body carries the reason and the "
+                     "policy_version. It is actionable: add the missing field and retry "
+                     "the SAME write."},
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -1576,11 +1603,17 @@ def create_project(owner_identity, title, goal=None, material_system=None,
         project_id = new_ulid()
         cur.execute(
             """INSERT INTO hyp_projects
-                 (project_id, owner_identity, title, goal, material_system, reaction)
-               VALUES (%s,%s,%s,%s,%s,%s)""",
-            (project_id, owner_identity, title, goal, material_system, reaction))
+                 (project_id, owner_identity, title, goal, material_system, reaction,
+                  policy_version)
+               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+            (project_id, owner_identity, title, goal, material_system, reaction,
+             _tp.CURRENT_POLICY_VERSION))
+        # project_created is itself belief-changing; the server signs its own write so a
+        # brand-new project does not open with an unattributed event it cannot fix.
         _append_event(cur, project_id, "project_created",
-                      f"Project created: {title}", actor=owner_identity)
+                      f"Project created: {title}", actor=owner_identity,
+                      actor_model={"provider": "isaac", "model_id": "portal",
+                                   "harness": "server"})
         conn.commit()
         return project_id
     finally:
@@ -3525,9 +3558,17 @@ def add_event(project_id, event_type, summary, *, detail=None, hypothesis_id=Non
     conn = _conn()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT 1 FROM hyp_projects WHERE project_id=%s", (project_id,))
-        if cur.fetchone() is None:
+        cur.execute("SELECT policy_version FROM hyp_projects WHERE project_id=%s",
+                    (project_id,))
+        _row = cur.fetchone()
+        if _row is None:
             return None
+        # Held to the contract the project was BORN under. Legacy projects (NULL) are
+        # advisory-only and behave exactly as before.
+        _err = _tp.enforcement_error(_row.get("policy_version"), event_type,
+                                     actor_model, decision)
+        if _err:
+            raise TraceContractError(_err)
         eid = _append_event(cur, project_id, event_type, summary, detail=detail,
                             hypothesis_id=hypothesis_id,
                             evidence_record_ids=evidence_record_ids,
