@@ -111,7 +111,9 @@ def main():
               set(want["mc_keys"]).issubset(mc),
               f"lost: {sorted(set(want['mc_keys']) - mc)}")
         for k in ("unattributed_belief_changing_events",
-                  "reasoning_steps_without_decision", "models_seen"):
+                  "unattributed_belief_changing_count",
+                  "reasoning_steps_with_incomplete_decision",
+                  "models_seen", "trace_audit_window"):
             check(f"{pid} method_compliance.{k} added", k in mc)
 
     if a.write_probe:

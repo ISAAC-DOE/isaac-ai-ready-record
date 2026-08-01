@@ -87,13 +87,14 @@ class TestTraceGaps:
              "actor_model": {"model_id": "claude-opus-5"}},
         ])
         assert gaps["unattributed_belief_changing"] == []
-        assert gaps["models_seen"] == {"claude-opus-5": 1}
+        # keyed provider/model_id; provider unknown renders as "?"
+        assert gaps["models_seen"] == {"?/claude-opus-5": 1}
 
     def test_thin_reasoning_step_is_flagged(self):
         gaps = tp.trace_gaps([
             {"id": 3, "event_type": "reasoning_step", "decision": {"chose": "a"}},
         ])
-        assert gaps["reasoning_steps_without_decision"] == [3]
+        assert gaps["reasoning_steps_with_incomplete_decision"] == [3]
 
     def test_multi_model_trace_detected(self):
         gaps = tp.trace_gaps([
@@ -107,3 +108,44 @@ class TestTraceGaps:
     def test_empty_is_safe(self):
         assert tp.trace_gaps([])["unattributed_belief_changing"] == []
         assert tp.trace_gaps(None)["models_seen"] == {}
+
+
+class TestReviewFixes:
+    """Regressions for the six defects found in adversarial review."""
+
+    def test_nul_byte_is_stripped_before_it_can_reach_jsonb(self):
+        """A NUL in a client string makes PostgreSQL reject the whole jsonb value,
+        which would fail the INSERT and LOSE the event."""
+        got = tp.normalize_decision({"chose": "a\x00b", "because": ["c\x00d"]})
+        assert "\x00" not in got["chose"]
+        assert "\x00" not in got["because"][0]
+
+    def test_control_chars_stripped_but_whitespace_kept(self):
+        got = tp.normalize_decision({"chose": "line1\nline2\ttabbed\x07bell"})
+        assert "\n" in got["chose"] and "\t" in got["chose"]
+        assert "\x07" not in got["chose"]
+
+    def test_models_keyed_by_provider_so_vendors_do_not_collide(self):
+        gaps = tp.trace_gaps([
+            {"id": 1, "event_type": "prediction_evaluated",
+             "actor_model": {"provider": "xai", "model_id": "m"}},
+            {"id": 2, "event_type": "prediction_evaluated",
+             "actor_model": {"provider": "openai", "model_id": "m"}},
+        ])
+        assert len(gaps["models_seen"]) == 2
+
+    def test_no_models_is_unknown_not_single(self):
+        """'one model' and 'no idea which model' must not look alike."""
+        assert tp.trace_gaps([{"id": 1, "event_type": "agent_message"}])["single_model_trace"] is None
+
+    def test_one_model_is_single(self):
+        gaps = tp.trace_gaps([{"id": 1, "event_type": "prediction_evaluated",
+                               "actor_model": {"model_id": "a"}}])
+        assert gaps["single_model_trace"] is True
+
+    def test_legacy_flood_is_capped_but_counted(self):
+        """23 live projects predate this feature; an exhaustive dump would be noise."""
+        gaps = tp.trace_gaps([{"id": i, "event_type": "prediction_evaluated"}
+                              for i in range(1000)])
+        assert len(gaps["unattributed_belief_changing"]) == 20
+        assert gaps["unattributed_belief_changing_count"] == 1000

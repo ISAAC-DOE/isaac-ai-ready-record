@@ -2884,13 +2884,22 @@ def _pin_evidence(evidence_record_ids):
     return pins
 
 
-def _events_for_trace(project_id):
-    """Minimal event columns for the trace audit (who reasoned / why). Read-only."""
+_TRACE_AUDIT_WINDOW = 500
+
+
+def _events_for_trace(project_id, limit=_TRACE_AUDIT_WINDOW):
+    """Minimal event columns for the trace audit (who reasoned / why). Read-only.
+
+    BOUNDED on purpose: the audit is a nudge about current practice, not a historical
+    census, and a briefing must never carry a cost that grows without limit as a project
+    gets chattier. Newest-first + LIMIT rides the existing
+    (project_id, created_at DESC) index, so it never sorts the whole history."""
     conn = _conn()
     cur = conn.cursor()
     try:
         cur.execute("SELECT id, event_type, actor_model, decision FROM hyp_events "
-                    "WHERE project_id=%s ORDER BY id", (project_id,))
+                    "WHERE project_id=%s ORDER BY created_at DESC, id DESC LIMIT %s",
+                    (project_id, limit))
         return cur.fetchall()
     finally:
         cur.close()
@@ -3369,6 +3378,9 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     try:
         _trace_gaps = _tp.trace_gaps(_events_for_trace(project_id))
     except Exception:
+        # Degrade to empty so a briefing is never blocked, but SAY SO: a silently and
+        # permanently empty provenance audit would look like perfect compliance.
+        logger.warning("trace audit unavailable for project %s", project_id, exc_info=True)
         _trace_gaps = {}
     if evidence_drift:
         _by_hyp = {}
@@ -3426,9 +3438,14 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "circular_confirmations": circular_confirmations,
             "unattributed_belief_changing_events":
                 _trace_gaps.get("unattributed_belief_changing") or [],
-            "reasoning_steps_without_decision":
-                _trace_gaps.get("reasoning_steps_without_decision") or [],
+            "unattributed_belief_changing_count":
+                _trace_gaps.get("unattributed_belief_changing_count") or 0,
+            "reasoning_steps_with_incomplete_decision":
+                _trace_gaps.get("reasoning_steps_with_incomplete_decision") or [],
+            "reasoning_steps_with_incomplete_decision_count":
+                _trace_gaps.get("reasoning_steps_with_incomplete_decision_count") or 0,
             "models_seen": _trace_gaps.get("models_seen") or {},
+            "trace_audit_window": _TRACE_AUDIT_WINDOW,
             "supports_without_independence_declaration": supports_without_independence,
             "supersessions_without_discriminating_observable": supersedes_without_discriminator,
             "high_confidence_without_independent_review": high_confidence_without_review,

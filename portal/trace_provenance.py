@@ -43,6 +43,10 @@ def _clean_str(v):
         return None
     if not isinstance(v, str):
         v = str(v)
+    # PostgreSQL rejects \u0000 inside jsonb. One stray NUL from a client would fail the
+    # INSERT and LOSE the whole event, so strip NULs and other C0 controls (keeping tab,
+    # newline, carriage return) before the value can ever reach the ledger.
+    v = "".join(ch for ch in v if ch >= " " or ch in "\t\n\r")
     v = v.strip()
     return v[:_MAX_STR] or None
 
@@ -128,29 +132,46 @@ BELIEF_CHANGING = frozenset({
 })
 
 
-def trace_gaps(events) -> dict:
-    """Audit a project's event stream for attribution and decision completeness.
+def trace_gaps(events, *, sample_cap: int = 20) -> dict:
+    """Audit an event stream for attribution and decision completeness.
 
     Advisory only — this NEVER touches scoring. It feeds `method_compliance` so an
     agent can see, and close, its own gaps.
+
+    Events written before trace provenance existed carry no actor_model by construction,
+    so the gap lists are COUNTS plus a capped sample rather than an exhaustive dump: a
+    briefing that lists two thousand legacy ids is noise, and noise is how a compliance
+    surface gets ignored.
 
     events: iterable of dicts with at least `event_type`; optionally `id`,
             `actor_model`, `decision`.
     """
     unattributed, thin, models = [], [], {}
+    n_unattributed = n_thin = 0
     for e in (events or []):
         etype = (e or {}).get("event_type")
         eid = (e or {}).get("id")
         am = (e or {}).get("actor_model")
         if isinstance(am, dict) and am.get("model_id"):
-            models[am["model_id"]] = models.get(am["model_id"], 0) + 1
+            # Key by provider/model_id: two vendors can ship the same short model name,
+            # and collapsing them would silently understate how many models ran.
+            key = "%s/%s" % (am.get("provider") or "?", am["model_id"])
+            models[key] = models.get(key, 0) + 1
         elif etype in BELIEF_CHANGING:
-            unattributed.append(eid)
+            n_unattributed += 1
+            if len(unattributed) < sample_cap:
+                unattributed.append(eid)
         if etype == "reasoning_step" and not is_complete_decision((e or {}).get("decision")):
-            thin.append(eid)
+            n_thin += 1
+            if len(thin) < sample_cap:
+                thin.append(eid)
     return {
         "unattributed_belief_changing": unattributed,
-        "reasoning_steps_without_decision": thin,
+        "unattributed_belief_changing_count": n_unattributed,
+        "reasoning_steps_with_incomplete_decision": thin,
+        "reasoning_steps_with_incomplete_decision_count": n_thin,
         "models_seen": models,
-        "single_model_trace": len(models) <= 1,
+        # None (not True) when nothing is attributed at all: "one model" and "no idea
+        # which model" are different states and must not look alike.
+        "single_model_trace": (len(models) == 1) if models else None,
     }
