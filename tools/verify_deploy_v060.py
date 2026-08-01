@@ -85,7 +85,7 @@ def main():
     projs = req("/projects")
     projs = projs if isinstance(projs, list) else projs.get("projects", [])
     ids = sorted(p.get("project_id") for p in projs)
-    check("same number of projects", len(ids) == base["n_projects"],
+    check("no project lost (new ones are fine)", len(ids) >= base["n_projects"],
           f"{base['n_projects']} -> {len(ids)}")
     check("no project disappeared",
           set(base["project_ids"]).issubset(set(ids)),
@@ -134,7 +134,7 @@ def main():
             eid = r.get("event_id")
             check("event accepted with actor_model + decision", bool(eid), f"event_id={eid}")
             ctx = req(f"/projects/{pid}/context")
-            evs = ctx.get("events") or ctx.get("journal") or []
+            evs = ctx.get("history") or []   # /context exposes the journal as `history`
             mine = [e for e in evs if e.get("id") == eid]
             if mine:
                 e = mine[0]
