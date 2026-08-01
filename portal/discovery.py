@@ -152,7 +152,7 @@ def get_manifest() -> dict:
     reasoning loop is pinned down with the practitioners."""
     return {
         "name": "ISAAC Discovery — Agent Operating Protocol",
-        "version": "0.59-provisional",
+        "version": "0.60-provenance",
         "base_path": "https://isaac.slac.stanford.edu/portal/api",
         "isaac_ecosystem": {
             "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to "
@@ -999,6 +999,34 @@ def get_manifest() -> dict:
             "PUT ... {work_status:'compute_running'} when it starts",
             "PUT /predictions/{id}/evaluate with verdict + evidence + final mlflow_run_url"],
         "field_shapes": {
+            "actor_model": {"_for": "WHO reasoned. Send on every belief-changing event "
+                       "(and ideally on reasoning_step too). A multi-account or "
+                       "multi-model run is UNINTERPRETABLE without it, and a trace with "
+                       "no model attached cannot be compared, reproduced or reused.",
+                       "provider": "str? e.g. anthropic | openai | xai | google",
+                       "model_id": "str? the model you are, e.g. claude-opus-5",
+                       "model_version": "str? snapshot/date pin if you have one",
+                       "harness": "str? the agent framework you run inside",
+                       "harness_version": "str?",
+                       "identity_trust": "SERVER-SET, never yours. Always "
+                       "'client_attested': the portal verifies your PRINCIPAL from the "
+                       "Bearer token, but it cannot verify which model you are. Sending "
+                       "this field does nothing — it is overwritten. Nothing in ISAAC "
+                       "will present your model claim as cryptographically verified."},
+            "decision": {"_for": "WHY. Attach to reasoning_step (and any event where a "
+                       "choice was made). The state change alone is not a trace: the "
+                       "branch you REJECTED is usually the informative one, and it is "
+                       "the part a later reader — or a model being trained on this — "
+                       "cannot reconstruct from the outcome.",
+                       "chose": "str — what you decided to do",
+                       "rejected": "[str] — the alternatives you considered and did NOT "
+                       "take. Name them even when the choice felt obvious.",
+                       "because": "[str] — the grounds. What made the chosen option win "
+                       "and the others lose.",
+                       "blocked_on": "[str]? — what stops you going further right now.",
+                       "_complete": "chose + (because OR rejected). A bare `chose` is "
+                       "recorded but flagged thin in method_compliance. `blocked_on` "
+                       "alone is a stall, not a decision."},
             "prediction": {"_for": "a hypothesis carries a SET of these (>=2, aim 3-4), "
                        "spanning DIFFERENT measurables — each STRUCTURED into discrete "
                        "fields, not a claim packed into descriptor_name with a prose "
@@ -1103,6 +1131,34 @@ def get_manifest() -> dict:
                                 "change_note": "str",
                                 "change_type": "refinement|reparameterization|rewording"},
         },
+        "provenance": {
+            "_what": "How ISAAC binds a verdict to the EXACT evidence it rested on. This "
+                     "is already enforced server-side; you get it for free, but only if "
+                     "you CITE. It is the reason a ranking from last year can still be "
+                     "audited today.",
+            "cite_to_bind": "Citing evidence_record_ids on /evaluate is what activates "
+                     "provenance. The server PINS each cited record at evaluate-time — "
+                     "{record_id, version, content_hash} — so the verdict is anchored to "
+                     "the exact content it read. An uncited verdict has nothing to bind "
+                     "and, per scoring_model, earns no standing either.",
+            "content_hash": "Records are versioned and content-hashed over the SCIENTIFIC "
+                     "blocks only (sample, system, context, measurement, descriptors, "
+                     "computation, links, assets). Ownership, tags, timestamps and "
+                     "routing are EXCLUDED, and assets hash by CHECKSUM rather than URI, "
+                     "so a re-host or a re-tag is cosmetic by construction. The hash "
+                     "carries an algorithm version, and only same-version hashes are "
+                     "compared.",
+            "evidence_drift": "If a cited record is MATERIALLY edited after you used it, "
+                     "the briefing raises evidence_drift naming the prediction and the "
+                     "record. It NEVER moves a score — it asks you to re-examine. "
+                     "Re-evaluating re-pins, and the warning self-clears.",
+            "records_vs_projects": "Two separate stores. The ISAAC RECORD repository is "
+                     "shared: every agent reads the same corpus, and that is the point. "
+                     "Discovery PROJECTS are private to their owner and whoever they are "
+                     "explicitly shared with — hypotheses, predictions, verdicts and the "
+                     "whole reasoning trace. A blinded replicate is isolated at the "
+                     "project layer while still standing on the common evidence base."
+        },
         "auditability": "Record EVERY decision point in BOTH places (dual-write): "
             "(1) POST an `event` to the dashboard with a `detail` carrying the full "
             "reasoning — this is canonical and drives the briefing; (2) mirror the same "
@@ -1115,7 +1171,13 @@ def get_manifest() -> dict:
             "Human prompts are provenance too: the verbatim directive that opens a "
             "human-prompted turn is its FIRST write, a `human_directive` event "
             "(self-reported, dashboard-only). The briefing flags substantial activity "
-            "with no directive on record.",
+            "with no directive on record. "
+            "WHO AND WHY: every belief-changing event should carry `actor_model` (which "
+            "model reasoned) and every reasoning_step a `decision` ({chose, rejected, "
+            "because, blocked_on}) — see field_shapes. Recording only what you did, and "
+            "never what you ruled out or why, yields a log rather than a trace: the "
+            "rejected branch is the part no later reader can reconstruct from the "
+            "outcome. method_compliance flags unattributed writes and thin decisions.",
         "integrations": {
             "isaac_data_sources": {
                 "purpose": "ISAAC is itself a primary KNOWLEDGE SOURCE — query it BEFORE "
@@ -2806,6 +2868,19 @@ def _pin_evidence(evidence_record_ids):
     return pins
 
 
+def _events_for_trace(project_id):
+    """Minimal event columns for the trace audit (who reasoned / why). Read-only."""
+    conn = _conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id, event_type, actor_model, decision FROM hyp_events "
+                    "WHERE project_id=%s ORDER BY id", (project_id,))
+        return cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+
 def _evidence_drift_for(hyps):
     """Pull-based drift check: for predictions that carry a VERDICT (evidence actually used
     for a hypothesis — browsed-but-unused records are ignored), re-hash their cited records
@@ -3273,6 +3348,12 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     # Advisory only — a flag to re-examine; it NEVER moves a score (re-evaluate to re-pin,
     # and the warning clears itself). Records merely browsed (no verdict) are not flagged.
     evidence_drift = _evidence_drift_for(hyps)
+    # WHO reasoned / WHY. Read-only, advisory, NEVER touches a score. Degrades to empty
+    # on any DB hiccup so it can never block a briefing.
+    try:
+        _trace_gaps = _tp.trace_gaps(_events_for_trace(project_id))
+    except Exception:
+        _trace_gaps = {}
     if evidence_drift:
         _by_hyp = {}
         for _d in evidence_drift:
@@ -3327,6 +3408,11 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "untested_hypotheses_with_idle_tools": untested_with_idle_tools,
             "unverified_or_fabricated_citations": fabricated_citations,
             "circular_confirmations": circular_confirmations,
+            "unattributed_belief_changing_events":
+                _trace_gaps.get("unattributed_belief_changing") or [],
+            "reasoning_steps_without_decision":
+                _trace_gaps.get("reasoning_steps_without_decision") or [],
+            "models_seen": _trace_gaps.get("models_seen") or {},
             "supports_without_independence_declaration": supports_without_independence,
             "supersessions_without_discriminating_observable": supersedes_without_discriminator,
             "high_confidence_without_independent_review": high_confidence_without_review,
