@@ -1,0 +1,3 @@
+# Launch prompts embed live API keys for the replicate accounts. Never commit them.
+launch_prompts/
+*_keys.json

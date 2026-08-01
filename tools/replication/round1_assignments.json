@@ -1,0 +1,37 @@
+{
+ "A": {
+  "account": "isaac-smoketestA",
+  "project_id": "01KYZD2N6D6GRT9JJNPVH6ZSQ9",
+  "provider": "anthropic",
+  "model_id": "claude-opus-5",
+  "label": "Claude Opus 5"
+ },
+ "B": {
+  "account": "isaac-smoketestB",
+  "project_id": "01KYZD2P3DZGD4W9N5FMQNFD30",
+  "provider": "xai",
+  "model_id": "grok-4.5",
+  "label": "Grok 4.5"
+ },
+ "C": {
+  "account": "isaac-smoketestC",
+  "project_id": "01KYZD2PWT9FM1RBWTPFMSH9T9",
+  "provider": "openai",
+  "model_id": "gpt-5-codex",
+  "label": "GPT-5 Codex"
+ },
+ "D": {
+  "account": "isaac-smoketestD",
+  "project_id": "01KYZD2QVZRN97Z1H4S9T50YNV",
+  "provider": "google",
+  "model_id": "gemini-3-pro",
+  "label": "Gemini 3 Pro"
+ },
+ "E": {
+  "account": "isaac-smoketestE",
+  "project_id": "01KYZD2RTWJN9MK36HYES2YD9H",
+  "provider": "anthropic",
+  "model_id": "claude-opus-5",
+  "label": "Claude Opus 5 (within-model control)"
+ }
+}
