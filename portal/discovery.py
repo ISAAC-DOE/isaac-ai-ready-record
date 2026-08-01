@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.61-attribution",
+        "version": "0.62-evidence-carries-the-quantity",
         "policy_version": 60,
         "enforcement": {
             "_what": "The trace contract is ENFORCED, not advised, for projects created at "
@@ -335,7 +335,15 @@ def get_manifest() -> dict:
                 "before a record is allowed to count.",
                 "6. RENDER a verdict per prediction (supports | contradicts | neutral | "
                 "insufficient | blocked) with a strength and EXPLICIT reasoning via "
-                "/evaluate. CITE THE DATA — this is ENFORCED, not advisory: a "
+                "/evaluate. CHECK THE QUANTITY IS THERE BEFORE YOU RULE: a decisive verdict "
+                "requires that the records you cite actually REPORT the descriptor under "
+                "test. A record measured under exactly the right conditions that does not "
+                "report your quantity cannot settle your prediction. AN ABSENT DESCRIPTOR IS "
+                "NOT A MEASURED ZERO — if nothing reports it, the honest verdict is "
+                "'insufficient', or submit the calculation and come back for it. Deciding an "
+                "undecidable prediction fabricates evidence, and the briefing reports it as "
+                "method_compliance.decisive_verdict_without_descriptor_in_evidence. "
+                "CITE THE DATA — this is ENFORCED, not advisory: a "
                 "supports/contradicts MUST attach the evidence_record_ids it rests on "
                 "AND/OR the compute_run that grounds it. Even when you derived a proxy by "
                 "computing over RAW records (e.g. a product slate from GC ppm), cite THOSE "
@@ -2978,6 +2986,80 @@ def _events_for_trace(project_id, limit=_TRACE_AUDIT_WINDOW):
         conn.close()
 
 
+def _descriptor_absent_from_evidence(hyps):
+    """Decisive verdicts whose TESTED QUANTITY appears in none of the records they cite.
+
+    Measured failure, not a hypothetical one. In a frozen-set benchmark where four rival
+    hypotheses and nine falsifiable predictions were handed identically to five agents, eight
+    items came back unanimous and correct. Every error landed on the one item asking about a
+    descriptor that does not exist in the corpus: all three pure-Au records report H2, CO and
+    total FE only, with no faradaic_efficiency.C2H4. Four of five agents returned a DECISIVE
+    verdict anyway. One wrote that pure Au "yields 0 % FE(C2H4)", inventing a number; another
+    stated in its own rationale that the descriptor was absent and ruled regardless.
+
+    A determinism-only benchmark would have scored that item 0.80 and called it agreement.
+    Absence is not zero, and an agent that decides an undecidable question has fabricated
+    evidence, which is the one failure mode a reproducibility metric can never surface,
+    because the agents fail together.
+
+    Advisory. It never touches a score, and a verdict backed by a compute run is exempt
+    because the quantity may legitimately come from a calculation rather than an archive.
+    Read-only; degrades to [] on any records-DB hiccup so a briefing never blocks.
+    """
+    want = {}                      # descriptor_name -> {record_id}
+    items = []
+    for h in (hyps or []):
+        for p in (h.get("predictions") or []):
+            if p.get("verdict") not in ("supports", "contradicts"):
+                continue
+            if p.get("mlflow_run_url"):
+                continue           # computed quantity: not expected in an archived record
+            desc = p.get("descriptor_name")
+            rids = [r for r in (p.get("evidence_record_ids") or []) if r]
+            if not desc or not rids:
+                continue
+            want.setdefault(desc, set()).update(rids)
+            items.append((h.get("label"), p.get("label"), desc, set(rids)))
+    if not items:
+        return []
+    try:
+        conn = database.get_readonly_db_connection()
+    except Exception:
+        return []
+    have = {}                      # descriptor_name -> {record_id that actually reports it}
+    try:
+        cur = conn.cursor()
+        for desc, rids in want.items():
+            cur.execute(
+                """SELECT record_id FROM records
+                    WHERE record_id = ANY(%s)
+                      AND EXISTS (
+                        SELECT 1
+                          FROM jsonb_array_elements(data->'descriptors'->'outputs') o,
+                               jsonb_array_elements(o->'descriptors') d
+                         WHERE d->>'name' = %s)""",
+                (list(rids), desc))
+            have[desc] = {r["record_id"] for r in cur.fetchall()}
+        cur.close()
+    except Exception:
+        return []
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    out = []
+    for hlabel, plabel, desc, rids in items:
+        if not (rids & have.get(desc, set())):
+            out.append({"hypothesis_label": hlabel, "prediction_label": plabel,
+                        "descriptor": desc, "cited_records": len(rids),
+                        "why": f"a decisive verdict was recorded on {desc}, but none of the "
+                               f"{len(rids)} cited record(s) report that descriptor. If the "
+                               f"quantity is not measured, the honest verdict is "
+                               f"'insufficient' — absence is not zero."})
+    return out
+
+
 def _evidence_drift_for(hyps):
     """Pull-based drift check: for predictions that carry a VERDICT (evidence actually used
     for a hypothesis — browsed-but-unused records are ignored), re-hash their cited records
@@ -3445,6 +3527,22 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     # Advisory only — a flag to re-examine; it NEVER moves a score (re-evaluate to re-pin,
     # and the warning clears itself). Records merely browsed (no verdict) are not flagged.
     evidence_drift = _evidence_drift_for(hyps)
+    try:
+        _descriptor_gap = _descriptor_absent_from_evidence(hyps)
+    except Exception:
+        logger.warning("descriptor-evidence check failed", exc_info=True)
+        _descriptor_gap = []
+    if _descriptor_gap:
+        _tags = ", ".join(
+            f"{g['prediction_label'] or g['hypothesis_label']}/{g['descriptor']}"
+            for g in _descriptor_gap[:6])
+        recommended_actions.append(
+            f"EVIDENCE DOES NOT CARRY THE QUANTITY: {len(_descriptor_gap)} decisive "
+            f"verdict(s) rest on records that do not report the descriptor under test "
+            f"({_tags}). Re-open each: either cite a record that DOES report it, back it "
+            "with a compute run, or change the verdict to 'insufficient'. A descriptor that "
+            "is absent is not a measured zero, and deciding an undecidable prediction "
+            "fabricates evidence.")
     # WHO reasoned / WHY. Read-only, advisory, NEVER touches a score. Degrades to empty
     # on any DB hiccup so it can never block a briefing.
     try:
@@ -3531,6 +3629,10 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             "high_confidence_without_independent_review": high_confidence_without_review,
             "compute_verdicts_missing_mlflow_trace": preds_missing_mlflow,
             "decisive_verdicts_uncited_to_data": preds_uncited,
+            # A decisive verdict is CITED but the cited records do not report the quantity
+            # under test. Distinct from `uncited_to_data`, which catches citing nothing;
+            # this catches citing something that cannot settle the question.
+            "decisive_verdict_without_descriptor_in_evidence": _descriptor_gap,
             "dataset_records_unused": [r.get("material") or r.get("record_id")
                                        for r in dataset_coverage.get("unused_records", [])],
             "dataset_of_interest_undeclared": not dataset_coverage.get("declared"),
