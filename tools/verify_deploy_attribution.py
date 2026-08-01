@@ -110,18 +110,35 @@ def main():
     base = json.load(open(a.check))
     fails = []
 
-    # (3) nothing moved
+    # (3) nothing moved.
+    #
+    # SCOPE FIRST. A baseline captured with one principal and checked with another compares
+    # different worlds: projects the checking token cannot see read as None, which renders
+    # IDENTICALLY to "this confidence was wiped". Ask how a false alarm and a real regression
+    # differ here, and the answer is that they do not, so the scope mismatch must be caught
+    # before the comparison rather than diagnosed after it. (Lived it: a replicate token
+    # reported 8 confidences destroyed; all 104 were fine under the PI token.)
     now = snapshot()
-    moved = []
-    for pid, hyps in base["confidences"].items():
-        for hid, conf in hyps.items():
-            got = (now.get(pid) or {}).get(hid)
-            if got != conf:
-                moved.append(f"{pid[-6:]}/{hid[-6:]}: {conf} -> {got}")
-    print(f"computed confidences unchanged: {len(moved) == 0} "
-          f"({sum(len(v) for v in base['confidences'].values())} checked)")
-    if moved:
-        fails.append("CONFIDENCE MOVED: " + "; ".join(moved[:8]))
+    invisible = [p for p in base["confidences"] if p not in now]
+    if invisible:
+        print(f"SCOPE MISMATCH: {len(invisible)} of {len(base['confidences'])} baseline "
+              f"projects are invisible to this token, so the confidence check is SKIPPED "
+              f"(not passed).")
+        print("  The baseline was captured by a different principal. Re-run --check with the "
+              "SAME token that captured it; comparing across scopes proves nothing.")
+        fails.append(f"scope mismatch: {len(invisible)} baseline projects not visible — "
+                     "confidence regression NOT ruled out by this run")
+    else:
+        moved = []
+        for pid, hyps in base["confidences"].items():
+            for hid, conf in hyps.items():
+                got = (now.get(pid) or {}).get(hid)
+                if got != conf:
+                    moved.append(f"{pid[-6:]}/{hid[-6:]}: {conf} -> {got}")
+        print(f"computed confidences unchanged: {len(moved) == 0} "
+              f"({sum(len(v) for v in base['confidences'].values())} checked)")
+        if moved:
+            fails.append("CONFIDENCE MOVED: " + "; ".join(moved[:8]))
 
     # (1) the new key exists and (2) agrees with the raw ledger
     bad, tot, per = audit_misattribution()
