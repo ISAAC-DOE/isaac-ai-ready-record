@@ -281,3 +281,39 @@ class TestMisattribution:
         g = tp.trace_gaps(evs, sample_cap=5)
         assert len(g["agent_actions_signed_by_portal"]) == 5
         assert g["agent_actions_signed_by_portal_count"] == 50
+
+
+class TestStrongWithoutRivalContrast:
+    """The strength-is-discrimination rule's machine-checkable core. Measured motivation:
+    across a 30-run frozen benchmark, the only strength-unanimous item was the single one
+    whose observation uniquely killed a rival; everywhere else five models split between
+    reading strength as discrimination (the written rule) and as effect size (the everyday
+    meaning). Advisory only, never a gate."""
+
+    def _hyps(self, strength="strong", verdict="supports", disc=None, own="H1"):
+        import discovery
+        return [{"label": own, "predictions": [{
+            "label": "P1", "verdict": verdict, "strength": strength,
+            "descriptor_name": "x", "discriminates": disc}]}], discovery
+
+    def test_strong_naming_only_own_hypothesis_is_flagged(self):
+        hyps, d = self._hyps(disc=[{"hypothesis_label": "H1", "expected": "up"}])
+        assert len(d._strong_without_rival_contrast(hyps)) == 1
+
+    def test_strong_with_empty_discriminates_is_flagged(self):
+        hyps, d = self._hyps(disc=None)
+        assert len(d._strong_without_rival_contrast(hyps)) == 1
+
+    def test_strong_naming_a_rival_is_clean(self):
+        hyps, d = self._hyps(disc=[{"hypothesis_label": "H2", "expected": "down"}])
+        assert d._strong_without_rival_contrast(hyps) == []
+
+    def test_moderate_and_weak_are_never_flagged(self):
+        for tier in ("moderate", "weak", None):
+            hyps, d = self._hyps(strength=tier, disc=None)
+            assert d._strong_without_rival_contrast(hyps) == []
+
+    def test_non_decisive_verdicts_are_never_flagged(self):
+        for v in ("neutral", "insufficient", "blocked", None):
+            hyps, d = self._hyps(verdict=v, disc=None)
+            assert d._strong_without_rival_contrast(hyps) == []

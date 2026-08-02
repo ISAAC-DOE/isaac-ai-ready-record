@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.65-a-sum-is-not-a-constraint",
+        "version": "0.66-strength-answers-one-question",
         "policy_version": 60,
         "enforcement": {
             "_what": "The trace contract is ENFORCED, not advised, for projects created at "
@@ -576,7 +576,22 @@ def get_manifest() -> dict:
                 "EXCLUDED (schema gate, below). strength = strong 1.0 / moderate 0.6 / "
                 "weak 0.3 (an OMITTED strength is treated as weak — qualify your "
                 "decisive verdicts). confidence = sigmoid(Σ). A new hypothesis starts at "
-                "the 0.5 prior.",
+                "the 0.5 prior. "
+                "⚠ STRENGTH ANSWERS EXACTLY ONE QUESTION, and it is NOT 'how big is the "
+                "effect'. Decide it in two steps. STEP 1 — RIVAL CONTRAST: does at least "
+                "one RIVAL hypothesis predict a DIFFERENT outcome for this observable "
+                "(consult and populate the prediction's `discriminates`)? If NO rival "
+                "predicts otherwise, the verdict is 'weak' REGARDLESS of effect size: a "
+                "large effect every rival also predicts is consistency, not support. "
+                "STEP 2 — only if a rival contrast exists, set the tier by how decisively "
+                "the observation separates the rivals, and quantify that in `margin`, "
+                "stating its basis in the rationale (observed value, threshold, and the "
+                "scatter or uncertainty it is judged against). A 20-fold effect that every "
+                "rival predicts is 'weak'; a 2-fold effect that only one hypothesis "
+                "survives is 'strong'. When you claim 'strong', NAME the rival that "
+                "predicted otherwise in the rationale. The briefing reports "
+                "method_compliance.strong_verdict_without_rival_contrast when a 'strong' "
+                "sits on a prediction whose `discriminates` names no differing rival.",
             "schema_gate": "When evidence is NOT validly comparable to a prediction "
                 "(different output_quantity, units without a declared transform, "
                 "different functional / electrolyte / potential / reference state, a DFT "
@@ -3001,6 +3016,48 @@ def _events_for_trace(project_id, limit=_TRACE_AUDIT_WINDOW):
         conn.close()
 
 
+def _strong_without_rival_contrast(hyps):
+    """Decisive verdicts claiming strength='strong' on predictions whose `discriminates`
+    names no RIVAL hypothesis.
+
+    The manifest defines strength by DISCRIMINATION: 'strong' is reserved for an observation
+    that separates rivals, not for a large effect every rival predicts alike. Measured, not
+    hypothetical: across a 30-run frozen-set benchmark, five models split on strength for
+    every item EXCEPT the single one whose observation uniquely killed a rival — that one was
+    unanimous 'strong' in all 30 runs. The variance came from models answering the everyday
+    question ('how big?') instead of the written one ('who predicted otherwise?'), and it was
+    invisible because nothing asked them to show which rival predicted otherwise.
+
+    The machine-checkable core: a 'strong' whose prediction's `discriminates` names only its
+    own hypothesis (or nothing) has, on the record, no rival contrast to point at. Whether a
+    NAMED contrast is genuine stays a judgement, so per the surface-before-gate rule this is
+    ADVISORY: it feeds method_compliance and recommended_actions, never a gate, never a score.
+    Pure over the context structure; no DB.
+    """
+    out = []
+    for h in (hyps or []):
+        own = h.get("label")
+        own = own if isinstance(own, str) else None
+        for p in (h.get("predictions") or []):
+            if p.get("verdict") not in ("supports", "contradicts"):
+                continue
+            if (p.get("strength") or "").strip().lower() != "strong":
+                continue
+            rivals = {d.get("hypothesis_label") for d in (p.get("discriminates") or [])
+                      if isinstance(d, dict) and d.get("hypothesis_label")}
+            rivals.discard(own)
+            if not rivals:
+                out.append({"hypothesis_label": own,
+                            "prediction_label": p.get("label"),
+                            "descriptor": p.get("descriptor_name"),
+                            "why": "strength='strong' but `discriminates` names no rival "
+                                   "hypothesis with a differing expectation. Strong means a "
+                                   "rival predicted otherwise; if none did, this is "
+                                   "consistency and belongs at 'weak' — or add the genuine "
+                                   "rival contrast to `discriminates`."})
+    return out
+
+
 def _descriptor_absent_from_evidence(hyps):
     """Decisive verdicts whose TESTED QUANTITY appears in none of the records they cite.
 
@@ -3565,6 +3622,21 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     except Exception:
         logger.warning("descriptor-evidence check failed", exc_info=True)
         _descriptor_gap = []
+    try:
+        _strong_gap = _strong_without_rival_contrast(hyps)
+    except Exception:
+        logger.warning("strength-contrast check failed", exc_info=True)
+        _strong_gap = []
+    if _strong_gap:
+        _stags = ", ".join(f"{g['prediction_label'] or g['hypothesis_label']}"
+                           for g in _strong_gap[:6])
+        recommended_actions.append(
+            f"STRONG WITHOUT A RIVAL: {len(_strong_gap)} decisive verdict(s) claim "
+            f"strength='strong' on predictions whose `discriminates` names no rival with a "
+            f"differing expectation ({_stags}). Strong is reserved for an observation a "
+            "rival predicted otherwise — effect size alone is consistency. Either add the "
+            "genuine rival contrast to `discriminates` and name it in the rationale, or "
+            "re-evaluate at the tier the discrimination supports.")
     if _descriptor_gap:
         _tags = ", ".join(
             f"{g['prediction_label'] or g['hypothesis_label']}/{g['descriptor']}"
@@ -3666,6 +3738,9 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             # under test. Distinct from `uncited_to_data`, which catches citing nothing;
             # this catches citing something that cannot settle the question.
             "decisive_verdict_without_descriptor_in_evidence": _descriptor_gap,
+            # strength='strong' with no rival named in `discriminates` — the machine-
+            # checkable core of the strength-is-discrimination rule. Advisory only.
+            "strong_verdict_without_rival_contrast": _strong_gap,
             "dataset_records_unused": [r.get("material") or r.get("record_id")
                                        for r in dataset_coverage.get("unused_records", [])],
             "dataset_of_interest_undeclared": not dataset_coverage.get("declared"),
