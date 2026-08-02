@@ -206,6 +206,36 @@ class TestServerActor:
             60, "status_changed", tp.SERVER_ACTOR, None) is None
 
 
+class TestServerEmittedEvents:
+    """An agent wrote nine `prediction_evaluated` events describing verdicts it had reasoned
+    out, never called PUT /predictions/{id}, and left every prediction at verdict=None with
+    all four hypotheses on the 0.5 prior. The journal read as a finished analysis while the
+    state had not moved at all. Four sibling runs on the identical frozen set were fine, so
+    the contract left the trap open rather than the model being broken."""
+
+    def test_state_changing_types_are_refused(self):
+        for t in ("prediction_evaluated", "hypothesis_created", "prediction_added",
+                  "next_experiment_proposed"):
+            assert tp.server_emitted_error(t), t
+
+    def test_the_rejection_names_the_right_endpoint(self):
+        msg = tp.server_emitted_error("prediction_evaluated")
+        assert "PUT /predictions/{prediction_id}" in msg
+        # It must also say WHY, so the 400 teaches instead of merely blocking.
+        assert "verdict=null" in msg and "prior" in msg
+
+    def test_narrative_types_stay_open(self):
+        """reasoning_step is how an agent records the thinking. Closing it would push agents
+        to write nothing, which is the failure this platform exists to prevent."""
+        for t in ("reasoning_step", "human_directive", "compute_submitted", "status_changed"):
+            assert tp.server_emitted_error(t) is None, t
+
+    def test_refusal_is_independent_of_policy_version(self):
+        """API misuse, not a scientific-contract rule, so legacy projects are refused too."""
+        assert tp.server_emitted_error("prediction_evaluated") is not None
+        assert tp.enforcement_error(None, "reasoning_step", None, {"chose": "x"}) is None
+
+
 class TestMisattribution:
     """Found live in replication round 1: 89 of 96 events on a completed run were signed
     `isaac/portal`, including every hypothesis and every verdict, because the dedicated
