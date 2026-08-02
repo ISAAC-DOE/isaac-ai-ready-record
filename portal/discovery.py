@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.63-derivable-is-decidable",
+        "version": "0.64-narrative-is-not-state",
         "policy_version": 60,
         "enforcement": {
             "_what": "The trace contract is ENFORCED, not advised, for projects created at "
@@ -3725,6 +3725,12 @@ def delete_project(project_id, owner_identity=None, is_admin=False) -> bool:
 def add_event(project_id, event_type, summary, *, detail=None, hypothesis_id=None,
               evidence_record_ids=None, mlflow_run_url=None, actor=None,
               actor_model=None, decision=None) -> int | None:
+    # Refused for EVERY project, legacy included, because this is API misuse rather than a
+    # scientific-contract rule: the event type names a state change that did not occur, and
+    # no project of any vintage benefits from a journal that lies about its own state.
+    _srv = _tp.server_emitted_error(event_type)
+    if _srv:
+        raise TraceContractError(_srv)
     conn = _conn()
     cur = conn.cursor()
     try:

@@ -148,6 +148,46 @@ AGENT_INITIATED = frozenset({
 })
 
 
+# Event types the SERVER emits as a consequence of a real state change. Each has a dedicated
+# endpoint, and posting one directly to /events writes the story without moving the state.
+#
+# Found live: an agent evaluated all nine predictions of a frozen set, wrote nine
+# `prediction_evaluated` events carrying verdicts, strengths and margins in their summaries,
+# and never called PUT /predictions/{id}. Every prediction kept verdict=None and all four
+# hypotheses sat at the 0.5 prior while the journal read as a completed analysis. Four sibling
+# runs on the same frozen set moved their confidences normally, so this is a trap the contract
+# leaves open rather than a model defect.
+#
+# This is the worst failure shape the platform can have. "If it is not on the dashboard it did
+# not happen" was written to stop work vanishing; this is the inverse, where the dashboard says
+# it happened and the state says otherwise. A reader cannot tell the difference, and neither
+# can a downstream agent resuming the project.
+SERVER_EMITTED_EVENTS = frozenset({
+    "hypothesis_created", "prediction_added", "prediction_evaluated",
+    "next_experiment_proposed",
+})
+
+# Where the agent should have gone instead. Returned in the rejection so the 400 teaches.
+ENDPOINT_FOR_EVENT = {
+    "hypothesis_created": "POST /projects/{project_id}/hypotheses",
+    "prediction_added": "POST /hypotheses/{hypothesis_id}/predictions",
+    "prediction_evaluated": "PUT /predictions/{prediction_id}",
+    "next_experiment_proposed": "PUT /projects/{project_id}/next_experiment",
+}
+
+
+def server_emitted_error(event_type):
+    """Reject a client-posted event that only the server may emit, or None."""
+    if event_type not in SERVER_EMITTED_EVENTS:
+        return None
+    return ("'%s' is emitted BY THE SERVER when you call %s. Posting it to /events records "
+            "the narrative without changing any state: the prediction keeps verdict=null, the "
+            "computed confidence stays at its prior, and the journal reads as though the work "
+            "was done. Call the endpoint instead. Use event_type='reasoning_step' for the "
+            "thinking that led there."
+            % (event_type, ENDPOINT_FOR_EVENT[event_type]))
+
+
 def is_portal_signature(am) -> bool:
     return (isinstance(am, dict)
             and am.get("provider") == SERVER_ACTOR["provider"]
