@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.64-narrative-is-not-state",
+        "version": "0.65-a-sum-is-not-a-constraint",
         "policy_version": 60,
         "enforcement": {
             "_what": "The trace contract is ENFORCED, not advised, for projects created at "
@@ -335,21 +335,29 @@ def get_manifest() -> dict:
                 "before a record is allowed to count.",
                 "6. RENDER a verdict per prediction (supports | contradicts | neutral | "
                 "insufficient | blocked) with a strength and EXPLICIT reasoning via "
-                "/evaluate. ESTABLISH THE QUANTITY BEFORE YOU RULE, and note that NOT "
-                "REPORTED is not the same as NOT KNOWABLE. The quantity is available to you "
-                "if ANY of these holds: (a) a cited record REPORTS the descriptor; (b) it is "
-                "DERIVABLE from what the cited records do report — above all a CLOSED PRODUCT "
-                "SLATE bounds an unreported channel, so if the reported faradaic efficiencies "
-                "already sum to total_faradaic_efficiency the missing product is bounded at "
-                "~0, and saying so is correct science rather than an assumption; or (c) you "
-                "obtain it from a compute run. ONLY when none of those holds is the prediction "
-                "genuinely undecidable, and then the honest verdict is 'insufficient' or a "
-                "submitted calculation. Do not invent a value. Equally, do NOT retreat to "
-                "'insufficient' when a conservation constraint settles the question: "
-                "over-caution discards real information and is its own failure. SAY WHICH "
-                "ROUTE YOU USED in the rationale. The briefing reports "
+                "/evaluate. ESTABLISH THE QUANTITY BEFORE YOU RULE. It is available to you "
+                "only if (a) a cited record REPORTS the descriptor, (b) it is genuinely "
+                "DERIVABLE from what the records report, or (c) a compute run supplies it. "
+                "Otherwise the prediction is undecidable and the honest verdict is "
+                "'insufficient', or a submitted calculation. "
+                "⚠ READ THE `definition` STRING BEFORE TREATING A TOTAL AS A CONSTRAINT. A "
+                "sum-of-reported-channels is an IDENTITY, not a closure: if "
+                "total_faradaic_efficiency is defined as 'sum of all measured product FEs "
+                "(H2 + CO)', then reported-FEs equalling that total tells you NOTHING about "
+                "an unmeasured product — it closes by construction, on every record, always. "
+                "A real bound needs an INDEPENDENT charge balance, or evidence that the "
+                "analysis actually covered the product class you are asking about: check "
+                "measurement.processing.steps and measurement.series.channels. A record "
+                "analysed by GC alone cannot bound a liquid product, however tidily its total "
+                "reads. THIS EXACT FALLACY was shipped in an earlier version of this clause "
+                "and had to be withdrawn. "
+                "Do not invent a value, and do not manufacture a bound out of a definition. "
+                "Equally, do not retreat to 'insufficient' when the records really do settle "
+                "the question. SAY WHICH ROUTE YOU USED in the rationale, and if you rely on "
+                "a conservation argument, state the measurement that makes it a constraint. "
+                "The briefing reports "
                 "method_compliance.decisive_verdict_without_descriptor_in_evidence when a "
-                "decisive verdict cites nothing that either reports or bounds the quantity. "
+                "decisive verdict cites nothing that reports the quantity. "
                 "CITE THE DATA — this is ENFORCED, not advisory: a "
                 "supports/contradicts MUST attach the evidence_record_ids it rests on "
                 "AND/OR the compute_run that grounds it. Even when you derived a proxy by "
@@ -3013,17 +3021,21 @@ def _descriptor_absent_from_evidence(hyps):
     because the quantity may legitimately come from a calculation rather than an archive.
     Read-only; degrades to [] on any records-DB hiccup so a briefing never blocks.
     """
-    # A closed product slate BOUNDS an unreported channel, so a record reporting
-    # total_faradaic_efficiency can settle a faradaic_efficiency.X prediction without
-    # carrying that descriptor. Treat it as satisfying the check.
+    # WITHDRAWN EXEMPTION, kept as a comment so it is not reintroduced.
     #
-    # This exemption exists because the first version of this check did not have it, and it
-    # was wrong: four agents across three vendors correctly inferred FE(C2H4) on pure Au from
-    # H2 + CO summing exactly to the reported total, while the benchmark scored them as
-    # fabricating a measurement. They were right. Absent descriptor does not imply
-    # undecidable, and a compliance flag that says otherwise punishes the inference a good
-    # scientist should make.
-    _BOUNDING = {"total_faradaic_efficiency"}
+    # A previous version treated total_faradaic_efficiency as BOUNDING an unreported channel,
+    # on the argument that if the reported FEs sum to the total, the missing product must be
+    # ~0. That is circular. In this corpus the field's own `definition` reads "Sum of all
+    # measured product FEs (H2 + CO)", and total minus sum-of-reported is <= 0.0001 on ALL 37
+    # records including ones reporting five channels. It closes by construction. It is an
+    # identity, and an identity constrains nothing.
+    #
+    # The exemption was added because the benchmark author believed four agents had out-reasoned
+    # him; in fact the one agent that answered `insufficient` was right, and the exemption
+    # encoded his error into the platform. A real bound requires an INDEPENDENT charge balance,
+    # or evidence the analysis covered the product class at all (the pure-Au records ran
+    # gc_analysis with no nmr_analysis, so liquid products were never measured).
+    _BOUNDING = set()
     want = {}                      # descriptor_name -> {record_id}
     items = []
     for h in (hyps or []):
