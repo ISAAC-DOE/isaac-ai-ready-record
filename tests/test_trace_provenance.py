@@ -423,3 +423,31 @@ class TestDerivedMargin:
             {"predictions": [dict(pred)], "label": "H1", "policy_version": 62})
         # same inputs: 61 trusts the authored 1.0, 62 derives 0.1 -> smaller contribution
         assert p62["computed_confidence"] < p61["computed_confidence"]
+
+
+class TestDecisiveWithoutObserved:
+    """0.69 surfacing: adoption variance was the largest resolvable component of the 0.68
+    arm's residual spread — one model declared observed on 0/6 under an identical prompt."""
+
+    def _h(self, threshold=None, observed=None, verdict="supports"):
+        import discovery
+        return discovery, [{"label": "H1", "predictions": [{
+            "label": "P1", "verdict": verdict, "descriptor_name": "x",
+            "threshold": threshold, "observed": observed}]}]
+
+    def test_threshold_without_observed_is_flagged(self):
+        d, h = self._h(threshold={"value": 1, "unit": "x"})
+        assert len(d._decisive_without_observed(h)) == 1
+
+    def test_observed_present_is_clean(self):
+        d, h = self._h(threshold={"value": 1, "unit": "x"},
+                       observed={"value": 2, "unit": "x", "scale": 0.1})
+        assert d._decisive_without_observed(h) == []
+
+    def test_no_threshold_is_out_of_scope(self):
+        d, h = self._h(threshold=None)
+        assert d._decisive_without_observed(h) == []
+
+    def test_non_decisive_is_out_of_scope(self):
+        d, h = self._h(threshold={"value": 1, "unit": "x"}, verdict="insufficient")
+        assert d._decisive_without_observed(h) == []

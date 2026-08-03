@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.68-threshold-as-data",
+        "version": "0.69-declare-what-you-observed",
         "policy_version": 62,
         "enforcement": {
             "_what": "The trace contract is ENFORCED, not advised, for projects created at "
@@ -3145,6 +3145,35 @@ def _events_for_trace(project_id, limit=_TRACE_AUDIT_WINDOW):
         conn.close()
 
 
+def _decisive_without_observed(hyps):
+    """Decisive verdicts on predictions that REGISTERED a structured threshold but whose
+    evaluation declared no `observed` — so the margin fell back to an authored number.
+
+    Measured motivation (0.68 arm): with margins derivable, one model declared `observed` on
+    zero of six predictions under an identical prompt, its margins fell back to authored
+    values, and adoption variance became the largest resolvable component of the remaining
+    panel spread. The round-1 lesson at the input layer: what the briefing asks for is what
+    models do; what the schema merely permits, they do unevenly. Advisory; never a gate.
+    """
+    out = []
+    for h in (hyps or []):
+        for p in (h.get("predictions") or []):
+            if p.get("verdict") not in ("supports", "contradicts"):
+                continue
+            if not p.get("threshold"):
+                continue
+            if p.get("observed"):
+                continue
+            out.append({"hypothesis_label": h.get("label"),
+                        "prediction_label": p.get("label"),
+                        "descriptor": p.get("descriptor_name"),
+                        "why": "a structured threshold is registered, so the margin can be "
+                               "DERIVED — but no `observed` {value, unit, scale, scale_basis} "
+                               "was declared and the score fell back to your authored margin. "
+                               "Declare what you measured, with the records it comes from."})
+    return out
+
+
 def _strong_without_rival_contrast(hyps):
     """Decisive verdicts claiming strength='strong' on predictions whose `discriminates`
     names no RIVAL hypothesis.
@@ -3756,6 +3785,20 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     except Exception:
         logger.warning("strength-contrast check failed", exc_info=True)
         _strong_gap = []
+    try:
+        _obs_gap = _decisive_without_observed(hyps)
+    except Exception:
+        logger.warning("observed-declaration check failed", exc_info=True)
+        _obs_gap = []
+    if _obs_gap:
+        _otags = ", ".join(f"{g['prediction_label'] or g['hypothesis_label']}"
+                           for g in _obs_gap[:6])
+        recommended_actions.append(
+            f"DECLARE WHAT YOU OBSERVED: {len(_obs_gap)} decisive verdict(s) sit on "
+            f"predictions with a registered threshold but no `observed` declaration "
+            f"({_otags}). Re-evaluate with observed: {{value, unit, scale, scale_basis}} "
+            "citing the records the numbers come from, so the margin is derived instead of "
+            "authored.")
     if _strong_gap:
         _stags = ", ".join(f"{g['prediction_label'] or g['hypothesis_label']}"
                            for g in _strong_gap[:6])
@@ -3870,6 +3913,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
             # strength='strong' with no rival named in `discriminates` — the machine-
             # checkable core of the strength-is-discrimination rule. Advisory only.
             "strong_verdict_without_rival_contrast": _strong_gap,
+            "decisive_verdict_without_observed_declaration": _obs_gap,
             "dataset_records_unused": [r.get("material") or r.get("record_id")
                                        for r in dataset_coverage.get("unused_records", [])],
             "dataset_of_interest_undeclared": not dataset_coverage.get("declared"),
