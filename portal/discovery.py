@@ -170,8 +170,8 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.66-strength-answers-one-question",
-        "policy_version": 60,
+        "version": "0.67-strength-is-computed",
+        "policy_version": 61,
         "enforcement": {
             "_what": "The trace contract is ENFORCED, not advised, for projects created at "
                      "or after policy_version 60. A project is stamped with the contract "
@@ -577,6 +577,17 @@ def get_manifest() -> dict:
                 "weak 0.3 (an OMITTED strength is treated as weak — qualify your "
                 "decisive verdicts). confidence = sigmoid(Σ). A new hypothesis starts at "
                 "the 0.5 prior. "
+                "⚠ FOR PROJECTS BORN AT policy_version >= 61 THE TIER IS DERIVED BY THE "
+                "SERVER, not authored: no rival contrast in the prediction's "
+                "`discriminates` -> weak (regardless of effect size); rival contrast with "
+                "margin >= 0.5 or omitted -> strong; rival contrast with margin < 0.5 -> "
+                "moderate. Your authored `strength` is recorded verbatim as your CLAIM and "
+                "compared, but it no longer moves the score — populate `discriminates` "
+                "with EVERY rival's expected outcome and put your decisiveness in `margin` "
+                "with its basis in the rationale; those are the inputs that count. This "
+                "extends the platform's founding rule — confidence is computed, never "
+                "authored — one level down, after measurement showed a prose rubric moves "
+                "models in the right direction but cannot remove per-model variance. "
                 "⚠ STRENGTH ANSWERS EXACTLY ONE QUESTION, and it is NOT 'how big is the "
                 "effect'. Decide it in two steps. STEP 1 — RIVAL CONTRAST: does at least "
                 "one RIVAL hypothesis predict a DIFFERENT outcome for this observable "
@@ -2597,6 +2608,48 @@ def _evidence_key(p):
     return frozenset(base | set(_calc_keys(p)))
 
 
+def _derived_strength(pred, own_label=None):
+    """Policy-61 scoring tier, DERIVED from declared, checkable inputs — never authored.
+
+    "Confidence is computed, never authored" extended one level down, and each step of the
+    ladder was measured before this was built: a prose rubric moved five models' strength
+    choices in the predicted direction but could not shrink variance (its application is
+    itself a judgement); enriching `discriminates` with every rival's expectation raised
+    agreement (modal 0.54 -> 0.67) but left 0.13-0.21 of confidence spread. The tier is the
+    last authored adjective in the scoring path, so it becomes a pure function:
+
+        no rival contrast on the record            -> weak
+        rival contrast, margin >= 0.5 or omitted   -> strong
+        rival contrast, margin < 0.5               -> moderate
+
+    A rival contrast means the prediction's `discriminates` names at least one hypothesis
+    OTHER than its own, with a stated expected outcome. Magnitude without discrimination
+    stays weak regardless of effect size. The authored `strength` remains recorded verbatim
+    as the agent's CLAIM (free comparison analytics between claim and derivation), but for
+    projects born at policy >= 61 it no longer moves the score.
+    """
+    disc = pred.get("discriminates")
+    if isinstance(disc, str):
+        try:
+            disc = json.loads(disc)
+        except Exception:
+            disc = None
+    rivals = False
+    for d in (disc or []):
+        if isinstance(d, dict) and d.get("hypothesis_label") and d.get("expected") \
+                and d.get("hypothesis_label") != own_label:
+            rivals = True
+            break
+    if not rivals:
+        return "weak"
+    m = pred.get("margin")
+    try:
+        m = None if m is None else float(m)
+    except (TypeError, ValueError):
+        m = None
+    return "strong" if (m is None or m >= 0.5) else "moderate"
+
+
 def _margin_factor(margin):
     """Per-verdict SHARPNESS multiplier. margin ∈ [0,1] = how decisively the
     observation diverged past the falsification threshold (1 = far past, 0 = right at
@@ -2693,6 +2746,10 @@ def compute_hypothesis_score(h) -> dict:
           "cross_system_attenuated": 0, "low_reliability_excluded": 0, "uncited_excluded": 0,
           "unfalsifiable_excluded": 0, "unstructured_excluded": 0, "unexplained_excluded": 0}
     hyp_grounding = _grounding(h)   # gates the accommodation discount (standing_prior vs ad_hoc)
+    try:
+        _use_derived = int(h.get("policy_version") or 0) >= _tp.POLICY_DERIVED_STRENGTH
+    except (TypeError, ValueError):
+        _use_derived = False
     logit = 0.0
     decisive = []   # (direction, strength_weight, evidence_key, margin, cross_system)
     # Per-prediction admissibility, surfaced so the UI can show WHY a verdict isn't
@@ -2705,7 +2762,12 @@ def compute_hypothesis_score(h) -> dict:
         v = normalize_verdict(p.get("verdict"))
         # omitted/unknown strength → weak (the conservative tier): an unqualified
         # verdict should move belief the LEAST, never a magic mid-value.
-        sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), _STRENGTH_W["weak"])
+        # Policy >= 61: the tier is DERIVED from rival-contrast + margin (see
+        # _derived_strength); the authored value stays recorded as the claim only.
+        if _use_derived:
+            sw = _STRENGTH_W[_derived_strength(p, h.get("label"))]
+        else:
+            sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), _STRENGTH_W["weak"])
         _m = p.get("margin")
         _xsys = bool(p.get("cross_system"))   # evidence from a DIFFERENT system/mechanism class
         _rel = p.get("reliability_tier")      # server-derived trust tier (None = opt-out, as-today)
@@ -2947,7 +3009,7 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
                           evidence_independence, evidence_record_ids, margin,
                           cross_system, reliability_tier, observable_key,
                           falsification_criterion, direction, reference_condition,
-                          rationale, literature
+                          rationale, literature, discriminates
                      FROM hyp_predictions WHERE hypothesis_id=%s
                      ORDER BY prediction_id""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]
@@ -2959,13 +3021,22 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
         cur.execute("""SELECT mlflow_run_url, slurm_job_id FROM hyp_compute_runs
                          WHERE prediction_id=%s""", (p["prediction_id"],))
         p["compute_runs"] = [dict(r) for r in cur.fetchall()]
-    cur.execute("SELECT project_id, grounding FROM hyp_hypotheses WHERE hypothesis_id=%s",
+    cur.execute("SELECT project_id, grounding, label FROM hyp_hypotheses WHERE hypothesis_id=%s",
                 (hypothesis_id,))
     row = cur.fetchone()
-    # grounding gates the accommodation discount — it must reach the scorer so the
-    # STORED confidence reflects it (not just the display path).
+    # grounding gates the accommodation discount; label + policy_version reach the scorer
+    # because policy>=61 derives the strength tier from the prediction's rival-contrast
+    # structure, and "rival" is defined relative to the OWN hypothesis's label.
+    _pv = None
+    if row:
+        cur.execute("SELECT policy_version FROM hyp_projects WHERE project_id=%s",
+                    (row["project_id"],))
+        _prow = cur.fetchone()
+        _pv = _prow.get("policy_version") if _prow else None
     score = compute_hypothesis_score({"predictions": preds,
-                                      "grounding": row["grounding"] if row else None})
+                                      "grounding": row["grounding"] if row else None,
+                                      "label": row["label"] if row else None,
+                                      "policy_version": _pv})
     conf = score["computed_confidence"]
     if row is None:
         return conf
@@ -4570,11 +4641,19 @@ def _load_bearing_verdicts(h, top=3):
         v = normalize_verdict(p.get("verdict"))
         if v not in ("supports", "contradicts"):
             continue
-        sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), _STRENGTH_W["weak"])
+        # Match the scoring path: policy>=61 hypotheses rank their load-bearing verdicts
+        # by the DERIVED tier, or the display would disagree with the stored score.
+        try:
+            _drv = int(h.get("policy_version") or 0) >= _tp.POLICY_DERIVED_STRENGTH
+        except (TypeError, ValueError):
+            _drv = False
+        _tier = _derived_strength(p, h.get("label")) if _drv \
+            else (p.get("strength") or "weak")
+        sw = _STRENGTH_W.get((_tier or "").strip().lower(), _STRENGTH_W["weak"])
         refs.append((sw * _margin_factor(p.get("margin")),
                      {"descriptor": p.get("descriptor_name"),
                       "direction": "+" if v == "supports" else "−",
-                      "strength": p.get("strength") or "weak",
+                      "strength": _tier,
                       "cross_system": bool(p.get("cross_system"))}))
     refs.sort(key=lambda x: -x[0])
     return [r for _, r in refs[:top]]
