@@ -1512,7 +1512,8 @@ def discovery_create_prediction(hypothesis_id):
         magnitude=d.get("magnitude"), output_quantity=d.get("output_quantity"),
         falsification_criterion=d.get("falsification_criterion"),
         discriminates=d.get("discriminates"), origin=d.get("origin"),
-        actor=_disc_identity(), actor_model=d.get("actor_model"))
+        actor=_disc_identity(), actor_model=d.get("actor_model"),
+        threshold=d.get("threshold"))
     if pid is None:
         return jsonify({"error": "hypothesis not found"}), 404
     return jsonify({"prediction_id": pid}), 201
@@ -1681,7 +1682,8 @@ def discovery_evaluate_prediction(prediction_id):
         margin=d.get("margin"), cross_system=d.get("cross_system"),
         reliability=d.get("reliability"),
         observable_key=d.get("observable_key"), literature=d.get("literature"),
-        actor=_disc_identity(), actor_model=d.get("actor_model"))
+        actor=_disc_identity(), actor_model=d.get("actor_model"),
+        observed=d.get("observed"))
     if not ok:
         return jsonify({"error": "prediction not found"}), 404
     return jsonify({"ok": True}), 200

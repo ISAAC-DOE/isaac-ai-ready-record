@@ -371,6 +371,55 @@ class TestDerivedStrength:
     def test_policy_60_trace_gates_still_bind_after_current_moved_to_61(self):
         """The trap the pre-registration called out: raising CURRENT must not demote
         policy-60 projects to legacy for the policy-60 attribution gates."""
-        assert tp.CURRENT_POLICY_VERSION == 61
-        err = tp.enforcement_error(60, "hypothesis_created", None, None)
-        assert err is not None and "actor_model" in err
+        # Intent, not a frozen constant: however far CURRENT advances, the policy-60
+        # gates must keep binding for policy-60-and-later projects.
+        assert tp.CURRENT_POLICY_VERSION >= 61
+        for pv in (60, 61, tp.CURRENT_POLICY_VERSION):
+            err = tp.enforcement_error(pv, "hypothesis_created", None, None)
+            assert err is not None and "actor_model" in err, pv
+
+
+class TestDerivedMargin:
+    """Policy-62: margin from structured threshold + observed + scale. Ordered by the 0.67
+    arm, where all remaining confidence variance was authored-margin variance and one 0.4
+    margin toggled the kill-cap."""
+
+    def _m(self, th, ob):
+        import discovery
+        return discovery._derived_margin({"threshold": th, "observed": ob})
+
+    def test_three_sigma_is_fully_decisive(self):
+        assert self._m({"comparator": "gte", "value": 0.1, "unit": "fraction"},
+                       {"value": 0.4, "unit": "fraction", "scale": 0.1}) == 1.0
+
+    def test_at_the_line_is_zero(self):
+        assert self._m({"value": 0.2, "unit": "x"}, {"value": 0.2, "unit": "x", "scale": 0.05}) == 0.0
+
+    def test_partial_divergence_scales_linearly(self):
+        m = self._m({"value": 0.0, "unit": "x"}, {"value": 0.15, "unit": "x", "scale": 0.1})
+        assert abs(m - 0.5) < 1e-9
+
+    def test_unit_mismatch_refuses(self):
+        assert self._m({"value": 1, "unit": "mA"}, {"value": 2, "unit": "A", "scale": 0.1}) is None
+
+    def test_missing_or_bad_scale_refuses(self):
+        assert self._m({"value": 1, "unit": "x"}, {"value": 2, "unit": "x", "scale": 0}) is None
+        assert self._m({"value": 1, "unit": "x"}, {"value": 2, "unit": "x"}) is None
+        assert self._m(None, {"value": 2, "unit": "x", "scale": 1}) is None
+
+    def test_scoring_uses_derived_margin_only_at_policy_62(self):
+        import discovery
+        pred = {"work_status": "evaluated", "verdict": "supports", "strength": "strong",
+                "descriptor_name": "x", "evidence_record_ids": ["r1"],
+                "falsification_criterion": "f", "direction": "up",
+                "reference_condition": "c", "rationale": "because",
+                "discriminates": [{"hypothesis_label": "H9", "expected": "down"}],
+                "margin": 1.0,   # authored claim: fully decisive
+                "threshold": {"value": 0.0, "unit": "x"},
+                "observed": {"value": 0.03, "unit": "x", "scale": 0.1}}  # derived: 0.1
+        p61 = discovery.compute_hypothesis_score(
+            {"predictions": [dict(pred)], "label": "H1", "policy_version": 61})
+        p62 = discovery.compute_hypothesis_score(
+            {"predictions": [dict(pred)], "label": "H1", "policy_version": 62})
+        # same inputs: 61 trusts the authored 1.0, 62 derives 0.1 -> smaller contribution
+        assert p62["computed_confidence"] < p61["computed_confidence"]

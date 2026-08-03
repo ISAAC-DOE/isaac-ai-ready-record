@@ -493,6 +493,11 @@ def init_discovery_tables():
         # every historical event keeps NULL and stays valid on read forever.
         cur.execute("ALTER TABLE hyp_events ADD COLUMN IF NOT EXISTS actor_model JSONB")
         cur.execute("ALTER TABLE hyp_events ADD COLUMN IF NOT EXISTS decision JSONB")
+        # policy 62: the falsification threshold as data, and the observation that met it.
+        # threshold = {comparator, value, unit} on the prediction; observed = {value, unit,
+        # scale, scale_basis} on the evaluation. Server derives margin from the pair.
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS threshold JSONB")
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS observed JSONB")
         # v2 (stubbed now): in-portal human<->agent chat.
         cur.execute('''
             CREATE TABLE IF NOT EXISTS hyp_messages (
