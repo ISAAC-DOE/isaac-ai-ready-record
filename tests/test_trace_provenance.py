@@ -451,3 +451,86 @@ class TestDecisiveWithoutObserved:
     def test_non_decisive_is_out_of_scope(self):
         d, h = self._h(threshold={"value": 1, "unit": "x"}, verdict="insufficient")
         assert d._decisive_without_observed(h) == []
+
+
+import discovery  # noqa: E402
+import trace_provenance  # noqa: E402
+
+
+class TestObservedScale:
+    """Policy 63: the scale the margin divides by must be the evidence's own.
+
+    The four scales below are the ACTUAL declarations from the case-2b arm, where four
+    agents recorded the identical observation on the identical records with the identical
+    verdict and split 0.150 against 0.709 on the hypothesis purely through this field.
+    """
+
+    THRESHOLD = {"comparator": "lte", "value": 0.057, "unit": "fraction_FE_delta"}
+
+    def _obs(self, scale):
+        return {"value": 0.00969, "unit": "fraction_FE_delta", "scale": scale,
+                "scale_basis": "case-2b declaration"}
+
+    def test_threshold_offered_as_scale_is_refused(self, monkeypatch):
+        monkeypatch.setattr(discovery, "_descriptor_sigmas", lambda *a, **k: [])
+        why = discovery._check_observed_scale(self._obs(0.057), self.THRESHOLD, "d", ["R1"])
+        assert why and "decision line is not a noise scale" in why
+
+    def test_scale_far_from_declared_uncertainty_is_refused(self, monkeypatch):
+        monkeypatch.setattr(discovery, "_descriptor_sigmas", lambda *a, **k: [0.02, 0.02])
+        for scale in (0.005, 0.12):          # >2x either side of sqrt(2)*0.02 = 0.0283
+            why = discovery._check_observed_scale(self._obs(scale), self.THRESHOLD, "d",
+                                                  ["R1", "R2"])
+            assert why and "factor of two" in why
+
+    def test_the_band_deliberately_tolerates_the_case2b_low_outlier(self, monkeypatch):
+        """Seat D declared 0.015 against a derivable 0.0283. That is inside the 2x band and
+        is NOT refused, on purpose: it lands on the same side of the margin cap as the two
+        correct derivations, so refusing it would buy no agreement and would start policing
+        judgement calls the evidence cannot adjudicate. Rule 1 (threshold-as-scale) is what
+        catches the declaration that actually moved the answer."""
+        monkeypatch.setattr(discovery, "_descriptor_sigmas", lambda *a, **k: [0.02, 0.02])
+        assert discovery._check_observed_scale(self._obs(0.015), self.THRESHOLD, "d",
+                                               ["R1", "R2"]) is None
+
+    def test_correctly_derived_scale_passes(self, monkeypatch):
+        monkeypatch.setattr(discovery, "_descriptor_sigmas", lambda *a, **k: [0.02, 0.02])
+        for scale in (0.0283, 0.02828, 0.02, 0.04):
+            assert discovery._check_observed_scale(self._obs(scale), self.THRESHOLD, "d",
+                                                   ["R1", "R2"]) is None
+
+    def test_silent_evidence_leaves_the_agent_alone(self, monkeypatch):
+        """Where nothing is declared, an unusual scale is the agent's call (0.69 behaviour):
+        absent is not zero, and refusing here would block honest work on digitized corpora."""
+        monkeypatch.setattr(discovery, "_descriptor_sigmas", lambda *a, **k: [])
+        assert discovery._check_observed_scale(self._obs(0.015), self.THRESHOLD, "d",
+                                               ["R1"]) is None
+
+    def test_no_observed_and_no_scale_are_not_errors(self, monkeypatch):
+        monkeypatch.setattr(discovery, "_descriptor_sigmas", lambda *a, **k: [0.02])
+        assert discovery._check_observed_scale(None, self.THRESHOLD, "d", ["R1"]) is None
+        assert discovery._check_observed_scale({"value": 1.0}, self.THRESHOLD, "d",
+                                               ["R1"]) is None
+
+    def test_declared_scale_uses_two_sample_rule(self, monkeypatch):
+        monkeypatch.setattr(discovery, "_descriptor_sigmas", lambda *a, **k: [0.02, 0.02])
+        dec = discovery._declared_scale("d", ["R1", "R2"])
+        assert abs(dec["value"] - 0.02 * 2 ** 0.5) < 1e-9
+        monkeypatch.setattr(discovery, "_descriptor_sigmas", lambda *a, **k: [0.02])
+        assert abs(discovery._declared_scale("d", ["R1"])["value"] - 0.02) < 1e-9
+
+    def test_loosest_declaration_binds(self, monkeypatch):
+        """Conservative by choice: with mixed declarations the largest sigma sets the scale,
+        so the platform never sharpens a verdict the evidence cannot support."""
+        monkeypatch.setattr(discovery, "_descriptor_sigmas", lambda *a, **k: [0.01, 0.05])
+        assert abs(discovery._declared_scale("d", ["R1", "R2"])["value"]
+                   - 0.05 * 2 ** 0.5) < 1e-9
+
+    def test_the_gate_binds_only_at_63_and_above(self):
+        """The trap this repo has fallen into once: a `pv < CURRENT` legacy test silently
+        switches OFF older gates the day CURRENT moves. Each gate binds at its own minimum."""
+        assert trace_provenance.POLICY_OBSERVED_SCALE == 63
+        assert trace_provenance.CURRENT_POLICY_VERSION >= 63
+        for pv in (60, 61, 62, trace_provenance.CURRENT_POLICY_VERSION):
+            assert pv >= trace_provenance.POLICY_TRACE_GATES
+            assert (pv >= trace_provenance.POLICY_OBSERVED_SCALE) == (pv >= 63)

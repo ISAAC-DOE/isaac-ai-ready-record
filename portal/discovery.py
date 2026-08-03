@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.69-declare-what-you-observed",
+        "version": "0.70-the-scale-is-the-records",
         "policy_version": 62,
         "enforcement": {
             "_what": "The trace contract is ENFORCED, not advised, for projects created at "
@@ -669,7 +669,7 @@ def get_manifest() -> dict:
                 "scale)): three-sigma-out is fully decisive, at-the-line is zero. Your "
                 "authored margin stays recorded as your claim. Units must match or the "
                 "derivation refuses. Declare numbers you can cite, not numbers you like — "
-                "observed and scale are checkable against the records you pin.",
+                "observed and scale are checkable against the records you pin. The SCALE IS THE EVIDENCE'S, not yours: where the records you cite declare an uncertainty, use it (a two-sample difference resolves at sqrt(2) x sigma), and never offer the prediction's own threshold as the scale — a decision line says where the answer changes, a scale says how well you can see. Both are refused with the value the records support.",
             "reliability": "How much to TRUST the datum itself — distinct from "
                 "method-compatibility (is it comparable?) and strength (how decisive?). "
                 "Optionally pass `reliability:{basis:{reproduced_by:[ids], conflicts_with:"
@@ -2113,14 +2113,29 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
     cur = conn.cursor()
     try:
         cur.execute(
-            """SELECT p.hypothesis_id, h.project_id, p.descriptor_name
+            """SELECT p.hypothesis_id, h.project_id, p.descriptor_name, p.threshold,
+                      pr.policy_version
                  FROM hyp_predictions p
                  JOIN hyp_hypotheses h ON h.hypothesis_id = p.hypothesis_id
+                 LEFT JOIN hyp_projects pr ON pr.project_id = h.project_id
                 WHERE p.prediction_id = %s""",
             (prediction_id,))
         row = cur.fetchone()
         if row is None:
             return False
+        # POLICY 63: the scale the margin divides by must be the evidence's own. Binds only
+        # for projects born at or after 63, so no archived project's confidence can move.
+        if int(row.get("policy_version") or 0) >= _tp.POLICY_OBSERVED_SCALE:
+            _th = row.get("threshold")
+            if isinstance(_th, str):
+                try:
+                    _th = json.loads(_th)
+                except Exception:
+                    _th = None
+            _why = _check_observed_scale(observed, _th, row.get("descriptor_name"),
+                                         evidence_record_ids)
+            if _why:
+                raise TraceContractError(_why)
         # Pin the cited evidence at evaluate-time so a later MATERIAL edit can be flagged
         # (drift). Re-evaluating re-pins -> the warning self-clears.
         _pins = _pin_evidence(evidence_record_ids)
@@ -2662,6 +2677,100 @@ def _derived_strength(pred, own_label=None):
     except (TypeError, ValueError):
         m = None
     return "strong" if (m is None or m >= 0.5) else "moderate"
+
+
+def _descriptor_sigmas(descriptor_name, record_ids):
+    """Declared sigma for one descriptor across the cited records (read-only cross-DB
+    lookup into the records store). Returns [] when nothing is declared, which is the
+    common case for digitized literature and is treated as "the evidence has no opinion",
+    never as sigma = 0."""
+    out = []
+    for rec in (database.get_records_batch(list(record_ids)) or []):
+        for blk in ((rec.get("descriptors") or {}).get("outputs") or []):
+            for d in (blk.get("descriptors") or []):
+                if d.get("name") != descriptor_name:
+                    continue
+                unc = d.get("uncertainty") or {}
+                try:
+                    sig = float(unc.get("sigma"))
+                except (TypeError, ValueError):
+                    continue
+                if sig > 0:
+                    out.append(sig)
+    return out
+
+
+def _declared_scale(descriptor_name, record_ids):
+    """The noise scale the EVIDENCE declares for this descriptor, or None.
+
+    Policy 63. The margin divides by a scale, so whoever picks the scale picks the answer:
+    measured on the 0.69 arm, four agents recorded the SAME observation on the SAME records
+    with the SAME verdict and, differing only in the scale they declared (0.015 to 0.057),
+    split 0.150 against 0.709 on the hypothesis. Three of the four could have read the scale
+    off the records they had already cited.
+
+    Rule: a two-sample difference is resolved at sqrt(2) * sigma; a single value at sigma.
+    Returns {"value", "basis", "n_records", "kind"} or None when the evidence declares
+    nothing, in which case the agent's own scale stands (with its basis, per 0.69).
+    """
+    if not descriptor_name or not record_ids:
+        return None
+    try:
+        sigmas = _descriptor_sigmas(descriptor_name, record_ids)
+    except Exception:
+        logger.warning("declared-scale lookup failed", exc_info=True)
+        return None
+    if not sigmas:
+        return None
+    sig = max(sigmas)                     # conservative: the loosest declaration binds
+    if sig <= 0:
+        return None
+    two_sample = len(sigmas) > 1
+    val = sig * (2 ** 0.5) if two_sample else sig
+    return {"value": val, "n_records": len(sigmas), "kind": "difference" if two_sample else "value",
+            "basis": ("sqrt(2) x sigma=%g declared on the %d cited records for %s"
+                      % (sig, len(sigmas), descriptor_name)) if two_sample else
+                     ("sigma=%g declared on the cited record for %s" % (sig, descriptor_name))}
+
+
+def _check_observed_scale(observed, threshold, descriptor_name, record_ids):
+    """Refuse a scale that is not the evidence's. Returns None when the write is fine,
+    else the reason text for a 400.
+
+    Two refusals, both narrow and both actionable:
+      1. the prediction's own THRESHOLD offered as the scale. A decision line is not a noise
+         scale, and using it makes a decisive contradiction go soft exactly when it matters.
+      2. a scale that disagrees with the evidence's declared uncertainty by more than 2x, in
+         either direction. Two-fold is deliberately loose: it catches conflation and the
+         difference-as-its-own-scale mistake, and leaves honest derivations (sigma vs
+         sqrt(2)*sigma vs 2*sigma) alone.
+    """
+    if not isinstance(observed, dict):
+        return None
+    try:
+        scale = float(observed.get("scale"))
+    except (TypeError, ValueError):
+        return None
+    if scale <= 0:
+        return None
+    if isinstance(threshold, dict):
+        try:
+            tv = float(threshold.get("value"))
+        except (TypeError, ValueError):
+            tv = None
+        if tv is not None and tv != 0 and abs(scale - abs(tv)) <= 1e-12 * max(1.0, abs(tv)):
+            return ("`observed.scale` equals this prediction's registered threshold (%g). A "
+                    "decision line is not a noise scale: the threshold says where the answer "
+                    "changes, the scale says how well you can see. Declare the scatter of the "
+                    "quantity you measured, and say in `scale_basis` which record field or "
+                    "derivation it came from." % tv)
+    dec = _declared_scale(descriptor_name, record_ids)
+    if dec and (scale > 2.0 * dec["value"] or scale < 0.5 * dec["value"]):
+        return ("`observed.scale` %g disagrees with the uncertainty the cited evidence "
+                "declares by more than a factor of two: %s gives %g. Use the evidence's own "
+                "scale, or cite records whose declared uncertainty supports the one you want."
+                % (scale, dec["basis"], dec["value"]))
+    return None
 
 
 def _derived_margin(pred):
