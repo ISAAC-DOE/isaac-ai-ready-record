@@ -170,8 +170,8 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.67-strength-is-computed",
-        "policy_version": 61,
+        "version": "0.68-threshold-as-data",
+        "policy_version": 62,
         "enforcement": {
             "_what": "The trace contract is ENFORCED, not advised, for projects created at "
                      "or after policy_version 60. A project is stamped with the contract "
@@ -657,7 +657,19 @@ def get_manifest() -> dict:
                 "strong-contradiction falsification cap: a STRONG contradiction only counts "
                 "as a kill (≤0.15) when the breach is decisive (margin omitted or ≥0.5) — a "
                 "barely-past-threshold strong contradiction is strong evidence-against, not "
-                "an automatic falsification. Omit margin and the strength tier alone is used.",
+                "an automatic falsification. Omit margin and the strength tier alone is used. "
+                "⚠ FOR PROJECTS BORN AT policy_version >= 62 THE MARGIN IS DERIVED when the "
+                "structured inputs exist: register the prediction's falsification threshold "
+                "as DATA — `threshold: {comparator, value, unit}` (this also expresses "
+                "one-sided predictions like 'does not fall below X' that the direction enum "
+                "cannot) — and declare on /evaluate what you OBSERVED: `observed: {value, "
+                "unit, scale, scale_basis}`, where scale is the measured scatter or "
+                "uncertainty the divergence is judged against, with the records it comes "
+                "from. The server computes margin = min(1, |observed − threshold| / (3 × "
+                "scale)): three-sigma-out is fully decisive, at-the-line is zero. Your "
+                "authored margin stays recorded as your claim. Units must match or the "
+                "derivation refuses. Declare numbers you can cite, not numbers you like — "
+                "observed and scale are checkable against the records you pin.",
             "reliability": "How much to TRUST the datum itself — distinct from "
                 "method-compatibility (is it comparable?) and strength (how decisive?). "
                 "Optionally pass `reliability:{basis:{reproduced_by:[ids], conflicts_with:"
@@ -1982,7 +1994,7 @@ def update_hypothesis(hypothesis_id, *, status=None, reason=None, actor=None, **
 def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=None,
                       reference_condition=None, magnitude=None, output_quantity=None,
                       falsification_criterion=None, discriminates=None, origin=None,
-                      actor=None, actor_model=None) -> str | None:
+                      actor=None, actor_model=None, threshold=None) -> str | None:
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -2015,12 +2027,13 @@ def create_prediction(hypothesis_id, descriptor_name, *, label=None, direction=N
             """INSERT INTO hyp_predictions
                  (prediction_id, hypothesis_id, label, descriptor_name, direction,
                   reference_condition, magnitude, output_quantity,
-                  falsification_criterion, discriminates, origin)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                  falsification_criterion, discriminates, origin, threshold)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (prediction_id, hypothesis_id, label, descriptor_name, direction,
              reference_condition, magnitude, output_quantity, falsification_criterion,
              json.dumps(discriminates) if discriminates is not None else None,
-             json.dumps(origin) if origin is not None else None))
+             json.dumps(origin) if origin is not None else None,
+             json.dumps(threshold) if threshold is not None else None))
         _append_event(cur, project_id, "prediction_added",
                       f"Prediction added: {descriptor_name} ({direction or '?'})",
                       detail=_decision_why(origin), hypothesis_id=hypothesis_id, actor=actor,
@@ -2037,7 +2050,7 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                         mlflow_run_url=None, evidence_independence=None,
                         margin=None, cross_system=None, reliability=None,
                         observable_key=None, literature=None, actor=None,
-                        actor_model=None) -> bool:
+                        actor_model=None, observed=None) -> bool:
     """Terminal verdict on a prediction. `evidence_independence` declares
     USE-NOVELTY: which evidence was used to BUILD/fit the supporting model vs to
     TEST it. {model_was_fit:bool, parameters_fit_to:[id], tested_against:[id],
@@ -2117,7 +2130,7 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                       rationale=%s, mlflow_run_url=%s, evidence_independence=%s,
                       margin=%s, cross_system=%s, reliability_tier=%s,
                       reliability_basis=%s, observable_key=%s, literature=%s,
-                      evidence_pins=%s, work_status='evaluated', updated_at=NOW()
+                      evidence_pins=%s, observed=%s, work_status='evaluated', updated_at=NOW()
                 WHERE prediction_id=%s""",
             (verdict, strength, evidence_record_ids, rationale, mlflow_run_url,
              json.dumps(evidence_independence) if evidence_independence is not None
@@ -2128,6 +2141,7 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
              (observable_key or None),
              json.dumps(lit_clean) if lit_clean is not None else None,
              json.dumps(_pins) if _pins else None,
+             json.dumps(observed) if observed is not None else None,
              prediction_id))
         _circ = _circularity_flag(evidence_independence)
         _detail = rationale
@@ -2650,6 +2664,45 @@ def _derived_strength(pred, own_label=None):
     return "strong" if (m is None or m >= 0.5) else "moderate"
 
 
+def _derived_margin(pred):
+    """Policy-62 sharpness, DERIVED from the structured threshold and the declared
+    observation — the last authored number in the scoring path pushed down to auditable
+    physical quantities.
+
+    Ordered by the 0.67 arm: with tiers computed, ALL remaining confidence variance was
+    authored-margin variance, and a single 0.4 margin toggled the falsification cap and broke
+    the programme's first 0.000 panel spread. The [0,1] feeling becomes arithmetic:
+
+        margin = min(1, |observed - threshold| / (3 * scale))
+
+    Three-sigma-out is fully decisive; at the line is zero. Units must match (declared, not
+    converted). Returns None when either side is missing or malformed — the caller falls back
+    to the authored margin (pre-62 behaviour), so the function is additive by construction.
+    Authorship is not eliminated: observed/scale are declared BY the agent WITH citations,
+    checkable against the cited records — the same move that computed the tier.
+    """
+    def _load(v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return None
+        return v
+    th, ob = _load(pred.get("threshold")), _load(pred.get("observed"))
+    if not (isinstance(th, dict) and isinstance(ob, dict)):
+        return None
+    try:
+        t, o = float(th.get("value")), float(ob.get("value"))
+        scale = float(ob.get("scale"))
+    except (TypeError, ValueError):
+        return None
+    if scale <= 0:
+        return None
+    if th.get("unit") and ob.get("unit") and th["unit"] != ob["unit"]:
+        return None                      # unit mismatch: refuse rather than guess
+    return min(1.0, abs(o - t) / (3.0 * scale))
+
+
 def _margin_factor(margin):
     """Per-verdict SHARPNESS multiplier. margin ∈ [0,1] = how decisively the
     observation diverged past the falsification threshold (1 = far past, 0 = right at
@@ -2748,8 +2801,9 @@ def compute_hypothesis_score(h) -> dict:
     hyp_grounding = _grounding(h)   # gates the accommodation discount (standing_prior vs ad_hoc)
     try:
         _use_derived = int(h.get("policy_version") or 0) >= _tp.POLICY_DERIVED_STRENGTH
+        _use_derived_margin = int(h.get("policy_version") or 0) >= _tp.POLICY_DERIVED_MARGIN
     except (TypeError, ValueError):
-        _use_derived = False
+        _use_derived = _use_derived_margin = False
     logit = 0.0
     decisive = []   # (direction, strength_weight, evidence_key, margin, cross_system)
     # Per-prediction admissibility, surfaced so the UI can show WHY a verdict isn't
@@ -2769,6 +2823,10 @@ def compute_hypothesis_score(h) -> dict:
         else:
             sw = _STRENGTH_W.get((p.get("strength") or "").strip().lower(), _STRENGTH_W["weak"])
         _m = p.get("margin")
+        if _use_derived_margin:
+            _dm = _derived_margin(p)
+            if _dm is not None:
+                _m = _dm            # authored margin remains recorded as the claim
         _xsys = bool(p.get("cross_system"))   # evidence from a DIFFERENT system/mechanism class
         _rel = p.get("reliability_tier")      # server-derived trust tier (None = opt-out, as-today)
         # OBSERVABLE for robustness-dedup: an explicit observable_key, else the calc
@@ -3009,7 +3067,7 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
                           evidence_independence, evidence_record_ids, margin,
                           cross_system, reliability_tier, observable_key,
                           falsification_criterion, direction, reference_condition,
-                          rationale, literature, discriminates
+                          rationale, literature, discriminates, threshold, observed
                      FROM hyp_predictions WHERE hypothesis_id=%s
                      ORDER BY prediction_id""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]

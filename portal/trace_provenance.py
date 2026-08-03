@@ -263,7 +263,8 @@ def trace_gaps(events, *, sample_cap: int = 20) -> dict:
 # attribution gates for every policy-60 project the day CURRENT became 61.)
 POLICY_TRACE_GATES = 60        # actor_model on belief-changing writes; decision on reasoning
 POLICY_DERIVED_STRENGTH = 61   # scoring tier derived from rival-contrast + margin
-CURRENT_POLICY_VERSION = 61
+POLICY_DERIVED_MARGIN = 62     # margin derived from structured threshold + observed + scale
+CURRENT_POLICY_VERSION = 62
 
 # The portal itself is an actor. Several belief-changing events originate SERVER-side
 # (a project being created, a dataset being declared, a ranking recomputed), and they are
