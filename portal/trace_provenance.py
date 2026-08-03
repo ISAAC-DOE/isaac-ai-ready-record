@@ -256,7 +256,14 @@ def trace_gaps(events, *, sample_cap: int = 20) -> dict:
 # creation and held to it for life; a project created before enforcement carries NULL
 # and is never retro-enforced. This is what lets the contract improve without either
 # breaking old projects or watering down the rules for new ones.
-CURRENT_POLICY_VERSION = 60
+# Policy thresholds are PER-FEATURE. The stamp on a project is the contract it was born
+# under; each enforcement binds at its own minimum version, so raising CURRENT for a new
+# feature must never demote existing projects to "legacy" for the older gates. (The trap:
+# a single `pv < CURRENT` legacy test would have silently switched off the policy-60
+# attribution gates for every policy-60 project the day CURRENT became 61.)
+POLICY_TRACE_GATES = 60        # actor_model on belief-changing writes; decision on reasoning
+POLICY_DERIVED_STRENGTH = 61   # scoring tier derived from rival-contrast + margin
+CURRENT_POLICY_VERSION = 61
 
 # The portal itself is an actor. Several belief-changing events originate SERVER-side
 # (a project being created, a dataset being declared, a ranking recomputed), and they are
@@ -286,7 +293,7 @@ def enforcement_error(project_policy_version, event_type, actor_model, decision)
         pv = int(project_policy_version)
     except (TypeError, ValueError):
         return None                      # legacy project: advisory only
-    if pv < CURRENT_POLICY_VERSION:
+    if pv < POLICY_TRACE_GATES:
         return None
     if event_type in BELIEF_CHANGING and not normalize_actor_model(actor_model):
         return ("policy_version %d requires `actor_model` on belief-changing events "

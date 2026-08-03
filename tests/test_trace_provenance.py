@@ -317,3 +317,60 @@ class TestStrongWithoutRivalContrast:
         for v in ("neutral", "insufficient", "blocked", None):
             hyps, d = self._hyps(verdict=v, disc=None)
             assert d._strong_without_rival_contrast(hyps) == []
+
+
+class TestDerivedStrength:
+    """Policy-61: the scoring tier is a pure function of rival-contrast + margin. Each rung
+    of the ladder to here was measured first: prose moved direction not variance; structure
+    raised agreement 0.54->0.67 but left 0.13-0.21 confidence spread; the tier was the last
+    authored adjective in the scoring path."""
+
+    def _p(self, disc=None, margin=None):
+        import discovery
+        return discovery, {"discriminates": disc, "margin": margin}
+
+    def test_no_discriminates_is_weak_regardless_of_authored_claim(self):
+        d, p = self._p(None)
+        assert d._derived_strength(p, "H1") == "weak"
+
+    def test_own_hypothesis_only_is_weak(self):
+        d, p = self._p([{"hypothesis_label": "H1", "expected": "up"}])
+        assert d._derived_strength(p, "H1") == "weak"
+
+    def test_rival_contrast_defaults_strong(self):
+        d, p = self._p([{"hypothesis_label": "H3", "expected": "flat"}])
+        assert d._derived_strength(p, "H1") == "strong"
+
+    def test_rival_contrast_with_soft_margin_is_moderate(self):
+        d, p = self._p([{"hypothesis_label": "H3", "expected": "flat"}], margin=0.4)
+        assert d._derived_strength(p, "H1") == "moderate"
+        d, p = self._p([{"hypothesis_label": "H3", "expected": "flat"}], margin=0.5)
+        assert d._derived_strength(p, "H1") == "strong"
+
+    def test_jsonb_string_form_is_parsed(self):
+        d, p = self._p('[{"hypothesis_label": "H2", "expected": "down"}]')
+        assert d._derived_strength(p, "H1") == "strong"
+
+    def test_rival_entry_without_expected_does_not_count(self):
+        d, p = self._p([{"hypothesis_label": "H2"}])
+        assert d._derived_strength(p, "H1") == "weak"
+
+    def test_scoring_uses_derived_only_at_policy_61(self):
+        import discovery
+        pred = {"work_status": "evaluated", "verdict": "supports", "strength": "strong",
+                "descriptor_name": "x", "evidence_record_ids": ["r1"],
+                "falsification_criterion": "f", "direction": "up",
+                "reference_condition": "c", "rationale": "because", "discriminates": None}
+        legacy = discovery.compute_hypothesis_score(
+            {"predictions": [dict(pred)], "label": "H1", "policy_version": 60})
+        derived = discovery.compute_hypothesis_score(
+            {"predictions": [dict(pred)], "label": "H1", "policy_version": 61})
+        # same authored 'strong', no rival contrast: legacy scores it strong, 61 scores weak
+        assert derived["computed_confidence"] < legacy["computed_confidence"]
+
+    def test_policy_60_trace_gates_still_bind_after_current_moved_to_61(self):
+        """The trap the pre-registration called out: raising CURRENT must not demote
+        policy-60 projects to legacy for the policy-60 attribution gates."""
+        assert tp.CURRENT_POLICY_VERSION == 61
+        err = tp.enforcement_error(60, "hypothesis_created", None, None)
+        assert err is not None and "actor_model" in err
