@@ -556,3 +556,42 @@ class TestManifestAdvertisesItsOwnPolicy:
         assert isinstance(m["version"], str) and m["version"]
         assert isinstance(m["policy_version"], int)
         assert m["policy_version"] >= trace_provenance.POLICY_TRACE_GATES
+
+
+class TestContractRefusalIsActionable:
+    """A contract refusal must reach the agent as a 400 with the reason, never a 500.
+
+    Found by a live production smoke test, not by these tests: the 0.70 scale gate raised
+    TraceContractError from /evaluate, which had no handler, so the refusal arrived as
+    `500 Internal Server Error` with an HTML body. An agent cannot learn from that, and the
+    predictable response to an unexplained 500 is to drop the field that caused it, which is
+    exactly falsifier F5 of that rung's own pre-registration. The handler is now app-wide, so
+    a refusal raised from any future endpoint is covered without anyone remembering to wrap it.
+    """
+
+    def test_app_registers_a_handler_for_contract_errors(self):
+        import api
+        handlers = api.app.error_handler_spec[None][None]
+        assert any(issubclass(k, discovery.TraceContractError)
+                   for k in handlers) or discovery.TraceContractError in handlers, \
+            "TraceContractError must have an app-wide error handler"
+
+    def test_handler_returns_400_and_the_reason(self):
+        import api
+        with api.app.test_request_context():
+            body, status = api._trace_contract_error(
+                discovery.TraceContractError("the scale is not the evidence's"))
+            assert status == 400
+            payload = body.get_json()
+            assert payload["error"] == "the scale is not the evidence's"
+            assert payload["policy_version"] == trace_provenance.CURRENT_POLICY_VERSION
+
+    def test_every_raise_site_is_covered_by_the_app_wide_handler(self):
+        """The per-route approach was already incomplete: three raise sites, one route
+        catching them. Assert the count relationship rather than the routes."""
+        import pathlib
+        src = pathlib.Path(__file__).parent.parent / "portal" / "discovery.py"
+        n_raises = src.read_text().count("raise TraceContractError")
+        assert n_raises >= 3
+        import api
+        assert discovery.TraceContractError in api.app.error_handler_spec[None][None]

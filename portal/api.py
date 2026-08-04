@@ -41,6 +41,25 @@ import literature  # noqa: E402  (Edison literature gateway/proxy)
 # Flask app setup
 # ---------------------------------------------------------------------------
 app = Flask(__name__)
+
+
+@app.errorhandler(discovery.TraceContractError)
+def _trace_contract_error(e):
+    """A contract refusal is ACTIONABLE, so it must reach the agent as a 400 carrying the
+    reason, never as a 500 carrying an HTML page.
+
+    Registered app-wide rather than per-route because the per-route version was already
+    incomplete: the contract had three raise sites and one route that caught them. The 0.70
+    scale gate raised from `/evaluate`, which had no handler, so a live smoke test found the
+    refusal arriving as `500 Internal Server Error`. An agent cannot learn from that. Worse,
+    the predictable response to an unexplained 500 is to drop the field that triggered it,
+    which is precisely the failure mode the rung's own pre-registration lists as its falsifier
+    F5. Every future refusal is covered here by construction.
+    """
+    return jsonify({"error": str(e),
+                    "policy_version": discovery._tp.CURRENT_POLICY_VERSION}), 400
+
+
 # Restrict CORS to the portal origin (bearer-token API; server-to-server
 # callers like migration scripts and converters ignore CORS entirely).
 _ALLOWED_ORIGINS = os.environ.get(
