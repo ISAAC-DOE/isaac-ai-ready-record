@@ -534,3 +534,25 @@ class TestObservedScale:
         for pv in (60, 61, 62, trace_provenance.CURRENT_POLICY_VERSION):
             assert pv >= trace_provenance.POLICY_TRACE_GATES
             assert (pv >= trace_provenance.POLICY_OBSERVED_SCALE) == (pv >= 63)
+
+
+class TestManifestAdvertisesItsOwnPolicy:
+    """The manifest's advertised policy_version must BE the enforced one.
+
+    It drifted once: 0.70 raised CURRENT_POLICY_VERSION to 63 while the manifest still
+    carried a hand-typed 62. An agent reading the contract would have been told the wrong
+    version of the contract it is held to, and a benchmark arm pinning that string would
+    have recorded a version that did not describe its own enforcement. Caught by adversarial
+    review, not by a test, which is why this test exists.
+    """
+
+    def test_advertised_equals_enforced(self):
+        m = discovery.get_manifest()
+        assert m["policy_version"] == trace_provenance.CURRENT_POLICY_VERSION
+
+    def test_version_string_and_policy_move_together(self):
+        """The human-readable version and the enforced policy both name the same contract."""
+        m = discovery.get_manifest()
+        assert isinstance(m["version"], str) and m["version"]
+        assert isinstance(m["policy_version"], int)
+        assert m["policy_version"] >= trace_provenance.POLICY_TRACE_GATES

@@ -171,7 +171,12 @@ def get_manifest() -> dict:
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
         "version": "0.70-the-scale-is-the-records",
-        "policy_version": 62,
+        # Read from the constant, never retyped. This drifted exactly once and it was caught
+        # by an adversarial review rather than by a test: 0.70 raised CURRENT to 63 while the
+        # manifest still advertised 62, so every agent reading the contract would have been
+        # told the wrong version of the contract it is held to, and a benchmark arm would
+        # have pinned a version string that did not describe its own enforcement.
+        "policy_version": _tp.CURRENT_POLICY_VERSION,
         "enforcement": {
             "_what": "The trace contract is ENFORCED, not advised, for projects created at "
                      "or after policy_version 60. A project is stamped with the contract "
