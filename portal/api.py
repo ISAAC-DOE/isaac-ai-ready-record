@@ -1199,7 +1199,8 @@ def discovery_create_project():
         return jsonify({"error": "title is required"}), 400
     pid = discovery.create_project(
         _disc_identity(), d["title"], goal=d.get("goal"),
-        material_system=d.get("material_system"), reaction=d.get("reaction"))
+        material_system=d.get("material_system"), reaction=d.get("reaction"),
+        policy_version=d.get("policy_version"))
     return jsonify({"project_id": pid}), 201
 
 

@@ -1,4 +1,5 @@
 """Trace provenance — WHO reasoned and WHY. Pure logic, no DB."""
+import pytest
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "portal"))
 import trace_provenance as tp
@@ -593,5 +594,50 @@ class TestContractRefusalIsActionable:
         src = pathlib.Path(__file__).parent.parent / "portal" / "discovery.py"
         n_raises = src.read_text().count("raise TraceContractError")
         assert n_raises >= 3
+        import api
+        assert discovery.TraceContractError in api.app.error_handler_spec[None][None]
+
+
+class TestPolicyPinningAtCreation:
+    """A project may be pinned BACKWARD to an older contract, never forward.
+
+    Reproducibility motive: a project is held for life to the contract it was born under, so
+    a contract arm could previously only run while that contract was deployed. That forced
+    every treatment arm to run at a different TIME from its baseline, and one such comparison
+    manufactured 43% of an improvement out of a seat-count difference (CORRECTIONS #13).
+    Pinning lets baseline and treatment run interleaved on one deployment with one seat set.
+    """
+
+    def test_default_is_current(self):
+        assert (discovery._resolve_policy_version(None)
+                == trace_provenance.CURRENT_POLICY_VERSION)
+
+    def test_pins_backward_to_any_supported_gate(self):
+        for pv in range(trace_provenance.POLICY_TRACE_GATES,
+                        trace_provenance.CURRENT_POLICY_VERSION + 1):
+            assert discovery._resolve_policy_version(pv) == pv
+
+    def test_refuses_forward(self):
+        with pytest.raises(discovery.TraceContractError) as e:
+            discovery._resolve_policy_version(trace_provenance.CURRENT_POLICY_VERSION + 1)
+        assert "ahead of this server" in str(e.value)
+
+    def test_refuses_below_the_gate_floor(self):
+        """Below POLICY_TRACE_GATES nothing binds, so this would create an UNENFORCED project
+        while looking like a pinned one. That is worse than refusing."""
+        with pytest.raises(discovery.TraceContractError) as e:
+            discovery._resolve_policy_version(trace_provenance.POLICY_TRACE_GATES - 1)
+        assert "no gate binds" in str(e.value)
+
+    def test_refuses_garbage_rather_than_defaulting(self):
+        """A malformed value must not silently become CURRENT: a benchmark arm would then
+        record a pin it never had."""
+        for bad in ("sixty", None.__class__, [63]):
+            if bad is None:
+                continue
+            with pytest.raises(discovery.TraceContractError):
+                discovery._resolve_policy_version(bad)
+
+    def test_pinning_is_a_contract_error_so_it_surfaces_as_400(self):
         import api
         assert discovery.TraceContractError in api.app.error_handler_spec[None][None]
