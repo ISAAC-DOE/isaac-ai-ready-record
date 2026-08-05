@@ -1695,8 +1695,54 @@ def unshare_project(project_id, identity, *, owner_identity=None) -> bool:
 
 # --- Projects --------------------------------------------------------------
 
+def _resolve_policy_version(requested):
+    """Current version by default; an explicit request must be an int in [60, CURRENT].
+
+    Refusals are TraceContractErrors so the caller gets a 400 naming the bound, not a 500.
+    The floor is POLICY_TRACE_GATES because below it no gate binds at all and the project
+    would be unenforced rather than pinned to an older contract.
+    """
+    if requested is None:
+        return _tp.CURRENT_POLICY_VERSION
+    try:
+        want = int(requested)
+    except (TypeError, ValueError):
+        raise TraceContractError(
+            "policy_version must be an integer between %d and %d"
+            % (_tp.POLICY_TRACE_GATES, _tp.CURRENT_POLICY_VERSION))
+    if want > _tp.CURRENT_POLICY_VERSION:
+        raise TraceContractError(
+            "policy_version %d is ahead of this server's contract (%d). A project cannot be "
+            "held to rules the server does not implement."
+            % (want, _tp.CURRENT_POLICY_VERSION))
+    if want < _tp.POLICY_TRACE_GATES:
+        raise TraceContractError(
+            "policy_version %d is below %d, where no gate binds. That would create an "
+            "unenforced project rather than one pinned to an older contract."
+            % (want, _tp.POLICY_TRACE_GATES))
+    return want
+
+
 def create_project(owner_identity, title, goal=None, material_system=None,
-                   reaction=None) -> str:
+                   reaction=None, policy_version=None) -> str:
+    """Create a project, optionally PINNED to an older contract version.
+
+    `policy_version` exists for reproducibility, not for convenience. A project is held for
+    life to the contract it was born under, so until now a contract arm could only be run
+    while that contract was the deployed one. Two consequences, both of which corrupted real
+    measurements:
+
+      * historical arms cannot be replayed. Two arms in the benchmark carry no pin at all and
+        what contract they ran under is now unverifiable.
+      * a treatment arm and its baseline are necessarily run at DIFFERENT TIMES, so every
+        such comparison silently spans whatever else changed in between. One such comparison
+        ran its treatment on four seats against a five-seat baseline and manufactured 43% of
+        an improvement out of an order statistic.
+
+    Pinning lets a baseline and a treatment run on ONE deployment, on the same day, with the
+    same seats, interleaved. It can only ever pin BACKWARD: a value above the current version
+    is refused, because a project cannot be held to a contract the server does not implement.
+    """
     conn = _conn()
     cur = conn.cursor()
     try:
@@ -1707,7 +1753,7 @@ def create_project(owner_identity, title, goal=None, material_system=None,
                   policy_version)
                VALUES (%s,%s,%s,%s,%s,%s,%s)""",
             (project_id, owner_identity, title, goal, material_system, reaction,
-             _tp.CURRENT_POLICY_VERSION))
+             _resolve_policy_version(policy_version)))
         # project_created is itself belief-changing; the server signs its own write so a
         # brand-new project does not open with an unattributed event it cannot fix.
         _append_event(cur, project_id, "project_created",
