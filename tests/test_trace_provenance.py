@@ -697,3 +697,46 @@ class TestVerdictBasis:
         assert trace_provenance.CURRENT_POLICY_VERSION >= 64
         for pv in (60, 61, 62, 63, trace_provenance.CURRENT_POLICY_VERSION):
             assert (pv >= trace_provenance.POLICY_VERDICT_BASIS) == (pv >= 64)
+
+
+class TestStampedValuesAreNotIndependent:
+    """One determination written onto N records is not N measurements.
+
+    Found by a genericity adversary: `_declared_scale` computed `two_sample = len(sigmas) > 1`
+    and returned sqrt(2)*sigma, so five stamped copies of a single paper-level number were read
+    by our own scorer as five independent declarations. That is metadata-as-measurement,
+    committed by the platform, on the very item where the benchmark penalises a model for
+    committing it.
+    """
+
+    def _recs(self, *triples):
+        return [{"descriptors": {"outputs": [{"descriptors": [
+            {"name": "q", "value": v, "uncertainty": {"sigma": s}, "definition": d}]}]}}
+            for v, s, d in triples]
+
+    def test_identical_stamped_values_collapse_to_one(self, monkeypatch):
+        stamped = self._recs(*[(-1.11, 0.05, "converted from one stated -1.6 V vs SHE")] * 5)
+        monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: stamped)
+        assert discovery._descriptor_sigmas("q", ["a", "b", "c", "d", "e"]) == [0.05]
+
+    def test_stamped_values_do_not_earn_a_two_sample_scale(self, monkeypatch):
+        """The consequence that matters: a narrowed scale makes a margin look decisive."""
+        stamped = self._recs(*[(-1.11, 0.05, "one conversion")] * 5)
+        monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: stamped)
+        dec = discovery._declared_scale("q", ["a", "b", "c", "d", "e"])
+        assert dec["value"] == 0.05                      # NOT 0.05 * sqrt(2)
+        assert dec["kind"] == "value"
+
+    def test_genuinely_distinct_measurements_still_earn_it(self, monkeypatch):
+        distinct = self._recs((0.25, 0.02, "measured on sample A"),
+                              (0.31, 0.02, "measured on sample B"))
+        monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: distinct)
+        dec = discovery._declared_scale("q", ["a", "b"])
+        assert abs(dec["value"] - 0.02 * 2 ** 0.5) < 1e-9
+        assert dec["kind"] == "difference"
+
+    def test_same_value_different_definition_is_two_determinations(self, monkeypatch):
+        """Two labs reporting the same number by different routes IS corroboration."""
+        two = self._recs((0.25, 0.02, "measured by GC"), (0.25, 0.02, "measured by NMR"))
+        monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: two)
+        assert len(discovery._descriptor_sigmas("q", ["a", "b"])) == 2
