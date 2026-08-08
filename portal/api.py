@@ -1703,7 +1703,7 @@ def discovery_evaluate_prediction(prediction_id):
         reliability=d.get("reliability"),
         observable_key=d.get("observable_key"), literature=d.get("literature"),
         actor=_disc_identity(), actor_model=d.get("actor_model"),
-        observed=d.get("observed"))
+        observed=d.get("observed"), basis=d.get("basis"))
     if not ok:
         return jsonify({"error": "prediction not found"}), 404
     return jsonify({"ok": True}), 200

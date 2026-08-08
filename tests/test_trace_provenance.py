@@ -641,3 +641,59 @@ class TestPolicyPinningAtCreation:
     def test_pinning_is_a_contract_error_so_it_surfaces_as_400(self):
         import api
         assert discovery.TraceContractError in api.app.error_handler_spec[None][None]
+
+
+class TestVerdictBasis:
+    """Policy 64: a decisive verdict declares what it RESTS ON, and the claim is checked.
+
+    The scientific point, not the bookkeeping one: a conclusion built from cited records is
+    something a CONTRACT can constrain and improve; a conclusion built from what the model
+    already believed is not. Across 990 benchmark verdicts the two wrote an identical shape of
+    record, so the distinction that decides what the manifest can even address was invisible.
+    """
+
+    def test_missing_basis_is_refused_with_the_reason(self):
+        why = discovery._check_verdict_basis(None, "faradaic_efficiency.CO", ["R1"], None, None)
+        assert why and "must declare `basis`" in why
+        assert "already believed" in why      # the refusal must teach, not just reject
+
+    def test_unknown_basis_is_refused(self):
+        why = discovery._check_verdict_basis("vibes", "x", ["R1"], None, None)
+        assert why and "unknown" in why.lower()
+
+    def test_every_documented_option_is_accepted_when_its_support_is_present(self, monkeypatch):
+        monkeypatch.setattr(discovery.database, "get_records_batch",
+                            lambda ids: [{"descriptors": {"outputs": [
+                                {"descriptors": [{"name": "x"}]}]}}])
+        assert discovery._check_verdict_basis("cited_record", "x", ["R1"], None, None) is None
+        assert discovery._check_verdict_basis("derived", "x", ["R1"], None, None) is None
+        assert discovery._check_verdict_basis("computed_run", "x", ["R1"], "mlflow://run", None) is None
+        assert discovery._check_verdict_basis("literature", "x", ["R1"], None, [{"doi": "10.x"}]) is None
+        assert discovery._check_verdict_basis("prior_knowledge", "x", [], None, None) is None
+
+    def test_cited_record_is_VERIFIED_against_the_records(self, monkeypatch):
+        """The whole point: claiming a value is cited when it is not in the cited records is
+        exactly the failure this rung exists to catch."""
+        monkeypatch.setattr(discovery.database, "get_records_batch",
+                            lambda ids: [{"descriptors": {"outputs": [
+                                {"descriptors": [{"name": "something_else"}]}]}}])
+        why = discovery._check_verdict_basis("cited_record", "faradaic_efficiency.CO",
+                                             ["R1"], None, None)
+        assert why and "does not appear in any of the cited records" in why
+        assert "prior_knowledge" in why       # it must name the honest alternative
+
+    def test_cited_record_without_citations_is_refused(self):
+        why = discovery._check_verdict_basis("cited_record", "x", [], None, None)
+        assert why and "no evidence_record_ids" in why
+
+    def test_prior_knowledge_is_permitted_not_forbidden(self):
+        """Domain knowledge is often what makes a reading correct. The rung makes it visible
+        and discountable, never prohibited."""
+        assert discovery._check_verdict_basis("prior_knowledge", "x", [], None, None) is None
+        assert "NOT forbidden" in trace_provenance.VERDICT_BASIS["prior_knowledge"]
+
+    def test_gate_binds_only_at_64_and_leaves_older_projects_alone(self):
+        assert trace_provenance.POLICY_VERDICT_BASIS == 64
+        assert trace_provenance.CURRENT_POLICY_VERSION >= 64
+        for pv in (60, 61, 62, 63, trace_provenance.CURRENT_POLICY_VERSION):
+            assert (pv >= trace_provenance.POLICY_VERDICT_BASIS) == (pv >= 64)
