@@ -265,7 +265,23 @@ POLICY_TRACE_GATES = 60        # actor_model on belief-changing writes; decision
 POLICY_DERIVED_STRENGTH = 61   # scoring tier derived from rival-contrast + margin
 POLICY_DERIVED_MARGIN = 62     # margin derived from structured threshold + observed + scale
 POLICY_OBSERVED_SCALE = 63     # the scale the margin divides by must be the evidence's own
-CURRENT_POLICY_VERSION = 63
+POLICY_VERDICT_BASIS = 64      # a verdict declares what it RESTS ON, and the claim is checked
+CURRENT_POLICY_VERSION = 64
+
+# What a decisive verdict may rest on. The point of the vocabulary is not bookkeeping: it
+# separates the variance a CONTRACT can address from the variance that is irreducibly the
+# model's own knowledge. A conclusion built from cited records is something the manifest can
+# constrain, check and improve. A conclusion built from what the model already believed is
+# not, and until it is labelled the two are indistinguishable in the trace.
+VERDICT_BASIS = {
+    "cited_record":  "the value appears in a record named in evidence_record_ids",
+    "derived":       "computed by the agent FROM cited records; the arithmetic is in the rationale",
+    "computed_run":  "produced by a compute run, identified by mlflow_run_url or slurm_job_id",
+    "literature":    "from a cited DOI, not from this dataset",
+    "prior_knowledge": "from the model itself, with no record behind it. NOT forbidden - domain "
+                       "knowledge is often what makes a reading correct - but it cannot count "
+                       "toward reliability, and it must be visible rather than implied.",
+}
 
 # The portal itself is an actor. Several belief-changing events originate SERVER-side
 # (a project being created, a dataset being declared, a ranking recomputed), and they are

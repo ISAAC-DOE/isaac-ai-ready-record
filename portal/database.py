@@ -498,6 +498,10 @@ def init_discovery_tables():
         # scale, scale_basis} on the evaluation. Server derives margin from the pair.
         cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS threshold JSONB")
         cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS observed JSONB")
+        # policy 64: what the verdict rests on (cited_record | derived | computed_run |
+        # literature | prior_knowledge). Separates contract-addressable reasoning from the
+        # model's own knowledge.
+        cur.execute("ALTER TABLE hyp_predictions ADD COLUMN IF NOT EXISTS basis TEXT")
         # v2 (stubbed now): in-portal human<->agent chat.
         cur.execute('''
             CREATE TABLE IF NOT EXISTS hyp_messages (

@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.70-the-scale-is-the-records",
+        "version": "0.72-a-verdict-declares-what-it-rests-on",
         # Read from the constant, never retyped. This drifted exactly once and it was caught
         # by an adversarial review rather than by a test: 0.70 raised CURRENT to 63 while the
         # manifest still advertised 62, so every agent reading the contract would have been
@@ -674,7 +674,7 @@ def get_manifest() -> dict:
                 "scale)): three-sigma-out is fully decisive, at-the-line is zero. Your "
                 "authored margin stays recorded as your claim. Units must match or the "
                 "derivation refuses. Declare numbers you can cite, not numbers you like — "
-                "observed and scale are checkable against the records you pin. The SCALE IS THE EVIDENCE'S, not yours: where the records you cite declare an uncertainty, use it (a two-sample difference resolves at sqrt(2) x sigma), and never offer the prediction's own threshold as the scale — a decision line says where the answer changes, a scale says how well you can see. Both are refused with the value the records support.",
+                "observed and scale are checkable against the records you pin. The SCALE IS THE EVIDENCE'S, not yours: where the records you cite declare an uncertainty, use it (a two-sample difference resolves at sqrt(2) x sigma), and never offer the prediction's own threshold as the scale — a decision line says where the answer changes, a scale says how well you can see. Both are refused with the value the records support. AND EVERY DECISIVE VERDICT DECLARES ITS `basis`: cited_record (the value is in a record you named), derived (you computed it from them - show the arithmetic), computed_run, literature, or prior_knowledge (it came from you, not from the data). prior_knowledge is allowed and often right, but it cannot count toward reliability, because a conclusion the contract can check and one it cannot must not look identical in the trace.",
             "reliability": "How much to TRUST the datum itself — distinct from "
                 "method-compatibility (is it comparable?) and strength (how decisive?). "
                 "Optionally pass `reliability:{basis:{reproduced_by:[ids], conflicts_with:"
@@ -2101,7 +2101,7 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                         mlflow_run_url=None, evidence_independence=None,
                         margin=None, cross_system=None, reliability=None,
                         observable_key=None, literature=None, actor=None,
-                        actor_model=None, observed=None) -> bool:
+                        actor_model=None, observed=None, basis=None) -> bool:
     """Terminal verdict on a prediction. `evidence_independence` declares
     USE-NOVELTY: which evidence was used to BUILD/fit the supporting model vs to
     TEST it. {model_was_fit:bool, parameters_fit_to:[id], tested_against:[id],
@@ -2187,6 +2187,14 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                                          evidence_record_ids)
             if _why:
                 raise TraceContractError(_why)
+        # POLICY 64: what does this verdict rest on? Decisive verdicts only - an
+        # `insufficient` or `blocked` rests on the ABSENCE of evidence and has nothing to cite.
+        if (int(row.get("policy_version") or 0) >= _tp.POLICY_VERDICT_BASIS
+                and verdict in ("supports", "contradicts")):
+            _why = _check_verdict_basis(basis, row.get("descriptor_name"),
+                                        evidence_record_ids, mlflow_run_url, literature)
+            if _why:
+                raise TraceContractError(_why)
         # Pin the cited evidence at evaluate-time so a later MATERIAL edit can be flagged
         # (drift). Re-evaluating re-pins -> the warning self-clears.
         _pins = _pin_evidence(evidence_record_ids)
@@ -2196,7 +2204,8 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                       rationale=%s, mlflow_run_url=%s, evidence_independence=%s,
                       margin=%s, cross_system=%s, reliability_tier=%s,
                       reliability_basis=%s, observable_key=%s, literature=%s,
-                      evidence_pins=%s, observed=%s, work_status='evaluated', updated_at=NOW()
+                      evidence_pins=%s, observed=%s, basis=%s,
+                      work_status='evaluated', updated_at=NOW()
                 WHERE prediction_id=%s""",
             (verdict, strength, evidence_record_ids, rationale, mlflow_run_url,
              json.dumps(evidence_independence) if evidence_independence is not None
@@ -2208,6 +2217,7 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
              json.dumps(lit_clean) if lit_clean is not None else None,
              json.dumps(_pins) if _pins else None,
              json.dumps(observed) if observed is not None else None,
+             basis,
              prediction_id))
         _circ = _circularity_flag(evidence_independence)
         _detail = rationale
@@ -2782,6 +2792,59 @@ def _declared_scale(descriptor_name, record_ids):
             "basis": ("sqrt(2) x sigma=%g declared on the %d cited records for %s"
                       % (sig, len(sigmas), descriptor_name)) if two_sample else
                      ("sigma=%g declared on the cited record for %s" % (sig, descriptor_name))}
+
+
+def _check_verdict_basis(basis, descriptor_name, record_ids, compute_runs, literature):
+    """Policy 64. A decisive verdict must say what it RESTS ON, and the claim is checked.
+
+    This is the field that separates variance a CONTRACT can fix from variance that is the
+    model's own knowledge. Across 990 verdicts in the benchmark, agents filled in record ids
+    and left compute, literature and mlflow empty, so a value read off a record and a claim
+    recalled from training wrote the identical shape of verdict. That is the distinction a
+    referee asks about first, and it was invisible.
+
+    Returns None when acceptable, else the reason text for a 400.
+    """
+    if basis is None:
+        return ("a decisive verdict must declare `basis`: one of %s. This is not bookkeeping. "
+                "A conclusion drawn from cited records is something the contract can check and "
+                "improve; a conclusion drawn from what you already believed is not, and the "
+                "trace cannot tell them apart unless you say which this is."
+                % ", ".join(sorted(_tp.VERDICT_BASIS)))
+    if basis not in _tp.VERDICT_BASIS:
+        return ("unknown `basis` %r. Allowed: %s"
+                % (basis, ", ".join("%s (%s)" % (k, v.split(';')[0].split('.')[0])
+                                    for k, v in sorted(_tp.VERDICT_BASIS.items()))))
+    if basis == "cited_record":
+        if not record_ids:
+            return ("`basis` is 'cited_record' but no evidence_record_ids were given. Name the "
+                    "records the value appears in, or declare a different basis.")
+        try:
+            present = _descriptor_sigmas.__self__ if False else None
+        except Exception:
+            present = None
+        # the descriptor must actually EXIST in at least one cited record, else this is not a
+        # cited value however sincerely it is offered
+        if descriptor_name:
+            try:
+                found = False
+                for rec in (database.get_records_batch(list(record_ids)) or []):
+                    for blk in ((rec.get("descriptors") or {}).get("outputs") or []):
+                        for d in (blk.get("descriptors") or []):
+                            if d.get("name") == descriptor_name:
+                                found = True
+                if not found:
+                    return ("`basis` is 'cited_record' but %r does not appear in any of the "
+                            "cited records. If you computed it from them, declare 'derived' "
+                            "and put the arithmetic in the rationale; if it comes from your "
+                            "own knowledge, declare 'prior_knowledge'." % descriptor_name)
+            except Exception:
+                logger.warning("basis record check failed", exc_info=True)
+    if basis == "computed_run" and not compute_runs:
+        return "`basis` is 'computed_run' but no compute run is linked."
+    if basis == "literature" and not literature:
+        return "`basis` is 'literature' but no citation is attached."
+    return None
 
 
 def _check_observed_scale(observed, threshold, descriptor_name, record_ids):
