@@ -740,3 +740,100 @@ class TestStampedValuesAreNotIndependent:
         two = self._recs((0.25, 0.02, "measured by GC"), (0.25, 0.02, "measured by NMR"))
         monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: two)
         assert len(discovery._descriptor_sigmas("q", ["a", "b"])) == 2
+
+
+class TestPolicy65EvidenceMultiplicity:
+    """Rung 0.73 — a repeated value is not repeated evidence.
+
+    Pre-registered in the bench repo (`analysis/PREREG_073_STAMPED_INDEPENDENCE.md`) before any
+    of this code existed, because 0.72 shipped without one (bench CORRECTIONS #21).
+
+    The motivating measurement: two benchmark items rest on structurally identical evidence —
+    five records each carrying ONE imported number, byte-identical in value, sigma, definition
+    and source. On the one whose definition string DISCLOSED the conversion, six frontier
+    models split five ways and the strongest refused to decide. On the one that disclosed
+    nothing, they returned 191 of 191 identical decisive verdicts, unanimous, zero dissent.
+    Agreement was maximal exactly where the evidence was weakest.
+    """
+
+    def _recs(self, *quads):
+        return [{"descriptors": {"outputs": [{"descriptors": [
+            {"name": "q", "value": v, "uncertainty": {"sigma": s},
+             "definition": d, "source": src}]}]}}
+            for v, s, d, src in quads]
+
+    def test_fires_on_a_decisive_verdict_resting_on_stamped_copies(self, monkeypatch):
+        stamped = self._recs(*[(0.07, 0.01, "FE for H2 during CO2RR", "imported")] * 5)
+        monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: stamped)
+        why = discovery._check_evidence_multiplicity("contradicts", "q", list("abcde"))
+        assert why and "not repeated measurements" in why
+        assert "insufficient" in why and "blocked" in why
+
+    def test_does_not_choose_the_replacement_verdict(self, monkeypatch):
+        """The engine refuses; it never authors. Both non-decisive readings stay available."""
+        stamped = self._recs(*[(0.07, 0.01, "d", "imported")] * 3)
+        monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: stamped)
+        for v in ("insufficient", "blocked", "neutral"):
+            assert discovery._check_evidence_multiplicity(v, "q", list("abc")) is None
+
+    def test_silent_when_the_records_carry_distinct_values(self, monkeypatch):
+        """F3: over-broad refusal withdraws the rung. Genuine per-record data must pass."""
+        distinct = self._recs((0.27, 0.01, "d", "imported"), (0.24, 0.01, "d", "imported"),
+                              (0.19, 0.01, "d", "imported"))
+        monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: distinct)
+        assert discovery._check_evidence_multiplicity("contradicts", "q", list("abc")) is None
+
+    def test_silent_on_a_single_cited_record(self, monkeypatch):
+        """One record makes no independence claim, so there is nothing to refuse."""
+        one = self._recs((0.07, 0.01, "d", "imported"))
+        monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: one)
+        assert discovery._check_evidence_multiplicity("supports", "q", ["a"]) is None
+
+    def test_same_value_by_different_routes_is_corroboration_not_copying(self, monkeypatch):
+        """Two labs reaching the same number by different methods is real agreement."""
+        two = self._recs((0.25, 0.02, "measured by GC", "lab_A"),
+                         (0.25, 0.02, "measured by NMR", "lab_B"))
+        monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: two)
+        assert discovery._check_evidence_multiplicity("supports", "q", ["a", "b"]) is None
+
+    def test_differing_source_alone_defeats_the_collapse(self, monkeypatch):
+        two = self._recs((0.07, 0.01, "d", "measured"), (0.07, 0.01, "d", "imported"))
+        monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: two)
+        assert discovery._check_evidence_multiplicity("contradicts", "q", ["a", "b"]) is None
+
+    def test_silent_when_the_descriptor_is_absent_from_the_cited_records(self, monkeypatch):
+        monkeypatch.setattr(discovery.database, "get_records_batch",
+                            lambda ids: self._recs((1.0, 0.1, "d", "s")))
+        assert discovery._check_evidence_multiplicity("supports", "other", ["a"]) is None
+
+    def test_a_lookup_failure_never_blocks_a_write(self, monkeypatch):
+        def boom(ids):
+            raise RuntimeError("records store down")
+        monkeypatch.setattr(discovery.database, "get_records_batch", boom)
+        assert discovery._check_evidence_multiplicity("contradicts", "q", ["a", "b"]) is None
+
+    def test_the_gate_is_registered_and_current(self):
+        assert tp.POLICY_EVIDENCE_MULTIPLICITY == 65
+        assert tp.CURRENT_POLICY_VERSION == tp.POLICY_EVIDENCE_MULTIPLICITY
+
+    def test_the_manifest_advertises_the_version_it_enforces(self):
+        """CORRECTIONS #8: the manifest once advertised 62 while enforcing 63."""
+        man = discovery.get_manifest()
+        node = man.get("contract", man)
+        assert node["policy_version"] == tp.CURRENT_POLICY_VERSION
+        assert node["version"].startswith("0.73-")
+
+    def test_the_clause_is_stated_in_the_contract_not_only_enforced(self):
+        """A gate an agent is refused by but never told about is a trap, not a contract."""
+        src = open(discovery.__file__.replace(".pyc", ".py")).read()
+        assert "a_repeated_value_is_not_repeated_evidence" in src
+        assert "policy_version >= 65" in src
+
+    def test_the_clause_names_no_domain(self):
+        """STANDING: the manifest must be generic for any scientific discovery."""
+        src = open(discovery.__file__.replace(".pyc", ".py")).read()
+        i = src.index("a_repeated_value_is_not_repeated_evidence")
+        clause = src[i:i + 2200].lower()
+        for banned in ("cu-ag", "co2rr", "faradaic", "stripe", "ethylene", "catalys",
+                       "electrode", "potential vs rhe"):
+            assert banned not in clause, "clause leaked a domain term: %s" % banned

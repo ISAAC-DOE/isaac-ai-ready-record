@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.72-a-verdict-declares-what-it-rests-on",
+        "version": "0.73-a-repeated-value-is-not-repeated-evidence",
         # Read from the constant, never retyped. This drifted exactly once and it was caught
         # by an adversarial review rather than by a test: 0.70 raised CURRENT to 63 while the
         # manifest still advertised 62, so every agent reading the contract would have been
@@ -700,6 +700,26 @@ def get_manifest() -> dict:
                 "must be earned IN-SYSTEM. (The Cu-Ag lesson — a borrowed analog drove a "
                 "hypothesis to a false 0.83 'reliable'; this prevents that.) Check the "
                 "source's actual claim before borrowing; the rigor critic audits it.",
+            "a_repeated_value_is_not_repeated_evidence": "Records are the unit of "
+                "CITATION. They are not the unit of EVIDENCE. A quantity stated once in a "
+                "source and written onto N records is ONE determination wearing N copies, and "
+                "citing all N does not make it N measurements. ⚠ FOR PROJECTS BORN AT "
+                "policy_version >= 65, a DECISIVE verdict (supports/contradicts) is REFUSED "
+                "when two or more cited records carry the descriptor and every one of them is "
+                "identical in value, uncertainty, definition and source — because at that "
+                "point the records cannot distinguish a quantity MEASURED on each sample and "
+                "found constant from one STATED ONCE and carried across them. Their agreement "
+                "is then a fact about the bookkeeping, not about nature, and their constancy "
+                "settles nothing in either direction. This cuts hardest against a falsifier "
+                "that turns on a quantity being CONSTANT or MATCHED across a series, which is "
+                "the standard shape of a control: 'the confound is excluded because these all "
+                "agree' is exactly the inference the copies cannot support. What to do: cite "
+                "records that supply per-record values, or record a non-decisive verdict and "
+                "say which — `insufficient` when the quantity was never measured per record, "
+                "`blocked` when the comparison is not validly comparable. The platform will "
+                "NOT choose between those two for you; an engine that authored verdicts would "
+                "be deciding the science. This gate exists because the platform committed the "
+                "same error in its own scoring code before it ever asked an agent not to.",
             "failed_compute_never_penalizes": "A computation that crashes or does not "
                 "converge is NOT evidence and NOT a verdict — it produced no measurement. "
                 "Set the prediction's work_status='compute_failed' (a failed compute run "
@@ -2195,6 +2215,13 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                                         evidence_record_ids, mlflow_run_url, literature)
             if _why:
                 raise TraceContractError(_why)
+        # POLICY 65: a repeated value is not repeated evidence. Decisive verdicts only -
+        # a non-decisive verdict is exactly the outcome this gate leaves available.
+        if int(row.get("policy_version") or 0) >= _tp.POLICY_EVIDENCE_MULTIPLICITY:
+            _why = _check_evidence_multiplicity(verdict, row.get("descriptor_name"),
+                                                evidence_record_ids)
+            if _why:
+                raise TraceContractError(_why)
         # Pin the cited evidence at evaluate-time so a later MATERIAL edit can be flagged
         # (drift). Re-evaluating re-pins -> the warning self-clears.
         _pins = _pin_evidence(evidence_record_ids)
@@ -2752,11 +2779,6 @@ def _descriptor_sigmas(descriptor_name, record_ids, _dedupe=True):
     Returns [] when nothing is declared, which is the common case for digitized literature and
     is treated as "the evidence has no opinion", never as sigma = 0.
     """
-
-    """Declared sigma for one descriptor across the cited records (read-only cross-DB
-    lookup into the records store). Returns [] when nothing is declared, which is the
-    common case for digitized literature and is treated as "the evidence has no opinion",
-    never as sigma = 0."""
     seen, out = set(), []
     for rec in (database.get_records_batch(list(record_ids)) or []):
         for blk in ((rec.get("descriptors") or {}).get("outputs") or []):
@@ -2812,6 +2834,80 @@ def _declared_scale(descriptor_name, record_ids):
                      ("sigma=%g declared on the cited record for %s" % (sig, descriptor_name))}
 
 
+def _evidence_multiplicity(descriptor_name, record_ids):
+    """How many INDEPENDENT values do the cited records actually supply for this descriptor?
+
+    Policy 65. Records are the unit of citation, but they are not the unit of evidence. A
+    value stated once in a source and written onto N records is one determination wearing N
+    copies, and a comparison that treats those copies as N per-record measurements concludes
+    things the evidence cannot carry.
+
+    The collapse key is the same one that fixed the platform's own version of this bug in
+    `_descriptor_sigmas`: (value, sigma, definition, source). Identical on all four fields is
+    indistinguishable, in the record, from a single datum copied.
+
+    Returns {"n_cited", "n_independent", "value", "definition"} or None when the descriptor
+    does not appear on the cited records at all.
+    """
+    if not descriptor_name or not record_ids:
+        return None
+    try:
+        recs = database.get_records_batch(list(record_ids)) or []
+    except Exception:
+        logger.warning("evidence-multiplicity lookup failed", exc_info=True)
+        return None
+    keys, n_cited, sample = set(), 0, None
+    for rec in recs:
+        for blk in ((rec.get("descriptors") or {}).get("outputs") or []):
+            for d in (blk.get("descriptors") or []):
+                if d.get("name") != descriptor_name:
+                    continue
+                n_cited += 1
+                sig = (d.get("uncertainty") or {}).get("sigma")
+                keys.add((json.dumps(d.get("value"), sort_keys=True), sig,
+                          (d.get("definition") or "")[:400],
+                          json.dumps(d.get("source"), sort_keys=True)))
+                if sample is None:
+                    sample = d
+    if not n_cited:
+        return None
+    return {"n_cited": n_cited, "n_independent": len(keys),
+            "value": (sample or {}).get("value"),
+            "definition": ((sample or {}).get("definition") or "")[:400]}
+
+
+def _check_evidence_multiplicity(verdict, descriptor_name, record_ids):
+    """Refuse a DECISIVE verdict that rests on repeated copies of one value.
+
+    Policy 65, and it is deliberately narrow: it fires only when two or more cited records
+    carry the descriptor and every one of them is byte-identical in value, uncertainty,
+    definition and source. That is the case where the record itself cannot distinguish
+    "measured on each sample and found constant" from "stated once and carried across", so a
+    verdict that turns on the agreement between those records is unsupported either way.
+
+    The engine does NOT choose the replacement verdict. `insufficient` (the quantity was never
+    measured here) and `blocked` (the comparison is not validly comparable) are both available
+    and both defensible; picking between them is the agent's judgement, and an engine that
+    authored verdicts would be deciding the science. It refuses the readings the evidence
+    cannot carry, and stops.
+    """
+    if verdict not in ("supports", "contradicts"):
+        return None
+    em = _evidence_multiplicity(descriptor_name, record_ids)
+    if not em or em["n_cited"] < 2 or em["n_independent"] > 1:
+        return None
+    return ("this verdict is decisive across %d cited records, but all %d carry the IDENTICAL "
+            "value (%s) with identical uncertainty, definition and source for `%s`. Repeated "
+            "copies of one value are not repeated measurements: the records cannot "
+            "distinguish a quantity measured on each sample and found constant from one "
+            "stated once and carried across them, so neither their agreement nor their "
+            "constancy can settle this. Cite records that supply per-record values for this "
+            "descriptor, or record a non-decisive verdict - `insufficient` if the quantity was "
+            "never measured per record, `blocked` if the comparison is not valid - and say "
+            "which in the rationale. Declared definition: %r"
+            % (em["n_cited"], em["n_cited"], em["value"], descriptor_name, em["definition"]))
+
+
 def _check_verdict_basis(basis, descriptor_name, record_ids, compute_runs, literature):
     """Policy 64. A decisive verdict must say what it RESTS ON, and the claim is checked.
 
@@ -2837,10 +2933,6 @@ def _check_verdict_basis(basis, descriptor_name, record_ids, compute_runs, liter
         if not record_ids:
             return ("`basis` is 'cited_record' but no evidence_record_ids were given. Name the "
                     "records the value appears in, or declare a different basis.")
-        try:
-            present = _descriptor_sigmas.__self__ if False else None
-        except Exception:
-            present = None
         # the descriptor must actually EXIST in at least one cited record, else this is not a
         # cited value however sincerely it is offered
         if descriptor_name:
