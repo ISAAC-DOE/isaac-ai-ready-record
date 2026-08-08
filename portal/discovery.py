@@ -2740,12 +2740,24 @@ def _derived_strength(pred, own_label=None):
     return "strong" if (m is None or m >= 0.5) else "moderate"
 
 
-def _descriptor_sigmas(descriptor_name, record_ids):
+def _descriptor_sigmas(descriptor_name, record_ids, _dedupe=True):
+    """Declared sigma for one descriptor across the cited records.
+
+    DEDUPED BY VALUE. N records carrying the IDENTICAL (value, sigma, definition) are one
+    determination written down N times, not N independent measurements. Without this the
+    platform commits, in its own scoring, the exact failure it penalises an agent for: reading
+    a paper-level number stamped onto five records as five observations, and deriving a
+    sqrt(2)-narrowed two-sample scale from it.
+
+    Returns [] when nothing is declared, which is the common case for digitized literature and
+    is treated as "the evidence has no opinion", never as sigma = 0.
+    """
+
     """Declared sigma for one descriptor across the cited records (read-only cross-DB
     lookup into the records store). Returns [] when nothing is declared, which is the
     common case for digitized literature and is treated as "the evidence has no opinion",
     never as sigma = 0."""
-    out = []
+    seen, out = set(), []
     for rec in (database.get_records_batch(list(record_ids)) or []):
         for blk in ((rec.get("descriptors") or {}).get("outputs") or []):
             for d in (blk.get("descriptors") or []):
@@ -2756,8 +2768,14 @@ def _descriptor_sigmas(descriptor_name, record_ids):
                     sig = float(unc.get("sigma"))
                 except (TypeError, ValueError):
                     continue
-                if sig > 0:
-                    out.append(sig)
+                if sig <= 0:
+                    continue
+                # one determination, however many records repeat it
+                key = (d.get("value"), sig, (d.get("definition") or "")[:200])
+                if _dedupe and key in seen:
+                    continue
+                seen.add(key)
+                out.append(sig)
     return out
 
 
