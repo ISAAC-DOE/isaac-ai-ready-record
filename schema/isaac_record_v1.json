@@ -425,7 +425,7 @@
         "session": {
           "type": "object",
           "additionalProperties": false,
-          "description": "The measurement SITTING this record came from: one continuous period under one calibration, on one instrument. Two records from the same session share calibration, drift and setup, so they are not independent confirmations of each other however separately they are stored. Optional, and only meaningful for measured records.",
+          "description": "The measurement SITTING this record came from: one continuous period under one calibration, on one instrument. Two records from the same session share calibration, drift and setup, so they are not independent confirmations of each other however separately they are stored. Optional. For a COMPUTED record the analogous shared cause is the calculational setup, which already lives in computation.method (code, code_version, functional_name, pseudopotential) - do not duplicate it here.",
           "properties": {
             "session_id": {
               "type": "string",
@@ -1805,10 +1805,10 @@
             }
           }
         },
-        "measured_by": {
+        "produced_by": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Who produced the measurement, as distinct from who deposited the record. Two results from the same group share method culture and systematic practice; two from different groups do not. `uploaded_by` cannot stand in for this - a curator depositing a hundred records from twenty labs is one uploader and twenty sources.",
+          "description": "Who PRODUCED the result, as distinct from who deposited the record. Applies to a measurement, a calculation or a curation pass alike. Two results from the same group share method culture and systematic practice; two from different groups do not. `uploaded_by` cannot stand in for this - a curator depositing a hundred records from twenty groups is one uploader and twenty sources.",
           "properties": {
             "group": {
               "type": "string",

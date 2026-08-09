@@ -719,7 +719,7 @@ def get_manifest() -> dict:
                 "independent support, look for a second measurement that could fail for a "
                 "DIFFERENT reason - another specimen, another instrument, another group, "
                 "another technique - not merely another record. And when you deposit, record "
-                "`system.session`, `attribution.measured_by` and `replica_of` links, because "
+                "`system.session` (or `computation.method` for a calculation), `attribution.produced_by` and `replica_of` links, because "
                 "un-recorded provenance is scored as independence you may not have earned.",
             "failed_compute_never_penalizes": "A computation that crashes or does not "
                 "converge is NOT evidence and NOT a verdict — it produced no measurement. "
@@ -3057,9 +3057,34 @@ def _cause_signature(rec):
             sig.add((1, "sample:" + "|".join(sorted([str(rec.get("record_id") or ""), str(l["target"])]))))
     if sess.lower() not in unknown and inst.lower() not in unknown and inst:
         sig.add((2, "session:%s@%s" % (sess, inst)))
+
+    # A COMPUTED record's shared cause of error is not an instrument, it is the calculational
+    # setup. Two calculations from one code at one functional are wrong together in ways two
+    # experiments on one bench are not: the systematic error IS the approximation. Read from
+    # computation.method, which the schema already requires a record to declare.
+    meth = (rec.get("computation") or {}).get("method") or {}
+    if isinstance(meth, list):
+        meth = meth[0] if meth else {}
+    if isinstance(meth, dict):
+        code = str(meth.get("code") or "").strip()
+        ver = str(meth.get("code_version") or "").strip()
+        func = str(meth.get("functional_name") or meth.get("functional_class") or "").strip()
+        # GRADED, because these are different strengths of claim:
+        #  • same code AND version AND functional -> one calculational setup, correlated.
+        #  • same functional, code unknown or different -> they still share the EXCHANGE-
+        #    CORRELATION APPROXIMATION, which is the dominant systematic error in DFT and does
+        #    not care which program applied it. That is real shared cause but weaker, so it
+        #    lands in the robustness tier. Varying the functional is the standard robustness
+        #    check in computational science and must never be scored as repeating yourself -
+        #    a different functional shares no key here, by construction.
+        if func.lower() not in unknown and func:
+            if code.lower() not in unknown and code:
+                sig.add((2, "calc:%s/%s@%s" % (code, ver or "unversioned", func)))
+            else:
+                sig.add((3, "approximation:%s" % func))
     fac = _canonical_org(fac)
     if fac and fac.lower() not in unknown:
-        grp = (((rec.get("attribution") or {}).get("measured_by") or {}).get("group") or "").strip()
+        grp = (((rec.get("attribution") or {}).get("produced_by") or {}).get("group") or "").strip()
         sig.add((3, "facility:%s/%s" % (fac, grp)))
     return sig
 

@@ -761,7 +761,7 @@ class TestPolicy65SharedCauseIndependence:
         if fac:
             r["system"]["facility"] = {"organization": fac}
         if group:
-            r["attribution"] = {"measured_by": {"group": group}}
+            r["attribution"] = {"produced_by": {"group": group}}
         if links:
             r["links"] = links
         return r
@@ -799,6 +799,56 @@ class TestPolicy65SharedCauseIndependence:
         ka = {k for t, k in discovery._cause_signature(a) if t == 1}
         kb = {k for t, k in discovery._cause_signature(b) if t == 1}
         assert ka and ka == kb, "the key must be unordered or A->B and B->A never match"
+
+    def test_two_calculations_sharing_code_and_functional_are_correlated(self):
+        """A computed record's shared cause of error is the APPROXIMATION, not an instrument.
+        Two DFT results at one functional are wrong together in a way two experiments on one
+        bench are not - the schema is generic across theory and experiment and this rung must
+        be too. 132 of 1722 records in the repository are computational."""
+        a = {"record_id": "A", "computation": {"method": {
+            "code": "VASP", "code_version": "6.3.2", "functional_name": "RPBE"}}}
+        b = {"record_id": "B", "computation": {"method": {
+            "code": "VASP", "code_version": "6.3.2", "functional_name": "RPBE"}}}
+        ka = {k for t, k in discovery._cause_signature(a) if t == 2}
+        kb = {k for t, k in discovery._cause_signature(b) if t == 2}
+        assert ka and ka == kb
+
+    def test_the_SAME_code_at_a_DIFFERENT_functional_is_not_correlated(self):
+        """Varying the functional is the standard robustness check in computational science.
+        It must not be scored as repeating yourself."""
+        a = {"record_id": "A", "computation": {"method": {
+            "code": "VASP", "code_version": "6.3.2", "functional_name": "RPBE"}}}
+        b = {"record_id": "B", "computation": {"method": {
+            "code": "VASP", "code_version": "6.3.2", "functional_name": "BEEF-vdW"}}}
+        ka = {k for t, k in discovery._cause_signature(a) if t == 2}
+        kb = {k for t, k in discovery._cause_signature(b) if t == 2}
+        assert ka and kb and not (ka & kb)
+
+    def test_same_functional_with_UNKNOWN_code_is_robustness_not_correlation(self):
+        """The exchange-correlation approximation is the dominant systematic error in DFT and
+        does not care which program applied it - but it is a weaker claim than one identical
+        setup, so it lands in the robustness tier rather than the correlated one."""
+        a = {"record_id": "A", "computation": {"method": {"functional_name": "PBE"}}}
+        b = {"record_id": "B", "computation": {"method": {"functional_name": "PBE"}}}
+        assert not {k for t, k in discovery._cause_signature(a) if t == 2}
+        ka = {k for t, k in discovery._cause_signature(a) if t == 3}
+        kb = {k for t, k in discovery._cause_signature(b) if t == 3}
+        assert ka and ka == kb
+
+    def test_a_different_functional_shares_nothing_even_with_code_unknown(self):
+        a = {"record_id": "A", "computation": {"method": {"functional_name": "PBE"}}}
+        b = {"record_id": "B", "computation": {"method": {"functional_name": "RPBE"}}}
+        ka = {k for t, k in discovery._cause_signature(a) if t == 3}
+        kb = {k for t, k in discovery._cause_signature(b) if t == 3}
+        assert ka and kb and not (ka & kb)
+
+    def test_a_computed_and_a_measured_record_never_share_a_cause(self):
+        a = {"record_id": "A", "computation": {"method": {
+            "code": "VASP", "code_version": "6", "functional_name": "RPBE"}}}
+        b = self._rec("B", inst="Gamry_G_300", sess="S1")
+        ka = {k for t, k in discovery._cause_signature(a) if t == 2}
+        kb = {k for t, k in discovery._cause_signature(b) if t == 2}
+        assert ka and kb and not (ka & kb)
 
     def test_absent_provenance_yields_NO_signature_and_stays_independent(self):
         """Falsifier F3: inferring correlation from missing data is the sigma-0 error again."""
