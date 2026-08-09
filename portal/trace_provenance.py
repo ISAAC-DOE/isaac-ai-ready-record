@@ -266,7 +266,8 @@ POLICY_DERIVED_STRENGTH = 61   # scoring tier derived from rival-contrast + marg
 POLICY_DERIVED_MARGIN = 62     # margin derived from structured threshold + observed + scale
 POLICY_OBSERVED_SCALE = 63     # the scale the margin divides by must be the evidence's own
 POLICY_VERDICT_BASIS = 64      # a verdict declares what it RESTS ON, and the claim is checked
-CURRENT_POLICY_VERSION = 64
+POLICY_SHARED_CAUSE = 65       # independence is shared-CAUSE, not shared-identifier
+CURRENT_POLICY_VERSION = 65
 
 # What a decisive verdict may rest on. The point of the vocabulary is not bookkeeping: it
 # separates the variance a CONTRACT can address from the variance that is irreducibly the

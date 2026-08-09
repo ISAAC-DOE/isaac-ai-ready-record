@@ -421,6 +421,28 @@
         "configuration": {
           "type": "object",
           "description": "THE designated open extension namespace: instrument/station/beamline-specific configuration that does not generalize across facilities (slits, pass energies, GC columns, channel IDs, logbook fields...). Anything that DOES generalize belongs in a schema field \u2014 request one."
+        },
+        "session": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The measurement SITTING this record came from: one continuous period under one calibration, on one instrument. Two records from the same session share calibration, drift and setup, so they are not independent confirmations of each other however separately they are stored. Optional. For a COMPUTED record the analogous shared cause is the calculational setup, which already lives in computation.method (code, code_version, functional_name, pseudopotential) - do not duplicate it here.",
+          "properties": {
+            "session_id": {
+              "type": "string",
+              "description": "Stable identifier for the sitting. Any scheme; it only has to be consistent within a lab."
+            },
+            "started_utc": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "calibration_ref": {
+              "type": "string",
+              "description": "Identifier of the calibration in force during the session."
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false
@@ -1780,6 +1802,29 @@
               "notes": {
                 "type": "string"
               }
+            }
+          }
+        },
+        "produced_by": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Who PRODUCED the result, as distinct from who deposited the record. Applies to a measurement, a calculation or a curation pass alike. Two results from the same group share method culture and systematic practice; two from different groups do not. `uploaded_by` cannot stand in for this - a curator depositing a hundred records from twenty groups is one uploader and twenty sources.",
+          "properties": {
+            "group": {
+              "type": "string",
+              "description": "Research group, team or collaboration."
+            },
+            "organization": {
+              "type": "string"
+            },
+            "people": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "contact": {
+              "type": "string"
             }
           }
         }

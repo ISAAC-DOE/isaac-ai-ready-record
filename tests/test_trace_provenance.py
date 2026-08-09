@@ -740,3 +740,212 @@ class TestStampedValuesAreNotIndependent:
         two = self._recs((0.25, 0.02, "measured by GC"), (0.25, 0.02, "measured by NMR"))
         monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: two)
         assert len(discovery._descriptor_sigmas("q", ["a", "b"])) == 2
+
+
+class TestPolicy65SharedCauseIndependence:
+    """Independence is shared-CAUSE, not shared-identifier.
+
+    Pre-registered in the bench repo before any of this existed. The motivating measurement:
+    of 276 record pairs in the benchmark corpus that the previous rule counted as fully
+    independent, 83 (30%) were taken on the same instrument at the same facility by the same
+    technique. `n_decisive` - the platform's bar for calling a hypothesis supported - was built
+    on that count.
+    """
+
+    def _rec(self, rid, inst=None, fac=None, sess=None, group=None, links=None):
+        r = {"record_id": rid, "system": {}}
+        if inst or sess:
+            r["system"]["instrument"] = {"instrument_name": inst}
+            if sess:
+                r["system"]["session"] = {"session_id": sess}
+        if fac:
+            r["system"]["facility"] = {"organization": fac}
+        if group:
+            r["attribution"] = {"produced_by": {"group": group}}
+        if links:
+            r["links"] = links
+        return r
+
+    def _tiers(self, rec):
+        return {t for t, _ in discovery._cause_signature(rec)}
+
+    def test_same_instrument_and_session_is_a_shared_cause(self):
+        a = self._rec("A", inst="Gamry_G_300", sess="S1", fac="LBNL")
+        b = self._rec("B", inst="Gamry_G_300", sess="S1", fac="LBNL")
+        sa = {k for t, k in discovery._cause_signature(a) if t == 2}
+        sb = {k for t, k in discovery._cause_signature(b) if t == 2}
+        assert sa and sa == sb
+
+    def test_same_instrument_DIFFERENT_session_is_not_tier_2(self):
+        """A second sitting re-calibrates. That is weaker corroboration than a fresh lab, but
+        it is not the same measurement twice."""
+        a = self._rec("A", inst="Gamry_G_300", sess="S1", fac="LBNL")
+        b = self._rec("B", inst="Gamry_G_300", sess="S2", fac="LBNL")
+        sa = {k for t, k in discovery._cause_signature(a) if t == 2}
+        sb = {k for t, k in discovery._cause_signature(b) if t == 2}
+        assert sa and sb and not (sa & sb)
+
+    def test_same_facility_is_tier_3_robustness_not_correlation(self):
+        a = self._rec("A", inst="X", sess="S1", fac="LBNL")
+        b = self._rec("B", inst="Y", sess="S2", fac="LBNL")
+        assert 3 in self._tiers(a) and 3 in self._tiers(b)
+        f = {k for t, k in discovery._cause_signature(a) if t == 3}
+        g = {k for t, k in discovery._cause_signature(b) if t == 3}
+        assert f == g
+
+    def test_a_same_sample_link_binds_BOTH_endpoints_symmetrically(self):
+        a = self._rec("A", links=[{"rel": "same_sample_as", "target": "B"}])
+        b = self._rec("B", links=[{"rel": "same_sample_as", "target": "A"}])
+        ka = {k for t, k in discovery._cause_signature(a) if t == 1}
+        kb = {k for t, k in discovery._cause_signature(b) if t == 1}
+        assert ka and ka == kb, "the key must be unordered or A->B and B->A never match"
+
+    def test_two_calculations_sharing_code_and_functional_are_correlated(self):
+        """A computed record's shared cause of error is the APPROXIMATION, not an instrument.
+        Two DFT results at one functional are wrong together in a way two experiments on one
+        bench are not - the schema is generic across theory and experiment and this rung must
+        be too. 132 of 1722 records in the repository are computational."""
+        a = {"record_id": "A", "computation": {"method": {
+            "code": "VASP", "code_version": "6.3.2", "functional_name": "RPBE"}}}
+        b = {"record_id": "B", "computation": {"method": {
+            "code": "VASP", "code_version": "6.3.2", "functional_name": "RPBE"}}}
+        ka = {k for t, k in discovery._cause_signature(a) if t == 2}
+        kb = {k for t, k in discovery._cause_signature(b) if t == 2}
+        assert ka and ka == kb
+
+    def test_the_SAME_code_at_a_DIFFERENT_functional_is_not_correlated(self):
+        """Varying the functional is the standard robustness check in computational science.
+        It must not be scored as repeating yourself."""
+        a = {"record_id": "A", "computation": {"method": {
+            "code": "VASP", "code_version": "6.3.2", "functional_name": "RPBE"}}}
+        b = {"record_id": "B", "computation": {"method": {
+            "code": "VASP", "code_version": "6.3.2", "functional_name": "BEEF-vdW"}}}
+        ka = {k for t, k in discovery._cause_signature(a) if t == 2}
+        kb = {k for t, k in discovery._cause_signature(b) if t == 2}
+        assert ka and kb and not (ka & kb)
+
+    def test_same_functional_with_UNKNOWN_code_is_robustness_not_correlation(self):
+        """The exchange-correlation approximation is the dominant systematic error in DFT and
+        does not care which program applied it - but it is a weaker claim than one identical
+        setup, so it lands in the robustness tier rather than the correlated one."""
+        a = {"record_id": "A", "computation": {"method": {"functional_name": "PBE"}}}
+        b = {"record_id": "B", "computation": {"method": {"functional_name": "PBE"}}}
+        assert not {k for t, k in discovery._cause_signature(a) if t == 2}
+        ka = {k for t, k in discovery._cause_signature(a) if t == 3}
+        kb = {k for t, k in discovery._cause_signature(b) if t == 3}
+        assert ka and ka == kb
+
+    def test_a_different_functional_shares_nothing_even_with_code_unknown(self):
+        a = {"record_id": "A", "computation": {"method": {"functional_name": "PBE"}}}
+        b = {"record_id": "B", "computation": {"method": {"functional_name": "RPBE"}}}
+        ka = {k for t, k in discovery._cause_signature(a) if t == 3}
+        kb = {k for t, k in discovery._cause_signature(b) if t == 3}
+        assert ka and kb and not (ka & kb)
+
+    def test_a_computed_and_a_measured_record_never_share_a_cause(self):
+        a = {"record_id": "A", "computation": {"method": {
+            "code": "VASP", "code_version": "6", "functional_name": "RPBE"}}}
+        b = self._rec("B", inst="Gamry_G_300", sess="S1")
+        ka = {k for t, k in discovery._cause_signature(a) if t == 2}
+        kb = {k for t, k in discovery._cause_signature(b) if t == 2}
+        assert ka and kb and not (ka & kb)
+
+    def test_absent_provenance_yields_NO_signature_and_stays_independent(self):
+        """Falsifier F3: inferring correlation from missing data is the sigma-0 error again."""
+        assert discovery._cause_signature(self._rec("A")) == set()
+        assert discovery._cause_signature({}) == set()
+
+    def test_placeholder_provenance_is_treated_as_absent_not_as_a_match(self):
+        """Two records both saying 'not_specified_in_source' are not thereby the same lab."""
+        a = self._rec("A", fac="not_specified_in_source", inst="unknown", sess="")
+        b = self._rec("B", fac="not_specified_in_source", inst="unknown", sess="")
+        assert discovery._cause_signature(a) == set()
+        assert discovery._cause_signature(b) == set()
+
+    def test_different_facilities_never_collide(self):
+        a = self._rec("A", fac="LBNL")
+        b = self._rec("B", fac="SLAC")
+        f = {k for t, k in discovery._cause_signature(a) if t == 3}
+        g = {k for t, k in discovery._cause_signature(b) if t == 3}
+        assert f and g and not (f & g)
+
+    def test_alias_and_canonical_organisation_names_MATCH(self):
+        """Was a documented gap; now fixed in the controlled vocabulary. 'LBNL' and
+        'Lawrence Berkeley National Laboratory' are one lab and must produce one key."""
+        a = self._rec("A", fac="LBNL")
+        b = self._rec("B", fac="Lawrence Berkeley National Laboratory")
+        f = {k for t, k in discovery._cause_signature(a) if t == 3}
+        g = {k for t, k in discovery._cause_signature(b) if t == 3}
+        assert f and f == g
+
+    def test_placeholders_from_the_vocabulary_are_treated_as_absent(self):
+        for junk in ("not_specified_in_source", "TBD", "literature", "unknown"):
+            r = self._rec("A", fac=junk)
+            assert not {k for t, k in discovery._cause_signature(r) if t == 3}, junk
+
+    def test_every_canonical_organisation_carries_a_ROR_id(self):
+        """Rigour means a registry, not a spelling. Each id below was resolved against the
+        live ROR API when the vocabulary was written."""
+        import ontology
+        vocab = ontology.load_vocabulary() or {}
+        orgs = None
+        for sec in vocab.values():
+            if isinstance(sec, dict) and "system.organizations" in sec:
+                orgs = sec["system.organizations"]["values"]
+        assert orgs, "organization vocabulary missing"
+        for name, ror in orgs.items():
+            assert str(ror).startswith("https://ror.org/"), (name, ror)
+
+    def test_every_alias_resolves_to_a_canonical_organisation(self):
+        import ontology
+        vocab = ontology.load_vocabulary() or {}
+        orgs = aliases = None
+        for sec in vocab.values():
+            if isinstance(sec, dict):
+                orgs = sec.get("system.organizations", {}).get("values", orgs)
+                aliases = sec.get("system.organization_aliases", {}).get("map", aliases)
+        assert orgs and aliases
+        for k, v in aliases.items():
+            assert v in orgs, "alias %r points at %r which is not canonical" % (k, v)
+
+    def test_ORIGINAL_GAP_unnormalised_organisation_names_do_not_match(self):
+        """The gap this class shipped with, kept as a regression test: an organisation NOT in
+        the alias map still produces its own key, so a new spelling silently reduces measured
+        correlation rather than inventing it. That is the safe direction, and it is the reason
+        the validator emits a vocabulary signal for unknown organisations."""
+        a = self._rec("A", fac="Institute of Something Unlisted")
+        b = self._rec("B", fac="Inst. of Something Unlisted")
+        f = {k for t, k in discovery._cause_signature(a) if t == 3}
+        g = {k for t, k in discovery._cause_signature(b) if t == 3}
+        assert not (f & g)
+
+    def test_a_lookup_failure_never_blocks_scoring(self, monkeypatch):
+        def boom(ids):
+            raise RuntimeError("records store down")
+        monkeypatch.setattr(discovery.database, "get_records_batch", boom)
+        assert discovery._cause_signatures(["A", "B"]) == (set(), set())
+
+    def test_the_gate_is_registered_and_current(self):
+        assert tp.POLICY_SHARED_CAUSE == 65
+        assert tp.CURRENT_POLICY_VERSION == tp.POLICY_SHARED_CAUSE
+
+    def test_the_manifest_states_the_rule_and_advertises_its_version(self):
+        man = discovery.get_manifest()
+        node = man.get("contract", man)
+        assert node["policy_version"] == tp.CURRENT_POLICY_VERSION
+        assert node["version"].startswith("0.73-")
+        src = open(discovery.__file__.replace(".pyc", ".py")).read()
+        assert "independence_is_shared_cause_not_shared_identifier" in src
+        assert "policy_version >= 65" in src
+
+    def test_the_clause_and_the_signature_name_no_domain(self):
+        """STANDING: the manifest must be generic for any scientific discovery."""
+        src = open(discovery.__file__.replace(".pyc", ".py")).read()
+        i = src.index("independence_is_shared_cause_not_shared_identifier")
+        clause = src[i:i + 2600].lower()
+        import inspect
+        code = inspect.getsource(discovery._cause_signature).lower()
+        for banned in ("cu-ag", "co2rr", "faradaic", "catalys", "electrode", "potentiostat",
+                       "gamry", "vasp", "lbnl", "slac"):
+            assert banned not in clause, "clause leaked a domain term: %s" % banned
+            assert banned not in code, "signature leaked a domain term: %s" % banned
