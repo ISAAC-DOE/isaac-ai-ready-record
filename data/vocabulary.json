@@ -331,6 +331,56 @@
         "scan_rate_mV_s",
         "beam_attenuator"
       ]
+    },
+    "system.organizations": {
+      "description": "Canonical research organizations, identified by ROR (Research Organization Registry, ror.org) \u2014 the same registry funders and publishers use. An organization string is only usable for reasoning if two records naming the same institution produce the same key: the discovery engine treats results from one organization as sharing method culture and systematic practice, so 'SLAC' and 'SLAC National Accelerator Laboratory' scoring as two different labs silently inflates how independent the evidence looks. Every ROR id below was resolved against the live registry, not recalled. Add entries by looking the institution up at ror.org; do not invent an id.",
+      "values": {
+        "SLAC National Accelerator Laboratory": "https://ror.org/05gzmn429",
+        "Lawrence Berkeley National Laboratory": "https://ror.org/02jbv0t02",
+        "Argonne National Laboratory": "https://ror.org/05gvnxz63",
+        "National Energy Research Scientific Computing Center": "https://ror.org/05v3mvq14",
+        "University of California, Berkeley": "https://ror.org/01an7q238",
+        "California Institute of Technology": "https://ror.org/05dxps055",
+        "University of Toronto": "https://ror.org/03dbr7087",
+        "Utrecht University": "https://ror.org/04pp8hn57",
+        "Eindhoven University of Technology": "https://ror.org/02c2kyt77",
+        "Xi'an Jiaotong University": "https://ror.org/017zhmm22",
+        "European Synchrotron Radiation Facility": "https://ror.org/02550n020"
+      }
+    },
+    "system.organization_aliases": {
+      "description": "Deprecated or abbreviated organization spellings mapped to their canonical name in system.organizations. Same accept-and-teach pattern as unit aliases: a record using an alias is ACCEPTED and the validator says which canonical form to prefer. Built from the strings actually present in the repository.",
+      "map": {
+        "SLAC": "SLAC National Accelerator Laboratory",
+        "LBNL": "Lawrence Berkeley National Laboratory",
+        "LBL": "Lawrence Berkeley National Laboratory",
+        "Berkeley Lab": "Lawrence Berkeley National Laboratory",
+        "Lawrence Berkeley National Laboratory / UC Berkeley": "Lawrence Berkeley National Laboratory",
+        "ANL": "Argonne National Laboratory",
+        "Advanced Photon Source, Argonne National Laboratory": "Argonne National Laboratory",
+        "APS": "Argonne National Laboratory",
+        "NERSC": "National Energy Research Scientific Computing Center",
+        "XJTU": "Xi'an Jiaotong University",
+        "ESRF": "European Synchrotron Radiation Facility",
+        "Caltech": "California Institute of Technology",
+        "UC Berkeley": "University of California, Berkeley",
+        "UToronto": "University of Toronto",
+        "TU Eindhoven": "Eindhoven University of Technology",
+        "TU/e": "Eindhoven University of Technology"
+      }
+    },
+    "system.organization_placeholders": {
+      "description": "Strings that appear in the organization slot but name NO institution. These must never be treated as an organization key: two records both saying 'not_specified_in_source' are not thereby the same lab, and scoring them as one would invent a correlation the records do not assert. The discovery engine treats these as ABSENT provenance, which leaves the evidence independent rather than correlated.",
+      "values": [
+        "not_specified_in_source",
+        "not_specified_in_main_text",
+        "unknown",
+        "none",
+        "TBD",
+        "literature",
+        "N/A",
+        "na"
+      ]
     }
   },
   "Measurement": {

@@ -2994,6 +2994,46 @@ def _margin_factor(margin):
 # links appear 7,794 times. Nothing here is domain-specific: samples, instruments, sittings and
 # facilities exist in every experimental science.
 
+def _org_vocab(key, field, default):
+    try:
+        import ontology
+        vocab = ontology.load_vocabulary() or {}
+    except Exception:
+        return default
+    for _s in vocab.values():
+        if isinstance(_s, dict) and key in _s:
+            node = _s[key]
+            if isinstance(node, dict) and isinstance(node.get(field), (list, dict)):
+                return node[field]
+    return default
+
+
+def _org_placeholders():
+    """Strings occupying the organization slot that name no institution. Two records both
+    saying 'not_specified_in_source' are not thereby the same lab, and treating them as one
+    would invent a correlation the records never assert."""
+    return {str(x).lower() for x in _org_vocab(
+        "system.organization_placeholders", "values",
+        ["not_specified_in_source", "not_specified_in_main_text", "unknown", "none", "tbd",
+         "literature", "n/a", "na"])} | {""}
+
+
+def _canonical_org(name):
+    """One institution, one key. 'SLAC' and 'SLAC National Accelerator Laboratory' are one
+    lab; scoring them as two silently inflates how independent the evidence looks. Aliases
+    resolve through the controlled vocabulary, which carries the ROR id for each canonical
+    name — the same registry funders and publishers use."""
+    if not name:
+        return ""
+    n = str(name).strip()
+    aliases = _org_vocab("system.organization_aliases", "map", {})
+    if isinstance(aliases, dict):
+        for k, v in aliases.items():
+            if k.strip().lower() == n.lower():
+                return str(v)
+    return n
+
+
 def _cause_signature(rec):
     """The shared causes of error a record carries, as (tier, key) pairs.
 
@@ -3009,15 +3049,16 @@ def _cause_signature(rec):
     inst = ((sysm.get("instrument") or {}).get("instrument_name") or "").strip()
     fac = ((sysm.get("facility") or {}).get("organization") or "").strip()
     sess = ((sysm.get("session") or {}).get("session_id") or "").strip()
-    unknown = {"", "not_specified_in_source", "not_specified_in_main_text", "unknown", "none"}
+    unknown = _org_placeholders()
 
     for l in (rec.get("links") or []):
         if isinstance(l, dict) and l.get("rel") in ("same_sample_as", "replica_of") and l.get("target"):
             # symmetric: both endpoints get the same unordered key
             sig.add((1, "sample:" + "|".join(sorted([str(rec.get("record_id") or ""), str(l["target"])]))))
-    if sess.lower() not in unknown and inst.lower() not in unknown:
+    if sess.lower() not in unknown and inst.lower() not in unknown and inst:
         sig.add((2, "session:%s@%s" % (sess, inst)))
-    if fac.lower() not in unknown:
+    fac = _canonical_org(fac)
+    if fac and fac.lower() not in unknown:
         grp = (((rec.get("attribution") or {}).get("measured_by") or {}).get("group") or "").strip()
         sig.add((3, "facility:%s/%s" % (fac, grp)))
     return sig

@@ -819,15 +819,52 @@ class TestPolicy65SharedCauseIndependence:
         g = {k for t, k in discovery._cause_signature(b) if t == 3}
         assert f and g and not (f & g)
 
-    def test_KNOWN_GAP_unnormalised_organisation_names_do_not_match(self):
-        """Documented, not fixed here. The corpus carries BOTH 'LBNL' and 'Lawrence Berkeley
-        National Laboratory', which are one lab and are scored as two. The effect is that the
-        gate UNDER-counts correlation, so it errs toward the old behaviour rather than toward
-        over-firing - the safe direction. The fix belongs in the controlled vocabulary as an
-        organisation alias map, exactly as unit aliases already work, NOT in string matching
-        here."""
+    def test_alias_and_canonical_organisation_names_MATCH(self):
+        """Was a documented gap; now fixed in the controlled vocabulary. 'LBNL' and
+        'Lawrence Berkeley National Laboratory' are one lab and must produce one key."""
         a = self._rec("A", fac="LBNL")
         b = self._rec("B", fac="Lawrence Berkeley National Laboratory")
+        f = {k for t, k in discovery._cause_signature(a) if t == 3}
+        g = {k for t, k in discovery._cause_signature(b) if t == 3}
+        assert f and f == g
+
+    def test_placeholders_from_the_vocabulary_are_treated_as_absent(self):
+        for junk in ("not_specified_in_source", "TBD", "literature", "unknown"):
+            r = self._rec("A", fac=junk)
+            assert not {k for t, k in discovery._cause_signature(r) if t == 3}, junk
+
+    def test_every_canonical_organisation_carries_a_ROR_id(self):
+        """Rigour means a registry, not a spelling. Each id below was resolved against the
+        live ROR API when the vocabulary was written."""
+        import ontology
+        vocab = ontology.load_vocabulary() or {}
+        orgs = None
+        for sec in vocab.values():
+            if isinstance(sec, dict) and "system.organizations" in sec:
+                orgs = sec["system.organizations"]["values"]
+        assert orgs, "organization vocabulary missing"
+        for name, ror in orgs.items():
+            assert str(ror).startswith("https://ror.org/"), (name, ror)
+
+    def test_every_alias_resolves_to_a_canonical_organisation(self):
+        import ontology
+        vocab = ontology.load_vocabulary() or {}
+        orgs = aliases = None
+        for sec in vocab.values():
+            if isinstance(sec, dict):
+                orgs = sec.get("system.organizations", {}).get("values", orgs)
+                aliases = sec.get("system.organization_aliases", {}).get("map", aliases)
+        assert orgs and aliases
+        for k, v in aliases.items():
+            assert v in orgs, "alias %r points at %r which is not canonical" % (k, v)
+
+    def test_ORIGINAL_GAP_unnormalised_organisation_names_do_not_match(self):
+        """The gap this class shipped with, kept as a regression test: an organisation NOT in
+        the alias map still produces its own key, so a new spelling silently reduces measured
+        correlation rather than inventing it. That is the safe direction, and it is the reason
+        the validator emits a vocabulary signal for unknown organisations."""
+        a = self._rec("A", fac="Institute of Something Unlisted")
+        b = self._rec("B", fac="Inst. of Something Unlisted")
         f = {k for t, k in discovery._cause_signature(a) if t == 3}
         g = {k for t, k in discovery._cause_signature(b) if t == 3}
         assert not (f & g)
