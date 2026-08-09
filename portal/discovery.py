@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.72-a-verdict-declares-what-it-rests-on",
+        "version": "0.73-independence-is-shared-cause-not-shared-identifier",
         # Read from the constant, never retyped. This drifted exactly once and it was caught
         # by an adversarial review rather than by a test: 0.70 raised CURRENT to 63 while the
         # manifest still advertised 62, so every agent reading the contract would have been
@@ -700,6 +700,27 @@ def get_manifest() -> dict:
                 "must be earned IN-SYSTEM. (The Cu-Ag lesson — a borrowed analog drove a "
                 "hypothesis to a false 0.83 'reliable'; this prevents that.) Check the "
                 "source's actual claim before borrowing; the rigor critic audits it.",
+            "independence_is_shared_cause_not_shared_identifier": "Two results are "
+                "independent to the degree that they do NOT share a CAUSE OF ERROR. Different "
+                "record identifiers are not enough: two measurements on the same specimen, or "
+                "taken in the same sitting on the same instrument under one calibration, are "
+                "wrong TOGETHER, so they corroborate like one measurement and not like two. "
+                "Two results from different groups on different instruments are worth far more "
+                "to a hypothesis than two from one bench, even when the numbers are identical - "
+                "especially when they are identical. "
+                "⚠ FOR PROJECTS BORN AT policy_version >= 65 the platform COMPUTES this from "
+                "the records you cite and applies it: "
+                "evidence sharing a specimen (`same_sample_as` / `replica_of`) or an "
+                "instrument-and-session is treated as CORRELATED (attenuated, and it does not "
+                "add to n_decisive); evidence sharing only a facility or group is treated as "
+                "ROBUSTNESS rather than independence. Evidence whose provenance is ABSENT stays "
+                "independent - the platform will not infer correlation from silence, because a "
+                "missing field is not a claim. What this means for you: when a hypothesis needs "
+                "independent support, look for a second measurement that could fail for a "
+                "DIFFERENT reason - another specimen, another instrument, another group, "
+                "another technique - not merely another record. And when you deposit, record "
+                "`system.session`, `attribution.measured_by` and `replica_of` links, because "
+                "un-recorded provenance is scored as independence you may not have earned.",
             "failed_compute_never_penalizes": "A computation that crashes or does not "
                 "converge is NOT evidence and NOT a verdict — it produced no measurement. "
                 "Set the prediction's work_status='compute_failed' (a failed compute run "
@@ -2958,6 +2979,75 @@ def _margin_factor(margin):
     return 0.7 + 0.6 * m
 
 
+
+# ---------------------------------------------------------------------------
+# Shared-cause independence (policy 65)
+# ---------------------------------------------------------------------------
+# Independence is not a property of an identifier. Two records with different IDs taken on the
+# same instrument, in the same sitting, on the same specimen are not two confirmations of
+# anything - they share a cause of error, so they are wrong together. Measured on the Cu-Ag
+# benchmark corpus: of 276 record pairs the previous rule counted as fully independent, 83
+# (30%) were the same instrument at the same facility by the same technique.
+#
+# The fields this reads are already in the schema and already populated across the repository:
+# system.technique 99.8%, system.instrument 94.2%, system.facility 93.6%, and same_sample_as
+# links appear 7,794 times. Nothing here is domain-specific: samples, instruments, sittings and
+# facilities exist in every experimental science.
+
+def _cause_signature(rec):
+    """The shared causes of error a record carries, as (tier, key) pairs.
+
+    Tier 1 = same specimen, tier 2 = same instrument and sitting, tier 3 = same facility.
+    ABSENT provenance yields NO signature at that tier, never a shared one: inferring
+    correlation from missing data would be the `sigma: 0` error in a new place (falsifier F3),
+    so silence means "cannot prove overlap" and the evidence stays independent.
+    """
+    sig = set()
+    if not isinstance(rec, dict):
+        return sig
+    sysm = rec.get("system") or {}
+    inst = ((sysm.get("instrument") or {}).get("instrument_name") or "").strip()
+    fac = ((sysm.get("facility") or {}).get("organization") or "").strip()
+    sess = ((sysm.get("session") or {}).get("session_id") or "").strip()
+    unknown = {"", "not_specified_in_source", "not_specified_in_main_text", "unknown", "none"}
+
+    for l in (rec.get("links") or []):
+        if isinstance(l, dict) and l.get("rel") in ("same_sample_as", "replica_of") and l.get("target"):
+            # symmetric: both endpoints get the same unordered key
+            sig.add((1, "sample:" + "|".join(sorted([str(rec.get("record_id") or ""), str(l["target"])]))))
+    if sess.lower() not in unknown and inst.lower() not in unknown:
+        sig.add((2, "session:%s@%s" % (sess, inst)))
+    if fac.lower() not in unknown:
+        grp = (((rec.get("attribution") or {}).get("measured_by") or {}).get("group") or "").strip()
+        sig.add((3, "facility:%s/%s" % (fac, grp)))
+    return sig
+
+
+def _cause_signatures(record_ids):
+    """Union of cause signatures over a cited evidence set, plus the sample components it
+    belongs to. Returns (tier12, tier3) as two sets."""
+    if not record_ids:
+        return set(), set()
+    try:
+        recs = database.get_records_batch(list(record_ids)) or []
+    except Exception:
+        logger.warning("cause-signature lookup failed", exc_info=True)
+        return set(), set()
+    t12, t3 = set(), set()
+    ids = {str(r.get("record_id")) for r in recs if isinstance(r, dict)}
+    for r in recs:
+        for tier, key in _cause_signature(r):
+            if tier == 1:
+                # a same-sample link only binds if BOTH endpoints are in play, or the target is
+                # cited by the other verdict - the key is unordered so intersection handles it
+                t12.add(key)
+            elif tier == 2:
+                t12.add(key)
+            else:
+                t3.add(key)
+    return t12, t3
+
+
 def compute_hypothesis_score(h) -> dict:
     """THE single, canonical way a hypothesis is evaluated. Confidence is COMPUTED
     (never authored) by aggregating the verdicts of the hypothesis's evaluated
@@ -3141,6 +3231,8 @@ def compute_hypothesis_score(h) -> dict:
     for direction in (+1, -1):
         claimed = set()        # evidence-record / calc identities already counted
         claimed_obs = set()    # OBSERVABLE identities already counted (robustness dedup)
+        claimed_cause = set()  # policy 65: shared CAUSES of error already counted (tier 1-2)
+        claimed_fac = set()    # policy 65: facilities/groups already counted (tier 3)
         # Deterministic TOTAL order for the greedy independence pass: strongest
         # first, then SMALLEST evidence footprint first (claims fewer records ->
         # better approximates the maximum independent set), then the unique
@@ -3171,6 +3263,23 @@ def compute_hypothesis_score(h) -> dict:
             # (no ev AND no observable_key) is treated as independent — we can't prove overlap.
             shares_ev = bool(ev) and bool(ev & claimed)
             shares_obs = bool(obs) and (obs in claimed_obs)
+            # POLICY 65: independence is shared-CAUSE, not shared-identifier. Distinct record
+            # ids taken on the same specimen or in the same sitting are wrong together, so they
+            # corroborate like one measurement, not two. Same facility (different instrument or
+            # sitting) is weaker than that but not independence either: it maps onto the
+            # existing ROBUSTNESS class rather than inventing a fourth. Absent provenance
+            # yields no signature and therefore stays independent (falsifier F3).
+            _cause_t12 = _cause_t3 = set()
+            if int(h.get("policy_version") or 0) >= _tp.POLICY_SHARED_CAUSE and ev:
+                _cause_t12, _cause_t3 = _cause_signatures(ev)
+                if _cause_t12 & claimed_cause:
+                    shares_ev = True
+                    pred_detail.setdefault(pdkey, {})["shared_cause"] = sorted(
+                        _cause_t12 & claimed_cause)[:3]
+                elif _cause_t3 & claimed_fac:
+                    shares_obs = True
+                    pred_detail.setdefault(pdkey, {})["shared_cause"] = sorted(
+                        _cause_t3 & claimed_fac)[:3]
             independent = not shares_ev and not shares_obs
             base = (sw if independent
                     else sw * _CORRELATION_ATTENUATION if shares_ev
@@ -3197,6 +3306,8 @@ def compute_hypothesis_score(h) -> dict:
                         pred_detail[pdkey]["counted"] = True
                     if ev:
                         claimed |= ev
+                    claimed_cause |= _cause_t12
+                    claimed_fac |= _cause_t3
                     if obs:
                         claimed_obs.add(obs)
                     # A STRONG contradiction falsifies (hard cap) only when the breach is

@@ -740,3 +740,125 @@ class TestStampedValuesAreNotIndependent:
         two = self._recs((0.25, 0.02, "measured by GC"), (0.25, 0.02, "measured by NMR"))
         monkeypatch.setattr(discovery.database, "get_records_batch", lambda ids: two)
         assert len(discovery._descriptor_sigmas("q", ["a", "b"])) == 2
+
+
+class TestPolicy65SharedCauseIndependence:
+    """Independence is shared-CAUSE, not shared-identifier.
+
+    Pre-registered in the bench repo before any of this existed. The motivating measurement:
+    of 276 record pairs in the benchmark corpus that the previous rule counted as fully
+    independent, 83 (30%) were taken on the same instrument at the same facility by the same
+    technique. `n_decisive` - the platform's bar for calling a hypothesis supported - was built
+    on that count.
+    """
+
+    def _rec(self, rid, inst=None, fac=None, sess=None, group=None, links=None):
+        r = {"record_id": rid, "system": {}}
+        if inst or sess:
+            r["system"]["instrument"] = {"instrument_name": inst}
+            if sess:
+                r["system"]["session"] = {"session_id": sess}
+        if fac:
+            r["system"]["facility"] = {"organization": fac}
+        if group:
+            r["attribution"] = {"measured_by": {"group": group}}
+        if links:
+            r["links"] = links
+        return r
+
+    def _tiers(self, rec):
+        return {t for t, _ in discovery._cause_signature(rec)}
+
+    def test_same_instrument_and_session_is_a_shared_cause(self):
+        a = self._rec("A", inst="Gamry_G_300", sess="S1", fac="LBNL")
+        b = self._rec("B", inst="Gamry_G_300", sess="S1", fac="LBNL")
+        sa = {k for t, k in discovery._cause_signature(a) if t == 2}
+        sb = {k for t, k in discovery._cause_signature(b) if t == 2}
+        assert sa and sa == sb
+
+    def test_same_instrument_DIFFERENT_session_is_not_tier_2(self):
+        """A second sitting re-calibrates. That is weaker corroboration than a fresh lab, but
+        it is not the same measurement twice."""
+        a = self._rec("A", inst="Gamry_G_300", sess="S1", fac="LBNL")
+        b = self._rec("B", inst="Gamry_G_300", sess="S2", fac="LBNL")
+        sa = {k for t, k in discovery._cause_signature(a) if t == 2}
+        sb = {k for t, k in discovery._cause_signature(b) if t == 2}
+        assert sa and sb and not (sa & sb)
+
+    def test_same_facility_is_tier_3_robustness_not_correlation(self):
+        a = self._rec("A", inst="X", sess="S1", fac="LBNL")
+        b = self._rec("B", inst="Y", sess="S2", fac="LBNL")
+        assert 3 in self._tiers(a) and 3 in self._tiers(b)
+        f = {k for t, k in discovery._cause_signature(a) if t == 3}
+        g = {k for t, k in discovery._cause_signature(b) if t == 3}
+        assert f == g
+
+    def test_a_same_sample_link_binds_BOTH_endpoints_symmetrically(self):
+        a = self._rec("A", links=[{"rel": "same_sample_as", "target": "B"}])
+        b = self._rec("B", links=[{"rel": "same_sample_as", "target": "A"}])
+        ka = {k for t, k in discovery._cause_signature(a) if t == 1}
+        kb = {k for t, k in discovery._cause_signature(b) if t == 1}
+        assert ka and ka == kb, "the key must be unordered or A->B and B->A never match"
+
+    def test_absent_provenance_yields_NO_signature_and_stays_independent(self):
+        """Falsifier F3: inferring correlation from missing data is the sigma-0 error again."""
+        assert discovery._cause_signature(self._rec("A")) == set()
+        assert discovery._cause_signature({}) == set()
+
+    def test_placeholder_provenance_is_treated_as_absent_not_as_a_match(self):
+        """Two records both saying 'not_specified_in_source' are not thereby the same lab."""
+        a = self._rec("A", fac="not_specified_in_source", inst="unknown", sess="")
+        b = self._rec("B", fac="not_specified_in_source", inst="unknown", sess="")
+        assert discovery._cause_signature(a) == set()
+        assert discovery._cause_signature(b) == set()
+
+    def test_different_facilities_never_collide(self):
+        a = self._rec("A", fac="LBNL")
+        b = self._rec("B", fac="SLAC")
+        f = {k for t, k in discovery._cause_signature(a) if t == 3}
+        g = {k for t, k in discovery._cause_signature(b) if t == 3}
+        assert f and g and not (f & g)
+
+    def test_KNOWN_GAP_unnormalised_organisation_names_do_not_match(self):
+        """Documented, not fixed here. The corpus carries BOTH 'LBNL' and 'Lawrence Berkeley
+        National Laboratory', which are one lab and are scored as two. The effect is that the
+        gate UNDER-counts correlation, so it errs toward the old behaviour rather than toward
+        over-firing - the safe direction. The fix belongs in the controlled vocabulary as an
+        organisation alias map, exactly as unit aliases already work, NOT in string matching
+        here."""
+        a = self._rec("A", fac="LBNL")
+        b = self._rec("B", fac="Lawrence Berkeley National Laboratory")
+        f = {k for t, k in discovery._cause_signature(a) if t == 3}
+        g = {k for t, k in discovery._cause_signature(b) if t == 3}
+        assert not (f & g)
+
+    def test_a_lookup_failure_never_blocks_scoring(self, monkeypatch):
+        def boom(ids):
+            raise RuntimeError("records store down")
+        monkeypatch.setattr(discovery.database, "get_records_batch", boom)
+        assert discovery._cause_signatures(["A", "B"]) == (set(), set())
+
+    def test_the_gate_is_registered_and_current(self):
+        assert tp.POLICY_SHARED_CAUSE == 65
+        assert tp.CURRENT_POLICY_VERSION == tp.POLICY_SHARED_CAUSE
+
+    def test_the_manifest_states_the_rule_and_advertises_its_version(self):
+        man = discovery.get_manifest()
+        node = man.get("contract", man)
+        assert node["policy_version"] == tp.CURRENT_POLICY_VERSION
+        assert node["version"].startswith("0.73-")
+        src = open(discovery.__file__.replace(".pyc", ".py")).read()
+        assert "independence_is_shared_cause_not_shared_identifier" in src
+        assert "policy_version >= 65" in src
+
+    def test_the_clause_and_the_signature_name_no_domain(self):
+        """STANDING: the manifest must be generic for any scientific discovery."""
+        src = open(discovery.__file__.replace(".pyc", ".py")).read()
+        i = src.index("independence_is_shared_cause_not_shared_identifier")
+        clause = src[i:i + 2600].lower()
+        import inspect
+        code = inspect.getsource(discovery._cause_signature).lower()
+        for banned in ("cu-ag", "co2rr", "faradaic", "catalys", "electrode", "potentiostat",
+                       "gamry", "vasp", "lbnl", "slac"):
+            assert banned not in clause, "clause leaked a domain term: %s" % banned
+            assert banned not in code, "signature leaked a domain term: %s" % banned
