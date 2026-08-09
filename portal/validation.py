@@ -436,14 +436,48 @@ def _warning_checks(record: dict):
                                 f"not one of {sorted(FE_UNCERTAINTY_BASES)}. Free-text bases "
                                 f"cannot be filtered or compared across records.")})
 
+            # Closure band, SYMMETRIC at +/-10%. Set from the repository's own distribution
+            # (2026-08-08, 133 blocks with >=3 leaf products): 72.2% land in 0.90-1.10, NOTHING
+            # anywhere exceeds 1.10, and the entire tail is 0.70-0.90. Quantitative calibration
+            # to better than ~10% is hard, and minor or hard-to-detect species routinely go
+            # unquantified, so a slate that does not close is NORMAL SCIENCE and must not be
+            # nagged at as a defect. The earlier asymmetric band (warn above 1.05, warn below
+            # 0.90) was tighter on the side where nothing ever happens and moralising on the
+            # side where everything does.
+            #
+            # What a machine genuinely cannot do is tell an UNDECLARED gap from a measurement
+            # that failed to balance. So the check asks for the declaration, and goes quiet the
+            # moment the block provides one.
             n_leaf = len(leaves)
             total = sum(leaves.values())
-            if n_leaf >= 2 and total > 1.05:
+            comp = o.get("completeness") if isinstance(o, dict) else None
+            declared = bool(isinstance(comp, dict) and (
+                comp.get("quantified") in ("major_components_only", "partial")
+                or comp.get("unquantified")))
+            whole = 1.0
+            if isinstance(comp, dict) and isinstance(comp.get("expected_total"), (int, float)):
+                whole = float(comp["expected_total"]) or 1.0
+
+            if n_leaf >= 2 and total > 1.10 * whole:
                 warnings.append({"code": "FE_SUM_EXCEEDS_UNITY", "path": f"descriptors/outputs/{oi}",
-                                 "message": f"Sum of {n_leaf} LEAF product Faradaic efficiencies = {total:.2f} > 1.05 in one output block — check for percent encoding or a product counted twice. Roll-up descriptors ({', '.join(sorted(rollups)) or 'none present'}) are excluded from this sum by design."})
-            if n_leaf >= 3 and total < 0.90:
-                warnings.append({"code": "FE_SUM_UNDER_CLOSES", "path": f"descriptors/outputs/{oi}",
-                                 "message": f"Sum of {n_leaf} LEAF product Faradaic efficiencies = {total:.2f} in one output block, leaving {1 - total:.2f} of the charge unaccounted for. Either a product class was not quantified — say so — or the slate is normalised to something other than total charge. A silent gap is indistinguishable from a measurement that does not balance."})
+                                 "message": f"Sum of {n_leaf} LEAF product Faradaic efficiencies = {total:.2f} against an expected total of {whole:.2f}, more than 10% over. Over-closure has no benign reading the way under-closure does — check for percent encoding or a product counted twice. Roll-up descriptors ({', '.join(sorted(rollups)) or 'none present'}) are excluded from this sum by design."})
+            elif n_leaf >= 3 and total < 0.90 * whole and not declared:
+                gap = whole - total
+                entry = {"path": f"descriptors/outputs/{oi}",
+                         "code": "FE_SLATE_INCOMPLETE_UNDECLARED",
+                         "message": (
+                             f"{n_leaf} product Faradaic efficiencies sum to {total:.2f} of an "
+                             f"expected {whole:.2f}, leaving {gap:.2f} unaccounted for, and the "
+                             f"block does not say why. This is very often fine — minor and "
+                             f"hard-to-detect species are routinely not quantified — but said "
+                             f"out loud it becomes re-usable evidence instead of a silent hole. "
+                             f"Set descriptors.outputs[].completeness: "
+                             f"{{quantified: 'major_components_only', unquantified: ['liquid "
+                             f"products', ...]}}. If the slate IS meant to be exhaustive, "
+                             f"declare quantified: 'all_components' and the gap becomes a real "
+                             f"finding worth chasing.")}
+                # Under 20% missing is ordinary; beyond that it is worth a depositor's eye.
+                (warnings if total < 0.80 * whole else info).append(entry)
 
             # Roll-ups must equal the leaves they aggregate. This is a free, exact consistency
             # check wherever both are present, and it is what distinguishes a faithfully

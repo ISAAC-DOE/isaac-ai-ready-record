@@ -427,17 +427,54 @@ class TestFEChargeBalanceAndSigmaZero:
         rec = self._block(("faradaic_efficiency.CH4", 40.0), ("faradaic_efficiency.H2", 55.0))
         assert "FE_SUM_EXCEEDS_UNITY" in self._codes(rec)
 
-    def test_an_under_closing_slate_is_now_visible(self):
-        """0.77 of the charge accounted for; previously silent."""
+    def test_the_band_is_symmetric_at_ten_percent(self):
+        """Repository distribution: 72.2% of blocks land in 0.90-1.10 and NOTHING exceeds 1.10.
+        Calibration to better than ~10% is hard; a slate at 0.93 or 1.07 is ordinary science."""
+        for tot in (0.93, 1.07):
+            rec = self._block(("faradaic_efficiency.CH4", tot - 0.5),
+                              ("faradaic_efficiency.C2H4", 0.3), ("faradaic_efficiency.H2", 0.2))
+            codes = self._codes(rec)
+            assert "FE_SLATE_INCOMPLETE_UNDECLARED" not in codes
+            assert "FE_SUM_EXCEEDS_UNITY" not in codes
+
+    def test_an_undeclared_gap_asks_for_a_declaration(self):
         rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
                           ("faradaic_efficiency.C2H4", 0.27), ("faradaic_efficiency.H2", 0.07))
-        assert "FE_SUM_UNDER_CLOSES" in self._codes(rec)
+        assert "FE_SLATE_INCOMPLETE_UNDECLARED" in self._codes(rec)
 
-    def test_a_closing_slate_is_silent_in_both_directions(self):
-        rec = self._block(("faradaic_efficiency.CH4", 0.30), ("faradaic_efficiency.C2H4", 0.35),
-                          ("faradaic_efficiency.CO", 0.15), ("faradaic_efficiency.H2", 0.18))
-        codes = self._codes(rec)
-        assert "FE_SUM_UNDER_CLOSES" not in codes and "FE_SUM_EXCEEDS_UNITY" not in codes
+    def test_a_declared_gap_is_silent(self):
+        """Unquantified minor products are normal. Said out loud, there is nothing to flag."""
+        rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
+                          ("faradaic_efficiency.C2H4", 0.27), ("faradaic_efficiency.H2", 0.07))
+        rec["descriptors"]["outputs"][0]["completeness"] = {
+            "quantified": "major_components_only", "unquantified": ["liquid products"]}
+        assert "FE_SLATE_INCOMPLETE_UNDECLARED" not in self._codes(rec)
+
+    def test_a_declared_slate_survives_schema_validation(self):
+        """The new field is optional and additive; additionalProperties is false on the block."""
+        rec = self._block(("faradaic_efficiency.CH4", 0.5), ("faradaic_efficiency.H2", 0.4))
+        rec["descriptors"]["outputs"][0]["completeness"] = {
+            "quantified": "major_components_only", "unquantified": ["C3+"],
+            "expected_total": 1.0, "notes": "GC did not resolve liquids"}
+        errs = [e for e in validation.validate_record_full(rec)["schema_errors"]
+                if "completeness" in str(e)]
+        assert not errs, errs
+
+    def test_a_modest_gap_is_gentler_than_a_large_one(self):
+        """0.85 is plausible unquantified minors; 0.75 deserves a depositor's eye."""
+        modest = self._block(("faradaic_efficiency.CH4", 0.40), ("faradaic_efficiency.C2H4", 0.30),
+                             ("faradaic_efficiency.H2", 0.15))
+        large = self._block(("faradaic_efficiency.CH4", 0.35), ("faradaic_efficiency.C2H4", 0.25),
+                            ("faradaic_efficiency.H2", 0.15))
+        w_m, i_m = validation._warning_checks(modest)[:2]
+        w_l, i_l = validation._warning_checks(large)[:2]
+        assert any(x["code"] == "FE_SLATE_INCOMPLETE_UNDECLARED" for x in i_m)
+        assert any(x["code"] == "FE_SLATE_INCOMPLETE_UNDECLARED" for x in w_l)
+
+    def test_over_closure_still_warns_because_it_has_no_benign_reading(self):
+        rec = self._block(("faradaic_efficiency.CH4", 0.70), ("faradaic_efficiency.C2H4", 0.30),
+                          ("faradaic_efficiency.H2", 0.20))
+        assert "FE_SUM_EXCEEDS_UNITY" in self._codes(rec)
 
     def test_a_rollup_that_disagrees_with_its_components_is_flagged(self):
         rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
