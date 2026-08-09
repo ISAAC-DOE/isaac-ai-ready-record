@@ -402,6 +402,53 @@ def _warning_checks(record: dict):
             warnings.append({"code": "QC_COMPROMISED_NO_EVIDENCE", "path": "measurement/qc/evidence",
                              "message": "qc.status='compromised' requires a concrete evidence sentence (what is compromised and why). 'N/A' defeats the purpose."})
 
+        # A DRIVEN experiment whose descriptors do not say what they represent, or whose
+        # static setpoints silently describe only one level of the drive. Generic across
+        # domains: the same check covers a modulated potential, chopped illumination, a
+        # temperature programme or pulsed dosing. Advisory only.
+        mod = (record.get("context") or {}).get("modulation")
+        if isinstance(mod, dict) and mod:
+            if not mod.get("descriptors_represent") or mod["descriptors_represent"] == "unspecified":
+                warnings.append({
+                    "code": "MODULATED_DESCRIPTORS_UNSPECIFIED", "path": "context/modulation",
+                    "message": (
+                        "This record declares a driven (modulated) control variable but does not "
+                        "say what its descriptors represent. A cycle-averaged quantity and a "
+                        "steady-state quantity of the same name are DIFFERENT QUANTITIES, and a "
+                        "consumer cannot tell them apart without this. Set "
+                        "context.modulation.descriptors_represent.")})
+            if not mod.get("driven_variable"):
+                warnings.append({
+                    "code": "MODULATION_DRIVEN_VARIABLE_MISSING", "path": "context/modulation",
+                    "message": ("context.modulation is present but `driven_variable` is not set, "
+                                "so a consumer cannot tell WHICH condition was being driven.")})
+            if mod.get("frequency_Hz") and mod.get("period_s"):
+                warnings.append({
+                    "code": "MODULATION_RATE_OVERSPECIFIED", "path": "context/modulation",
+                    "message": ("both frequency_Hz and period_s are given; they can disagree. "
+                                "Declare one.")})
+        else:
+            # The inverse, and the case that motivated this: a record whose modulation survives
+            # only in an asset filename or free text reads to every consumer as a static
+            # measurement. Detect the words rather than the technique, so it fires for any
+            # domain that buries a drive in prose.
+            import re as _re
+            _hay = " ".join([json.dumps(record.get("assets") or []),
+                             str((record.get("system") or {}).get("configuration") or ""),
+                             str(((record.get("context") or {}).get("electrochemistry") or {}).get("notes") or ""),
+                             str((record.get("sample") or {}).get("notes") or "")])
+            if _re.search(r"modulat|pulsed|duty[ _-]?cycle|chopped|square[ _-]?wave", _hay, _re.I):
+                info.append({
+                    "code": "MODULATION_EVIDENT_BUT_UNDECLARED", "path": "context",
+                    "message": (
+                        "This record mentions a modulated/pulsed/chopped experiment in its "
+                        "assets or notes, but declares no context.modulation block — so every "
+                        "machine reading it will treat the measurement as static, and its "
+                        "setpoints as the condition of the whole run. Declare "
+                        "context.modulation (driven_variable, waveform, frequency, levels and "
+                        "descriptors_represent) so the drive is queryable rather than buried in "
+                        "a filename.")})
+
         # Component-set closure, per output block.
         #
         # A descriptor family whose members are shares of a whole can be summed and compared

@@ -532,3 +532,132 @@ class TestFEChargeBalanceAndSigmaZero:
         assert "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS" in self._codes(rec)
         ds[-1] = dict(ds[-1], value=0.5)
         assert "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS" not in self._codes(rec)
+
+
+class TestContextModulation:
+    """A control variable DRIVEN PERIODICALLY rather than held constant.
+
+    Motivated by 51 records deposited 2026-08-09 whose modulated potential survived only inside
+    an asset filename (`..._m1p3V_1p3Hz_13Hz.xlsx`), so every consumer read them as static
+    measurements at a single setpoint. But the block is deliberately NOT electrochemical: the
+    same structure carries chopped illumination, a temperature programme, pulsed reactant
+    dosing and modulation-excitation spectroscopy. These tests exist to stop it drifting into a
+    one-technique feature.
+    """
+
+    def _codes(self, rec):
+        w, i = validation._warning_checks(rec)[:2]
+        return [x["code"] for x in list(w) + list(i)]
+
+    def test_a_modulated_record_validates(self):
+        rec = {"context": {"modulation": {
+            "driven_variable": "potential", "waveform": "square", "frequency_Hz": 1.3,
+            "levels": [{"value": -1.3, "unit": "V_RHE", "hold_s": 0.38},
+                       {"value": -0.6, "unit": "V_RHE", "hold_s": 0.38}],
+            "descriptors_represent": "cycle_averaged"}}}
+        errs = [e for e in validation.validate_record_full(rec)["schema_errors"]
+                if "modulation" in str(e)]
+        assert not errs, errs
+
+    def test_the_block_works_for_CHOPPED_LIGHT(self):
+        """Photocatalysis, not electrochemistry."""
+        rec = {"context": {"modulation": {
+            "driven_variable": "illumination", "waveform": "pulse_train", "frequency_Hz": 10,
+            "duty_cycle": 0.5,
+            "levels": [{"value": 100, "unit": "mW_cm2"}, {"value": 0, "unit": "mW_cm2"}],
+            "descriptors_represent": "phase_resolved", "phase_deg": 90}}}
+        errs = [e for e in validation.validate_record_full(rec)["schema_errors"]
+                if "modulation" in str(e)]
+        assert not errs, errs
+        assert "MODULATED_DESCRIPTORS_UNSPECIFIED" not in self._codes(rec)
+
+    def test_the_block_works_for_a_TEMPERATURE_PROGRAMME(self):
+        rec = {"context": {"modulation": {
+            "driven_variable": "temperature", "waveform": "ramp",
+            "levels": [{"value": 300, "unit": "K"}, {"value": 800, "unit": "K"}],
+            "descriptors_represent": "transient"}}}
+        errs = [e for e in validation.validate_record_full(rec)["schema_errors"]
+                if "modulation" in str(e)]
+        assert not errs, errs
+
+    def test_the_block_works_for_PULSED_REACTANT_DOSING(self):
+        rec = {"context": {"modulation": {
+            "driven_variable": "reactant_concentration", "waveform": "pulse_train",
+            "period_s": 4.0, "duty_cycle": 0.05,
+            "descriptors_represent": "cycle_averaged"}}}
+        errs = [e for e in validation.validate_record_full(rec)["schema_errors"]
+                if "modulation" in str(e)]
+        assert not errs, errs
+
+    def test_declaring_a_drive_without_saying_what_the_numbers_mean_warns(self):
+        rec = {"context": {"modulation": {"driven_variable": "potential", "frequency_Hz": 1.3}}}
+        assert "MODULATED_DESCRIPTORS_UNSPECIFIED" in self._codes(rec)
+
+    def test_unspecified_is_treated_as_not_saying(self):
+        rec = {"context": {"modulation": {"driven_variable": "potential",
+                                          "descriptors_represent": "unspecified"}}}
+        assert "MODULATED_DESCRIPTORS_UNSPECIFIED" in self._codes(rec)
+
+    def test_a_missing_driven_variable_warns(self):
+        rec = {"context": {"modulation": {"waveform": "square",
+                                          "descriptors_represent": "cycle_averaged"}}}
+        assert "MODULATION_DRIVEN_VARIABLE_MISSING" in self._codes(rec)
+
+    def test_frequency_and_period_together_warn_because_they_can_disagree(self):
+        rec = {"context": {"modulation": {"driven_variable": "potential", "frequency_Hz": 1.3,
+                                          "period_s": 0.5,
+                                          "descriptors_represent": "cycle_averaged"}}}
+        assert "MODULATION_RATE_OVERSPECIFIED" in self._codes(rec)
+
+    def test_modulation_buried_in_an_ASSET_FILENAME_is_surfaced(self):
+        """The exact shape of the 51 deposited records."""
+        rec = {"assets": [{"uri": "lbnl-storage://ISAAC/records/80Cu-20Au_record_50nm_"
+                                  "modulation_m1p3V_1p3Hz_13Hz.xlsx"}],
+               "context": {"electrochemistry": {"control_mode": "potentiostatic",
+                                                "potential_setpoint_V": -1.3}}}
+        assert "MODULATION_EVIDENT_BUT_UNDECLARED" in self._codes(rec)
+
+    def test_the_same_advisory_fires_for_a_NON_electrochemical_burial(self):
+        rec = {"assets": [{"uri": "s3://lab/tpd_chopped_beam_5Hz.h5"}]}
+        assert "MODULATION_EVIDENT_BUT_UNDECLARED" in self._codes(rec)
+
+    def test_declaring_the_block_silences_the_buried_advisory(self):
+        rec = {"assets": [{"uri": "s3://lab/run_modulation_1p3Hz.xlsx"}],
+               "context": {"modulation": {"driven_variable": "potential", "waveform": "square",
+                                          "frequency_Hz": 1.3,
+                                          "descriptors_represent": "cycle_averaged"}}}
+        codes = self._codes(rec)
+        assert "MODULATION_EVIDENT_BUT_UNDECLARED" not in codes
+        assert "MODULATED_DESCRIPTORS_UNSPECIFIED" not in codes
+
+    def test_a_static_record_is_untouched(self):
+        rec = {"context": {"electrochemistry": {"control_mode": "potentiostatic",
+                                                "potential_setpoint_V": -1.3}}}
+        assert not [c for c in self._codes(rec) if c.startswith("MODULAT")]
+
+    def test_none_of_this_can_reject_a_record(self):
+        rec = {"context": {"modulation": {"frequency_Hz": 1.3}}}
+        res = validation.validate_record_full(rec)
+        assert not [e for e in res["errors"] if "MODULAT" in str(e)]
+
+    def test_the_block_is_not_nested_under_electrochemistry(self):
+        """Placement is the whole point. Under context.electrochemistry it would be unusable by
+        photocatalysis, thermal catalysis, spectroscopy or anything else."""
+        import json as _j
+        sch = _j.load(open(validation.__file__.rsplit("/portal/", 1)[0]
+                           + "/schema/isaac_record_v1.json"))
+        ctx = sch["properties"]["context"]["properties"]
+        assert "modulation" in ctx
+        ec = ctx["electrochemistry"].get("properties") or {}
+        assert not [k for k in ec if "modulat" in k.lower()]
+
+    def test_the_driven_variable_list_spans_more_than_one_domain(self):
+        import json as _j
+        v = _j.load(open(validation.__file__.rsplit("/portal/", 1)[0] + "/data/vocabulary.json"))
+        vals = None
+        for sec in v.values():
+            if isinstance(sec, dict) and "context.modulation_driven_variables" in sec:
+                vals = sec["context.modulation_driven_variables"]["values"]
+        assert vals
+        for needed in ("potential", "temperature", "illumination", "pressure"):
+            assert needed in vals, needed

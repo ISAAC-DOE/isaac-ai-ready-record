@@ -244,6 +244,46 @@
         "pseudo_reference",
         "other"
       ]
+    },
+    "context.modulation_driven_variables": {
+      "description": "Control variables that can be DRIVEN PERIODICALLY instead of held constant. The list is deliberately cross-domain: modulating a potential in electrocatalysis, chopping illumination in photocatalysis, cycling temperature in a programmed-desorption experiment and pulsing a reactant in a transient-kinetics reactor are the same structure with a different driven variable. Add one when a new technique needs it; do not add a technique-specific block.",
+      "values": [
+        "potential",
+        "current",
+        "temperature",
+        "pressure",
+        "illumination",
+        "reactant_concentration",
+        "flow_rate",
+        "magnetic_field",
+        "electric_field",
+        "strain",
+        "pH",
+        "composition"
+      ]
+    },
+    "context.modulation_waveforms": {
+      "description": "Shape of the drive. `pulse_train` is a square wave with a duty cycle far from 0.5; `step` and `ramp` describe a single non-repeating change, for which frequency_Hz is left unset.",
+      "values": [
+        "square",
+        "pulse_train",
+        "sine",
+        "triangle",
+        "sawtooth",
+        "step",
+        "ramp",
+        "arbitrary"
+      ]
+    },
+    "context.modulation_descriptor_semantics": {
+      "description": "What a record's descriptors mean relative to the drive. This is the field that decides whether a number is comparable to one from a static experiment: a cycle-averaged quantity and a steady-state quantity of the same name are DIFFERENT QUANTITIES.",
+      "values": [
+        "cycle_averaged",
+        "phase_resolved",
+        "at_a_single_level",
+        "transient",
+        "unspecified"
+      ]
     }
   },
   "System": {

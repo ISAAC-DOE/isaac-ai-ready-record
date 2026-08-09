@@ -939,6 +939,137 @@
               ]
             }
           }
+        },
+        "modulation": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "A control variable DRIVEN PERIODICALLY rather than held constant, and what the reported descriptors mean relative to that driving. This is deliberately not tied to one technique: the same structure covers a modulated electrode potential, a temperature programme, chopped or pulsed illumination, pulsed reactant dosing, a modulated pressure or flow, and modulation-excitation spectroscopy. If a record carries this block, its steady-state-looking setpoints elsewhere describe a LEVEL of the drive, not the condition of the whole measurement. Optional; omit it entirely for a static experiment.",
+          "properties": {
+            "driven_variable": {
+              "type": "string",
+              "description": "Which control variable is being driven. Use the canonical list in the controlled vocabulary (context.modulation_driven_variables): potential, current, temperature, pressure, illumination, reactant_concentration, flow_rate, magnetic_field, electric_field, strain, pH."
+            },
+            "waveform": {
+              "type": "string",
+              "enum": [
+                "square",
+                "pulse_train",
+                "sine",
+                "triangle",
+                "sawtooth",
+                "step",
+                "ramp",
+                "arbitrary"
+              ]
+            },
+            "frequency_Hz": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "period_s": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Alternative to frequency_Hz. Give one or the other, not both."
+            },
+            "duty_cycle": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Fraction of each cycle spent at the first level."
+            },
+            "levels": {
+              "type": "array",
+              "description": "The values the driven variable alternates between, in order, each with its unit and optionally how long it is held. Two entries for a square wave; more for a multi-step programme.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "value": {
+                    "type": "number"
+                  },
+                  "unit": {
+                    "type": "string"
+                  },
+                  "hold_s": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "value",
+                  "unit"
+                ]
+              }
+            },
+            "amplitude": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Peak-to-peak unless stated otherwise in `notes`.",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "unit": {
+                  "type": "string"
+                }
+              }
+            },
+            "mean": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Time-average of the driven variable over a cycle.",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "unit": {
+                  "type": "string"
+                }
+              }
+            },
+            "n_cycles": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "descriptors_represent": {
+              "type": "string",
+              "enum": [
+                "cycle_averaged",
+                "phase_resolved",
+                "at_a_single_level",
+                "transient",
+                "unspecified"
+              ],
+              "description": "THE LOAD-BEARING FIELD. What do this record's descriptors report, relative to the driving? `cycle_averaged` \u2014 averaged over whole cycles, which is a DIFFERENT QUANTITY from the same descriptor measured under a static condition and must not be compared to one without saying so. `phase_resolved` \u2014 resolved within the cycle (see `phase_deg`). `at_a_single_level` \u2014 measured while held at one level, so it is a static value obtained inside a driven experiment. `transient` \u2014 during the excursion itself. Declare it; `unspecified` is honest but limits what a consumer may do with the record."
+            },
+            "phase_deg": {
+              "type": "number",
+              "description": "For phase_resolved descriptors, the phase within the cycle."
+            },
+            "settling": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Whether the system reached a periodic steady state before data were taken.",
+              "properties": {
+                "reached_periodic_steady_state": {
+                  "type": "boolean"
+                },
+                "equilibration_cycles": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "basis": {
+                  "type": "string"
+                }
+              }
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false
