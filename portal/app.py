@@ -3262,6 +3262,8 @@ requestAnimationFrame(loop);
 
                     def _why_of(_h):
                         _o = _h.get("origin") or {}
+                        if isinstance(_o, str):
+                            return _o[:150] + " (expected dict {reasoning, summary, sources})"
                         return str(_o.get("reasoning") or _o.get("summary") or "")[:150]
 
                     def _ground_label(_h):
