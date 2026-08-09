@@ -43,8 +43,10 @@ jobs:
           r=$?
           python3 tools/generate_constraint_matrix.py --check /tmp/wiki
           m=$?
+          python3 tools/check_wiki_structure.py --check /tmp/wiki
+          w=$?
           set -e
-          if [ $d -ne 0 ] || [ $v -ne 0 ] || [ $r -ne 0 ] || [ $m -ne 0 ]; then
+          if [ $d -ne 0 ] || [ $v -ne 0 ] || [ $r -ne 0 ] || [ $m -ne 0 ] || [ $w -ne 0 ]; then
             if [ "${{ github.ref }}" = "refs/heads/main" ]; then
               echo "::error::Wiki generated sections are stale on main — run the generators and push the wiki."
               exit 1
