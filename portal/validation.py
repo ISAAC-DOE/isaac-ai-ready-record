@@ -258,6 +258,33 @@ except Exception:
     pass
 
 
+# Faradaic-efficiency roll-up descriptors: aggregates OF other descriptors in the same block.
+# Summing these together with their own components double-counts, which is what the FE charge
+# balance did until the 2026-08-08 repository audit.
+FE_ROLLUPS = {
+    "faradaic_efficiency.C1", "faradaic_efficiency.C2", "faradaic_efficiency.C2plus",
+    "faradaic_efficiency.C2_products_sum", "faradaic_efficiency.C3plus",
+    "faradaic_efficiency.total", "faradaic_efficiency.liquid", "faradaic_efficiency.gas",
+}
+
+# What each roll-up aggregates, where that is unambiguous. Used only to CHECK consistency
+# where both the roll-up and its components are present; never to synthesise a missing value.
+FE_ROLLUP_PARTS = {
+    "faradaic_efficiency.C1": {"faradaic_efficiency.CH4", "faradaic_efficiency.CO",
+                               "faradaic_efficiency.HCOO", "faradaic_efficiency.HCOOH",
+                               "faradaic_efficiency.CH3OH"},
+    "faradaic_efficiency.C2plus": {"faradaic_efficiency.C2H4", "faradaic_efficiency.C2H5OH",
+                                   "faradaic_efficiency.CH3COO", "faradaic_efficiency.CH3COOH",
+                                   "faradaic_efficiency.CH3CHO", "faradaic_efficiency.n_C3H7OH",
+                                   "faradaic_efficiency.C2H6", "faradaic_efficiency.C3H7OH"},
+}
+
+# Canonical uncertainty.basis vocabulary. 94.9% of descriptors in the repository leave this
+# null and the 5% that set it use free text, so it cannot currently be filtered on.
+FE_UNCERTAINTY_BASES = {"reported", "digitization_estimate", "assumed", "not_reported",
+                        "exact", "propagated", "method"}
+
+
 def _warning_checks(record: dict):
     """Return (warnings, info) lists. Never raises; degrades to empty."""
     warnings, info = [], []
@@ -362,25 +389,76 @@ def _warning_checks(record: dict):
             warnings.append({"code": "QC_COMPROMISED_NO_EVIDENCE", "path": "measurement/qc/evidence",
                              "message": "qc.status='compromised' requires a concrete evidence sentence (what is compromised and why). 'N/A' defeats the purpose."})
 
-        # FE physics: per-output-block product sum
+        # FE physics: per-output-block charge balance over LEAF products only.
+        #
+        # Audited 2026-08-08 across all 1722 records / 4433 descriptors. The previous version
+        # summed roll-up descriptors (C1, C2plus, ...) TOGETHER WITH their own components, so
+        # it double-counted by construction. It fired on 10 output blocks and **all 10 were
+        # false positives**; the number of blocks genuinely over unity was ZERO. It also had no
+        # check in the other direction, and 37 blocks close below 0.90 — down to 0.73 — which
+        # is the failure mode that actually occurs in digitized literature.
         for oi, o in enumerate((record.get("descriptors") or {}).get("outputs") or []):
-            total = 0.0
-            n_fe = 0
+            leaves, rollups = {}, {}
             for d in o.get("descriptors") or [] if isinstance(o, dict) else []:
                 nm = d.get("name") or ""
-                if nm.startswith("faradaic_efficiency.") and not nm.startswith("faradaic_efficiency.ratio"):
-                    v = d.get("value")
-                    if isinstance(v, (int, float)):
-                        total += v
-                        n_fe += 1
-                # sigma=0 placeholder anti-pattern
+                v = d.get("value")
+                if (nm.startswith("faradaic_efficiency.")
+                        and not nm.startswith("faradaic_efficiency.ratio")
+                        and isinstance(v, (int, float))):
+                    (rollups if nm in FE_ROLLUPS else leaves)[nm] = v
+
+                # sigma=0 is a CLAIM OF EXACTNESS. Firing only when the depositor already
+                # confessed "not reported" in a free-text note caught 32 of 792 such
+                # descriptors and was blind to the other 760 — a detector that fires only on
+                # the honest depositor. It now fires on any sigma=0 not justified by an
+                # explicit uncertainty.basis, and as a warning rather than info.
                 unc = d.get("uncertainty") or {}
-                if unc.get("sigma") == 0.0 and "not" in str(unc.get("notes", "")).lower():
-                    info.append({"code": "SIGMA_ZERO_PLACEHOLDER", "path": f"descriptors/outputs/{oi}",
-                                 "message": f"Descriptor '{nm}': sigma=0.0 with a 'not reported' note reads as ZERO uncertainty to a machine. Prefer an explicit basis note without a numeric 0."})
-            if n_fe >= 2 and total > 1.05:
+                if unc.get("sigma") == 0.0:
+                    bas = str(unc.get("basis") or "").strip().lower()
+                    if bas in ("", "none"):
+                        warnings.append({
+                            "code": "SIGMA_ZERO_PLACEHOLDER",
+                            "path": f"descriptors/outputs/{oi}",
+                            "message": (
+                                f"Descriptor '{nm}': sigma=0.0 with no uncertainty.basis. To a "
+                                f"machine this asserts the value is EXACT, and downstream "
+                                f"scoring that divides by a noise scale will treat it as "
+                                f"infinitely precise. If the source reported no uncertainty, "
+                                f"write sigma: null with basis: 'not_reported'. If it is "
+                                f"genuinely exact (a set point, an integer count), say so with "
+                                f"basis: 'exact'.")})
+                    elif bas not in FE_UNCERTAINTY_BASES:
+                        info.append({
+                            "code": "UNCERTAINTY_BASIS_NOT_IN_VOCABULARY",
+                            "path": f"descriptors/outputs/{oi}",
+                            "message": (
+                                f"Descriptor '{nm}': uncertainty.basis '{unc.get('basis')}' is "
+                                f"not one of {sorted(FE_UNCERTAINTY_BASES)}. Free-text bases "
+                                f"cannot be filtered or compared across records.")})
+
+            n_leaf = len(leaves)
+            total = sum(leaves.values())
+            if n_leaf >= 2 and total > 1.05:
                 warnings.append({"code": "FE_SUM_EXCEEDS_UNITY", "path": f"descriptors/outputs/{oi}",
-                                 "message": f"Sum of {n_fe} product Faradaic efficiencies = {total:.2f} > 1.05 in one output block — check for double counting or percent encoding."})
+                                 "message": f"Sum of {n_leaf} LEAF product Faradaic efficiencies = {total:.2f} > 1.05 in one output block — check for percent encoding or a product counted twice. Roll-up descriptors ({', '.join(sorted(rollups)) or 'none present'}) are excluded from this sum by design."})
+            if n_leaf >= 3 and total < 0.90:
+                warnings.append({"code": "FE_SUM_UNDER_CLOSES", "path": f"descriptors/outputs/{oi}",
+                                 "message": f"Sum of {n_leaf} LEAF product Faradaic efficiencies = {total:.2f} in one output block, leaving {1 - total:.2f} of the charge unaccounted for. Either a product class was not quantified — say so — or the slate is normalised to something other than total charge. A silent gap is indistinguishable from a measurement that does not balance."})
+
+            # Roll-ups must equal the leaves they aggregate. This is a free, exact consistency
+            # check wherever both are present, and it is what distinguishes a faithfully
+            # digitized slate from an assembled one.
+            for rn, rv in rollups.items():
+                parts = FE_ROLLUP_PARTS.get(rn)
+                if not parts:
+                    continue
+                have = {k: v for k, v in leaves.items() if k in parts}
+                if len(have) < 2:
+                    continue
+                got = sum(have.values())
+                if abs(got - rv) > 0.02 + 1e-9:
+                    warnings.append({"code": "FE_ROLLUP_INCONSISTENT", "path": f"descriptors/outputs/{oi}",
+                                     "message": f"Roll-up '{rn}' = {rv:.3f} but its components present in this block sum to {got:.3f} ({', '.join(sorted(have))}). One of the two was not read off the same data."})
 
         # Unknown (non-canonical, non-alias) units — vocabulary growth signal
         if CANONICAL_UNIT_SET:

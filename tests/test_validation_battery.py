@@ -388,3 +388,92 @@ def test_record_tags():
     assert not validation.validate_record_full(r2)["valid"]
     r3 = json.loads(json.dumps(base)); r3["tags"] = ["x", "x"]
     assert not validation.validate_record_full(r3)["valid"]
+
+
+class TestFEChargeBalanceAndSigmaZero:
+    """Repository audit 2026-08-08, all 1722 records / 4433 descriptors.
+
+    Two advisory checks were measurably one-sided:
+
+    * `FE_SUM_EXCEEDS_UNITY` summed roll-up descriptors together with their own components, so
+      it double-counted by construction. It fired on 10 output blocks and **all 10 were false
+      positives**; blocks genuinely over unity numbered ZERO. Meanwhile 37 blocks close below
+      0.90, down to 0.73, and nothing looked in that direction.
+    * `SIGMA_ZERO_PLACEHOLDER` fired only when the depositor had already written "not" into a
+      free-text note. 792 descriptors carry sigma=0.0; it caught 32 and was blind to 760. A
+      detector that fires only on the honest depositor is not a detector.
+    """
+
+    def _block(self, *pairs, **unc):
+        return {"descriptors": {"outputs": [{"descriptors": [
+            {"name": n, "kind": "absolute", "source": "imported", "value": v,
+             "uncertainty": dict(unc) if unc else {"sigma": 0.01}}
+            for n, v in pairs]}]}}
+
+    def _codes(self, rec):
+        w, i = validation._warning_checks(rec)[:2]
+        return [x["code"] for x in list(w) + list(i)]
+
+    def test_a_rollup_beside_its_components_is_not_double_counted(self):
+        """The exact shape of all 10 historical false positives."""
+        rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
+                          ("faradaic_efficiency.HCOO", 0.05), ("faradaic_efficiency.C1", 0.25),
+                          ("faradaic_efficiency.C2H4", 0.27), ("faradaic_efficiency.C2H5OH", 0.10),
+                          ("faradaic_efficiency.CH3COO", 0.05), ("faradaic_efficiency.n_C3H7OH", 0.03),
+                          ("faradaic_efficiency.C2plus", 0.45), ("faradaic_efficiency.H2", 0.07))
+        assert "FE_SUM_EXCEEDS_UNITY" not in self._codes(rec)
+
+    def test_a_genuine_percent_encoding_still_fires(self):
+        rec = self._block(("faradaic_efficiency.CH4", 40.0), ("faradaic_efficiency.H2", 55.0))
+        assert "FE_SUM_EXCEEDS_UNITY" in self._codes(rec)
+
+    def test_an_under_closing_slate_is_now_visible(self):
+        """0.77 of the charge accounted for; previously silent."""
+        rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
+                          ("faradaic_efficiency.C2H4", 0.27), ("faradaic_efficiency.H2", 0.07))
+        assert "FE_SUM_UNDER_CLOSES" in self._codes(rec)
+
+    def test_a_closing_slate_is_silent_in_both_directions(self):
+        rec = self._block(("faradaic_efficiency.CH4", 0.30), ("faradaic_efficiency.C2H4", 0.35),
+                          ("faradaic_efficiency.CO", 0.15), ("faradaic_efficiency.H2", 0.18))
+        codes = self._codes(rec)
+        assert "FE_SUM_UNDER_CLOSES" not in codes and "FE_SUM_EXCEEDS_UNITY" not in codes
+
+    def test_a_rollup_that_disagrees_with_its_components_is_flagged(self):
+        rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
+                          ("faradaic_efficiency.HCOO", 0.05), ("faradaic_efficiency.C1", 0.40))
+        assert "FE_ROLLUP_INCONSISTENT" in self._codes(rec)
+
+    def test_a_consistent_rollup_is_silent(self):
+        rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
+                          ("faradaic_efficiency.HCOO", 0.05), ("faradaic_efficiency.C1", 0.25))
+        assert "FE_ROLLUP_INCONSISTENT" not in self._codes(rec)
+
+    def test_sigma_zero_without_a_basis_is_caught_without_a_confession(self):
+        """The 760 the old detector could not see: no note, no basis, just sigma 0."""
+        rec = self._block(("faradaic_efficiency.H2", 0.07), sigma=0.0, unit="fraction")
+        assert "SIGMA_ZERO_PLACEHOLDER" in self._codes(rec)
+
+    def test_sigma_zero_declared_exact_is_accepted(self):
+        """A set point genuinely has no scatter. The check is about the SILENT zero."""
+        rec = self._block(("faradaic_efficiency.H2", 0.07), sigma=0.0, basis="exact")
+        assert "SIGMA_ZERO_PLACEHOLDER" not in self._codes(rec)
+
+    def test_not_reported_is_expressible_without_lying_about_precision(self):
+        rec = self._block(("faradaic_efficiency.H2", 0.07), sigma=None, basis="not_reported")
+        assert "SIGMA_ZERO_PLACEHOLDER" not in self._codes(rec)
+
+    def test_a_free_text_basis_is_a_vocabulary_signal_not_an_error(self):
+        rec = self._block(("faradaic_efficiency.H2", 0.07), sigma=0.0,
+                          basis="not estimated from source figure data")
+        codes = self._codes(rec)
+        assert "UNCERTAINTY_BASIS_NOT_IN_VOCABULARY" in codes
+        assert "SIGMA_ZERO_PLACEHOLDER" not in codes
+
+    def test_none_of_this_can_reject_a_record(self):
+        """These are advisories. Acceptance is schema + vocabulary + semantic, and all 1722
+        records in the repository remain valid after the change."""
+        rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.H2", 0.07),
+                          sigma=0.0)
+        res = validation.validate_record_full(rec)
+        assert not any(e for e in res["errors"] if "SIGMA_ZERO" in str(e) or "FE_SUM" in str(e))
