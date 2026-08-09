@@ -258,31 +258,44 @@ except Exception:
     pass
 
 
-# Faradaic-efficiency roll-up descriptors: aggregates OF other descriptors in the same block.
-# Summing these together with their own components double-counts, which is what the FE charge
-# balance did until the 2026-08-08 repository audit.
-FE_ROLLUPS = {
-    "faradaic_efficiency.C1", "faradaic_efficiency.C2", "faradaic_efficiency.C2plus",
-    "faradaic_efficiency.C2_products_sum", "faradaic_efficiency.C3plus",
-    "faradaic_efficiency.total", "faradaic_efficiency.liquid", "faradaic_efficiency.gas",
-}
+# Component-set arithmetic is GENERIC. The validator knows how to sum things and compare
+# totals; it knows no chemistry. Which descriptor families are shares of a whole, and which
+# descriptors aggregate others, are DATA in data/vocabulary.json — so another domain extends
+# them without touching this file, and the wiki regenerates from the same source.
+#
+# This replaced a hardcoded CO2RR product list that had no business in a schema validator
+# serving all of science, and an uncertainty vocabulary that had somehow acquired an "FE_"
+# prefix despite having nothing to do with faradaic efficiency.
 
-# What each roll-up aggregates, where that is unambiguous. Used only to CHECK consistency
-# where both the roll-up and its components are present; never to synthesise a missing value.
-FE_ROLLUP_PARTS = {
-    "faradaic_efficiency.C1": {"faradaic_efficiency.CH4", "faradaic_efficiency.CO",
-                               "faradaic_efficiency.HCOO", "faradaic_efficiency.HCOOH",
-                               "faradaic_efficiency.CH3OH"},
-    "faradaic_efficiency.C2plus": {"faradaic_efficiency.C2H4", "faradaic_efficiency.C2H5OH",
-                                   "faradaic_efficiency.CH3COO", "faradaic_efficiency.CH3COOH",
-                                   "faradaic_efficiency.CH3CHO", "faradaic_efficiency.n_C3H7OH",
-                                   "faradaic_efficiency.C2H6", "faradaic_efficiency.C3H7OH"},
-}
+def _vocab_section(key, field, default):
+    try:
+        import ontology
+        vocab = ontology.load_vocabulary() or {}
+    except Exception:
+        return default
+    for _section in vocab.values():
+        if isinstance(_section, dict) and key in _section:
+            node = _section[key]
+            if isinstance(node, dict) and isinstance(node.get(field), (list, dict)):
+                return node[field]
+    return default
 
-# Canonical uncertainty.basis vocabulary. 94.9% of descriptors in the repository leave this
-# null and the 5% that set it use free text, so it cannot currently be filtered on.
-FE_UNCERTAINTY_BASES = {"reported", "digitization_estimate", "assumed", "not_reported",
-                        "exact", "propagated", "method"}
+
+def component_families():
+    """Descriptor prefixes whose dotted members are shares of a whole."""
+    return set(_vocab_section("descriptors.component_families", "values", []))
+
+
+def aggregate_map():
+    """aggregate descriptor -> the members it aggregates."""
+    m = _vocab_section("descriptors.aggregate_descriptors", "map", {})
+    return {k: set(v) for k, v in m.items()} if isinstance(m, dict) else {}
+
+
+def uncertainty_bases():
+    return set(_vocab_section("descriptors.uncertainty_basis", "values",
+                              ["reported", "digitization_estimate", "assumed", "propagated",
+                               "method", "exact", "not_reported"]))
 
 
 def _warning_checks(record: dict):
@@ -389,23 +402,32 @@ def _warning_checks(record: dict):
             warnings.append({"code": "QC_COMPROMISED_NO_EVIDENCE", "path": "measurement/qc/evidence",
                              "message": "qc.status='compromised' requires a concrete evidence sentence (what is compromised and why). 'N/A' defeats the purpose."})
 
-        # FE physics: per-output-block charge balance over LEAF products only.
+        # Component-set closure, per output block.
         #
-        # Audited 2026-08-08 across all 1722 records / 4433 descriptors. The previous version
-        # summed roll-up descriptors (C1, C2plus, ...) TOGETHER WITH their own components, so
-        # it double-counted by construction. It fired on 10 output blocks and **all 10 were
-        # false positives**; the number of blocks genuinely over unity was ZERO. It also had no
-        # check in the other direction, and 37 blocks close below 0.90 — down to 0.73 — which
-        # is the failure mode that actually occurs in digitized literature.
+        # A descriptor family whose members are shares of a whole can be summed and compared
+        # against that whole. Which families those are, and which descriptors aggregate others,
+        # come from the controlled vocabulary — this code performs arithmetic and knows no
+        # domain. Repository audit 2026-08-08 (1722 records / 4433 descriptors) drove three
+        # corrections here: aggregates were being summed together with their own members, so
+        # the over-total check fired 10 times and was wrong all 10; the band was asymmetric,
+        # tighter on the side where nothing occurs; and nothing looked at under-closure, which
+        # is the case that actually happens.
         for oi, o in enumerate((record.get("descriptors") or {}).get("outputs") or []):
-            leaves, rollups = {}, {}
+            FAMILIES, AGGREGATES = component_families(), aggregate_map()
+            leaves, rollups, inline = {}, {}, {}
             for d in o.get("descriptors") or [] if isinstance(o, dict) else []:
                 nm = d.get("name") or ""
                 v = d.get("value")
-                if (nm.startswith("faradaic_efficiency.")
-                        and not nm.startswith("faradaic_efficiency.ratio")
+                fam = nm.split(".")[0]
+                if (fam in FAMILIES and "." in nm and ".ratio" not in nm
                         and isinstance(v, (int, float))):
-                    (rollups if nm in FE_ROLLUPS else leaves)[nm] = v
+                    if isinstance(d.get("aggregates"), list) and d["aggregates"]:
+                        inline[nm] = set(d["aggregates"])       # the record's own declaration
+                        rollups[nm] = v
+                    elif nm in AGGREGATES:
+                        rollups[nm] = v
+                    else:
+                        leaves[nm] = v
 
                 # sigma=0 is a CLAIM OF EXACTNESS. Firing only when the depositor already
                 # confessed "not reported" in a free-text note caught 32 of 792 such
@@ -427,13 +449,13 @@ def _warning_checks(record: dict):
                                 f"write sigma: null with basis: 'not_reported'. If it is "
                                 f"genuinely exact (a set point, an integer count), say so with "
                                 f"basis: 'exact'.")})
-                    elif bas not in FE_UNCERTAINTY_BASES:
+                    elif bas not in uncertainty_bases():
                         info.append({
                             "code": "UNCERTAINTY_BASIS_NOT_IN_VOCABULARY",
                             "path": f"descriptors/outputs/{oi}",
                             "message": (
                                 f"Descriptor '{nm}': uncertainty.basis '{unc.get('basis')}' is "
-                                f"not one of {sorted(FE_UNCERTAINTY_BASES)}. Free-text bases "
+                                f"not one of {sorted(uncertainty_bases())}. Free-text bases "
                                 f"cannot be filtered or compared across records.")})
 
             # Closure band, SYMMETRIC at +/-10%. Set from the repository's own distribution
@@ -459,14 +481,14 @@ def _warning_checks(record: dict):
                 whole = float(comp["expected_total"]) or 1.0
 
             if n_leaf >= 2 and total > 1.10 * whole:
-                warnings.append({"code": "FE_SUM_EXCEEDS_UNITY", "path": f"descriptors/outputs/{oi}",
-                                 "message": f"Sum of {n_leaf} LEAF product Faradaic efficiencies = {total:.2f} against an expected total of {whole:.2f}, more than 10% over. Over-closure has no benign reading the way under-closure does — check for percent encoding or a product counted twice. Roll-up descriptors ({', '.join(sorted(rollups)) or 'none present'}) are excluded from this sum by design."})
+                warnings.append({"code": "COMPONENT_SET_EXCEEDS_TOTAL", "path": f"descriptors/outputs/{oi}",
+                                 "message": f"Sum of {n_leaf} leaf product component values = {total:.2f} against an expected total of {whole:.2f}, more than 10% over. Over-closure has no benign reading the way under-closure does — check for percent encoding or a product counted twice. Roll-up descriptors ({', '.join(sorted(rollups)) or 'none present'}) are excluded from this sum by design."})
             elif n_leaf >= 3 and total < 0.90 * whole and not declared:
                 gap = whole - total
                 entry = {"path": f"descriptors/outputs/{oi}",
-                         "code": "FE_SLATE_INCOMPLETE_UNDECLARED",
+                         "code": "COMPONENT_SET_INCOMPLETE_UNDECLARED",
                          "message": (
-                             f"{n_leaf} product Faradaic efficiencies sum to {total:.2f} of an "
+                             f"{n_leaf} component values sum to {total:.2f} of an "
                              f"expected {whole:.2f}, leaving {gap:.2f} unaccounted for, and the "
                              f"block does not say why. This is very often fine — minor and "
                              f"hard-to-detect species are routinely not quantified — but said "
@@ -483,7 +505,7 @@ def _warning_checks(record: dict):
             # check wherever both are present, and it is what distinguishes a faithfully
             # digitized slate from an assembled one.
             for rn, rv in rollups.items():
-                parts = FE_ROLLUP_PARTS.get(rn)
+                parts = inline.get(rn) or AGGREGATES.get(rn)
                 if not parts:
                     continue
                 have = {k: v for k, v in leaves.items() if k in parts}
@@ -491,7 +513,7 @@ def _warning_checks(record: dict):
                     continue
                 got = sum(have.values())
                 if abs(got - rv) > 0.02 + 1e-9:
-                    warnings.append({"code": "FE_ROLLUP_INCONSISTENT", "path": f"descriptors/outputs/{oi}",
+                    warnings.append({"code": "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS", "path": f"descriptors/outputs/{oi}",
                                      "message": f"Roll-up '{rn}' = {rv:.3f} but its components present in this block sum to {got:.3f} ({', '.join(sorted(have))}). One of the two was not read off the same data."})
 
         # Unknown (non-canonical, non-alias) units — vocabulary growth signal

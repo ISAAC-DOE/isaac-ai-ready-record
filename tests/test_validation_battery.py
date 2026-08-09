@@ -213,7 +213,7 @@ def test_warnings_tier():
             d["value"] = 0.6
     res = validation.validate_record_full(r)
     assert res["valid"], "FE-sum is a warning, must not block"
-    assert any(w["code"] == "FE_SUM_EXCEEDS_UNITY" for w in res.get("warnings", []))
+    assert any(w["code"] == "COMPONENT_SET_EXCEEDS_TOTAL" for w in res.get("warnings", []))
 
     # Galvanostatic with no potential -> GALVANOSTATIC_NO_POTENTIAL warning
     r = json.loads(json.dumps(base))
@@ -421,11 +421,11 @@ class TestFEChargeBalanceAndSigmaZero:
                           ("faradaic_efficiency.C2H4", 0.27), ("faradaic_efficiency.C2H5OH", 0.10),
                           ("faradaic_efficiency.CH3COO", 0.05), ("faradaic_efficiency.n_C3H7OH", 0.03),
                           ("faradaic_efficiency.C2plus", 0.45), ("faradaic_efficiency.H2", 0.07))
-        assert "FE_SUM_EXCEEDS_UNITY" not in self._codes(rec)
+        assert "COMPONENT_SET_EXCEEDS_TOTAL" not in self._codes(rec)
 
     def test_a_genuine_percent_encoding_still_fires(self):
         rec = self._block(("faradaic_efficiency.CH4", 40.0), ("faradaic_efficiency.H2", 55.0))
-        assert "FE_SUM_EXCEEDS_UNITY" in self._codes(rec)
+        assert "COMPONENT_SET_EXCEEDS_TOTAL" in self._codes(rec)
 
     def test_the_band_is_symmetric_at_ten_percent(self):
         """Repository distribution: 72.2% of blocks land in 0.90-1.10 and NOTHING exceeds 1.10.
@@ -434,13 +434,13 @@ class TestFEChargeBalanceAndSigmaZero:
             rec = self._block(("faradaic_efficiency.CH4", tot - 0.5),
                               ("faradaic_efficiency.C2H4", 0.3), ("faradaic_efficiency.H2", 0.2))
             codes = self._codes(rec)
-            assert "FE_SLATE_INCOMPLETE_UNDECLARED" not in codes
-            assert "FE_SUM_EXCEEDS_UNITY" not in codes
+            assert "COMPONENT_SET_INCOMPLETE_UNDECLARED" not in codes
+            assert "COMPONENT_SET_EXCEEDS_TOTAL" not in codes
 
     def test_an_undeclared_gap_asks_for_a_declaration(self):
         rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
                           ("faradaic_efficiency.C2H4", 0.27), ("faradaic_efficiency.H2", 0.07))
-        assert "FE_SLATE_INCOMPLETE_UNDECLARED" in self._codes(rec)
+        assert "COMPONENT_SET_INCOMPLETE_UNDECLARED" in self._codes(rec)
 
     def test_a_declared_gap_is_silent(self):
         """Unquantified minor products are normal. Said out loud, there is nothing to flag."""
@@ -448,7 +448,7 @@ class TestFEChargeBalanceAndSigmaZero:
                           ("faradaic_efficiency.C2H4", 0.27), ("faradaic_efficiency.H2", 0.07))
         rec["descriptors"]["outputs"][0]["completeness"] = {
             "quantified": "major_components_only", "unquantified": ["liquid products"]}
-        assert "FE_SLATE_INCOMPLETE_UNDECLARED" not in self._codes(rec)
+        assert "COMPONENT_SET_INCOMPLETE_UNDECLARED" not in self._codes(rec)
 
     def test_a_declared_slate_survives_schema_validation(self):
         """The new field is optional and additive; additionalProperties is false on the block."""
@@ -468,23 +468,23 @@ class TestFEChargeBalanceAndSigmaZero:
                             ("faradaic_efficiency.H2", 0.15))
         w_m, i_m = validation._warning_checks(modest)[:2]
         w_l, i_l = validation._warning_checks(large)[:2]
-        assert any(x["code"] == "FE_SLATE_INCOMPLETE_UNDECLARED" for x in i_m)
-        assert any(x["code"] == "FE_SLATE_INCOMPLETE_UNDECLARED" for x in w_l)
+        assert any(x["code"] == "COMPONENT_SET_INCOMPLETE_UNDECLARED" for x in i_m)
+        assert any(x["code"] == "COMPONENT_SET_INCOMPLETE_UNDECLARED" for x in w_l)
 
     def test_over_closure_still_warns_because_it_has_no_benign_reading(self):
         rec = self._block(("faradaic_efficiency.CH4", 0.70), ("faradaic_efficiency.C2H4", 0.30),
                           ("faradaic_efficiency.H2", 0.20))
-        assert "FE_SUM_EXCEEDS_UNITY" in self._codes(rec)
+        assert "COMPONENT_SET_EXCEEDS_TOTAL" in self._codes(rec)
 
     def test_a_rollup_that_disagrees_with_its_components_is_flagged(self):
         rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
                           ("faradaic_efficiency.HCOO", 0.05), ("faradaic_efficiency.C1", 0.40))
-        assert "FE_ROLLUP_INCONSISTENT" in self._codes(rec)
+        assert "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS" in self._codes(rec)
 
     def test_a_consistent_rollup_is_silent(self):
         rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
                           ("faradaic_efficiency.HCOO", 0.05), ("faradaic_efficiency.C1", 0.25))
-        assert "FE_ROLLUP_INCONSISTENT" not in self._codes(rec)
+        assert "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS" not in self._codes(rec)
 
     def test_sigma_zero_without_a_basis_is_caught_without_a_confession(self):
         """The 760 the old detector could not see: no note, no basis, just sigma 0."""
@@ -514,3 +514,21 @@ class TestFEChargeBalanceAndSigmaZero:
                           sigma=0.0)
         res = validation.validate_record_full(rec)
         assert not any(e for e in res["errors"] if "SIGMA_ZERO" in str(e) or "FE_SUM" in str(e))
+
+    def test_the_validator_carries_no_chemistry(self):
+        """The reason this class exists in this shape: a schema validator serving all of
+        science must not hardcode one reaction's product list. Families and aggregates are
+        DATA in data/vocabulary.json; the code only sums and compares."""
+        import inspect
+        src = inspect.getsource(validation._warning_checks)
+        for token in ("faradaic", "CH4", "C2H4", "HCOO", "C2plus", "CO2"):
+            assert token not in src, "chemistry leaked back into the validator: %s" % token
+
+    def test_a_record_may_declare_its_own_aggregation_inline(self):
+        """Generic path: no vocabulary entry needed, the record says what aggregates what."""
+        rec = self._block(("selectivity.a", 0.3), ("selectivity.b", 0.2), ("selectivity.total", 0.9))
+        ds = rec["descriptors"]["outputs"][0]["descriptors"]
+        ds[-1]["aggregates"] = ["selectivity.a", "selectivity.b"]
+        assert "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS" in self._codes(rec)
+        ds[-1] = dict(ds[-1], value=0.5)
+        assert "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS" not in self._codes(rec)

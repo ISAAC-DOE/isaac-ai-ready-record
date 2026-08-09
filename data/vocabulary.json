@@ -589,6 +589,75 @@
         "binding_energy_eV": "adsorption_energy",
         "Eads": "adsorption_energy"
       }
+    },
+    "descriptors.component_families": {
+      "description": "Descriptor name PREFIXES whose dotted members are SHARES OF A WHOLE, so that the members present in one output block can be summed and compared against a known total. This is what lets the validator check closure arithmetically without knowing any chemistry: it sums what the record declares and compares it to the total the record declares. Add a prefix here when a family has that shares-of-a-whole property in your domain; the default whole is 1.0 and a block may override it via descriptors.outputs[].completeness.expected_total.",
+      "values": [
+        "faradaic_efficiency",
+        "mole_fraction",
+        "mass_fraction",
+        "atomic_fraction",
+        "phase_fraction",
+        "selectivity",
+        "branching_ratio",
+        "isotope_abundance"
+      ]
+    },
+    "descriptors.aggregate_descriptors": {
+      "description": "Descriptors that AGGREGATE other descriptors in the same output block, mapped to the members they aggregate. Two uses, both arithmetic: an aggregate is excluded from a closure sum so it is not double-counted alongside its own members, and where both the aggregate and its members are present their values must agree. Domain-specific content lives HERE, as data, not in validator code - other domains extend this map without touching Python. A record may also declare aggregation inline via the descriptor's own `aggregates` field, which takes precedence over this table.",
+      "map": {
+        "faradaic_efficiency.C1": [
+          "faradaic_efficiency.CH4",
+          "faradaic_efficiency.CO",
+          "faradaic_efficiency.HCOO",
+          "faradaic_efficiency.CH3OH"
+        ],
+        "faradaic_efficiency.C2plus": [
+          "faradaic_efficiency.C2H4",
+          "faradaic_efficiency.C2H5OH",
+          "faradaic_efficiency.CH3COO",
+          "faradaic_efficiency.CH3CHO",
+          "faradaic_efficiency.C2H6",
+          "faradaic_efficiency.n_C3H7OH",
+          "faradaic_efficiency.i_C3H7OH",
+          "faradaic_efficiency.C3H6"
+        ],
+        "faradaic_efficiency.C2_products_sum": [
+          "faradaic_efficiency.C2H4",
+          "faradaic_efficiency.C2H5OH",
+          "faradaic_efficiency.CH3COO",
+          "faradaic_efficiency.CH3CHO",
+          "faradaic_efficiency.C2H6"
+        ],
+        "faradaic_efficiency.C2": [
+          "faradaic_efficiency.C2H4",
+          "faradaic_efficiency.C2H5OH",
+          "faradaic_efficiency.CH3COO",
+          "faradaic_efficiency.CH3CHO",
+          "faradaic_efficiency.C2H6"
+        ],
+        "faradaic_efficiency.C3plus": [
+          "faradaic_efficiency.n_C3H7OH",
+          "faradaic_efficiency.i_C3H7OH",
+          "faradaic_efficiency.C3H6",
+          "faradaic_efficiency.C3H5OH"
+        ],
+        "faradaic_efficiency.total": [],
+        "faradaic_efficiency.liquid": [],
+        "faradaic_efficiency.gas": []
+      }
+    },
+    "descriptors.uncertainty_basis": {
+      "description": "How the uncertainty on a descriptor value was arrived at. Generic across every domain and every descriptor class. `not_reported` is the honest entry when the source gives no uncertainty, and it is what a value should carry INSTEAD of sigma: 0 - a zero sigma tells a machine the value is exact.",
+      "values": [
+        "reported",
+        "digitization_estimate",
+        "assumed",
+        "propagated",
+        "method",
+        "exact",
+        "not_reported"
+      ]
     }
   },
   "Computation": {

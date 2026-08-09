@@ -1410,6 +1410,13 @@
                           }
                         }
                       ]
+                    },
+                    "aggregates": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Names of other descriptors IN THIS SAME OUTPUT BLOCK that this descriptor aggregates. Declaring it does two things arithmetically: the aggregate is left out of any closure sum so it is not double-counted alongside its own members, and where the members are also present their sum is checked against this value. Use it for any total, subtotal or grouped quantity. A record's own declaration takes precedence over the shared table in descriptors.aggregate_descriptors."
                     }
                   },
                   "additionalProperties": false
