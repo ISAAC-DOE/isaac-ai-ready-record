@@ -1410,6 +1410,13 @@
                           }
                         }
                       ]
+                    },
+                    "aggregates": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Names of other descriptors IN THIS SAME OUTPUT BLOCK that this descriptor aggregates. Declaring it does two things arithmetically: the aggregate is left out of any closure sum so it is not double-counted alongside its own members, and where the members are also present their sum is checked against this value. Use it for any total, subtotal or grouped quantity. A record's own declaration takes precedence over the shared table in descriptors.aggregate_descriptors."
                     }
                   },
                   "additionalProperties": false
@@ -1431,6 +1438,37 @@
               },
               "method": {
                 "type": "string"
+              },
+              "completeness": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Does this block report ALL the components that make up its total, or only some? Optional, and only meaningful for descriptor sets that are shares of a known whole (a product distribution, a selectivity slate, a phase or composition breakdown). Declaring an incomplete set is NOT an admission of a bad measurement: minor and hard-to-detect species are routinely not quantified, and a slate summing to 0.85 with that stated is better evidence than one summing to 0.85 in silence. What a machine cannot do is tell an undeclared gap from a measurement that failed to balance.",
+                "properties": {
+                  "quantified": {
+                    "type": "string",
+                    "enum": [
+                      "all_components",
+                      "major_components_only",
+                      "partial",
+                      "unknown"
+                    ],
+                    "description": "all_components = the set is intended to be exhaustive; major_components_only = minor/trace species were not quantified; partial = a known subset only; unknown = not established."
+                  },
+                  "unquantified": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Components known or expected to be present but not quantified, named where possible (e.g. 'liquid products', 'C3+', 'carbonate crossover'). Naming them is what makes the gap re-usable."
+                  },
+                  "expected_total": {
+                    "type": "number",
+                    "description": "The whole these components are shares of, in the same units as their values. Defaults to 1.0 for fractions."
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
               }
             },
             "additionalProperties": false

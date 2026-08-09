@@ -258,6 +258,46 @@ except Exception:
     pass
 
 
+# Component-set arithmetic is GENERIC. The validator knows how to sum things and compare
+# totals; it knows no chemistry. Which descriptor families are shares of a whole, and which
+# descriptors aggregate others, are DATA in data/vocabulary.json — so another domain extends
+# them without touching this file, and the wiki regenerates from the same source.
+#
+# This replaced a hardcoded CO2RR product list that had no business in a schema validator
+# serving all of science, and an uncertainty vocabulary that had somehow acquired an "FE_"
+# prefix despite having nothing to do with faradaic efficiency.
+
+def _vocab_section(key, field, default):
+    try:
+        import ontology
+        vocab = ontology.load_vocabulary() or {}
+    except Exception:
+        return default
+    for _section in vocab.values():
+        if isinstance(_section, dict) and key in _section:
+            node = _section[key]
+            if isinstance(node, dict) and isinstance(node.get(field), (list, dict)):
+                return node[field]
+    return default
+
+
+def component_families():
+    """Descriptor prefixes whose dotted members are shares of a whole."""
+    return set(_vocab_section("descriptors.component_families", "values", []))
+
+
+def aggregate_map():
+    """aggregate descriptor -> the members it aggregates."""
+    m = _vocab_section("descriptors.aggregate_descriptors", "map", {})
+    return {k: set(v) for k, v in m.items()} if isinstance(m, dict) else {}
+
+
+def uncertainty_bases():
+    return set(_vocab_section("descriptors.uncertainty_basis", "values",
+                              ["reported", "digitization_estimate", "assumed", "propagated",
+                               "method", "exact", "not_reported"]))
+
+
 def _warning_checks(record: dict):
     """Return (warnings, info) lists. Never raises; degrades to empty."""
     warnings, info = [], []
@@ -362,25 +402,119 @@ def _warning_checks(record: dict):
             warnings.append({"code": "QC_COMPROMISED_NO_EVIDENCE", "path": "measurement/qc/evidence",
                              "message": "qc.status='compromised' requires a concrete evidence sentence (what is compromised and why). 'N/A' defeats the purpose."})
 
-        # FE physics: per-output-block product sum
+        # Component-set closure, per output block.
+        #
+        # A descriptor family whose members are shares of a whole can be summed and compared
+        # against that whole. Which families those are, and which descriptors aggregate others,
+        # come from the controlled vocabulary — this code performs arithmetic and knows no
+        # domain. Repository audit 2026-08-08 (1722 records / 4433 descriptors) drove three
+        # corrections here: aggregates were being summed together with their own members, so
+        # the over-total check fired 10 times and was wrong all 10; the band was asymmetric,
+        # tighter on the side where nothing occurs; and nothing looked at under-closure, which
+        # is the case that actually happens.
         for oi, o in enumerate((record.get("descriptors") or {}).get("outputs") or []):
-            total = 0.0
-            n_fe = 0
+            FAMILIES, AGGREGATES = component_families(), aggregate_map()
+            leaves, rollups, inline = {}, {}, {}
             for d in o.get("descriptors") or [] if isinstance(o, dict) else []:
                 nm = d.get("name") or ""
-                if nm.startswith("faradaic_efficiency.") and not nm.startswith("faradaic_efficiency.ratio"):
-                    v = d.get("value")
-                    if isinstance(v, (int, float)):
-                        total += v
-                        n_fe += 1
-                # sigma=0 placeholder anti-pattern
+                v = d.get("value")
+                fam = nm.split(".")[0]
+                if (fam in FAMILIES and "." in nm and ".ratio" not in nm
+                        and isinstance(v, (int, float))):
+                    if isinstance(d.get("aggregates"), list) and d["aggregates"]:
+                        inline[nm] = set(d["aggregates"])       # the record's own declaration
+                        rollups[nm] = v
+                    elif nm in AGGREGATES:
+                        rollups[nm] = v
+                    else:
+                        leaves[nm] = v
+
+                # sigma=0 is a CLAIM OF EXACTNESS. Firing only when the depositor already
+                # confessed "not reported" in a free-text note caught 32 of 792 such
+                # descriptors and was blind to the other 760 — a detector that fires only on
+                # the honest depositor. It now fires on any sigma=0 not justified by an
+                # explicit uncertainty.basis, and as a warning rather than info.
                 unc = d.get("uncertainty") or {}
-                if unc.get("sigma") == 0.0 and "not" in str(unc.get("notes", "")).lower():
-                    info.append({"code": "SIGMA_ZERO_PLACEHOLDER", "path": f"descriptors/outputs/{oi}",
-                                 "message": f"Descriptor '{nm}': sigma=0.0 with a 'not reported' note reads as ZERO uncertainty to a machine. Prefer an explicit basis note without a numeric 0."})
-            if n_fe >= 2 and total > 1.05:
-                warnings.append({"code": "FE_SUM_EXCEEDS_UNITY", "path": f"descriptors/outputs/{oi}",
-                                 "message": f"Sum of {n_fe} product Faradaic efficiencies = {total:.2f} > 1.05 in one output block — check for double counting or percent encoding."})
+                if unc.get("sigma") == 0.0:
+                    bas = str(unc.get("basis") or "").strip().lower()
+                    if bas in ("", "none"):
+                        warnings.append({
+                            "code": "SIGMA_ZERO_PLACEHOLDER",
+                            "path": f"descriptors/outputs/{oi}",
+                            "message": (
+                                f"Descriptor '{nm}': sigma=0.0 with no uncertainty.basis. To a "
+                                f"machine this asserts the value is EXACT, and downstream "
+                                f"scoring that divides by a noise scale will treat it as "
+                                f"infinitely precise. If the source reported no uncertainty, "
+                                f"write sigma: null with basis: 'not_reported'. If it is "
+                                f"genuinely exact (a set point, an integer count), say so with "
+                                f"basis: 'exact'.")})
+                    elif bas not in uncertainty_bases():
+                        info.append({
+                            "code": "UNCERTAINTY_BASIS_NOT_IN_VOCABULARY",
+                            "path": f"descriptors/outputs/{oi}",
+                            "message": (
+                                f"Descriptor '{nm}': uncertainty.basis '{unc.get('basis')}' is "
+                                f"not one of {sorted(uncertainty_bases())}. Free-text bases "
+                                f"cannot be filtered or compared across records.")})
+
+            # Closure band, SYMMETRIC at +/-10%. Set from the repository's own distribution
+            # (2026-08-08, 133 blocks with >=3 leaf products): 72.2% land in 0.90-1.10, NOTHING
+            # anywhere exceeds 1.10, and the entire tail is 0.70-0.90. Quantitative calibration
+            # to better than ~10% is hard, and minor or hard-to-detect species routinely go
+            # unquantified, so a slate that does not close is NORMAL SCIENCE and must not be
+            # nagged at as a defect. The earlier asymmetric band (warn above 1.05, warn below
+            # 0.90) was tighter on the side where nothing ever happens and moralising on the
+            # side where everything does.
+            #
+            # What a machine genuinely cannot do is tell an UNDECLARED gap from a measurement
+            # that failed to balance. So the check asks for the declaration, and goes quiet the
+            # moment the block provides one.
+            n_leaf = len(leaves)
+            total = sum(leaves.values())
+            comp = o.get("completeness") if isinstance(o, dict) else None
+            declared = bool(isinstance(comp, dict) and (
+                comp.get("quantified") in ("major_components_only", "partial")
+                or comp.get("unquantified")))
+            whole = 1.0
+            if isinstance(comp, dict) and isinstance(comp.get("expected_total"), (int, float)):
+                whole = float(comp["expected_total"]) or 1.0
+
+            if n_leaf >= 2 and total > 1.10 * whole:
+                warnings.append({"code": "COMPONENT_SET_EXCEEDS_TOTAL", "path": f"descriptors/outputs/{oi}",
+                                 "message": f"Sum of {n_leaf} leaf product component values = {total:.2f} against an expected total of {whole:.2f}, more than 10% over. Over-closure has no benign reading the way under-closure does — check for percent encoding or a product counted twice. Roll-up descriptors ({', '.join(sorted(rollups)) or 'none present'}) are excluded from this sum by design."})
+            elif n_leaf >= 3 and total < 0.90 * whole and not declared:
+                gap = whole - total
+                entry = {"path": f"descriptors/outputs/{oi}",
+                         "code": "COMPONENT_SET_INCOMPLETE_UNDECLARED",
+                         "message": (
+                             f"{n_leaf} component values sum to {total:.2f} of an "
+                             f"expected {whole:.2f}, leaving {gap:.2f} unaccounted for, and the "
+                             f"block does not say why. This is very often fine — minor and "
+                             f"hard-to-detect species are routinely not quantified — but said "
+                             f"out loud it becomes re-usable evidence instead of a silent hole. "
+                             f"Set descriptors.outputs[].completeness: "
+                             f"{{quantified: 'major_components_only', unquantified: ['liquid "
+                             f"products', ...]}}. If the slate IS meant to be exhaustive, "
+                             f"declare quantified: 'all_components' and the gap becomes a real "
+                             f"finding worth chasing.")}
+                # Under 20% missing is ordinary; beyond that it is worth a depositor's eye.
+                (warnings if total < 0.80 * whole else info).append(entry)
+
+            # Roll-ups must equal the leaves they aggregate. This is a free, exact consistency
+            # check wherever both are present, and it is what distinguishes a faithfully
+            # digitized slate from an assembled one.
+            for rn, rv in rollups.items():
+                parts = inline.get(rn) or AGGREGATES.get(rn)
+                if not parts:
+                    continue
+                have = {k: v for k, v in leaves.items() if k in parts}
+                if len(have) < 2:
+                    continue
+                got = sum(have.values())
+                if abs(got - rv) > 0.02 + 1e-9:
+                    warnings.append({"code": "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS", "path": f"descriptors/outputs/{oi}",
+                                     "message": f"Roll-up '{rn}' = {rv:.3f} but its components present in this block sum to {got:.3f} ({', '.join(sorted(have))}). One of the two was not read off the same data."})
 
         # Unknown (non-canonical, non-alias) units — vocabulary growth signal
         if CANONICAL_UNIT_SET:

@@ -213,7 +213,7 @@ def test_warnings_tier():
             d["value"] = 0.6
     res = validation.validate_record_full(r)
     assert res["valid"], "FE-sum is a warning, must not block"
-    assert any(w["code"] == "FE_SUM_EXCEEDS_UNITY" for w in res.get("warnings", []))
+    assert any(w["code"] == "COMPONENT_SET_EXCEEDS_TOTAL" for w in res.get("warnings", []))
 
     # Galvanostatic with no potential -> GALVANOSTATIC_NO_POTENTIAL warning
     r = json.loads(json.dumps(base))
@@ -388,3 +388,147 @@ def test_record_tags():
     assert not validation.validate_record_full(r2)["valid"]
     r3 = json.loads(json.dumps(base)); r3["tags"] = ["x", "x"]
     assert not validation.validate_record_full(r3)["valid"]
+
+
+class TestFEChargeBalanceAndSigmaZero:
+    """Repository audit 2026-08-08, all 1722 records / 4433 descriptors.
+
+    Two advisory checks were measurably one-sided:
+
+    * `FE_SUM_EXCEEDS_UNITY` summed roll-up descriptors together with their own components, so
+      it double-counted by construction. It fired on 10 output blocks and **all 10 were false
+      positives**; blocks genuinely over unity numbered ZERO. Meanwhile 37 blocks close below
+      0.90, down to 0.73, and nothing looked in that direction.
+    * `SIGMA_ZERO_PLACEHOLDER` fired only when the depositor had already written "not" into a
+      free-text note. 792 descriptors carry sigma=0.0; it caught 32 and was blind to 760. A
+      detector that fires only on the honest depositor is not a detector.
+    """
+
+    def _block(self, *pairs, **unc):
+        return {"descriptors": {"outputs": [{"descriptors": [
+            {"name": n, "kind": "absolute", "source": "imported", "value": v,
+             "uncertainty": dict(unc) if unc else {"sigma": 0.01}}
+            for n, v in pairs]}]}}
+
+    def _codes(self, rec):
+        w, i = validation._warning_checks(rec)[:2]
+        return [x["code"] for x in list(w) + list(i)]
+
+    def test_a_rollup_beside_its_components_is_not_double_counted(self):
+        """The exact shape of all 10 historical false positives."""
+        rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
+                          ("faradaic_efficiency.HCOO", 0.05), ("faradaic_efficiency.C1", 0.25),
+                          ("faradaic_efficiency.C2H4", 0.27), ("faradaic_efficiency.C2H5OH", 0.10),
+                          ("faradaic_efficiency.CH3COO", 0.05), ("faradaic_efficiency.n_C3H7OH", 0.03),
+                          ("faradaic_efficiency.C2plus", 0.45), ("faradaic_efficiency.H2", 0.07))
+        assert "COMPONENT_SET_EXCEEDS_TOTAL" not in self._codes(rec)
+
+    def test_a_genuine_percent_encoding_still_fires(self):
+        rec = self._block(("faradaic_efficiency.CH4", 40.0), ("faradaic_efficiency.H2", 55.0))
+        assert "COMPONENT_SET_EXCEEDS_TOTAL" in self._codes(rec)
+
+    def test_the_band_is_symmetric_at_ten_percent(self):
+        """Repository distribution: 72.2% of blocks land in 0.90-1.10 and NOTHING exceeds 1.10.
+        Calibration to better than ~10% is hard; a slate at 0.93 or 1.07 is ordinary science."""
+        for tot in (0.93, 1.07):
+            rec = self._block(("faradaic_efficiency.CH4", tot - 0.5),
+                              ("faradaic_efficiency.C2H4", 0.3), ("faradaic_efficiency.H2", 0.2))
+            codes = self._codes(rec)
+            assert "COMPONENT_SET_INCOMPLETE_UNDECLARED" not in codes
+            assert "COMPONENT_SET_EXCEEDS_TOTAL" not in codes
+
+    def test_an_undeclared_gap_asks_for_a_declaration(self):
+        rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
+                          ("faradaic_efficiency.C2H4", 0.27), ("faradaic_efficiency.H2", 0.07))
+        assert "COMPONENT_SET_INCOMPLETE_UNDECLARED" in self._codes(rec)
+
+    def test_a_declared_gap_is_silent(self):
+        """Unquantified minor products are normal. Said out loud, there is nothing to flag."""
+        rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
+                          ("faradaic_efficiency.C2H4", 0.27), ("faradaic_efficiency.H2", 0.07))
+        rec["descriptors"]["outputs"][0]["completeness"] = {
+            "quantified": "major_components_only", "unquantified": ["liquid products"]}
+        assert "COMPONENT_SET_INCOMPLETE_UNDECLARED" not in self._codes(rec)
+
+    def test_a_declared_slate_survives_schema_validation(self):
+        """The new field is optional and additive; additionalProperties is false on the block."""
+        rec = self._block(("faradaic_efficiency.CH4", 0.5), ("faradaic_efficiency.H2", 0.4))
+        rec["descriptors"]["outputs"][0]["completeness"] = {
+            "quantified": "major_components_only", "unquantified": ["C3+"],
+            "expected_total": 1.0, "notes": "GC did not resolve liquids"}
+        errs = [e for e in validation.validate_record_full(rec)["schema_errors"]
+                if "completeness" in str(e)]
+        assert not errs, errs
+
+    def test_a_modest_gap_is_gentler_than_a_large_one(self):
+        """0.85 is plausible unquantified minors; 0.75 deserves a depositor's eye."""
+        modest = self._block(("faradaic_efficiency.CH4", 0.40), ("faradaic_efficiency.C2H4", 0.30),
+                             ("faradaic_efficiency.H2", 0.15))
+        large = self._block(("faradaic_efficiency.CH4", 0.35), ("faradaic_efficiency.C2H4", 0.25),
+                            ("faradaic_efficiency.H2", 0.15))
+        w_m, i_m = validation._warning_checks(modest)[:2]
+        w_l, i_l = validation._warning_checks(large)[:2]
+        assert any(x["code"] == "COMPONENT_SET_INCOMPLETE_UNDECLARED" for x in i_m)
+        assert any(x["code"] == "COMPONENT_SET_INCOMPLETE_UNDECLARED" for x in w_l)
+
+    def test_over_closure_still_warns_because_it_has_no_benign_reading(self):
+        rec = self._block(("faradaic_efficiency.CH4", 0.70), ("faradaic_efficiency.C2H4", 0.30),
+                          ("faradaic_efficiency.H2", 0.20))
+        assert "COMPONENT_SET_EXCEEDS_TOTAL" in self._codes(rec)
+
+    def test_a_rollup_that_disagrees_with_its_components_is_flagged(self):
+        rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
+                          ("faradaic_efficiency.HCOO", 0.05), ("faradaic_efficiency.C1", 0.40))
+        assert "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS" in self._codes(rec)
+
+    def test_a_consistent_rollup_is_silent(self):
+        rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.CO", 0.05),
+                          ("faradaic_efficiency.HCOO", 0.05), ("faradaic_efficiency.C1", 0.25))
+        assert "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS" not in self._codes(rec)
+
+    def test_sigma_zero_without_a_basis_is_caught_without_a_confession(self):
+        """The 760 the old detector could not see: no note, no basis, just sigma 0."""
+        rec = self._block(("faradaic_efficiency.H2", 0.07), sigma=0.0, unit="fraction")
+        assert "SIGMA_ZERO_PLACEHOLDER" in self._codes(rec)
+
+    def test_sigma_zero_declared_exact_is_accepted(self):
+        """A set point genuinely has no scatter. The check is about the SILENT zero."""
+        rec = self._block(("faradaic_efficiency.H2", 0.07), sigma=0.0, basis="exact")
+        assert "SIGMA_ZERO_PLACEHOLDER" not in self._codes(rec)
+
+    def test_not_reported_is_expressible_without_lying_about_precision(self):
+        rec = self._block(("faradaic_efficiency.H2", 0.07), sigma=None, basis="not_reported")
+        assert "SIGMA_ZERO_PLACEHOLDER" not in self._codes(rec)
+
+    def test_a_free_text_basis_is_a_vocabulary_signal_not_an_error(self):
+        rec = self._block(("faradaic_efficiency.H2", 0.07), sigma=0.0,
+                          basis="not estimated from source figure data")
+        codes = self._codes(rec)
+        assert "UNCERTAINTY_BASIS_NOT_IN_VOCABULARY" in codes
+        assert "SIGMA_ZERO_PLACEHOLDER" not in codes
+
+    def test_none_of_this_can_reject_a_record(self):
+        """These are advisories. Acceptance is schema + vocabulary + semantic, and all 1722
+        records in the repository remain valid after the change."""
+        rec = self._block(("faradaic_efficiency.CH4", 0.15), ("faradaic_efficiency.H2", 0.07),
+                          sigma=0.0)
+        res = validation.validate_record_full(rec)
+        assert not any(e for e in res["errors"] if "SIGMA_ZERO" in str(e) or "FE_SUM" in str(e))
+
+    def test_the_validator_carries_no_chemistry(self):
+        """The reason this class exists in this shape: a schema validator serving all of
+        science must not hardcode one reaction's product list. Families and aggregates are
+        DATA in data/vocabulary.json; the code only sums and compares."""
+        import inspect
+        src = inspect.getsource(validation._warning_checks)
+        for token in ("faradaic", "CH4", "C2H4", "HCOO", "C2plus", "CO2"):
+            assert token not in src, "chemistry leaked back into the validator: %s" % token
+
+    def test_a_record_may_declare_its_own_aggregation_inline(self):
+        """Generic path: no vocabulary entry needed, the record says what aggregates what."""
+        rec = self._block(("selectivity.a", 0.3), ("selectivity.b", 0.2), ("selectivity.total", 0.9))
+        ds = rec["descriptors"]["outputs"][0]["descriptors"]
+        ds[-1]["aggregates"] = ["selectivity.a", "selectivity.b"]
+        assert "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS" in self._codes(rec)
+        ds[-1] = dict(ds[-1], value=0.5)
+        assert "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS" not in self._codes(rec)
