@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.73-independence-is-shared-cause-not-shared-identifier",
+        "version": "0.74-why-a-criterion-cannot-be-decided",
         # Read from the constant, never retyped. This drifted exactly once and it was caught
         # by an adversarial review rather than by a test: 0.70 raised CURRENT to 63 while the
         # manifest still advertised 62, so every agent reading the contract would have been
@@ -721,6 +721,26 @@ def get_manifest() -> dict:
                 "another technique - not merely another record. And when you deposit, record "
                 "`system.session` (or `computation.method` for a calculation), `attribution.produced_by` and `replica_of` links, because "
                 "un-recorded provenance is scored as independence you may not have earned.",
+            "why_a_criterion_cannot_be_decided": "There are TWO reasons a falsification "
+                "criterion may fail to be decided, they are not interchangeable, and choosing "
+                "between them is part of the answer. **`insufficient`** — the evidence the "
+                "criterion needs IS NOT THERE. Nothing in the cited records reports the "
+                "quantity, at any scope. **`blocked`** — the evidence IS THERE IN FORM but "
+                "cannot carry the comparison asked of it: the field exists and is populated, "
+                "yet its scope, provenance or conditions make it invalid for THIS test. A "
+                "series-level or paper-level value offered where a per-record one is required; "
+                "a converted, imported or assumed number offered as a measurement; quantities "
+                "from conditions that are not commensurable. The practical test, and it is the "
+                "whole of the distinction: WOULD MORE OF THE SAME KIND OF RECORD SETTLE IT? If "
+                "yes, the gap is COVERAGE and the verdict is `insufficient`. If no — because "
+                "the available field is the wrong KIND of thing however much of it you collect "
+                "— the gap is VALIDITY and the verdict is `blocked`. Say which in the "
+                "rationale, and name the field you rejected and why. This is not bookkeeping: "
+                "`insufficient` tells the next agent to go and measure, `blocked` tells them "
+                "the measurement they have will not do, and those are different experiments. "
+                "⚠ Neither is a lesser answer than a decisive verdict. A criterion that cannot "
+                "be decided from the evidence in hand has been answered correctly when you say "
+                "so, and answered wrongly when you force it.",
             "failed_compute_never_penalizes": "A computation that crashes or does not "
                 "converge is NOT evidence and NOT a verdict — it produced no measurement. "
                 "Set the prediction's work_status='compute_failed' (a failed compute run "

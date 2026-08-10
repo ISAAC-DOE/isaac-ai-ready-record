@@ -932,8 +932,11 @@ class TestPolicy65SharedCauseIndependence:
     def test_the_manifest_states_the_rule_and_advertises_its_version(self):
         man = discovery.get_manifest()
         node = man.get("contract", man)
-        assert node["policy_version"] == tp.CURRENT_POLICY_VERSION
-        assert node["version"].startswith("0.73-")
+        # Assert what this rung OWNS: that policy 65 is current and its clause is stated.
+        # The contract TEXT version moves independently - it bumps whenever a clause changes,
+        # even when nothing new is enforced - so pinning it here made a text-only rung (0.74)
+        # fail a test about enforcement.
+        assert node["policy_version"] == tp.CURRENT_POLICY_VERSION == 65
         src = open(discovery.__file__.replace(".pyc", ".py")).read()
         assert "independence_is_shared_cause_not_shared_identifier" in src
         assert "policy_version >= 65" in src
@@ -949,3 +952,54 @@ class TestPolicy65SharedCauseIndependence:
                        "gamry", "vasp", "lbnl", "slac"):
             assert banned not in clause, "clause leaked a domain term: %s" % banned
             assert banned not in code, "signature leaked a domain term: %s" % banned
+
+
+class TestContract074UndecidableBoundary:
+    """Rung 0.74 — why a criterion cannot be decided.
+
+    Four GPT-5.6 variants (one vendor, one harness, one reasoning effort, one corpus, one day,
+    only the weights differing) split 2-2 between `insufficient` and `blocked` on the same
+    prediction, agreeing on every fact and differing only on the label. A 2-2 split under those
+    conditions is not model temperament; it is a gap in the contract's vocabulary.
+
+    TEXT ONLY. No new gate, and policy stays 65: both camps reasoned correctly, so enforcing
+    one answer would invent a right answer where the contract had failed to state one.
+    """
+
+    def test_the_contract_text_moved_but_enforcement_did_not(self):
+        man = discovery.get_manifest()
+        node = man.get("contract", man)
+        assert node["version"].startswith("0.74-")
+        assert node["policy_version"] == 65 == tp.CURRENT_POLICY_VERSION
+
+    def test_the_clause_states_both_halves_and_the_deciding_test(self):
+        src = open(discovery.__file__.replace(".pyc", ".py")).read()
+        i = src.index("why_a_criterion_cannot_be_decided")
+        clause = src[i:i + 2600]
+        assert "IS NOT THERE" in clause
+        assert "THERE IN FORM" in clause
+        # the practical test is the whole distinction; without it the clause is two synonyms
+        assert "MORE OF THE SAME KIND OF RECORD SETTLE IT" in clause
+        assert "COVERAGE" in clause and "VALIDITY" in clause
+
+    def test_the_clause_says_a_non_decisive_verdict_is_not_a_lesser_answer(self):
+        """F4 guards against the clause licensing evasion. The text must also refuse the
+        opposite failure — treating an honest non-decision as a weaker result."""
+        src = open(discovery.__file__.replace(".pyc", ".py")).read()
+        i = src.index("why_a_criterion_cannot_be_decided")
+        assert "lesser answer" in src[i:i + 2600]
+
+    def test_the_clause_names_no_domain(self):
+        """STANDING: the manifest must be generic for any scientific discovery."""
+        src = open(discovery.__file__.replace(".pyc", ".py")).read()
+        i = src.index("why_a_criterion_cannot_be_decided")
+        clause = src[i:i + 2600].lower()
+        for banned in ("cu-ag", "cu-au", "co2rr", "faradaic", "catalys", "electrode",
+                       "potential vs rhe", "stripe", "ethylene", "dft"):
+            assert banned not in clause, "clause leaked a domain term: %s" % banned
+
+    def test_both_verdicts_remain_available_and_unenforced(self):
+        """No gate may refuse either choice - the whole point is that both are honest."""
+        assert "insufficient" in discovery.VERDICTS and "blocked" in discovery.VERDICTS
+        src = open(discovery.__file__.replace(".pyc", ".py")).read()
+        assert 'verdict in ("insufficient", "blocked")' not in src
