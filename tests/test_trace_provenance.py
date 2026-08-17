@@ -967,9 +967,17 @@ class TestContract074UndecidableBoundary:
     """
 
     def test_the_contract_text_moved_but_enforcement_did_not(self):
+        """The invariant is that TEXT advanced while ENFORCEMENT did not.
+
+        Pinning the exact text version here made this test a tripwire on every later wording
+        change, which is the opposite of what it is for: 0.75 stripped the case-specific
+        examples and is also text-only. What must hold is that the text is at or past 0.74
+        and the policy is still 65.
+        """
         man = discovery.get_manifest()
         node = man.get("contract", man)
-        assert node["version"].startswith("0.74-")
+        major, minor = node["version"].split("-")[0].split(".")
+        assert (int(major), int(minor)) >= (0, 74)
         assert node["policy_version"] == 65 == tp.CURRENT_POLICY_VERSION
 
     def test_the_clause_states_both_halves_and_the_deciding_test(self):
