@@ -1620,7 +1620,7 @@ elif page == "API Documentation":
     """)
     st.markdown("`data->'context'` (object) · "
                 "`data->'context'->'electrochemistry'->>'reaction'` (text) · "
-                "`data->'descriptors'->'faradaic_efficiency'->>'C2H4'` (text)")
+                "`data->'descriptors'->'<family>'->>'<component>'` (text)")
     st.markdown("**Example queries:**")
     st.code("""-- columns + a nested JSONB value as text
 SELECT record_id, record_type,
@@ -1629,7 +1629,7 @@ FROM records LIMIT 20;
 
 -- filter on a nested JSONB field
 SELECT record_id FROM records
-WHERE data->'context'->'electrochemistry'->>'reaction' = 'CO2RR'
+WHERE data->'record_domain' ? 'performance'
 LIMIT 50;
 
 -- count records by type
@@ -3361,7 +3361,7 @@ requestAnimationFrame(loop);
                 # glyph pool for the matrix rain / record grid: record ids + descriptors
                 _pool = (_pool + [p_.get("descriptor_name", "") for h in hyps
                                   for p_ in h["predictions"]]
-                         + [h["label"] for h in hyps] + ["CO2RR", "ISAAC", "ΔE", "Cu", "Au"])
+                         + [h["label"] for h in hyps] + ["ISAAC", "ΔE", "σ", "n"])
                 _pool = [str(x) for x in _pool if x][:120] or ["ISAAC"]
                 _replay_payload = {
                     "events": _revents, "hyps": _rhyps, "confSeries": _confseries,
@@ -4089,8 +4089,8 @@ requestAnimationFrame(loop);
 
                 st.markdown("##### 📦 The raw manifest (verbatim machine contract)")
                 st.caption("Exactly the JSON the agent parses — every field, vocabulary "
-                           "and shape. The companion narrative is "
-                           "`portal/DISCOVERY_AGENT_PROTOCOL.md` in the repo.")
+                           "and shape. This is the only protocol document; there is no "
+                           "second copy to drift out of date.")
                 st.json(_manifest, expanded=False)
                 st.markdown(f"[Open the live manifest JSON ↗]({_man_url})")
 
@@ -4121,8 +4121,10 @@ requestAnimationFrame(loop);
                 with st.form("new_discovery_project"):
                     t = st.text_input("Title *")
                     g = st.text_area("Goal")
-                    ms = st.text_input("Material system", placeholder="e.g. Cu-Au")
-                    rx = st.text_input("Reaction", placeholder="e.g. CO2RR")
+                    ms = st.text_input("Material system",
+                                       placeholder="the material or system under study")
+                    rx = st.text_input("Reaction or process",
+                                       placeholder="the reaction, process or transformation")
                     if st.form_submit_button("Create project"):
                         if not t.strip():
                             st.error("Title is required.")

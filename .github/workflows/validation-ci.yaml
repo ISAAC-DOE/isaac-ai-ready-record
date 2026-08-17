@@ -24,6 +24,13 @@ jobs:
         run: |
           pytest tests/ -v --tb=short
 
+      - name: Contract names no one's case
+        # Hard gate, both PR and main. The manifest is the FIRST thing every agent fetches,
+        # and it once carried two worked examples that were verbatim registered predictions
+        # from the project the reproducibility programme benchmarks on.
+        run: |
+          python3 tools/check_manifest_generic.py
+
       - name: Check wiki generated sections freshness
         # Hard gate on main only. On PRs this is ADVISORY: a PR that changes
         # the schema/vocabulary CANNOT match the not-yet-regenerated wiki

@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.74-why-a-criterion-cannot-be-decided",
+        "version": "0.75-the-contract-names-no-ones-case",
         # Read from the constant, never retyped. This drifted exactly once and it was caught
         # by an adversarial review rather than by a test: 0.70 raised CURRENT to 63 while the
         # manifest still advertised 62, so every agent reading the contract would have been
@@ -697,8 +697,8 @@ def get_manifest() -> dict:
                 "in its source. So cross_system evidence is capped at WEAK, contributes a "
                 "little, but does NOT count toward n_decisive and never falsifies: it can "
                 "SUGGEST a direction but never make a hypothesis 'reliable'. Reliability "
-                "must be earned IN-SYSTEM. (The Cu-Ag lesson — a borrowed analog drove a "
-                "hypothesis to a false 0.83 'reliable'; this prevents that.) Check the "
+                "must be earned IN-SYSTEM. (This cap exists because a borrowed analog "
+                "once drove a hypothesis to a false 'reliable'.) Check the "
                 "source's actual claim before borrowing; the rigor critic audits it.",
             "independence_is_shared_cause_not_shared_identifier": "Two results are "
                 "independent to the degree that they do NOT share a CAUSE OF ERROR. Different "
@@ -795,7 +795,7 @@ def get_manifest() -> dict:
                 "credit it earned on held-out data is a discovery being strangled by "
                 "conformity. Disagreement-with-consensus is NEVER a valid reason to "
                 "discount an out-of-sample verdict — re-instate it at full strength.\n"
-                "  • TRANSFERABILITY (the Cu-Ag lesson): a verdict leaning on evidence from "
+                "  • TRANSFERABILITY: a verdict leaning on evidence from "
                 "a DIFFERENT material / reaction / mechanism class (an analog) that is NOT "
                 "marked cross_system, OR whose borrowed claim is mechanistically invalid "
                 "(e.g. the source paper argues the OPPOSITE mechanism, or its numbers are "
@@ -1198,20 +1198,21 @@ def get_manifest() -> dict:
                        "spanning DIFFERENT measurables — each STRUCTURED into discrete "
                        "fields, not a claim packed into descriptor_name with a prose "
                        "falsifier.",
-                       "descriptor_name": "the MEASURABLE itself (e.g. faradaic_efficiency."
-                       "CH4, adsorption_energy.CO, a partial current) — NOT a sentence. "
-                       "'CH4_rises_at_89pct' is a claim: the rise belongs in `direction`, "
-                       "the 89% in `reference_condition`. VARY it across the set.",
+                       "descriptor_name": "the MEASURABLE itself (e.g. "
+                       "capacity_retention_percent, band_gap, a partial current) — NOT a "
+                       "sentence. 'gap_narrows_at_high_x' is a claim: the narrowing belongs "
+                       "in `direction`, the composition in `reference_condition`. VARY it "
+                       "across the set.",
                        "direction": "REQUIRED — which way the measurable goes if the "
                        "hypothesis holds: ↑ / ↓ / non-monotonic / flat (or a clear "
                        "synonym). A vague verb ('changes', 'depends', 'reproduces', "
                        "'differs') is NOT a direction — name the SIGN.",
                        "reference_condition": "MEASURED-TREND predictions: vs WHAT baseline "
-                       "/ between which SPECIFIC points (e.g. 'vs pure-Cu', '80%→89% Cu') — "
-                       "not a generic 'vs baseline'.",
+                       "/ between which SPECIFIC points (e.g. 'vs the undoped parent', "
+                       "'cycle 200 → cycle 800') — not a generic 'vs baseline'.",
                        "output_quantity": "CALCULATION predictions: the named computed "
                        "CONTRAST quantity whose value/sign is predicted (e.g. "
-                       "'ΔE_CO(Au-adjacent) − ΔE_CO(pure-Cu)', 'OCCO ΔG vs CO coverage') — a "
+                       "'E_gap(substituted) − E_gap(parent)', 'ΔH_f vs dopant fraction') — a "
                        "quantity with symbols/units, NOT a sentence and not a copy of "
                        "descriptor_name. The comparison lives IN the quantity; it also keys "
                        "methodological comparability.",
@@ -1227,14 +1228,14 @@ def get_manifest() -> dict:
                        "descriptor name + falsifier — put it in the FIELDS. Backfill omitted "
                        "fields IN PLACE via PUT /predictions/{id}.",
                        "_examples": [
-                           "TREND — {descriptor_name:'faradaic_efficiency.CH4', "
-                           "direction:'↑', reference_condition:'80%→89% Cu (vs the 80% "
-                           "peak)', falsification_criterion:'if CH4 is flat/down at 89% the "
-                           "CO-starved-interior reading is wrong'}",
-                           "CALCULATION — {descriptor_name:'adsorption_energy.CO', "
-                           "direction:'↓ (weaker)', output_quantity:'ΔE_CO(Au-adjacent) − "
-                           "ΔE_CO(pure-Cu)', falsification_criterion:'if Au STRENGTHENS Cu "
-                           "CO binding, Au is electronic not CO-supply'}"]},
+                           "TREND — {descriptor_name:'capacity_retention_percent', "
+                           "direction:'↓', reference_condition:'cycle 200 → cycle 800 at "
+                           "1C', falsification_criterion:'if retention is flat out to cycle "
+                           "800 the interphase-growth reading is wrong'}",
+                           "CALCULATION — {descriptor_name:'band_gap', direction:'↓', "
+                           "output_quantity:'E_gap(substituted) − E_gap(parent)', "
+                           "falsification_criterion:'if the gap is unchanged or opens, the "
+                           "substitution-driven-narrowing reading is wrong'}"]},
             "origin": {"type": "agent_reasoning|literature|prior_result|human",
                        "summary": "str", "reasoning": "str",
                        "sources": "[{record_id|doi|hypothesis}]"},
@@ -1361,7 +1362,7 @@ def get_manifest() -> dict:
                 "purpose": "ISAAC is itself a primary KNOWLEDGE SOURCE — query it BEFORE "
                     "computing anything from scratch. It holds EXPERIMENTAL records "
                     "(performance, characterization) AND COMPUTATIONAL records: DFT slabs "
-                    "with adsorbates (e.g. Cu(100) + CO/OH/CHO), adsorption energies, "
+                    "with adsorbates, adsorption energies, "
                     "activation barriers, band gaps, XANES, ... Look up a value that's "
                     "already archived instead of recomputing it, and cite the record as "
                     "evidence.",
@@ -1392,10 +1393,10 @@ def get_manifest() -> dict:
                     "coming.) The FUNCTIONAL is not a free choice: accuracy depends on using "
                     "the approach the LITERATURE has validated for THIS question. Different "
                     "functionals give materially different adsorption energies/barriers, and "
-                    "the right one is field-specific (e.g. RPBE / BEEF-vdW for CO2RR/CO "
-                    "adsorption energetics on transition metals; the SunCat/Nørskov line of "
-                    "work also applies EMPIRICAL SHIFTS to specific adsorbates to match "
-                    "experiment). Before you trust a decisive number: (1) decide the method "
+                    "the right one is field-specific. Find the method the literature has "
+                    "VALIDATED for THIS class of system and THIS observable, and check "
+                    "whether that literature also applies an EMPIRICAL SHIFT to match "
+                    "experiment. Before you trust a decisive number: (1) decide the method "
                     "from the literature for this exact property/system — do an Edison "
                     "literature search if unsure WHICH functional+correction is standard; "
                     "(2) match the ISAAC database standard so your value is comparable to "
@@ -3197,7 +3198,7 @@ def compute_hypothesis_score(h) -> dict:
     DIFFERENT material / reaction / mechanism class (an analog). It can SUGGEST but never
     ESTABLISH — capped at weak, contributes a little, but does NOT count toward n_decisive
     and never trips the falsification cap. A hypothesis cannot become 'reliable' on
-    borrowed analogs alone (the Cu-Ag lesson). The rigor critic audits transferability.
+    borrowed analogs alone. The rigor critic audits transferability.
     RELIABILITY (optional per-verdict, server-derived `reliability_tier`): how much to
     TRUST the datum — established/corroborated/single_source/contested/anecdotal. It
     multiplies the contribution, and contested/anecdotal (weak-provenance) move belief but
