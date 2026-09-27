@@ -26,13 +26,7 @@
   "system": {
     "domain": "computational",
     "technique": "DFT",
-    "instrument": {
-      "instrument_type": "simulation_engine",
-      "instrument_name": "VASP",
-      "vendor_or_project": "VASP"
-    },
     "configuration": {
-      "dft_code": "VASP",
       "xc_functional": "RPBE_-0.413VSHE",
       "facet": "100",
       "surface_composition": "Cu",
@@ -43,7 +37,8 @@
     "method": {
       "family": "DFT",
       "functional_class": "GGA",
-      "functional_name": "RPBE"
+      "functional_name": "RPBE",
+      "code": "VASP"
     }
   },
   "descriptors": {
@@ -84,8 +79,22 @@
         "title": "The role of roughening in enhancing selectivity to C2+ products during CO2 electroreduction on copper",
         "authors": "Gauthier, Joseph A.; Halldin Stenlid, Joakim; Abild-Pedersen, Frank; Head-Gordon, Martin; Bell, Alexis T.",
         "year": 2021,
-        "catalysis_hub_pub_id": "Gauthierrole2021"
+        "catalysis_hub_pub_id": "Gauthierrole2021",
+        "relation": "source"
       }
+    },
+    {
+      "asset_id": "catalysis_hub_entry",
+      "content_role": "raw_data_pointer",
+      "uri": "https://www.catalysis-hub.org/publications/Gauthierrole2021",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "media_type": "text/html",
+      "database_entry": {
+        "database": "Catalysis-Hub",
+        "entry_id": "Gauthierrole2021",
+        "collection": "Gauthierrole2021"
+      },
+      "notes": "The Catalysis-Hub dataset this entry was taken from. Use the reaction's own id as entry_id when you have it."
     }
   ],
   "attribution": {

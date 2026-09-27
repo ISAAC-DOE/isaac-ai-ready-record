@@ -406,14 +406,12 @@
       ]
     },
     "system.instrument.instrument_type": {
-      "description": "Primary platform type.",
+      "description": "Kind of measurement hardware. A calculation has no instrument: its code is computation.method.code and its computer system.facility (CODE_OUTSIDE_METHOD).",
       "values": [
         "beamline_endstation",
         "diffractometer",
         "spectrometer",
         "microscope",
-        "supercomputer_partition",
-        "simulation_engine",
         "potentiostat",
         "chromatograph",
         "mass_spectrometer",
@@ -454,7 +452,8 @@
         "Utrecht University": "https://ror.org/04pp8hn57",
         "Eindhoven University of Technology": "https://ror.org/02c2kyt77",
         "Xi'an Jiaotong University": "https://ror.org/017zhmm22",
-        "European Synchrotron Radiation Facility": "https://ror.org/02550n020"
+        "European Synchrotron Radiation Facility": "https://ror.org/02550n020",
+        "Oak Ridge National Laboratory": "https://ror.org/01qz5mb56"
       }
     },
     "system.organization_aliases": {
@@ -475,7 +474,14 @@
         "UC Berkeley": "University of California, Berkeley",
         "UToronto": "University of Toronto",
         "TU Eindhoven": "Eindhoven University of Technology",
-        "TU/e": "Eindhoven University of Technology"
+        "TU/e": "Eindhoven University of Technology",
+        "ORNL": "Oak Ridge National Laboratory",
+        "Oak Ridge National Lab": "Oak Ridge National Laboratory",
+        "SNS": "Oak Ridge National Laboratory",
+        "Spallation Neutron Source": "Oak Ridge National Laboratory",
+        "HFIR": "Oak Ridge National Laboratory",
+        "ALS": "Lawrence Berkeley National Laboratory",
+        "Advanced Light Source": "Lawrence Berkeley National Laboratory"
       }
     },
     "system.organization_placeholders": {
@@ -490,6 +496,49 @@
         "N/A",
         "na",
         "not_reported"
+      ]
+    },
+    "system.domain_signals": {
+      "description": "Field values that say whether a record is a calculation or a measurement. Every one present in a record must say the same (DOMAIN_INCONSISTENT); a value missing from this table says neither, so a spectroscopy technique can name a measured or a simulated spectrum. A calculation reported in a paper is still a calculation.",
+      "map": {
+        "context.environment=ex_situ": "measurement",
+        "context.environment=in_silico": "calculation",
+        "context.environment=in_situ": "measurement",
+        "context.environment=operando": "measurement",
+        "record_domain=simulation": "calculation",
+        "sample.material.provenance=commercial": "measurement",
+        "sample.material.provenance=fabricated": "measurement",
+        "sample.material.provenance=natural": "measurement",
+        "sample.material.provenance=synthesized": "measurement",
+        "sample.material.provenance=theoretical": "calculation",
+        "sample.sample_form=cluster_model": "calculation",
+        "sample.sample_form=continuum_model": "calculation",
+        "sample.sample_form=film": "measurement",
+        "sample.sample_form=fluids": "measurement",
+        "sample.sample_form=gas": "measurement",
+        "sample.sample_form=liquid": "measurement",
+        "sample.sample_form=membrane_electrode_assembly": "measurement",
+        "sample.sample_form=molecule_model": "calculation",
+        "sample.sample_form=monolith": "measurement",
+        "sample.sample_form=nanoparticle": "measurement",
+        "sample.sample_form=pellet": "measurement",
+        "sample.sample_form=powder": "measurement",
+        "sample.sample_form=single_crystal": "measurement",
+        "sample.sample_form=slab_model": "calculation",
+        "sample.sample_form=unit_cell": "calculation",
+        "source_type=computation": "calculation",
+        "system.domain=computational": "calculation",
+        "system.domain=experimental": "measurement",
+        "system.technique=DFT": "calculation",
+        "system.technique=ab_initio_MD": "calculation",
+        "system.technique=classical_MD": "calculation",
+        "system.technique=kinetic_monte_carlo": "calculation",
+        "system.technique=machine_learning_potential": "calculation",
+        "system.technique=microkinetic_modeling": "calculation"
+      },
+      "map_columns": [
+        "field = value",
+        "says"
       ]
     }
   },
@@ -543,6 +592,13 @@
         "failed",
         "pending"
       ]
+    },
+    "measurement.processing.publication_extraction_steps": {
+      "description": "Processing steps that mean the record's numbers were extracted from a publication. A record carrying one is source_type literature (LITERATURE_SOURCE_UNDECLARED).",
+      "values": [
+        "digitized_from_published_figure",
+        "user_verified_digitization_rules"
+      ]
     }
   },
   "Assets": {
@@ -561,6 +617,14 @@
         "metadata_snapshot",
         "supplementary_image",
         "other"
+      ]
+    },
+    "assets.citation.relation": {
+      "description": "How a cited publication relates to the record. source: the record's numbers were taken from this publication, its figures, tables, supplementary information or data repository (the record is then source_type literature). reports_this_work: the publication reports the same measurement or calculation, and the record's numbers come from the producer's own data. reference: related work, such as a method paper or the experiment a calculation models. Required on every cited publication of a record that is not source_type literature or database (CITATION_RELATION_UNDECLARED).",
+      "values": [
+        "source",
+        "reports_this_work",
+        "reference"
       ]
     }
   },
@@ -1193,20 +1257,37 @@
       ]
     },
     "computation.method.code": {
-      "description": "Common simulation codes for computation.method.code.",
+      "description": "Free text, not a closed list: any code is accepted. Use the code's usual name (for example VASP, Quantum ESPRESSO, GPAW, CP2K, ORCA, LAMMPS, COMSOL Multiphysics); a workflow that chains codes joins them in order with ' + '; 'not_reported' when the source does not state it. This is the only place a record states its code (CODE_OUTSIDE_METHOD)."
+    },
+    "computation.method_requirements": {
+      "description": "Fields of computation.method that every calculation declares, whatever its method family (COMPUTATION_METHOD_MISSING, COMPUTATION_METHOD_INCOMPLETE). Write 'not_reported' for a value the source does not state; the family is always known.",
       "values": [
-        "VASP",
-        "Quantum ESPRESSO",
-        "JDFTx",
-        "CP2K",
-        "GPAW",
-        "FHI-aims",
-        "ABINIT",
-        "CASTEP",
-        "ORCA",
-        "Gaussian",
-        "LAMMPS",
-        "ASE"
+        "family",
+        "code"
+      ]
+    },
+    "computation.method_requirements_by_family": {
+      "description": "Further fields of computation.method that a calculation of the given family declares (COMPUTATION_METHOD_INCOMPLETE); 'not_reported' is accepted. A family missing from this table has only the requirements above. Extend it through a vocabulary proposal.",
+      "map": {
+        "DFT": [
+          "functional_name"
+        ],
+        "DFT_U": [
+          "functional_name"
+        ],
+        "hybrid_DFT": [
+          "functional_name"
+        ],
+        "AIMD": [
+          "functional_name"
+        ],
+        "CHE": [
+          "functional_name"
+        ]
+      },
+      "map_columns": [
+        "family",
+        "also required"
       ]
     }
   },

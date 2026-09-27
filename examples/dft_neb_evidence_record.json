@@ -20,13 +20,7 @@
   "system": {
     "domain": "computational",
     "technique": "DFT",
-    "instrument": {
-      "instrument_type": "simulation_engine",
-      "instrument_name": "VASP_Standard",
-      "vendor_or_project": "VASP"
-    },
     "configuration": {
-      "code_version": "6.4.1",
       "compute_architecture": "GPU"
     }
   },
@@ -64,7 +58,9 @@
       "convergence": {
         "energy_eV": 1e-05,
         "force_eV_per_A": 0.03
-      }
+      },
+      "code": "VASP",
+      "code_version": "6.4.1"
     },
     "slab_model": {
       "surface_facet": "111",
@@ -105,7 +101,12 @@
       "content_role": "auxiliary_reference",
       "uri": "https://doi.org/10.1002/advs.202520469",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "media_type": "text/html"
+      "media_type": "text/html",
+      "citation": {
+        "doi": "10.1002/advs.202520469",
+        "relation": "reference"
+      },
+      "notes": "The experiment these calculations model (Cu-Ag stripe electrodes); the calculations are not from this paper."
     },
     {
       "asset_id": "vasp_incar",

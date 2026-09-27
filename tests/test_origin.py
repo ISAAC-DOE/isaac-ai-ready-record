@@ -36,6 +36,9 @@ def _literature_calculation():
     r = copy.deepcopy(NEB)
     r["source_type"] = "literature"
     r["attribution"] = {"produced_by": {"group": "Paper authors' group", "organization": "Utrecht University"}}
+    for a in r["assets"]:
+        if a.get("citation"):
+            a["citation"]["relation"] = "source"  # the calculation is taken from this paper
     return r
 
 

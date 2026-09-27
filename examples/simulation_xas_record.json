@@ -30,13 +30,7 @@
       "organization": "LBNL",
       "cluster": "Perlmutter"
     },
-    "instrument": {
-      "instrument_type": "simulation_engine",
-      "instrument_name": "VASP_Standard",
-      "vendor_or_project": "VASP"
-    },
     "configuration": {
-      "code_version": "6.3.2",
       "compute_architecture": "GPU"
     }
   },
@@ -46,7 +40,8 @@
       "functional_class": "GGA",
       "functional_name": "PBE",
       "core_hole_treatment": "final_state_rule",
-      "notes": "Specific functional settings."
+      "notes": "XAS computed with the XSpectra module of Quantum ESPRESSO on the relaxed geometry in asset structure_relaxed.",
+      "code": "Quantum ESPRESSO"
     }
   },
   "measurement": {

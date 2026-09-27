@@ -684,61 +684,134 @@ def _cell_and_potential_checks(record: dict):
 # ---------------------------------------------------------------------------
 # Measurement or calculation, where it came from, and who produced it (2026-09-27).
 #
-# Several fields say whether a record is a measurement or a calculation, and they must agree:
-# system.domain, system.technique (when it names a computational method), source_type
-# 'computation', context.environment, sample.sample_form, sample.material.provenance and
-# record_domain 'simulation'. On 2026-09-27, 98 calculations taken from papers (DFT, classical
-# MD, microkinetic models) were stored as experiments: technique DFT, but domain experimental,
-# environment ex_situ, a physical sample form and a synthesized material, so they answered
-# queries for measurements. Where a result comes from is source_type (a paper, a database,
-# or the uploader's own lab, facility or computation); who produced it is
-# attribution.produced_by, which the server-stamped uploaded_by cannot stand in for. No record
-# stated produced_by on 2026-09-27.
+# Which field values say "calculation" and which say "measurement" is data (vocabulary
+# system.domain_signals, rendered on the System wiki page), and so is what the method
+# declaration of a calculation must contain (computation.method_requirements and
+# computation.method_requirements_by_family). The rules below name no technique, method or
+# code: a new one is covered by a vocabulary proposal alone.
+#
+# On 2026-09-27: 98 calculations taken from papers were stored as experiments (technique DFT;
+# domain, environment, sample form and provenance all saying measurement); no record stated who
+# produced its result; 13 records built from a paper's public data were typed as facility
+# measurements; the code of 130 calculations sat in system.instrument, where the discovery
+# engine never reads it; and no database record identified the entry it came from.
 # ---------------------------------------------------------------------------
-COMPUTATIONAL_TECHNIQUES = {"DFT", "ab_initio_MD", "classical_MD", "kinetic_monte_carlo",
-                            "microkinetic_modeling", "machine_learning_potential"}
-MODEL_SAMPLE_FORMS = {"slab_model", "cluster_model", "unit_cell", "molecule_model", "continuum_model"}
-FUNCTIONAL_FAMILIES = {"DFT", "DFT_U", "hybrid_DFT", "AIMD", "CHE"}
-_MEASURED_PROVENANCE = {"commercial", "synthesized", "fabricated", "natural"}
+DOMAIN_SIGNALS = _vocab_map("System", "system.domain_signals")
+_SIGNAL_FIELDS = sorted({k.split("=", 1)[0] for k in DOMAIN_SIGNALS})
+_CLAIM_FIELDS = ("system.domain", "system.technique", "source_type")
+METHOD_REQUIRED = _vocab_values("Computation", "computation.method_requirements")
+METHOD_REQUIRED_BY_FAMILY = _vocab_map("Computation", "computation.method_requirements_by_family")
+PUBLICATION_EXTRACTION_STEPS = set(_vocab_values("Measurement", "measurement.processing.publication_extraction_steps"))
 _ORG_PLACEHOLDERS = {v.lower() for v in _vocab_values("System", "system.organization_placeholders")}
+_FIGURE_ASSET_FIELDS = ("caption_verbatim", "caption_highlights", "figure_label", "paper_conclusions_about_figure",
+                        "page")
+_DOI = re.compile(r"\b10\.\d{4,9}/[^\s\"'<>]+")
+_CODE_KEY = re.compile(r"(?:\w+_)?code(?:_version)?")
 
-_CALCULATION_ENVELOPE = ("system.domain 'computational', context.environment 'in_silico', a model "
-                         "sample.sample_form (slab_model, cluster_model, unit_cell, molecule_model, "
-                         "continuum_model), sample.material.provenance 'theoretical', and computation.method")
+
+def _signal_values(field: str, says: str) -> list:
+    return [k.split("=", 1)[1] for k, v in sorted(DOMAIN_SIGNALS.items()) if k.split("=", 1)[0] == field and v == says]
+
+
+MODEL_SAMPLE_FORMS = set(_signal_values("sample.sample_form", "calculation"))
+_CALCULATION_ENVELOPE = (
+    "system.domain 'computational', context.environment "
+    + " or ".join(f"'{x}'" for x in _signal_values("context.environment", "calculation"))
+    + ", a model sample.sample_form (" + ", ".join(_signal_values("sample.sample_form", "calculation"))
+    + "), sample.material.provenance "
+    + " or ".join(f"'{x}'" for x in _signal_values("sample.material.provenance", "calculation"))
+    + ", and computation.method")
+
+
+def _value_at(record: dict, dotted: str):
+    node = record
+    for part in dotted.split("."):
+        node = node.get(part) if isinstance(node, dict) else None
+    return node if isinstance(node, str) else None
 
 
 def _calculation_votes(record: dict):
-    """(calc, meas): the fields that say 'calculation' and the fields that say 'measurement'."""
-    sysb = record.get("system") if isinstance(record.get("system"), dict) else {}
-    ctx = record.get("context") if isinstance(record.get("context"), dict) else {}
-    smp = record.get("sample") if isinstance(record.get("sample"), dict) else {}
+    """(calc, meas): the 'field=value' signals that say calculation and those that say measurement."""
     calc, meas = [], []
-    dom = sysb.get("domain")
-    (calc if dom == "computational" else meas if dom == "experimental" else []).append(f"system.domain={dom}")
-    if sysb.get("technique") in COMPUTATIONAL_TECHNIQUES:
-        calc.append(f"system.technique={sysb['technique']}")
-    if record.get("source_type") == "computation":
-        calc.append("source_type=computation")
-    env = ctx.get("environment")
-    (calc if env == "in_silico" else meas if env else []).append(f"context.environment={env}")
-    form = smp.get("sample_form")
-    (calc if form in MODEL_SAMPLE_FORMS else meas if form else []).append(f"sample.sample_form={form}")
-    prov = (smp.get("material") or {}).get("provenance") if isinstance(smp.get("material"), dict) else None
-    (calc if prov == "theoretical" else meas if prov in _MEASURED_PROVENANCE else []).append(
-        f"sample.material.provenance={prov}")
-    if record.get("record_domain") == "simulation":
-        calc.append("record_domain=simulation")
+    for field in _SIGNAL_FIELDS:
+        value = _value_at(record, field)
+        says = DOMAIN_SIGNALS.get(f"{field}={value}") if value is not None else None
+        (calc if says == "calculation" else meas if says == "measurement" else []).append(f"{field}={value}")
     return calc, meas
 
 
-def _has_citation(record: dict) -> bool:
-    for a in record.get("assets") or []:
-        if not isinstance(a, dict):
-            continue
-        c = a.get("citation") if isinstance(a.get("citation"), dict) else {}
-        if c.get("doi") or (c.get("title") and c.get("year")) or "doi.org/" in str(a.get("uri") or ""):
+def _dois_in(node) -> set:
+    found = set()
+    if isinstance(node, dict):
+        for v in node.values():
+            found |= _dois_in(v)
+    elif isinstance(node, list):
+        for v in node:
+            found |= _dois_in(v)
+    elif isinstance(node, str):
+        found |= {m.rstrip(".,;:)]}").lower() for m in _DOI.findall(node)}
+    return found
+
+
+def _assets(record: dict) -> list:
+    return [a for a in record.get("assets") or [] if isinstance(a, dict)] if isinstance(record.get("assets"), list) else []
+
+
+def _citations(record: dict) -> list:
+    """(relation, dois, citation) for every asset that carries a citation object."""
+    return [(a["citation"].get("relation"), _dois_in(a["citation"].get("doi")) | _dois_in(a.get("uri")), a["citation"])
+            for a in _assets(record) if isinstance(a.get("citation"), dict)]
+
+
+def _cites_a_source(record: dict) -> bool:
+    for a in _assets(record):
+        c = a.get("citation") if isinstance(a.get("citation"), dict) else None
+        doi_uri = "doi.org/" in str(a.get("uri") or "")
+        if c is None and doi_uri:
+            return True
+        if c is not None and c.get("relation") in (None, "source") and (
+                c.get("doi") or (c.get("title") and c.get("year")) or doi_uri):
             return True
     return False
+
+
+def _publication_signs(record: dict) -> list:
+    """What in a record says its numbers were taken from a publication."""
+    signs = []
+    meas_b = record.get("measurement") if isinstance(record.get("measurement"), dict) else {}
+    proc = meas_b.get("processing") if isinstance(meas_b.get("processing"), dict) else {}
+    hit = sorted(PUBLICATION_EXTRACTION_STEPS & {x for x in proc.get("steps") or [] if isinstance(x, str)})
+    if hit:
+        signs.append(f"the processing step '{hit[0]}'")
+    desc = record.get("descriptors") if isinstance(record.get("descriptors"), dict) else {}
+    blocks = [b for b in (meas_b.get("series") or []) + (desc.get("outputs") or []) if isinstance(b, dict)]
+    if any(b.get("source_figure_ref") or b.get("source_figure_refs") for b in blocks):
+        signs.append("references to the source's figures")
+    if any(any(a.get(f) for f in _FIGURE_ASSET_FIELDS) for a in _assets(record)):
+        signs.append("figure captions or page numbers of a publication on an asset")
+    if any(rel == "source" for rel, _, _ in _citations(record)):
+        signs.append("a citation with relation 'source'")
+    return signs
+
+
+def _code_home_errors(record: dict) -> list:
+    """A calculation of any record type states its code once, in computation.method.code."""
+    sysb = record.get("system") if isinstance(record.get("system"), dict) else {}
+    calc, _ = _calculation_votes(record)
+    if not any(v.split("=", 1)[0] in _CLAIM_FIELDS for v in calc):
+        return []
+    cfg = sysb.get("configuration") if isinstance(sysb.get("configuration"), dict) else {}
+    where = (["system.instrument"] if sysb.get("instrument") else []) + [
+        f"system.configuration.{k}" for k in cfg if _CODE_KEY.fullmatch(k)]
+    if not where:
+        return []
+    return [{
+        "code": "CODE_OUTSIDE_METHOD", "path": "system/instrument" if sysb.get("instrument") else "system/configuration",
+        "message": (f"A calculation states its code in one place, computation.method.code (with code_version "
+                    f"when known); this record also uses {', '.join(where)}. system.instrument describes "
+                    f"measurement hardware and stays empty for a calculation. Move the code to "
+                    f"computation.method.code and name the computer in system.facility (facility_name, "
+                    f"organization, cluster).")}]
 
 
 def _origin_errors(record: dict) -> list:
@@ -755,38 +828,42 @@ def _origin_errors(record: dict) -> list:
             "message": ("Every evidence record says whether it is a measurement or a calculation: system "
                         "{domain: 'experimental' | 'computational', technique}. A result reported in a paper "
                         "keeps the domain of the work the paper did: a measured current is 'experimental', a "
-                        "DFT energy is 'computational'.")})
+                        "computed energy is 'computational'.")})
 
     calc, meas = _calculation_votes(record)
     if calc and meas:
         errors.append({
             "code": "DOMAIN_INCONSISTENT", "path": "system/domain",
             "message": (f"This record says both calculation ({', '.join(calc)}) and measurement "
-                        f"({', '.join(meas)}). A calculation (DFT, molecular dynamics, a microkinetic model, a "
+                        f"({', '.join(meas)}). A calculation (any simulation or computed quantity, including a "
                         f"simulated spectrum) has {_CALCULATION_ENVELOPE}. A measurement has system.domain "
                         f"'experimental', a physical sample_form and a physical environment. A calculation "
                         f"reported in a paper is still a calculation: keep source_type 'literature' and set the "
-                        f"calculation fields.")})
+                        f"calculation fields (System wiki, system.domain_signals).")})
 
-    is_calc = (sysb.get("domain") == "computational" or sysb.get("technique") in COMPUTATIONAL_TECHNIQUES
-               or st == "computation")
-    method = (record.get("computation") or {}).get("method") if isinstance(record.get("computation"), dict) else None
-    method = method if isinstance(method, dict) else {}
+    is_calc = any(v.split("=", 1)[0] in _CLAIM_FIELDS for v in calc)
+    comp = record.get("computation") if isinstance(record.get("computation"), dict) else {}
+    method = comp.get("method") if isinstance(comp.get("method"), dict) else {}
     if is_calc and not method.get("family"):
         errors.append({
             "code": "COMPUTATION_METHOD_MISSING", "path": "computation/method",
-            "message": ("A calculation declares its method in computation.method: family (DFT, DFT_U, hybrid_DFT, "
-                        "AIMD, CHE, classical_MD, microkinetic, machine_learning, semi_empirical), "
-                        "functional_name (PBE, RPBE, BEEF-vdW, HSE06, ...), code and the settings the source "
-                        "states. A computed number is comparable with another only next to the method that "
-                        "produced it. For a calculation taken from a paper, copy the method the paper states.")})
-    elif is_calc and method.get("family") in FUNCTIONAL_FAMILIES and not method.get("functional_name"):
-        errors.append({
-            "code": "COMPUTATION_METHOD_INCOMPLETE", "path": "computation/method/functional_name",
-            "message": (f"computation.method.family '{method.get('family')}' needs functional_name (PBE, RPBE, "
-                        f"BEEF-vdW, HSE06, ...): an energy or a barrier is only comparable next to the "
-                        f"functional that produced it. If the source does not state it, write "
-                        f"functional_name: 'not_reported'.")})
+            "message": (f"A calculation declares its method in computation.method: at least "
+                        f"{', '.join(METHOD_REQUIRED)}, plus what its family requires (Computation wiki, method "
+                        f"requirements). A computed number is comparable with another only next to the method "
+                        f"that produced it. For a calculation taken from a paper, copy the method the paper "
+                        f"states and write 'not_reported' for what it leaves out.")})
+    elif is_calc:
+        family = method.get("family")
+        need = list(dict.fromkeys([f for f in METHOD_REQUIRED if f != "family"]
+                                  + list(METHOD_REQUIRED_BY_FAMILY.get(family) or [])))
+        missing = [f for f in need if not str(method.get(f) or "").strip()]
+        if missing:
+            errors.append({
+                "code": "COMPUTATION_METHOD_INCOMPLETE", "path": "computation/method",
+                "message": (f"computation.method lacks {', '.join(missing)}. A '{family}' calculation declares "
+                            f"{', '.join(need)}: they make a computed number comparable with another. Write "
+                            f"'not_reported' for a value the source does not state (Computation wiki, method "
+                            f"requirements).")})
 
     pb = (record.get("attribution") or {}).get("produced_by") if isinstance(record.get("attribution"), dict) else None
     pb = pb if isinstance(pb, dict) else {}
@@ -806,13 +883,50 @@ def _origin_errors(record: dict) -> list:
                         f"group are not independent evidence. Use the canonical organization names in "
                         f"system.organizations.")})
 
-    if st == "literature" and not _has_citation(record):
+    if st not in ("literature", "database"):
+        signs = _publication_signs(record)
+        if signs:
+            errors.append({
+                "code": "LITERATURE_SOURCE_UNDECLARED", "path": "source_type",
+                "message": (f"This record takes its numbers from a publication ({'; '.join(signs)}), so its "
+                            f"source_type is 'literature', not '{st}'. Set source_type 'literature', keep "
+                            f"system.domain for the kind of work the paper did (a calculation stays "
+                            f"'computational'), cite the paper with relation 'source' and name its authors' group "
+                            f"in attribution.produced_by (Record-Overview wiki, origins).")})
+        identifiers = ((record.get("sample") or {}).get("material") or {}).get("identifiers") \
+            if isinstance(record.get("sample"), dict) and isinstance(record["sample"].get("material"), dict) else None
+        declared = set().union(*(dois for rel, dois, _ in _citations(record) if rel))
+        undeclared = sorted(_dois_in(record) - _dois_in(identifiers) - declared)
+        if undeclared:
+            errors.append({
+                "code": "CITATION_RELATION_UNDECLARED", "path": "assets",
+                "message": (f"This record mentions {len(undeclared)} publication(s) ({', '.join(undeclared[:3])}) "
+                            f"without saying how each relates to it. Give each an asset with citation {{doi, "
+                            f"relation}} (content_role 'documentation'). relation 'source': the record's numbers "
+                            f"were taken from it, its figures, tables, supplementary information or data "
+                            f"repository, and the record is then source_type 'literature'. 'reports_this_work': "
+                            f"it reports the same measurement or calculation and the numbers come from the "
+                            f"producer's own data. 'reference': related work, such as a method paper or the "
+                            f"experiment a calculation models.")})
+
+    if st == "literature" and not _cites_a_source(record):
         errors.append({
             "code": "LITERATURE_CITATION_MISSING", "path": "assets",
             "message": ("A literature record carries its source: an asset with citation {authors, title, "
-                        "journal, year, doi} and uri 'https://doi.org/<doi>' (content_role 'documentation'). "
-                        "Without the source a reader cannot check the value or tell whether two records come "
-                        "from the same paper.")})
+                        "journal, year, doi, relation: 'source'} and uri 'https://doi.org/<doi>' (content_role "
+                        "'documentation'). Without the source a reader cannot check the value or tell whether two "
+                        "records come from the same paper.")})
+
+    if st == "database" and not any(
+            isinstance(a.get("database_entry"), dict) and a["database_entry"].get("database")
+            and a["database_entry"].get("entry_id") for a in _assets(record)):
+        errors.append({
+            "code": "DATABASE_ENTRY_MISSING", "path": "assets",
+            "message": ("A database record names the entry it was taken from: an asset with database_entry "
+                        "{database, entry_id, collection, version} and a uri that opens the entry, or its "
+                        "collection when the database has no page per entry. entry_id is the database's own "
+                        "identifier for that entry; collection is the dataset or publication the database files "
+                        "it under.")})
     return errors
 
 
@@ -1250,7 +1364,7 @@ def validate_record_full(record: dict) -> dict:
     vocabulary_errors = vocabulary_errors + _potential_contract_errors(record)
     vocabulary_errors = vocabulary_errors + _descriptor_name_errors(record)
     vocabulary_errors = vocabulary_errors + _record_content_errors(record)
-    vocabulary_errors = vocabulary_errors + _origin_errors(record)
+    vocabulary_errors = vocabulary_errors + _origin_errors(record) + _code_home_errors(record)
 
     try:
         semantic_errors = ontology.validate_semantic_integrity(record)
