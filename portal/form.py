@@ -269,12 +269,26 @@ def render_form():
             with col2:
                 temperature_k = st.number_input("Temperature (K)", min_value=0.0, value=None, format="%.2f")
 
+            # Reaction (any chemistry): the one home of the reaction is context.reaction
+            st.write("**Reaction**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                reaction_options = [""] + get_vocab_values("Context", "context.reaction.name")
+                echem_reaction = st.selectbox("Reaction", reaction_options)
+            with col2:
+                drive_options = [""] + get_vocab_values("Context", "context.reaction.drive")
+                reaction_drive = st.selectbox("Drive", drive_options,
+                                              help="What drives the reaction (electrochemical, thermal, photochemical, ...)")
+            with col3:
+                catalysis_options = [""] + get_vocab_values("Context", "context.reaction.catalysis")
+                reaction_catalysis = st.selectbox("Catalysis", catalysis_options,
+                                                  help="heterogeneous (solid catalyst or electrode), homogeneous, enzymatic, uncatalyzed")
+
             # Electrochemistry context
             st.write("**Electrochemistry**")
             col1, col2, col3 = st.columns(3)
             with col1:
-                reaction_options = [""] + get_vocab_values("Context", "context.electrochemistry.reaction")
-                echem_reaction = st.selectbox("Reaction", reaction_options)
+                st.caption("Cell and scale (for electrochemically driven reactions)")
             with col2:
                 cell_type_options = [""] + get_vocab_values("Context", "context.electrochemistry.cell_type")
                 echem_cell_type = st.selectbox("Cell Type", cell_type_options)
@@ -290,7 +304,8 @@ def render_form():
 
             extra_context = render_extra_vocab_fields(
                 "Context",
-                ["context.environment", "context.electrochemistry.reaction",
+                ["context.environment", "context.electrochemistry.reaction", "context.reaction.name",
+                 "context.reaction.drive", "context.reaction.catalysis",
                  "context.electrochemistry.cell_type", "context.electrochemistry.potential_scale"],
                 "ctx"
             )
@@ -447,6 +462,8 @@ def render_form():
             environment=environment,
             temperature_k=temperature_k,
             echem_reaction=echem_reaction,
+            reaction_drive=reaction_drive,
+            reaction_catalysis=reaction_catalysis,
             echem_cell_type=echem_cell_type,
             echem_potential_scale=echem_potential_scale,
             context_additional_json=context_additional_json,
@@ -643,10 +660,19 @@ def build_record(**kwargs) -> dict:
         context['environment'] = kwargs['environment']
     if kwargs['temperature_k'] is not None and kwargs['temperature_k'] > 0:
         context['temperature_K'] = kwargs['temperature_k']
-    if kwargs['echem_reaction'] or kwargs['echem_cell_type'] or kwargs['echem_potential_scale']:
+    if kwargs['echem_reaction']:
+        # context.reaction is the one home of the reaction (the electrochemistry field is deprecated).
+        # Without an explicit drive, an electrochemistry section on the form implies an
+        # electrochemical drive; the validator rejects any inconsistent combination.
+        drive = kwargs.get('reaction_drive') or (
+            'electrochemical' if (kwargs['echem_cell_type'] or kwargs['echem_potential_scale']) else None)
+        context['reaction'] = {'name': kwargs['echem_reaction']}
+        if drive:
+            context['reaction']['drive'] = drive
+        if kwargs.get('reaction_catalysis'):
+            context['reaction']['catalysis'] = kwargs['reaction_catalysis']
+    if kwargs['echem_cell_type'] or kwargs['echem_potential_scale']:
         context['electrochemistry'] = {}
-        if kwargs['echem_reaction']:
-            context['electrochemistry']['reaction'] = kwargs['echem_reaction']
         if kwargs['echem_cell_type']:
             context['electrochemistry']['cell_type'] = kwargs['echem_cell_type']
         if kwargs['echem_potential_scale']:

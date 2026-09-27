@@ -5007,7 +5007,8 @@ def build_evidence_index(project_elements, *, include_ids=None, exclude_ids=None
                    c.data->'sample'->'material'->>'name'    AS material,
                    c.data->'sample'->'material'->>'formula' AS formula,
                    c.data->'sample'->'composition'          AS composition,
-                   c.data->'context'->'electrochemistry'->>'reaction' AS reaction,
+                   COALESCE(c.data->'context'->'reaction'->>'name',
+                            c.data->'context'->'electrochemistry'->>'reaction') AS reaction,
                    c.record_domain AS domain,
                    c.data->'computation'->'method'->>'functional' AS functional,
                    d->>'name' AS descriptor_name, d->>'value' AS value,
@@ -5593,7 +5594,7 @@ def resolve_record_summaries(record_ids) -> dict:
         cur.execute(
             """SELECT record_id,
                       data->'sample'->'material'->>'name' AS material,
-                      data->'context'->'electrochemistry'->>'reaction' AS reaction,
+                      COALESCE(data->'context'->'reaction'->>'name', data->'context'->'electrochemistry'->>'reaction') AS reaction,
                       record_domain
                  FROM records WHERE record_id = ANY(%s)""",
             (list(record_ids),))

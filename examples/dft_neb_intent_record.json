@@ -31,8 +31,12 @@
   "context": {
     "environment": "in_silico",
     "temperature_K": 0,
+    "reaction": {
+      "name": "CORR",
+      "drive": "electrochemical",
+      "catalysis": "heterogeneous"
+    },
     "electrochemistry": {
-      "reaction": "CORR",
       "potential_setpoint_V": -1.6,
       "potential_scale": "SHE"
     },

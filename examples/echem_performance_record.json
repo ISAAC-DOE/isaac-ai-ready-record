@@ -34,8 +34,12 @@
   "context": {
     "environment": "in_situ",
     "temperature_K": 298.15,
+    "reaction": {
+      "name": "ORR",
+      "drive": "electrochemical",
+      "catalysis": "heterogeneous"
+    },
     "electrochemistry": {
-      "reaction": "ORR",
       "cell_type": "three_electrode",
       "control_mode": "potentiodynamic",
       "potential_scale": "RHE",

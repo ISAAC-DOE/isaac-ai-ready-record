@@ -589,7 +589,7 @@ def records_query():
     Enforced in two layers: the in-code belt (database._AGENT_FORBIDDEN_TABLES) and the
     isaac_readonly role's DB-level grants.
     records schema: records(record_id CHAR(26), record_type, record_domain, data JSONB,
-    version, content_hash, created_at). JSONB: data->'context'->'electrochemistry'->>'reaction'.
+    version, content_hash, created_at). JSONB reaction: COALESCE(data->'context'->'reaction'->>'name', data->'context'->'electrochemistry'->>'reaction') (context.reaction.name is the home; the electrochemistry field is deprecated).
     """
     body = request.get_json(silent=True) or {}
     sql = body.get("sql", "")
