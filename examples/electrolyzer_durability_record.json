@@ -27,8 +27,12 @@
   "context": {
     "environment": "in_situ",
     "temperature_K": 353.15,
+    "reaction": {
+      "name": "water_splitting",
+      "drive": "electrochemical",
+      "catalysis": "heterogeneous"
+    },
     "electrochemistry": {
-      "reaction": "water_splitting",
       "cell_type": "mea_cell",
       "control_mode": "galvanostatic",
       "current_setpoint_mA_cm2": 1000.0,

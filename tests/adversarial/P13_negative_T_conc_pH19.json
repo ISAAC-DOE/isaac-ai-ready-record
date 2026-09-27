@@ -24,6 +24,7 @@
  "context": {
   "environment": "in_situ",
   "temperature_K": -298.15,
+  "reaction": {"name": "CO2RR", "drive": "electrochemical", "catalysis": "heterogeneous"},
   "electrochemistry": {
    "reaction": "CO2RR",
    "cell_type": "flow_cell",

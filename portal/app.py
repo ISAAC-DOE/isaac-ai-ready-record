@@ -1619,12 +1619,12 @@ elif page == "API Documentation":
     to get it **as text**:
     """)
     st.markdown("`data->'context'` (object) · "
-                "`data->'context'->'electrochemistry'->>'reaction'` (text) · "
+                "`COALESCE(data->'context'->'reaction'->>'name', data->'context'->'electrochemistry'->>'reaction')` (text; context.reaction is the home) · "
                 "`data->'descriptors'->'<family>'->>'<component>'` (text)")
     st.markdown("**Example queries:**")
     st.code("""-- columns + a nested JSONB value as text
 SELECT record_id, record_type,
-       data->'context'->'electrochemistry'->>'reaction' AS reaction
+       COALESCE(data->'context'->'reaction'->>'name', data->'context'->'electrochemistry'->>'reaction') AS reaction
 FROM records LIMIT 20;
 
 -- filter on a nested JSONB field
@@ -1639,7 +1639,7 @@ SELECT record_type, COUNT(*) AS n FROM records GROUP BY record_type ORDER BY n D
                 "collide with a single-quoted shell `-d '...'`. Simplest fix — put the body in "
                 "a file:")
     st.code("""cat > q.json <<'EOF'
-{"sql": "SELECT record_id, data->'context'->'electrochemistry'->>'reaction' AS reaction FROM records LIMIT 5"}
+{"sql": "SELECT record_id, COALESCE(data->'context'->'reaction'->>'name', data->'context'->'electrochemistry'->>'reaction') AS reaction FROM records LIMIT 5"}
 EOF
 curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -X POST https://isaac.slac.stanford.edu/portal/api/records/query -d @q.json""",
             language="bash")

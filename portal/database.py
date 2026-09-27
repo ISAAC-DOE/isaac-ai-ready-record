@@ -1190,7 +1190,8 @@ def list_records(limit: int = 100, offset: int = 0, filters: dict | None = None,
 
     filters keys (all optional):
         record_type, record_domain    -> indexed column equality
-        reaction                      -> JSONB context.electrochemistry.reaction
+        reaction                      -> JSONB context.reaction.name (falls back to the deprecated
+                                         context.electrochemistry.reaction)
         material_contains             -> ILIKE on sample.material.name
         created_after, created_before -> created_at range (ISO 8601)
 
@@ -1204,7 +1205,7 @@ def list_records(limit: int = 100, offset: int = 0, filters: dict | None = None,
     if filters.get('record_domain'):
         where.append('record_domain = %s'); params.append(filters['record_domain'])
     if filters.get('reaction'):
-        where.append("data->'context'->'electrochemistry'->>'reaction' = %s")
+        where.append("COALESCE(data->'context'->'reaction'->>'name', data->'context'->'electrochemistry'->>'reaction') = %s")
         params.append(filters['reaction'])
     if filters.get('material_contains'):
         where.append("data->'sample'->'material'->>'name' ILIKE %s")

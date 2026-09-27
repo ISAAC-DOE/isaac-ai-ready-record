@@ -466,6 +466,37 @@
         "temperature_K": {
           "type": "number"
         },
+        "reaction": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "drive",
+            "catalysis"
+          ],
+          "description": "The chemical transformation this record is about, for any kind of chemistry: electrocatalysis, thermal catalysis, photocatalysis, homogeneous or enzymatic catalysis. The one home of the reaction; context.electrochemistry.reaction is deprecated. Required on performance records (MISSING_REACTION).",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Controlled token for the transformation (vocabulary context.reaction.name), e.g. CO2RR, OER, HOR, NH3_synthesis, CO_oxidation, methanol_synthesis, propane_dehydrogenation, hydroformylation. The token names WHAT is transformed; `drive` says what drives it, so photocatalytic CO2 reduction is CO2RR with drive photochemical. A new reaction is added through a vocabulary proposal; tokens are never invented in a record."
+            },
+            "drive": {
+              "type": "string",
+              "description": "What drives the reaction: electrochemical (an applied potential or current), thermal (temperature), photochemical (light), photoelectrochemical (light plus an applied bias), plasma, mechanochemical, biochemical."
+            },
+            "catalysis": {
+              "type": "string",
+              "description": "Where the catalyst is relative to the reactants: heterogeneous (a solid catalyst, electrodes included), homogeneous (a dissolved molecular catalyst), enzymatic, or uncatalyzed."
+            },
+            "equation": {
+              "type": "string",
+              "description": "Balanced overall equation, e.g. 'N2 + 3 H2 -> 2 NH3'. Optional; give it when the token alone does not fix the stoichiometry or the products."
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        },
         "electrochemistry": {
           "type": "object",
           "properties": {
@@ -487,7 +518,8 @@
                 "None",
                 "NO3RR",
                 "urea_synthesis"
-              ]
+              ],
+              "description": "DEPRECATED: the reaction lives in context.reaction {name, drive, catalysis}. Accepted so stored records keep validating; when present it must equal context.reaction.name (REACTION_MISMATCH)."
             },
             "cell_type": {
               "type": "string",

@@ -30,6 +30,10 @@ REGISTRY = {
     "CONDITION_IN_DESCRIPTOR_NAME": ("error", "A descriptor name contains an operating condition (a current density, potential, temperature, time or an _at_ point). Conditions go in the descriptor's `at` or in context; the name is the quantity class, e.g. overpotential with at.current_density_mA_cm2 = 10."),
     "DESCRIPTOR_CLASS_NOT_LOWERCASE": ("error", "The class part of a descriptor name (before the first dot) is not lowercase. Element, species or layer labels are qualifiers after the dot: layer_thickness.Cu, oxidation_state.Cu."),
     "CLASS_UNIT_MISMATCH": ("error", "A numeric descriptor of a canonical class is not in that class's canonical unit (descriptors.class_units). Convert the value; do not relabel the unit."),
+    "MISSING_REACTION": ("error", "A performance record does not state its reaction in context.reaction {name, drive, catalysis}. The message spells out the move for records that still use the deprecated context.electrochemistry.reaction."),
+    "REACTION_MISMATCH": ("error", "context.reaction.name and the deprecated context.electrochemistry.reaction disagree. A record has one reaction."),
+    "REACTION_DRIVE_INCONSISTENT": ("error", "context.reaction.drive contradicts the record: an electrochemical drive without a context.electrochemistry block, or an electrochemical control_mode with a non-electrochemical drive."),
+    "REACTION_FIELD_DEPRECATED": ("warning", "The record still carries context.electrochemistry.reaction. The reaction lives in context.reaction; move it there and remove the old field."),
     "AT_READOUT_WITHOUT_SWEEP": ("error", "A read-out key (at.current_density_mA_cm2, at.current_density_ECSA_mA_cm2, at.potential_V_RHE) is used on a record that is not a sweep. Read-out keys locate a value on a potentiodynamic sweep; a record held at one potential or current states it in context.electrochemistry."),
     # --- warnings (accepted, but improvable) ---
     "MISSING_PH": ("warning", "Performance record has no pH/pH_basis — needed for RHE conversion and cross-record comparison."),

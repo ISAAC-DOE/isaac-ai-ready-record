@@ -50,8 +50,12 @@
   "context": {
     "environment": "operando",
     "temperature_K": 298,
+    "reaction": {
+      "name": "CO2RR",
+      "drive": "electrochemical",
+      "catalysis": "heterogeneous"
+    },
     "electrochemistry": {
-      "reaction": "CO2RR",
       "cell_type": "flow_cell",
       "electrolyte": {
         "name": "KHCO3",

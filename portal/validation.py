@@ -271,8 +271,9 @@ CLASS_ALIASES = _vocab_map("Descriptors", "descriptors.class_aliases")
 NAME_PREFIX_TOKENS = sorted(_vocab_values("Descriptors", "descriptors.name_prefix_tokens"),
                             key=len, reverse=True)
 CANONICAL_CLASSES = set(CLASS_UNITS)
-for _k in ("descriptors.electrochemical_performance", "descriptors.spectroscopy",
-           "descriptors.structure", "descriptors.theoretical", "descriptors.theoretical_metric"):
+for _k in ("descriptors.electrochemical_performance", "descriptors.catalytic_performance",
+           "descriptors.spectroscopy", "descriptors.structure", "descriptors.theoretical",
+           "descriptors.theoretical_metric"):
     CANONICAL_CLASSES.update(_vocab_values("Descriptors", _k))
 CANONICAL_CLASSES.update(p.rstrip(".") for p in PRODUCT_CLASS_PREFIXES)
 
@@ -411,6 +412,81 @@ def _descriptor_name_errors(record: dict) -> list:
                                 f"current states it once, in context.electrochemistry "
                                 f"(potential_setpoint_V + potential_vs_RHE, or current_setpoint_mA_cm2).")})
     return errors
+
+
+# ---------------------------------------------------------------------------
+# The reaction (2026-09-27). One home for every kind of chemistry.
+#
+# The reaction used to live only inside context.electrochemistry, so a thermal, photo-,
+# homogeneous or enzymatic reaction could not be stated at all: 198 performance records
+# (NH3 synthesis, dry reforming, CO oxidation, Li-S cathodes, ...) carried none. It now
+# lives in context.reaction {name, drive, catalysis}, required on performance records.
+# context.electrochemistry.reaction is deprecated; stored records keep validating on
+# it, and every read path accepts both, preferring the new home.
+# ---------------------------------------------------------------------------
+ELECTROCHEMICAL_DRIVES = {"electrochemical", "photoelectrochemical"}
+
+
+def _reaction_name(record: dict):
+    """context.reaction.name, else the deprecated context.electrochemistry.reaction."""
+    ctx = record.get("context") or {}
+    rx = ctx.get("reaction")
+    if isinstance(rx, dict) and rx.get("name"):
+        return rx["name"]
+    ec = ctx.get("electrochemistry")
+    legacy = ec.get("reaction") if isinstance(ec, dict) else None
+    return None if legacy in (None, "None") else legacy
+
+
+def _reaction_checks(record: dict):
+    """(errors, warnings) for the context.reaction contract."""
+    errors, warnings = [], []
+    ctx = record.get("context") or {}
+    rx = ctx.get("reaction") if isinstance(ctx.get("reaction"), dict) else None
+    ec = ctx.get("electrochemistry") if isinstance(ctx.get("electrochemistry"), dict) else None
+    legacy = (ec or {}).get("reaction")
+    legacy = None if legacy in (None, "None") else legacy
+
+    if record.get("record_domain") == "performance" and not rx:
+        move = (f" This record states it only in the deprecated context.electrochemistry.reaction; move it: "
+                f"context.reaction = {{name: '{legacy}', drive: 'electrochemical', catalysis: 'heterogeneous'}}."
+                if legacy else "")
+        errors.append({
+            "code": "MISSING_REACTION", "path": "context/reaction",
+            "message": ("A performance record reports how well something performs a reaction, so it must say "
+                        "which: context.reaction {name, drive, catalysis}. name is a token from "
+                        "context.reaction.name (CO2RR, OER, NH3_synthesis, CO_oxidation, methanol_synthesis, ...); "
+                        "drive is electrochemical, thermal, photochemical, photoelectrochemical, plasma, "
+                        "mechanochemical or biochemical; catalysis is heterogeneous, homogeneous, enzymatic or "
+                        "uncatalyzed. A reaction missing from the list is added through a vocabulary proposal, "
+                        "never invented in a record." + move)})
+    if rx and legacy and legacy != rx.get("name"):
+        errors.append({
+            "code": "REACTION_MISMATCH", "path": "context/electrochemistry/reaction",
+            "message": (f"context.reaction.name is '{rx.get('name')}' but the deprecated "
+                        f"context.electrochemistry.reaction says '{legacy}'. A record has one reaction; remove "
+                        f"the deprecated field.")})
+    if legacy:
+        warnings.append({
+            "code": "REACTION_FIELD_DEPRECATED", "path": "context/electrochemistry/reaction",
+            "message": ("context.electrochemistry.reaction is deprecated: the reaction lives in context.reaction "
+                        "{name, drive, catalysis}, which serves every kind of chemistry. Move it there and remove "
+                        "this field.")})
+    if rx:
+        drive = rx.get("drive")
+        if drive in ELECTROCHEMICAL_DRIVES and not ec:
+            errors.append({
+                "code": "REACTION_DRIVE_INCONSISTENT", "path": "context/electrochemistry",
+                "message": (f"context.reaction.drive is '{drive}' but the record has no context.electrochemistry "
+                            f"block. An electrochemical reaction is stated with its cell: control_mode, cell_type, "
+                            f"electrolyte and the applied potential or current (Context wiki, 3.3).")})
+        if ec and ec.get("control_mode") and drive and drive not in ELECTROCHEMICAL_DRIVES:
+            errors.append({
+                "code": "REACTION_DRIVE_INCONSISTENT", "path": "context/reaction/drive",
+                "message": (f"The record declares an electrochemical control_mode "
+                            f"('{ec.get('control_mode')}') but context.reaction.drive is '{drive}'. Set drive to "
+                            f"electrochemical (or photoelectrochemical under illumination).")})
+    return errors, warnings
 
 
 # ---------------------------------------------------------------------------
@@ -796,7 +872,8 @@ def _enhance_schema_errors(errors: list) -> list:
 
 
 # ADR-001 (2026-06-13) + Concept Home Matrix enforcement
-CATHODIC_REACTIONS = {"CO2RR", "CORR", "HER", "ORR", "NO3RR", "urea_synthesis"}
+CATHODIC_REACTIONS = {"CO2RR", "CORR", "HER", "ORR", "NO3RR", "urea_synthesis", "N2RR", "NRR",
+                      "H2O2_electrosynthesis"}
 CONFIG_DENYLIST = {
     "reference_electrode": "context.electrochemistry.reference_electrode (structured object)",
     "membrane": "context.electrochemistry.membrane",
@@ -815,7 +892,7 @@ def _adr001_warnings(record):
     errors = []
     try:
         ec = ((record.get("context") or {}).get("electrochemistry") or {})
-        reaction = ec.get("reaction")
+        reaction = _reaction_name(record)
         # Sign convention: cathodic reactions carry negative currents (IUPAC)
         if reaction in CATHODIC_REACTIONS:
             def chk(name, val):
@@ -921,7 +998,9 @@ def validate_record_full(record: dict) -> dict:
     }
     warnings, info = _warning_checks(record)
     adr_warnings, adr_errors = _adr001_warnings(record)
-    warnings = warnings + adr_warnings
+    rx_errors, rx_warnings = _reaction_checks(record)
+    adr_errors = adr_errors + rx_errors
+    warnings = warnings + adr_warnings + rx_warnings
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)

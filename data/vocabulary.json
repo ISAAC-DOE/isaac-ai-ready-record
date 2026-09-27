@@ -119,8 +119,75 @@
         "in_silico"
       ]
     },
+    "context.reaction.name": {
+      "description": "The transformation a record is about, for any chemistry. The token names what is transformed; context.reaction.drive says what drives it (photocatalytic CO2 reduction is CO2RR with drive photochemical). Electrochemical: CO2RR, CORR (CO reduction), OER, HER, ORR, HOR, N2RR (N2 reduction), NO3RR (nitrate reduction), urea_synthesis (from CO2 + nitrate), AOR (alcohol oxidation), FOR (formic acid oxidation), UOR (urea oxidation), CER (chlorine evolution), H2O2_electrosynthesis, water_splitting (full cell), H_absorption (hydrogen uptake into a host lattice, e.g. PdHx), sulfur_redox (Li-S and related cathodes), surface_oxidation and stripping_voltammetry (surface processes, not catalytic turnover). Thermal and molecular: NH3_synthesis, NH3_decomposition, CO_oxidation, CO_hydrogenation, CO2_hydrogenation, CO2_methanation, methanol_synthesis, methane_dry_reforming, methane_steam_reforming, methane_partial_oxidation, water_gas_shift, Fischer_Tropsch_synthesis, propane_dehydrogenation, ethane_dehydrogenation, acetylene_semihydrogenation, alkene_hydrogenation, hydrodeoxygenation, NH3_SCR (selective catalytic reduction of NOx by NH3), ethylene_epoxidation, hydroformylation, olefin_metathesis, cross_coupling. Request an addition through a vocabulary proposal.",
+      "values": [
+        "CO2RR",
+        "CORR",
+        "OER",
+        "HER",
+        "ORR",
+        "HOR",
+        "N2RR",
+        "NO3RR",
+        "urea_synthesis",
+        "AOR",
+        "FOR",
+        "UOR",
+        "CER",
+        "H2O2_electrosynthesis",
+        "water_splitting",
+        "H_absorption",
+        "sulfur_redox",
+        "surface_oxidation",
+        "stripping_voltammetry",
+        "NH3_synthesis",
+        "NH3_decomposition",
+        "CO_oxidation",
+        "CO_hydrogenation",
+        "CO2_hydrogenation",
+        "CO2_methanation",
+        "methanol_synthesis",
+        "methane_dry_reforming",
+        "methane_steam_reforming",
+        "methane_partial_oxidation",
+        "water_gas_shift",
+        "Fischer_Tropsch_synthesis",
+        "propane_dehydrogenation",
+        "ethane_dehydrogenation",
+        "acetylene_semihydrogenation",
+        "alkene_hydrogenation",
+        "hydrodeoxygenation",
+        "NH3_SCR",
+        "ethylene_epoxidation",
+        "hydroformylation",
+        "olefin_metathesis",
+        "cross_coupling"
+      ]
+    },
+    "context.reaction.drive": {
+      "description": "What drives the reaction. electrochemical = an applied potential or current; thermal = temperature; photochemical = light; photoelectrochemical = light plus an applied bias; plasma; mechanochemical; biochemical.",
+      "values": [
+        "electrochemical",
+        "thermal",
+        "photochemical",
+        "photoelectrochemical",
+        "plasma",
+        "mechanochemical",
+        "biochemical"
+      ]
+    },
+    "context.reaction.catalysis": {
+      "description": "Where the catalyst is relative to the reactants. heterogeneous = a solid catalyst, electrodes included; homogeneous = a dissolved molecular catalyst; enzymatic; uncatalyzed.",
+      "values": [
+        "heterogeneous",
+        "homogeneous",
+        "enzymatic",
+        "uncatalyzed"
+      ]
+    },
     "context.electrochemistry.reaction": {
-      "description": "Target electrochemical reaction. urea_synthesis = co-electrosynthesis from CO2 + nitrate.",
+      "description": "DEPRECATED: use context.reaction.name. Kept so stored records validate; when present it must equal context.reaction.name.",
       "values": [
         "CO2RR",
         "CORR",
@@ -913,6 +980,27 @@
         ],
         "bond_length": [
           "angstrom"
+        ],
+        "conversion": [
+          "fraction"
+        ],
+        "selectivity": [
+          "fraction"
+        ],
+        "yield": [
+          "fraction"
+        ],
+        "mass_specific_rate": [
+          "umol/g/h"
+        ],
+        "apparent_activation_energy": [
+          "kJ/mol"
+        ],
+        "reaction_order": [
+          "dimensionless"
+        ],
+        "light_off_temperature": [
+          "K"
         ]
       }
     },
@@ -992,6 +1080,18 @@
         "tof": "turnover_frequency",
         "exchange_current": "exchange_current_density"
       }
+    },
+    "descriptors.catalytic_performance": {
+      "description": "Canonical descriptor names for catalytic performance under any drive (thermal, photo-, electro-, homogeneous). selectivity.{product} and the product qualifiers use formula-style tokens (selectivity.C3H6, selectivity.CH3OH). Conditions (temperature, pressure, time on stream) go in `at` or context, never in the name.",
+      "values": [
+        "conversion",
+        "selectivity",
+        "yield",
+        "mass_specific_rate",
+        "apparent_activation_energy",
+        "reaction_order",
+        "light_off_temperature"
+      ]
     }
   },
   "Computation": {
@@ -1182,7 +1282,10 @@
         "mu_B",
         "eV/angstrom",
         "J/m^2",
-        "m2/g"
+        "m2/g",
+        "umol/g/h",
+        "kJ/mol",
+        "K"
       ]
     },
     "units.aliases": {
