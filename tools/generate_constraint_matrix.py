@@ -49,6 +49,8 @@ CODE_SCOPE = {
     "DESCRIPTOR_CLASS_NOT_LOWERCASE": "all records",
     "CLASS_UNIT_MISMATCH": "all records",
     "AT_READOUT_WITHOUT_SWEEP": "electrochemistry",
+    "REASONING_IN_RECORD": "all records",
+    "TAG_ENCODES_USE": "all records",
     "MISSING_REACTION": "performance records",
     "REACTION_MISMATCH": "all records",
     "REACTION_DRIVE_INCONSISTENT": "all records",
