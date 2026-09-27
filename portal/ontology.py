@@ -901,6 +901,14 @@ def merge_vocabulary_into_schema(schema: dict) -> dict:
     Where the base schema already has an ``enum``, it is **replaced** by the
     vocabulary values so the returned schema is the single source of truth.
     Fields not covered by the vocabulary are left untouched.
+
+    An enum is injected only where the vocabulary lists allowed VALUES of a string
+    field: on a string leaf, or on the ``items`` of an array of strings. Some
+    vocabulary categories list allowed KEYS of an open object (``sample.composition``,
+    ``sample.geometry``, ``system.configuration``); an enum on an object node would
+    reject every record that uses the object at all. Until 2026-09-27 this function
+    injected those enums anyway and the served ``/schema`` rejected 1,849 of the 2,212
+    records the validator accepts.
     """
     import copy
 
@@ -933,8 +941,16 @@ def merge_vocabulary_into_schema(schema: dict) -> dict:
                     break
 
                 if i == len(path_parts) - 1:
-                    # Leaf — inject the enum
-                    node[key]["enum"] = allowed
+                    # Leaf — inject the enum, but only onto string VALUES.
+                    leaf = node[key]
+                    if leaf.get("type") == "array" and isinstance(leaf.get("items"), dict):
+                        if leaf["items"].get("type") == "string":
+                            leaf["items"]["enum"] = allowed
+                    elif leaf.get("type") == "string" or (
+                            "type" not in leaf and "properties" not in leaf and "enum" in leaf):
+                        leaf["enum"] = allowed
+                    # object nodes (vocabulary lists KEYS, not values) and other
+                    # types are left untouched.
                 else:
                     # Intermediate — descend
                     sub = node[key]
