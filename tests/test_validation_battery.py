@@ -147,7 +147,7 @@ def test_computation_method_completeness_nudge():
     assert "COMPUTATION_METHOD_MISSING" in _err_codes(no_method)
     # method present but no functional_name -> INCOMPLETE
     partial = {"record_type": "evidence", "source_type": "computation",
-               "computation": {"method": {"family": "DFT"}}}
+               "computation": {"method": {"family": "DFT", "code": "VASP"}}}
     assert "COMPUTATION_METHOD_INCOMPLETE" in _err_codes(partial)
     # the source does not state the functional, and the record says so -> accepted
     partial["computation"]["method"]["functional_name"] = "not_reported"

@@ -416,7 +416,8 @@
             "notes": {
               "type": "string"
             }
-          }
+          },
+          "description": "The hardware that made a measurement. A calculation has no instrument: its code is computation.method.code and the computer it ran on is system.facility (facility_name, organization, cluster)."
         },
         "configuration": {
           "type": "object",
@@ -1391,7 +1392,13 @@
           },
           "citation": {
             "type": "object",
-            "description": "Bibliographic metadata for literature-derived assets (authors, title, journal, year, volume, pages, doi)."
+            "description": "Bibliographic metadata for literature-derived assets (authors, title, journal, year, volume, pages, doi).",
+            "properties": {
+              "relation": {
+                "type": "string",
+                "description": "How this publication relates to the record (controlled vocabulary assets.citation.relation): 'source' when the record's numbers were taken from it, its figures, tables, supplementary information or data repository (the record is then source_type literature); 'reports_this_work' when it reports the same measurement or calculation and the numbers come from the producer's own data; 'reference' for related work. Required on every cited publication of a record that is not source_type literature or database."
+              }
+            }
           },
           "caption_verbatim": {
             "type": "string",
@@ -1415,6 +1422,33 @@
               "number",
               "string"
             ]
+          },
+          "database_entry": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "database",
+              "entry_id"
+            ],
+            "description": "The database entry a source_type database record was taken from. The asset uri opens the entry, or its collection when the database has no page per entry.",
+            "properties": {
+              "database": {
+                "type": "string",
+                "description": "Name of the database."
+              },
+              "entry_id": {
+                "type": "string",
+                "description": "The database's own identifier for this entry."
+              },
+              "collection": {
+                "type": "string",
+                "description": "The dataset or publication inside the database the entry belongs to, when the database groups entries."
+              },
+              "version": {
+                "type": "string",
+                "description": "Database release or version, when the database versions its entries."
+              }
+            }
           }
         },
         "additionalProperties": false
@@ -1804,7 +1838,7 @@
             },
             "code": {
               "type": "string",
-              "description": "Simulation code name (e.g. 'VASP', 'Quantum ESPRESSO', 'JDFTx', 'CP2K', 'GPAW')."
+              "description": "The code that produced the result, and the only place a record states it. A workflow that chains codes names them in order, joined by ' + '. 'not_reported' when the source does not state it."
             },
             "code_version": {
               "type": "string",
