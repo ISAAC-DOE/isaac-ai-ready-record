@@ -87,5 +87,18 @@
         "catalysis_hub_pub_id": "Gauthierrole2021"
       }
     }
-  ]
+  ],
+  "attribution": {
+    "produced_by": {
+      "group": "Bell and Head-Gordon groups",
+      "organization": "University of California, Berkeley",
+      "people": [
+        "Joseph A. Gauthier",
+        "Joakim Halldin Stenlid",
+        "Frank Abild-Pedersen",
+        "Martin Head-Gordon",
+        "Alexis T. Bell"
+      ]
+    }
+  }
 }

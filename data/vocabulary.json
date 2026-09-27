@@ -32,7 +32,7 @@
   },
   "Sample": {
     "sample.sample_form": {
-      "description": "Physical realization of the sample.",
+      "description": "Physical realization of the sample. A calculation uses a model form: slab_model, cluster_model, unit_cell (any periodic simulation cell, including a molecular-dynamics box), molecule_model (a molecular complex, as in homogeneous catalysis) or continuum_model (a microkinetic or continuum model with no atomistic structure). A measurement uses a physical form. The two sets never mix (DOMAIN_INCONSISTENT).",
       "values": [
         "powder",
         "pellet",
@@ -46,7 +46,9 @@
         "slab_model",
         "cluster_model",
         "unit_cell",
-        "fluids"
+        "fluids",
+        "molecule_model",
+        "continuum_model"
       ]
     },
     "sample.material.provenance": {
@@ -486,7 +488,8 @@
         "TBD",
         "literature",
         "N/A",
-        "na"
+        "na",
+        "not_reported"
       ]
     }
   },

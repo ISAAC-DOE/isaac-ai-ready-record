@@ -33,6 +33,9 @@ def _galvanostatic_gde(potential_definition=None):
     """A literature CO2RR record run at a fixed current in a gas-diffusion cell."""
     r = copy.deepcopy(CO2RR)
     r["source_type"] = "literature"
+    r["assets"] = [{"asset_id": "source_paper", "content_role": "documentation",
+                    "uri": "https://doi.org/10.0000/example", "sha256": "0" * 64,
+                    "citation": {"title": "Example source", "year": 2026, "doi": "10.0000/example"}}]
     ec = r["context"]["electrochemistry"]
     ec["cell_type"] = "gde_cell"
     ec["control_mode"] = "galvanostatic"

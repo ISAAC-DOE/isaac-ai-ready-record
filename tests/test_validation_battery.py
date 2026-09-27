@@ -136,27 +136,33 @@ def _warn_codes(record):
 
 
 def test_computation_method_completeness_nudge():
-    """A computation record must declare computation.method (functional + code) so its
-    result is comparable across functionals — else an advisory warning fires. Records
-    that DO tag their method (the XAS/microkinetic convention) are not nagged."""
+    """A calculation must declare computation.method (family, and the functional for the
+    DFT-type families) so its result is comparable across functionals. An error since
+    2026-09-27; 'not_reported' is an honest answer when a source omits the functional."""
+    def _err_codes(r):
+        return [e.get("code") for e in validation.validate_record_full(r).get("errors") or []]
     # no computation block at all -> MISSING
     no_method = {"record_type": "evidence", "record_domain": "simulation",
                  "source_type": "computation", "sample": {}}
-    assert "COMPUTATION_METHOD_MISSING" in _warn_codes(no_method)
+    assert "COMPUTATION_METHOD_MISSING" in _err_codes(no_method)
     # method present but no functional_name -> INCOMPLETE
     partial = {"record_type": "evidence", "source_type": "computation",
                "computation": {"method": {"family": "DFT"}}}
-    assert "COMPUTATION_METHOD_INCOMPLETE" in _warn_codes(partial)
-    # fully tagged (family + functional_name) -> no method nag
+    assert "COMPUTATION_METHOD_INCOMPLETE" in _err_codes(partial)
+    # the source does not state the functional, and the record says so -> accepted
+    partial["computation"]["method"]["functional_name"] = "not_reported"
+    assert "COMPUTATION_METHOD_INCOMPLETE" not in _err_codes(partial)
+    # fully tagged (family + functional_name) -> no method error
     tagged = {"record_type": "evidence", "source_type": "computation",
               "computation": {"method": {"family": "DFT", "functional_name": "RPBE",
                                          "functional_class": "GGA", "code": "VASP"}}}
-    codes = _warn_codes(tagged)
+    codes = _err_codes(tagged)
     assert "COMPUTATION_METHOD_MISSING" not in codes
     assert "COMPUTATION_METHOD_INCOMPLETE" not in codes
-    # a non-computation (performance) record is never subject to this check
-    perf = {"record_type": "evidence", "record_domain": "performance", "source_type": "experiment"}
-    assert "COMPUTATION_METHOD_MISSING" not in _warn_codes(perf)
+    # a measurement is never subject to this check
+    perf = {"record_type": "evidence", "record_domain": "performance", "source_type": "laboratory",
+            "system": {"domain": "experimental", "technique": "chronoamperometry"}}
+    assert "COMPUTATION_METHOD_MISSING" not in _err_codes(perf)
 
 
 def test_vocabulary_list_leaves_checked():
@@ -314,10 +320,14 @@ def test_attribution_block():
     assert not any(w["code"] == "NO_DATA_OWNER" for w in res.get("warnings", []))
 
     r = json.loads(json.dumps(base))
-    del r["attribution"]
+    del r["attribution"]["contributors"]
     res = validation.validate_record_full(r)
-    assert res["valid"], "attribution is optional"
+    assert res["valid"], "contributors are optional"
     assert any(w["code"] == "NO_DATA_OWNER" for w in res.get("warnings", []))
+
+    # who produced the result is required (2026-09-27): uploaded_by cannot stand in for it
+    del r["attribution"]
+    assert "PRODUCED_BY_MISSING" in [e.get("code") for e in validation.validate_record_full(r)["errors"]]
 
     r = json.loads(json.dumps(base))
     r["attribution"]["contributors"][0]["role"] = "boss"

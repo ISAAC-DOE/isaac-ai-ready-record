@@ -22,7 +22,7 @@
   },
   "system": {
     "domain": "experimental",
-    "technique": "DFT",
+    "technique": "XAS",
     "configuration": {
       "notes": "Requesting a beamline capability, not a specific instrument."
     }

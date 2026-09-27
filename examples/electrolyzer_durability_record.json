@@ -50,6 +50,10 @@
       }
     }
   },
+  "system": {
+    "domain": "experimental",
+    "technique": "chronopotentiometry"
+  },
   "measurement": {
     "series": [
       {
@@ -138,7 +142,22 @@
       }
     ]
   },
-  "assets": [],
+  "assets": [
+    {
+      "asset_id": "source_paper",
+      "content_role": "documentation",
+      "uri": "https://doi.org/10.0000/example-electrolyzer-durability",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "media_type": "text/html",
+      "citation": {
+        "authors": "Example, A.; Example, B.",
+        "title": "Example: 1000 h durability of a PEM water electrolyzer (template citation)",
+        "journal": "Example Journal",
+        "year": 2026,
+        "doi": "10.0000/example-electrolyzer-durability"
+      }
+    }
+  ],
   "links": [],
   "attribution": {
     "contributors": [
@@ -146,6 +165,12 @@
         "name": "Source authors",
         "role": "data_owner"
       }
-    ]
+    ],
+    "produced_by": {
+      "group": "Example electrolyzer group",
+      "people": [
+        "Example Author"
+      ]
+    }
   }
 }
