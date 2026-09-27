@@ -682,6 +682,141 @@ def _cell_and_potential_checks(record: dict):
 
 
 # ---------------------------------------------------------------------------
+# Measurement or calculation, where it came from, and who produced it (2026-09-27).
+#
+# Several fields say whether a record is a measurement or a calculation, and they must agree:
+# system.domain, system.technique (when it names a computational method), source_type
+# 'computation', context.environment, sample.sample_form, sample.material.provenance and
+# record_domain 'simulation'. On 2026-09-27, 98 calculations taken from papers (DFT, classical
+# MD, microkinetic models) were stored as experiments: technique DFT, but domain experimental,
+# environment ex_situ, a physical sample form and a synthesized material, so they answered
+# queries for measurements. Where a result comes from is source_type (a paper, a database,
+# or the uploader's own lab, facility or computation); who produced it is
+# attribution.produced_by, which the server-stamped uploaded_by cannot stand in for. No record
+# stated produced_by on 2026-09-27.
+# ---------------------------------------------------------------------------
+COMPUTATIONAL_TECHNIQUES = {"DFT", "ab_initio_MD", "classical_MD", "kinetic_monte_carlo",
+                            "microkinetic_modeling", "machine_learning_potential"}
+MODEL_SAMPLE_FORMS = {"slab_model", "cluster_model", "unit_cell", "molecule_model", "continuum_model"}
+FUNCTIONAL_FAMILIES = {"DFT", "DFT_U", "hybrid_DFT", "AIMD", "CHE"}
+_MEASURED_PROVENANCE = {"commercial", "synthesized", "fabricated", "natural"}
+_ORG_PLACEHOLDERS = {v.lower() for v in _vocab_values("System", "system.organization_placeholders")}
+
+_CALCULATION_ENVELOPE = ("system.domain 'computational', context.environment 'in_silico', a model "
+                         "sample.sample_form (slab_model, cluster_model, unit_cell, molecule_model, "
+                         "continuum_model), sample.material.provenance 'theoretical', and computation.method")
+
+
+def _calculation_votes(record: dict):
+    """(calc, meas): the fields that say 'calculation' and the fields that say 'measurement'."""
+    sysb = record.get("system") if isinstance(record.get("system"), dict) else {}
+    ctx = record.get("context") if isinstance(record.get("context"), dict) else {}
+    smp = record.get("sample") if isinstance(record.get("sample"), dict) else {}
+    calc, meas = [], []
+    dom = sysb.get("domain")
+    (calc if dom == "computational" else meas if dom == "experimental" else []).append(f"system.domain={dom}")
+    if sysb.get("technique") in COMPUTATIONAL_TECHNIQUES:
+        calc.append(f"system.technique={sysb['technique']}")
+    if record.get("source_type") == "computation":
+        calc.append("source_type=computation")
+    env = ctx.get("environment")
+    (calc if env == "in_silico" else meas if env else []).append(f"context.environment={env}")
+    form = smp.get("sample_form")
+    (calc if form in MODEL_SAMPLE_FORMS else meas if form else []).append(f"sample.sample_form={form}")
+    prov = (smp.get("material") or {}).get("provenance") if isinstance(smp.get("material"), dict) else None
+    (calc if prov == "theoretical" else meas if prov in _MEASURED_PROVENANCE else []).append(
+        f"sample.material.provenance={prov}")
+    if record.get("record_domain") == "simulation":
+        calc.append("record_domain=simulation")
+    return calc, meas
+
+
+def _has_citation(record: dict) -> bool:
+    for a in record.get("assets") or []:
+        if not isinstance(a, dict):
+            continue
+        c = a.get("citation") if isinstance(a.get("citation"), dict) else {}
+        if c.get("doi") or (c.get("title") and c.get("year")) or "doi.org/" in str(a.get("uri") or ""):
+            return True
+    return False
+
+
+def _origin_errors(record: dict) -> list:
+    """Errors for an evidence record that is unclear about what it is, where it came from, or
+    who produced it."""
+    if record.get("record_type") != "evidence":
+        return []
+    errors = []
+    sysb = record.get("system") if isinstance(record.get("system"), dict) else {}
+    st = record.get("source_type")
+    if not sysb.get("domain"):
+        errors.append({
+            "code": "SYSTEM_DOMAIN_MISSING", "path": "system/domain",
+            "message": ("Every evidence record says whether it is a measurement or a calculation: system "
+                        "{domain: 'experimental' | 'computational', technique}. A result reported in a paper "
+                        "keeps the domain of the work the paper did: a measured current is 'experimental', a "
+                        "DFT energy is 'computational'.")})
+
+    calc, meas = _calculation_votes(record)
+    if calc and meas:
+        errors.append({
+            "code": "DOMAIN_INCONSISTENT", "path": "system/domain",
+            "message": (f"This record says both calculation ({', '.join(calc)}) and measurement "
+                        f"({', '.join(meas)}). A calculation (DFT, molecular dynamics, a microkinetic model, a "
+                        f"simulated spectrum) has {_CALCULATION_ENVELOPE}. A measurement has system.domain "
+                        f"'experimental', a physical sample_form and a physical environment. A calculation "
+                        f"reported in a paper is still a calculation: keep source_type 'literature' and set the "
+                        f"calculation fields.")})
+
+    is_calc = (sysb.get("domain") == "computational" or sysb.get("technique") in COMPUTATIONAL_TECHNIQUES
+               or st == "computation")
+    method = (record.get("computation") or {}).get("method") if isinstance(record.get("computation"), dict) else None
+    method = method if isinstance(method, dict) else {}
+    if is_calc and not method.get("family"):
+        errors.append({
+            "code": "COMPUTATION_METHOD_MISSING", "path": "computation/method",
+            "message": ("A calculation declares its method in computation.method: family (DFT, DFT_U, hybrid_DFT, "
+                        "AIMD, CHE, classical_MD, microkinetic, machine_learning, semi_empirical), "
+                        "functional_name (PBE, RPBE, BEEF-vdW, HSE06, ...), code and the settings the source "
+                        "states. A computed number is comparable with another only next to the method that "
+                        "produced it. For a calculation taken from a paper, copy the method the paper states.")})
+    elif is_calc and method.get("family") in FUNCTIONAL_FAMILIES and not method.get("functional_name"):
+        errors.append({
+            "code": "COMPUTATION_METHOD_INCOMPLETE", "path": "computation/method/functional_name",
+            "message": (f"computation.method.family '{method.get('family')}' needs functional_name (PBE, RPBE, "
+                        f"BEEF-vdW, HSE06, ...): an energy or a barrier is only comparable next to the "
+                        f"functional that produced it. If the source does not state it, write "
+                        f"functional_name: 'not_reported'.")})
+
+    pb = (record.get("attribution") or {}).get("produced_by") if isinstance(record.get("attribution"), dict) else None
+    pb = pb if isinstance(pb, dict) else {}
+    org = str(pb.get("organization") or "").strip()
+    if not (str(pb.get("group") or "").strip() or (org and org.lower() not in _ORG_PLACEHOLDERS)):
+        who = {
+            "literature": "the group of the paper's authors (group, organization, people)",
+            "database": "the group that produced the database entry; the database itself goes in assets",
+            "computation": "the group that ran the calculation: your own group if you ran it",
+        }.get(st, "the group that made the measurement: a curator uploading another lab's data names that lab")
+        errors.append({
+            "code": "PRODUCED_BY_MISSING", "path": "attribution/produced_by",
+            "message": (f"State who produced this result in attribution.produced_by {{group, organization, "
+                        f"people}}: {who}. uploaded_by records only who deposited the record. The source "
+                        f"(source_type '{st}') and the producer together say whether a result is a published "
+                        f"calculation, a calculation the uploader ran, or someone else's; two results from one "
+                        f"group are not independent evidence. Use the canonical organization names in "
+                        f"system.organizations.")})
+
+    if st == "literature" and not _has_citation(record):
+        errors.append({
+            "code": "LITERATURE_CITATION_MISSING", "path": "assets",
+            "message": ("A literature record carries its source: an asset with citation {authors, title, "
+                        "journal, year, doi} and uri 'https://doi.org/<doi>' (content_role 'documentation'). "
+                        "Without the source a reader cannot check the value or tell whether two records come "
+                        "from the same paper.")})
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Warnings tier (2026-06-12) — accepted-but-improvable feedback.
 # Warnings NEVER block ingestion; they teach. Three severities in the
 # response: errors (block), warnings (educate), info (suggest).
@@ -778,31 +913,6 @@ def _warning_checks(record: dict):
         if not record.get("links") and not record.get("tags"):
             warnings.append({"code": "NO_LINKS", "path": "links",
                              "message": "Record has no links[] and no tags[]. Group it via a typed link (same_sample_as / derived_from / intended_comparison_target) or a tag."})
-
-        # Computation records must DECLARE THEIR METHOD in computation.method (the
-        # schema slots exist but are optional). Without functional + code, a computed
-        # number is not comparable across records: a PBE adsorption energy is not the
-        # same quantity as an RPBE or BEEF-vdW one, and the next agent cannot filter
-        # for a database-consistent value. (The method belongs in computation.method,
-        # NOT buried in free-text system/notes.)
-        if record.get("source_type") == "computation" or domain == "simulation":
-            method = ((record.get("computation") or {}).get("method") or {})
-            if not method:
-                warnings.append({"code": "COMPUTATION_METHOD_MISSING", "path": "computation/method",
-                                 "message": "Computation record has no computation.method block. Declare at least "
-                                            "family (DFT / microkinetic / AIMD / ...), functional_name (PBE, RPBE, "
-                                            "BEEF-vdW, HSE06, ...), functional_class, basis_type, code + code_version. "
-                                            "Results are NOT comparable across functionals/codes without it — and a "
-                                            "method recorded only in free-text (system.notes) cannot be filtered or "
-                                            "trusted for comparison."})
-            else:
-                miss = [f for f in ("family", "functional_name") if not method.get(f)]
-                if miss:
-                    warnings.append({"code": "COMPUTATION_METHOD_INCOMPLETE", "path": "computation/method",
-                                     "message": f"computation.method is missing {miss}. functional_name "
-                                                "(PBE / RPBE / BEEF-vdW / ...) and family are the comparability keys — "
-                                                "an adsorption energy or barrier is only meaningful next to the "
-                                                "functional that produced it."})
 
         qc = ((record.get("measurement") or {}).get("qc") or {})
         if qc.get("status") == "compromised" and str(qc.get("evidence", "")).strip().upper() in ("", "N/A", "NA", "NONE"):
@@ -1140,6 +1250,7 @@ def validate_record_full(record: dict) -> dict:
     vocabulary_errors = vocabulary_errors + _potential_contract_errors(record)
     vocabulary_errors = vocabulary_errors + _descriptor_name_errors(record)
     vocabulary_errors = vocabulary_errors + _record_content_errors(record)
+    vocabulary_errors = vocabulary_errors + _origin_errors(record)
 
     try:
         semantic_errors = ontology.validate_semantic_integrity(record)

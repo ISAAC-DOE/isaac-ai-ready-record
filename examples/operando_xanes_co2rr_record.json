@@ -250,5 +250,11 @@
         ]
       }
     ]
+  },
+  "attribution": {
+    "produced_by": {
+      "group": "SSRL beamline 15-2",
+      "organization": "SLAC National Accelerator Laboratory"
+    }
   }
 }

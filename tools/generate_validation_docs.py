@@ -8,10 +8,14 @@ The set of codes is EXTRACTED from portal/validation.py; each must have a
 registry entry below (tier + one-line meaning). If validation.py emits a code
 with no registry entry, --check FAILS — forcing every new rule to be documented.
 
+It also validates every complete record shown on a wiki page: agents copy those examples,
+so each one must pass the validator it teaches (--check fails otherwise).
+
 Usage:
   python3 tools/generate_validation_docs.py /path/to/wiki          # rewrite in place
   python3 tools/generate_validation_docs.py --check /path/to/wiki  # exit 1 if stale/undocumented
 """
+import json
 import re
 import sys
 from pathlib import Path
@@ -43,6 +47,12 @@ REGISTRY = {
     "HALF_CELL_POTENTIAL_IN_FULL_CELL": ("error", "An mea_cell or zero_gap_cell record carries a half-cell potential without a reference electrode. A two-electrode device reports cell_voltage (V_cell) and potential_vs_RHE rhe_basis not_applicable, unless a reference electrode was integrated and is declared."),
     "FEED_UNDECLARED": ("error", "A gde_cell, mea_cell or zero_gap_cell record does not declare context.transport.feed {phase, composition, ...}. What the cell is fed decides the reaction environment."),
     "DEPRECATED_CELL_TYPE": ("warning", "cell_type three_electrode names the wiring, not the cell body. Name the body (beaker_cell, h_cell, flow_cell, ...) and put the electrode configuration in system.configuration."),
+    "SYSTEM_DOMAIN_MISSING": ("error", "An evidence record does not say whether it is a measurement or a calculation (system.domain experimental | computational). A result reported in a paper keeps the domain of the work the paper did."),
+    "DOMAIN_INCONSISTENT": ("error", "The fields that say calculation (system.domain computational, a computational system.technique, source_type computation, environment in_silico, a model sample_form, provenance theoretical, record_domain simulation) and the fields that say measurement disagree. The message names every field on each side. A calculation reported in a paper is still a calculation."),
+    "COMPUTATION_METHOD_MISSING": ("error", "A calculation (system.domain computational, a computational technique, or source_type computation) has no computation.method.family. Declare the family, the functional, the code and the settings the source states; for a calculation taken from a paper, copy the method the paper states."),
+    "COMPUTATION_METHOD_INCOMPLETE": ("error", "computation.method.family is DFT, DFT_U, hybrid_DFT, AIMD or CHE and functional_name is missing. An energy or a barrier is comparable only next to its functional. Write 'not_reported' when the source does not state it."),
+    "PRODUCED_BY_MISSING": ("error", "An evidence record does not name who produced the result in attribution.produced_by (a group, or an organization that is not a placeholder). The server-stamped uploaded_by says who deposited the record, not who measured or computed it; source_type and produced_by together distinguish a published calculation, the uploader's own calculation and someone else's measurement."),
+    "LITERATURE_CITATION_MISSING": ("error", "A literature record carries no source: no asset with citation.doi, citation title and year, or a doi.org uri."),
     "AT_READOUT_WITHOUT_SWEEP": ("error", "A read-out key (at.current_density_mA_cm2, at.current_density_ECSA_mA_cm2, at.potential_V_RHE) is used on a record that is not a sweep. Read-out keys locate a value on a potentiodynamic sweep; a record held at one potential or current states it in context.electrochemistry."),
     # --- warnings (accepted, but improvable) ---
     "MISSING_PH": ("warning", "Performance record has no pH/pH_basis — needed for RHE conversion and cross-record comparison."),
@@ -61,8 +71,6 @@ REGISTRY = {
     "UNCERTAINTY_BASIS_NOT_IN_VOCABULARY": ("info", "uncertainty.basis is outside the canonical set (reported, digitization_estimate, assumed, propagated, method, exact, not_reported). Free-text bases cannot be filtered or compared across records."),
     "FE_ROLE_VIOLATION": ("warning", "A faradaic_efficiency series channel claims role=measured_response; FE is a derived claim (role must be derived_signal)."),
     "FE_SERIES_DUPLICATE": ("warning", "A single-point series channel duplicates an FE descriptor of the same name."),
-    "COMPUTATION_METHOD_MISSING": ("warning", "A computation record (source_type=computation / domain=simulation) has no computation.method block; declare family + functional_name (PBE/RPBE/BEEF-vdW/...) + code so the result is comparable across functionals."),
-    "COMPUTATION_METHOD_INCOMPLETE": ("warning", "computation.method is missing family or functional_name — the comparability keys for a computed energy/barrier."),
     # --- info (suggestions) ---
     "SIGMA_ZERO_PLACEHOLDER": ("warning", "uncertainty.sigma=0.0 with no uncertainty.basis. To a machine this asserts the value is EXACT, and downstream scoring that divides by a noise scale will treat it as infinitely precise. If the source reported no uncertainty write sigma: null with basis: 'not_reported'; if it is genuinely exact (a set point, an integer count) say basis: 'exact'."),
     "UNIT_NOT_IN_VOCABULARY": ("info", "A unit is not in the canonical unit vocabulary and is not a known alias."),
@@ -108,17 +116,42 @@ def apply(page: Path):
     return text.rstrip() + "\n\n" + block + "\n"
 
 
+def embedded_record_failures(wiki: Path) -> list:
+    """Complete records shown in wiki pages that the validator rejects."""
+    sys.path.insert(0, str(REPO / "portal"))
+    import validation
+    bad = []
+    for page in sorted(wiki.glob("*.md")):
+        for block in re.findall(r"```json\n(.*?)```", page.read_text(), re.S):
+            if '"isaac_record_version"' not in block or '"record_type"' not in block:
+                continue
+            try:
+                record = json.loads(block)
+            except ValueError:
+                continue  # an elided fragment illustrates a block; it is not a record
+            result = validation.validate_record_full(record)
+            if not result["valid"]:
+                codes = sorted({e.get("code") or "schema" for e in result["errors"]})
+                bad.append(f"{page.name}: record {record.get('record_id')} is rejected {codes}")
+    return bad
+
+
 def main():
     check = "--check" in sys.argv
     args = [a for a in sys.argv[1:] if a != "--check"]
     wiki = Path(args[0]) if args else REPO.parent / "isaac-ai-ready-record.wiki"
     page = wiki / "Validation-Rules.md"
     desired = apply(page)
+    rejected = embedded_record_failures(wiki)
+    for line in rejected:
+        print("REJECTED EXAMPLE: " + line)
     if check:
         if not page.exists() or page.read_text() != desired:
             print("STALE: Validation-Rules.md codes table out of sync — run tools/generate_validation_docs.py")
             return 1
-        print("validation codes table up to date")
+        if rejected:
+            return 1
+        print("validation codes table up to date; every record shown in the wiki validates")
         return 0
     page.write_text(desired)
     print(f"regenerated Validation-Rules.md ({len(emitted_codes())} codes)")

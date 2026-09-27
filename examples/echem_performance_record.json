@@ -269,5 +269,11 @@
         ]
       }
     ]
+  },
+  "attribution": {
+    "produced_by": {
+      "group": "SSRL electrochemistry laboratory",
+      "organization": "SLAC National Accelerator Laboratory"
+    }
   }
 }

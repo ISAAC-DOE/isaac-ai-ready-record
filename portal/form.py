@@ -182,6 +182,23 @@ def render_form():
         source_type_options = [""] + get_vocab_values("Record Info", "source_type")
         source_type = st.selectbox("Source Type *", source_type_options)
 
+        col1, col2 = st.columns(2)
+        with col1:
+            produced_by_group = st.text_input(
+                "Produced by: group *",
+                placeholder="e.g. your own group; for a result from a paper, the authors' group",
+                help="Who produced the result (a measurement or a calculation), as distinct from who uploads "
+                     "the record. Required on evidence records.")
+        with col2:
+            produced_by_org = st.text_input(
+                "Produced by: organization",
+                placeholder="e.g. SLAC National Accelerator Laboratory",
+                help="Use the canonical name from system.organizations (Controlled-Vocabulary wiki page).")
+        source_doi = st.text_input(
+            "Source DOI (required for literature records)",
+            placeholder="e.g. 10.1002/advs.202520469",
+            help="The paper the values come from.")
+
         tags_raw = st.text_input(
             "Tags (optional)",
             placeholder="comma-separated, e.g. jcap-hte, nifecoce-oer-2014",
@@ -446,6 +463,9 @@ def render_form():
             acquired_end_date=acquired_end_date,
             acquired_end_time=acquired_end_time,
             source_type=source_type,
+            produced_by_group=produced_by_group,
+            produced_by_org=produced_by_org,
+            source_doi=source_doi,
             tags=[s.strip() for s in tags_raw.split(",") if s.strip()] if tags_raw else [],
             material_name=material_name,
             material_formula=material_formula,
@@ -596,6 +616,12 @@ def build_record(**kwargs) -> dict:
     # Tags (free-form grouping labels)
     if kwargs.get('tags'):
         record['tags'] = kwargs['tags']
+
+    # Who produced the result (required on evidence records; uploaded_by is stamped by the server)
+    produced_by = {k: v.strip() for k, v in (('group', kwargs.get('produced_by_group') or ''),
+                                             ('organization', kwargs.get('produced_by_org') or '')) if v.strip()}
+    if produced_by:
+        record['attribution'] = {'produced_by': produced_by}
 
     # Timestamps
     if kwargs['created_date'] and kwargs['created_time']:
@@ -748,6 +774,16 @@ def build_record(**kwargs) -> dict:
         if kwargs['asset_media_type']:
             asset['media_type'] = kwargs['asset_media_type']
         record['assets'] = [asset]
+
+    # The source paper of a literature record
+    doi = (kwargs.get('source_doi') or '').strip()
+    for prefix in ('https://doi.org/', 'http://doi.org/', 'https://dx.doi.org/', 'doi.org/', 'doi:'):
+        if doi.lower().startswith(prefix):
+            doi = doi[len(prefix):]
+    if doi:
+        record.setdefault('assets', []).append({
+            'asset_id': 'source_paper', 'content_role': 'documentation', 'uri': f'https://doi.org/{doi}',
+            'sha256': '0' * 64, 'citation': {'doi': doi}})
 
     # Descriptors
     if kwargs['output_label'] or kwargs['desc_name']:

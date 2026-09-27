@@ -148,5 +148,11 @@
         ]
       }
     ]
+  },
+  "attribution": {
+    "produced_by": {
+      "group": "ISAAC",
+      "organization": "SLAC National Accelerator Laboratory"
+    }
   }
 }

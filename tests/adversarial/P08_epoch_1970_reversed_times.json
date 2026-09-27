@@ -4,6 +4,7 @@
  "record_type": "evidence",
  "record_domain": "performance",
  "source_type": "laboratory",
+ "attribution": {"produced_by": {"group": "Probe laboratory"}},
  "timestamps": {
   "acquired_start_utc": "2026-06-01T16:00:00Z",
   "acquired_end_utc": "2026-06-01T14:00:00Z",

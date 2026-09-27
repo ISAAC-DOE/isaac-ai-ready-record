@@ -376,7 +376,11 @@
         "name": "Example Curator",
         "role": "curated_record"
       }
-    ]
+    ],
+    "produced_by": {
+      "group": "Example PI group",
+      "organization": "Lawrence Berkeley National Laboratory"
+    }
   },
   "tags": [
     "lbnl-cu-au",
