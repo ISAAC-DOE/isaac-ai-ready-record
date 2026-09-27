@@ -62,10 +62,13 @@ def render_section(section_names):
                 lines.append("```")
             mp = e.get("map")
             if isinstance(mp, dict) and mp:
-                lines.append("| rejected alias | canonical |")
+                # A map declares its own column headers; the default is the alias table.
+                left, right = (e.get("map_columns") or ["rejected alias", "canonical"])[:2]
+                lines.append(f"| {left} | {right} |")
                 lines.append("|---|---|")
                 for a, c in sorted(mp.items()):
-                    lines.append(f"| `{a}` | `{c}` |")
+                    rhs = ", ".join(f"`{x}`" for x in c) if isinstance(c, list) else f"`{c}`"
+                    lines.append(f"| `{a}` | {rhs} |")
             lines.append("")
     lines.append(END)
     return "\n".join(lines)

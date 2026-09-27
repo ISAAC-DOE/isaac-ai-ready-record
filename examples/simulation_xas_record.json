@@ -150,7 +150,7 @@
         },
         "descriptors": [
           {
-            "name": "xanes.edge_position",
+            "name": "edge_position",
             "kind": "absolute",
             "source": "auto",
             "value": 8986.3,
@@ -162,7 +162,7 @@
             }
           },
           {
-            "name": "xanes.white_line_intensity",
+            "name": "white_line_intensity",
             "kind": "absolute",
             "source": "auto",
             "value": 1.2,

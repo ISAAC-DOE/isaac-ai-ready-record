@@ -41,7 +41,7 @@ KNOWN_GAPS = {
     "P07_qc_invented_status": ("WS2 schema: qc.status enum", "wave 2"),
     "P08_epoch_1970_reversed_times": ("WS3 semantic: created_utc >= acquired, plausible-era check", "warning tier, wave 2"),
     "P09_rhe_5V_co2rr": ("WS3 semantic: potential plausibility per scale/reaction", "wave 2"),
-    "P10_duplicate_descriptor": ("WS3 semantic: unique descriptor names per block", "wave 2"),
+    # P10_duplicate_descriptor: closed 2026-09-27 by DUPLICATE_DESCRIPTOR_NAME.
     "P12_ragged_and_missing_values": ("WS3 semantic: series channel length consistency", "wave 2"),
     "P13_negative_T_conc_pH19": ("WS2 schema: physical bounds (T>0, conc>=0, pH range)", "wave 2"),
     "P14_fake_ulid_self_link": ("WS3 semantic: link target existence + self-link rejection", "wave 2 (needs DB)"),
@@ -273,16 +273,18 @@ def test_adr001_conventions():
     base = json.loads((REPO / "examples" / "co2rr_performance_record.json").read_text())
 
     # Positive partial current under CO2RR -> SIGN_CONVENTION warning
+    # (The example already carries partial_current_density.C2H4; flip ITS sign rather than
+    # appending a second one, which DUPLICATE_DESCRIPTOR_NAME rejects since 2026-09-27.)
     r = json.loads(json.dumps(base))
-    template = json.loads(json.dumps(r["descriptors"]["outputs"][0]["descriptors"][0]))
-    template.update({"name": "partial_current_density.C2H4", "value": 45.0, "unit": "mA/cm2"})
-    r["descriptors"]["outputs"][0]["descriptors"].append(template)
+    target = next(d for d in r["descriptors"]["outputs"][0]["descriptors"]
+                  if d["name"] == "partial_current_density.C2H4")
+    target.update({"value": 45.0, "unit": "mA/cm2"})
     res = validation.validate_record_full(r)
     assert not res["valid"], "positive cathodic current is an ERROR since 2026-06-15"
     assert any(e.get("code") == "SIGN_CONVENTION" for e in res.get("errors", []))
 
     # Negative value -> no warning
-    r["descriptors"]["outputs"][0]["descriptors"][-1]["value"] = -45.0
+    target["value"] = -45.0
     res = validation.validate_record_full(r)
     assert res["valid"]
 

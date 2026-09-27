@@ -122,7 +122,7 @@
       }
      },
      {
-      "name": "ECSA",
+      "name": "ecsa",
       "kind": "absolute",
       "source": "auto",
       "value": -12.4,

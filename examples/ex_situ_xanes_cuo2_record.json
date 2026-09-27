@@ -12,13 +12,13 @@
   "sample": {
     "material": {
       "name": "Copper(II) Oxide",
-      "formula": "CuO2",
+      "formula": "CuO",
       "provenance": "commercial",
       "notes": "Vendor: Sigma-Aldrich. Pressed pellet. [ambient_exposure: True]"
     },
     "sample_form": "pellet",
     "composition": {
-      "CuO2_mass_fraction": 0.001,
+      "CuO_mass_fraction": 0.001,
       "sucrose_mass_fraction": 0.999
     },
     "geometry": {
@@ -128,7 +128,7 @@
     {
       "asset_id": "reduced_spectrum_fullres",
       "content_role": "reduction_product",
-      "uri": "ssrl-archive://BL15-2/2025_run_001/reduced/CuO2_merged.xdi",
+      "uri": "ssrl-archive://BL15-2/2025_run_001/reduced/CuO_merged.xdi",
       "media_type": "text/plain",
       "sha256": "b3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b234",
       "notes": "Full resolution merged spectrum in XDI format."
@@ -154,15 +154,16 @@
         },
         "descriptors": [
           {
-            "name": "xanes_inflection_point_energy",
+            "name": "inflection_point_energy",
             "kind": "absolute",
             "source": "manual",
-            "value": 9001.2,
+            "value": 8982.5,
             "unit": "eV",
-            "definition": "Inflection point derived from derivative maximum.",
+            "definition": "Inflection point: energy of the maximum of the first derivative of the normalized absorption, by finite differences on the 5 eV grid of the series in this record.",
             "uncertainty": {
-              "sigma": 0.01,
-              "unit": "eV"
+              "sigma": 2.5,
+              "unit": "eV",
+              "basis": "method"
             }
           }
         ]

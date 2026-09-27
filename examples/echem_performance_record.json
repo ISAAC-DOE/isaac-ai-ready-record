@@ -203,6 +203,9 @@
             "uncertainty": {
               "sigma": 0.01,
               "unit": "V"
+            },
+            "at": {
+              "current_density_mA_cm2": -0.1
             }
           },
           {
@@ -239,6 +242,9 @@
             "uncertainty": {
               "sigma": 0.01,
               "unit": "A/mg_Pt"
+            },
+            "at": {
+              "potential_V_RHE": 0.9
             }
           },
           {
@@ -251,6 +257,9 @@
             "uncertainty": {
               "sigma": 0.05,
               "unit": "dimensionless"
+            },
+            "at": {
+              "potential_V_RHE": 0.5
             }
           }
         ]

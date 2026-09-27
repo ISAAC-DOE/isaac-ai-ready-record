@@ -668,18 +668,6 @@
         "d_band_center"
       ]
     },
-    "theoretical_aliases": {
-      "description": "Deprecated theoretical descriptor spellings -> canonical (validator rejects aliases with rename message).",
-      "values": [],
-      "map": {
-        "activation_energy": "activation_barrier",
-        "dft.total_energy": "total_energy",
-        "reaction_energy.dE": "adsorption_energy",
-        "dE_ads": "adsorption_energy",
-        "binding_energy_eV": "adsorption_energy",
-        "Eads": "adsorption_energy"
-      }
-    },
     "descriptors.component_families": {
       "description": "Descriptor name PREFIXES whose dotted members are SHARES OF A WHOLE, so that the members present in one output block can be summed and compared against a known total. This is what lets the validator check closure arithmetically without knowing any chemistry: it sums what the record declares and compares it to the total the record declares. Add a prefix here when a family has that shares-of-a-whole property in your domain; the default whole is 1.0 and a block may override it via descriptors.outputs[].completeness.expected_total.",
       "values": [
@@ -735,7 +723,11 @@
         "faradaic_efficiency.total": [],
         "faradaic_efficiency.liquid": [],
         "faradaic_efficiency.gas": []
-      }
+      },
+      "map_columns": [
+        "aggregate descriptor",
+        "members it sums"
+      ]
     },
     "descriptors.uncertainty_basis": {
       "description": "How the uncertainty on a descriptor value was arrived at. Generic across every domain and every descriptor class. `not_reported` is the honest entry when the source gives no uncertainty, and it is what a value should carry INSTEAD of sigma: 0 - a zero sigma tells a machine the value is exact.",
@@ -748,6 +740,258 @@
         "exact",
         "not_reported"
       ]
+    },
+    "descriptors.structure": {
+      "description": "Canonical descriptor names for structural claims from scattering, reflectometry, microscopy and sorption. Layer, phase or element labels go after the dot (layer_thickness.CuOx, coordination_number.Cu_O).",
+      "values": [
+        "layer_thickness",
+        "scattering_length_density",
+        "interface_roughness",
+        "coordination_number",
+        "crystallite_size",
+        "particle_size",
+        "specific_surface_area"
+      ]
+    },
+    "descriptors.class_units": {
+      "description": "The canonical unit of each canonical descriptor class (the part of the name before the first dot). A numeric value of a listed class must carry one of these units, or the validator rejects it with CLASS_UNIT_MISMATCH: convert the value, never relabel the unit. One class, one unit, so values from different records compare without conversion. mass_activity lists two because the normalizing mass is part of the unit (all catalyst vs Pt only).",
+      "map_columns": [
+        "descriptor class",
+        "canonical unit"
+      ],
+      "map": {
+        "steady_state_current_density": [
+          "mA/cm2"
+        ],
+        "partial_current_density": [
+          "mA/cm2"
+        ],
+        "limiting_current_density": [
+          "mA/cm2"
+        ],
+        "exchange_current_density": [
+          "mA/cm2"
+        ],
+        "specific_activity": [
+          "mA/cm2"
+        ],
+        "mass_activity": [
+          "A/mg",
+          "A/mg_Pt"
+        ],
+        "onset_potential": [
+          "V_RHE"
+        ],
+        "half_wave_potential": [
+          "V_RHE"
+        ],
+        "steady_state_potential": [
+          "V_RHE",
+          "V_SHE",
+          "V_ref"
+        ],
+        "overpotential": [
+          "V"
+        ],
+        "cell_voltage": [
+          "V_cell"
+        ],
+        "tafel_slope": [
+          "mV/dec"
+        ],
+        "ecsa": [
+          "cm2"
+        ],
+        "roughness_factor": [
+          "dimensionless"
+        ],
+        "electron_transfer_number": [
+          "dimensionless"
+        ],
+        "energy_efficiency": [
+          "fraction"
+        ],
+        "turnover_frequency": [
+          "1/s"
+        ],
+        "stability_retention_percent": [
+          "percent"
+        ],
+        "total_faradaic_efficiency": [
+          "fraction"
+        ],
+        "faradaic_efficiency": [
+          "fraction"
+        ],
+        "production_rate": [
+          "umol/cm2/h"
+        ],
+        "degradation_rate": [
+          "mV/h",
+          "uV/h"
+        ],
+        "operating_duration": [
+          "h"
+        ],
+        "edge_position": [
+          "eV"
+        ],
+        "white_line_energy": [
+          "eV"
+        ],
+        "inflection_point_energy": [
+          "eV"
+        ],
+        "edge_shift": [
+          "eV"
+        ],
+        "binding_energy": [
+          "eV"
+        ],
+        "spin_orbit_splitting": [
+          "eV"
+        ],
+        "oxidation_state": [
+          "dimensionless"
+        ],
+        "phase_fraction": [
+          "fraction"
+        ],
+        "lattice_parameter": [
+          "angstrom"
+        ],
+        "layer_thickness": [
+          "angstrom"
+        ],
+        "scattering_length_density": [
+          "1e-6 angstrom^-2"
+        ],
+        "interface_roughness": [
+          "angstrom"
+        ],
+        "coordination_number": [
+          "dimensionless"
+        ],
+        "crystallite_size": [
+          "nm"
+        ],
+        "particle_size": [
+          "nm"
+        ],
+        "specific_surface_area": [
+          "m2/g"
+        ],
+        "adsorption_energy": [
+          "eV"
+        ],
+        "activation_barrier": [
+          "eV"
+        ],
+        "reaction_energy": [
+          "eV"
+        ],
+        "total_energy": [
+          "eV"
+        ],
+        "formation_energy": [
+          "eV"
+        ],
+        "band_gap": [
+          "eV"
+        ],
+        "d_band_center": [
+          "eV"
+        ],
+        "work_function": [
+          "eV"
+        ],
+        "surface_energy": [
+          "J/m^2"
+        ],
+        "vibrational_frequency": [
+          "cm-1"
+        ],
+        "bond_length": [
+          "angstrom"
+        ]
+      }
+    },
+    "descriptors.name_prefix_tokens": {
+      "description": "Reaction, technique and method tokens that must not begin a descriptor name (PREFIX_IN_DESCRIPTOR_NAME). The reaction is stated in context, the technique in system.technique and experimental vs computational in system.domain, so the name carries only the quantity: half_wave_potential, not orr_half_wave_potential; edge_position, not xanes.edge_position; adsorption_energy.O2, not dft_o2_adsorption_energy. Organization namespaces (lbnl.xps.elements_detected) are not affected.",
+      "values": [
+        "co2rr",
+        "corr",
+        "oer",
+        "her",
+        "orr",
+        "nrr",
+        "n2rr",
+        "aor",
+        "no3rr",
+        "hor",
+        "uor",
+        "mor",
+        "eor",
+        "xas",
+        "xanes",
+        "exafs",
+        "herfd",
+        "herfd_xas",
+        "herfd_xanes",
+        "xes",
+        "rixs",
+        "xps",
+        "ups",
+        "xrf",
+        "xrd",
+        "saxs",
+        "waxs",
+        "pdf",
+        "sans",
+        "cv",
+        "lsv",
+        "eis",
+        "tem",
+        "sem",
+        "afm",
+        "stm",
+        "dft",
+        "aimd",
+        "kmc",
+        "mkm",
+        "mlip",
+        "gc",
+        "hplc",
+        "icp",
+        "icp_ms",
+        "icp_oes",
+        "nmr",
+        "ftir",
+        "raman",
+        "uv_vis",
+        "uvvis",
+        "epr",
+        "tga",
+        "bet",
+        "tpd",
+        "tpr",
+        "sers",
+        "dems",
+        "secm"
+      ]
+    },
+    "descriptors.class_aliases": {
+      "description": "Deprecated descriptor spellings and their canonical replacements. The validator rejects a descriptor whose full name or class is listed here (DESCRIPTOR_CLASS_ALIAS) and names the replacement.",
+      "map": {
+        "activation_energy": "activation_barrier",
+        "dft.total_energy": "total_energy",
+        "dE_ads": "adsorption_energy",
+        "Eads": "adsorption_energy",
+        "e_ads": "adsorption_energy",
+        "d_band_centre": "d_band_center",
+        "tof": "turnover_frequency",
+        "exchange_current": "exchange_current_density"
+      }
     }
   },
   "Computation": {
@@ -917,7 +1161,9 @@
         "arb",
         "mu_normalized",
         "counts",
-        "counts/s"
+        "counts/s",
+        "1e-6 angstrom^-2",
+        "degree"
       ]
     },
     "units.general": {
@@ -935,7 +1181,8 @@
         "ML",
         "mu_B",
         "eV/angstrom",
-        "J/m^2"
+        "J/m^2",
+        "m2/g"
       ]
     },
     "units.aliases": {
@@ -954,7 +1201,18 @@
         "\u00c5\u207b\u00b9": "angstrom^-1",
         "unitless": "dimensionless",
         "none": "dimensionless",
-        "arbitrary_units": "arb"
+        "arbitrary_units": "arb",
+        "mV_per_dec": "mV/dec",
+        "mV dec-1": "mV/dec",
+        "mV/decade": "mV/dec",
+        "per_s": "1/s",
+        "per_site_per_s": "1/s",
+        "s-1": "1/s",
+        "mA_per_cm2": "mA/cm2",
+        "\u00c5": "angstrom",
+        "1e-6 \u00c5\u207b\u00b2": "1e-6 angstrom^-2",
+        "angstrom^-1\u207b\u00b9": "angstrom^-1",
+        "1e-6 angstrom^-1\u207b\u00b2": "1e-6 angstrom^-2"
       }
     }
   },

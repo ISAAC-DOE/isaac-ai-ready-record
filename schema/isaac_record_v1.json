@@ -1517,7 +1517,7 @@
                     "at": {
                       "type": "object",
                       "additionalProperties": false,
-                      "description": "Operating point within a series. Sample identity, operating potential, electrolyte, and cell type all live in their canonical slots \u2014 never as 'at' keys.",
+                      "description": "The condition at which this value holds, as numbers with the unit in the key. Two kinds: (1) a coordinate inside a series (time_s, temperature_K, pressure_bar, a partial pressure or concentration); (2) a READ-OUT point on a sweep (current_density_mA_cm2, current_density_ECSA_mA_cm2, potential_V_RHE), e.g. the overpotential needed to reach 10 mA/cm2 or the mass activity at 0.9 V_RHE, allowed only when context.electrochemistry.control_mode is potentiodynamic (validator AT_READOUT_WITHOUT_SWEEP). Conditions never go into the descriptor NAME (CONDITION_IN_DESCRIPTOR_NAME). The operating point of a record held at one potential or one current, sample identity, electrolyte and cell type live in their canonical slots in context and sample, never as 'at' keys.",
                       "properties": {
                         "temperature_K": {
                           "type": "number"
@@ -1536,6 +1536,18 @@
                         },
                         "glyoxal_concentration_mM": {
                           "type": "number"
+                        },
+                        "current_density_mA_cm2": {
+                          "type": "number",
+                          "description": "Read-out current density, normalized to the geometric electrode area, at which the value was read off a sweep (e.g. the overpotential needed to reach 10 mA/cm2). Signed by the IUPAC convention of ADR-001: negative for cathodic reactions. Not a galvanostatic setpoint; that is context.electrochemistry.current_setpoint_mA_cm2."
+                        },
+                        "current_density_ECSA_mA_cm2": {
+                          "type": "number",
+                          "description": "As current_density_mA_cm2, but normalized to the electrochemically active surface area."
+                        },
+                        "potential_V_RHE": {
+                          "type": "number",
+                          "description": "Read-out potential on the RHE scale at which the value was read off a sweep (e.g. mass activity at 0.9 V_RHE). Not the operating potential of a potentiostatic record; that is context.electrochemistry.potential_setpoint_V and potential_vs_RHE."
                         }
                       }
                     },

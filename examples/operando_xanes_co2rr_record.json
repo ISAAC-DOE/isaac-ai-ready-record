@@ -194,7 +194,7 @@
         },
         "descriptors": [
           {
-            "name": "xanes.edge_position",
+            "name": "edge_position",
             "kind": "absolute",
             "source": "auto",
             "value": 8980.4,
@@ -206,7 +206,7 @@
             }
           },
           {
-            "name": "xanes.white_line_intensity",
+            "name": "white_line_intensity",
             "kind": "absolute",
             "source": "auto",
             "value": 1.12,
@@ -218,7 +218,7 @@
             }
           },
           {
-            "name": "xanes.white_line_intensity.delta",
+            "name": "white_line_intensity.delta",
             "kind": "differential",
             "source": "auto",
             "relative_to": {
@@ -234,7 +234,7 @@
             }
           },
           {
-            "name": "chemistry.oxidation_state.proxy",
+            "name": "oxidation_state.Cu",
             "kind": "categorical",
             "source": "manual",
             "value": "Cu(0)-like",
