@@ -21,6 +21,7 @@ Layers:
 
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -241,6 +242,174 @@ def _potential_contract_errors(record: dict) -> list:
                            f"(E_measured + offset, or E_measured - offset) — keep value_V, offset, and formula "
                            f"mutually consistent.",
             })
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Descriptor names and read-out conditions (2026-09-27).
+#
+# A descriptor name says WHAT quantity is claimed; nothing else. The reaction lives in
+# context, the technique in system.technique, experimental vs computational in
+# system.domain, and the condition at which a quantity was read (a current density, a
+# potential, a temperature, a time) in the descriptor's `at`. When those facts are
+# written into names instead, every uploader invents a new name for the same quantity
+# (the 2026-09-27 repository audit counted 813 names for 5,852 values, 10% canonical),
+# and an agent asking for "the overpotential at 10 mA/cm2" finds nothing. Which tokens
+# are forbidden prefixes, which classes are canonical and which unit each class carries
+# are DATA in data/vocabulary.json, so the wiki renders the same lists this code enforces.
+# ---------------------------------------------------------------------------
+def _vocab_values(section: str, key: str) -> list:
+    return list(((_VOCAB.get(section) or {}).get(key) or {}).get("values") or [])
+
+
+def _vocab_map(section: str, key: str) -> dict:
+    return dict(((_VOCAB.get(section) or {}).get(key) or {}).get("map") or {})
+
+
+CLASS_UNITS = _vocab_map("Descriptors", "descriptors.class_units")
+CLASS_ALIASES = _vocab_map("Descriptors", "descriptors.class_aliases")
+NAME_PREFIX_TOKENS = sorted(_vocab_values("Descriptors", "descriptors.name_prefix_tokens"),
+                            key=len, reverse=True)
+CANONICAL_CLASSES = set(CLASS_UNITS)
+for _k in ("descriptors.electrochemical_performance", "descriptors.spectroscopy",
+           "descriptors.structure", "descriptors.theoretical", "descriptors.theoretical_metric"):
+    CANONICAL_CLASSES.update(_vocab_values("Descriptors", _k))
+CANONICAL_CLASSES.update(p.rstrip(".") for p in PRODUCT_CLASS_PREFIXES)
+
+# `at` keys that state the point on a SWEEP at which a quantity was read.
+READOUT_AT_KEYS = ("current_density_mA_cm2", "current_density_ECSA_mA_cm2", "potential_V_RHE")
+SWEEP_CONTROL_MODES = {"potentiodynamic", "mixed"}
+
+_CONDITION_PATTERNS = (
+    ("an '_at_' operating point", re.compile(r"(?:^|[._])at_", re.I)),
+    ("a current density", re.compile(
+        r"\d+(?:p\d+)?_?m?a_?cm_?2|(?:^|[._])\d+(?:p\d+)?ma(?:$|[._])", re.I)),
+    ("a potential", re.compile(
+        r"(?:minus|neg)?\d+p\d+_?v(?:_?rhe)?(?:$|[._])|\d+(?:p\d+)?_?v_?rhe|(?:^|[._])\d+mv(?:$|[._])",
+        re.I)),
+    ("a temperature", re.compile(r"(?:^|[._])\d{2,4}_?(?:c|k|degc)(?:$|[._])", re.I)),
+    ("a time", re.compile(
+        r"(?:^|[._])\d+(?:p\d+)?_?(?:s|sec|min|h|hr|hours?)(?:$|[._])", re.I)),
+)
+_LOWER_CLASS = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def _strip_conditions(stem: str) -> str:
+    """Remove condition fragments from a class stem, for rename suggestions only."""
+    stem = re.split(r"_at_", stem, maxsplit=1, flags=re.I)[0]
+    for _label, rx in _CONDITION_PATTERNS:
+        stem = rx.sub("_", stem)
+    return re.sub(r"_+", "_", stem).strip("_")
+
+
+def _suggest_class(stem: str):
+    """A canonical rename for a stem whose prefix/conditions were removed, or None."""
+    low = stem.lower()
+    if low in CANONICAL_CLASSES:
+        return low
+    for c in sorted(CANONICAL_CLASSES, key=len, reverse=True):
+        if low.endswith("_" + c):
+            return f"{c}.{stem[: -len(c) - 1]}"
+        if low.startswith(c + "_"):
+            return f"{c}.{stem[len(c) + 1:]}"
+    return None
+
+
+def _descriptor_name_errors(record: dict) -> list:
+    errors = []
+    ec = ((record.get("context") or {}).get("electrochemistry") or {})
+    control = ec.get("control_mode") if isinstance(ec, dict) else None
+    outputs = (record.get("descriptors") or {}).get("outputs") or []
+    for oi, o in enumerate(outputs):
+        seen = {}
+        for di, d in enumerate(o.get("descriptors") or [] if isinstance(o, dict) else []):
+            if not isinstance(d, dict):
+                continue
+            name = d.get("name") or ""
+            path = f"descriptors/outputs/{oi}/descriptors/{di}"
+            stem = name.split(".")[0]
+            low = stem.lower()
+
+            if name in seen:
+                errors.append({
+                    "code": "DUPLICATE_DESCRIPTOR_NAME", "path": f"{path}/name",
+                    "message": (f"Descriptor '{name}' appears twice in output block {oi} (positions "
+                                f"{seen[name]} and {di}). One name, one value per block: a second value of "
+                                f"the same quantity is a different condition (state it in `at`) or a "
+                                f"different record, never a duplicate.")})
+            seen.setdefault(name, di)
+
+            alias = CLASS_ALIASES.get(name) or CLASS_ALIASES.get(stem)
+            if alias:
+                errors.append({
+                    "code": "DESCRIPTOR_CLASS_ALIAS", "path": f"{path}/name",
+                    "message": (f"Descriptor '{name}' uses a deprecated spelling; the canonical class is "
+                                f"'{alias}' (descriptors.class_aliases, Descriptors wiki).")})
+                continue
+
+            for p in NAME_PREFIX_TOKENS:
+                if low == p or low.startswith(p + "_"):
+                    rest = stem[len(p) + 1:] if low != p else ""
+                    remainder = (rest + name[len(stem):]) if rest else name[len(stem) + 1:]
+                    rest_stem = remainder.split(".")[0]
+                    sugg = _suggest_class(_strip_conditions(rest_stem)) if rest_stem else None
+                    if sugg and "." in remainder and "." not in sugg:
+                        sugg = sugg + remainder[len(rest_stem):]
+                    hint = (f"Use '{sugg}'." if sugg else
+                            "Rename it to a canonical class (Descriptors wiki, section 8) or request a "
+                            "vocabulary addition.")
+                    errors.append({
+                        "code": "PREFIX_IN_DESCRIPTOR_NAME", "path": f"{path}/name",
+                        "message": (f"Descriptor '{name}' begins with '{p}', a reaction, technique or method "
+                                    f"token. Those facts have structured homes (context.electrochemistry."
+                                    f"reaction, system.technique, system.domain), so the name carries only "
+                                    f"the quantity. {hint}")})
+                    break
+
+            for label, rx in _CONDITION_PATTERNS:
+                if rx.search(name):
+                    base = _suggest_class(_strip_conditions(stem)) or _strip_conditions(stem)
+                    errors.append({
+                        "code": "CONDITION_IN_DESCRIPTOR_NAME", "path": f"{path}/name",
+                        "message": (f"Descriptor '{name}' writes {label} into its name. Conditions are "
+                                    f"structured data: put the read-out point in the descriptor's `at` "
+                                    f"(current_density_mA_cm2, current_density_ECSA_mA_cm2, potential_V_RHE, "
+                                    f"temperature_K, time_s, pressure_bar, ...) or in context, and keep the "
+                                    f"name to the quantity, e.g. '{base or 'overpotential'}' with "
+                                    f"at.current_density_mA_cm2 = 10. A second condition is a second "
+                                    f"descriptor or a second record, never a longer name.")})
+                    break
+
+            if name and not _LOWER_CLASS.match(stem):
+                errors.append({
+                    "code": "DESCRIPTOR_CLASS_NOT_LOWERCASE", "path": f"{path}/name",
+                    "message": (f"Descriptor '{name}': the class (the part before the first dot) must be "
+                                f"lowercase letters, digits and underscores. Element, species or layer "
+                                f"labels are qualifiers after the dot: 'layer_thickness.Cu', not "
+                                f"'Cu_thickness'; 'oxidation_state.Cu', not 'Cu_oxidation_state'.")})
+
+            val = d.get("value")
+            unit = d.get("unit")
+            if (stem in CLASS_UNITS and isinstance(val, (int, float)) and not isinstance(val, bool)
+                    and unit not in CLASS_UNITS[stem] and unit not in UNIT_ALIASES):
+                errors.append({
+                    "code": "CLASS_UNIT_MISMATCH", "path": f"{path}/unit",
+                    "message": (f"Descriptor '{name}' is in '{unit}', but class '{stem}' is always reported "
+                                f"in {CLASS_UNITS[stem]} (descriptors.class_units). Convert the value; do "
+                                f"not relabel the unit. One class has one unit, so values from different "
+                                f"records compare without conversion.")})
+
+            at = d.get("at") if isinstance(d.get("at"), dict) else {}
+            used = [k for k in READOUT_AT_KEYS if k in at]
+            if used and control not in SWEEP_CONTROL_MODES:
+                errors.append({
+                    "code": "AT_READOUT_WITHOUT_SWEEP", "path": f"{path}/at",
+                    "message": (f"Descriptor '{name}' states a read-out point {used} in `at`, but this "
+                                f"record's control_mode is {control!r}. Read-out keys locate a value on a "
+                                f"SWEEP (control_mode 'potentiodynamic'): 'the overpotential at 10 mA/cm2', "
+                                f"'the mass activity at 0.9 V_RHE'. A record held at one potential or one "
+                                f"current states it once, in context.electrochemistry "
+                                f"(potential_setpoint_V + potential_vs_RHE, or current_setpoint_mA_cm2).")})
     return errors
 
 
@@ -659,6 +828,10 @@ def _adr001_warnings(record):
                     nm = d.get("name") or ""
                     if nm.startswith("partial_current_density.") or nm == "steady_state_current_density":
                         chk(f"descriptors:{nm}", d.get("value"))
+                    at = d.get("at") if isinstance(d.get("at"), dict) else {}
+                    for k in ("current_density_mA_cm2", "current_density_ECSA_mA_cm2"):
+                        if k in at:
+                            chk(f"descriptors:{nm}/at/{k}", at.get(k))
         # FE-in-series ruling
         fe_descriptor_names = {d.get("name") for o in (record.get("descriptors") or {}).get("outputs") or []
                                for d in (o.get("descriptors") or [] if isinstance(o, dict) else [])}
@@ -726,6 +899,7 @@ def validate_record_full(record: dict) -> dict:
     # degrades, lives in the vocabulary layer of the response.
     vocabulary_errors = vocabulary_errors + _canonical_form_errors(record)
     vocabulary_errors = vocabulary_errors + _potential_contract_errors(record)
+    vocabulary_errors = vocabulary_errors + _descriptor_name_errors(record)
 
     try:
         semantic_errors = ontology.validate_semantic_integrity(record)

@@ -42,6 +42,13 @@ END = "<!-- END GENERATED:constraint-matrix -->"
 CODE_SCOPE = {
     "SIGN_CONVENTION": "electrochemistry",
     "WRONG_BLOCK": "electrochemistry",
+    "DUPLICATE_DESCRIPTOR_NAME": "all records",
+    "DESCRIPTOR_CLASS_ALIAS": "all records",
+    "PREFIX_IN_DESCRIPTOR_NAME": "all records",
+    "CONDITION_IN_DESCRIPTOR_NAME": "all records",
+    "DESCRIPTOR_CLASS_NOT_LOWERCASE": "all records",
+    "CLASS_UNIT_MISMATCH": "all records",
+    "AT_READOUT_WITHOUT_SWEEP": "electrochemistry",
     "MISSING_PH": "electrochemistry",
     "MISSING_ELECTRODE_TYPE": "electrochemistry",
     "GALVANOSTATIC_NO_POTENTIAL": "electrochemistry",
@@ -83,7 +90,7 @@ def _facts():
           ["properties"]["descriptors"]["items"]["properties"]["at"])
     _assert(at.get("additionalProperties") is False, "descriptors…at is no longer closed")
     at_keys = set(at.get("properties", {}))
-    _assert(len(at_keys) == 6, f"descriptors…at now has {len(at_keys)} keys: {sorted(at_keys)}")
+    _assert(len(at_keys) == 9, f"descriptors…at now has {len(at_keys)} keys: {sorted(at_keys)}")
     _assert("electrochemistry" not in SCHEMA["properties"]["context"].get("required", []),
             "context.electrochemistry is no longer optional")
     _assert(set(REGISTRY) == set(CODE_SCOPE),
