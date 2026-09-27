@@ -490,6 +490,85 @@ def _reaction_checks(record: dict):
 
 
 # ---------------------------------------------------------------------------
+# A record is knowledge, not reasoning (2026-09-27).
+#
+# The repository holds records of knowledge: what was measured, computed or reported, on
+# what, under which conditions, by whom, from which source. Hypotheses, verdicts, the use a
+# record was collected for, and benchmark or case bookkeeping belong to whatever USES the
+# records, outside the repository. On 2026-09-27, 173 records carried such text ("decisive
+# against H4", "tests the residual's central claim", "the local frozen-set record
+# (case_20-LIT-5004)") and 436 carried benchmark item ids as tags; none of the other 1,776
+# records matched these patterns. Paper quotes stored in assets are source text and are
+# not scanned.
+# ---------------------------------------------------------------------------
+_REASONING_PATTERNS = (
+    ("a hypothesis label", re.compile(
+        r"\b(?:hypothes[ie]s|mechanism|explanation)\s+H[1-9]\b"
+        r"|\bH[1-9]\s*(?:['\u2019]s\b|is\s+(?:supported|refuted|favou?red|disfavou?red|scored|decisive)|would\b|predicts?\b)"
+        r"|\b(?:against|supports?|refutes?|contradicts?|favou?rs?|disfavou?rs?|keeps?|scored\s+as)\s+H[1-9]\b", re.I)),
+    ("a reference to a competing hypothesis", re.compile(
+        r"\bthe\s+residual(?:['\u2019]s)?\s+(?:hypothesis|claim|mechanism|explanation|central)\b"
+        r"|\bresidual\s+hypothesis\b", re.I)),
+    ("benchmark machinery", re.compile(
+        r"\b(?:frozen[- ]set|cold[- ]seat|answer[- ]key|gold[- ](?:set|verdict|key)|benchmark\s+(?:case|item|question)"
+        r"|wave[- ]\d+\s+(?:seat|run|agent)s?)\b", re.I)),
+    ("a benchmark case or item identifier", re.compile(r"\bcase_\d+\b|\bLIT-\d{3,4}\b", re.I)),
+    ("a verdict", re.compile(r"\bdecisive\s+(?:against|for|record|test|evidence)\b", re.I)),
+    ("the purpose the record serves", re.compile(
+        r"\b(?:this|the)\s+record\s+(?:tests|supports|refutes|contradicts|is\s+decisive|was\s+(?:chosen|included|selected)"
+        r"|matters\s+because|is\s+included)\b", re.I)),
+)
+_WORKFLOW_TAG = re.compile(
+    r"^(?:case[_-]?\d+.*|.*\blit-\d{3,}.*|h\d|.*hypothes.*|.*frozen.*|.*answer[-_]key.*|seat[-_][a-f])$", re.I)
+
+
+def _curated_text_fields(record: dict):
+    """(path, text) for the free-text fields a curator writes (not quotes of a source)."""
+    out = []
+    mat = ((record.get("sample") or {}).get("material") or {})
+    out += [("sample/material/name", mat.get("name")), ("sample/material/notes", mat.get("notes"))]
+    qc = ((record.get("measurement") or {}).get("qc") or {})
+    out += [("measurement/qc/notes", qc.get("notes")), ("measurement/qc/evidence", qc.get("evidence"))]
+    for oi, o in enumerate((record.get("descriptors") or {}).get("outputs") or []):
+        for di, d in enumerate(o.get("descriptors") or [] if isinstance(o, dict) else []):
+            if isinstance(d, dict):
+                out.append((f"descriptors/outputs/{oi}/descriptors/{di}/definition", d.get("definition")))
+    ctx = record.get("context") or {}
+    ec = ctx.get("electrochemistry") if isinstance(ctx.get("electrochemistry"), dict) else {}
+    rx = ctx.get("reaction") if isinstance(ctx.get("reaction"), dict) else {}
+    out += [("context/electrochemistry/notes", ec.get("notes")),
+            ("context/electrochemistry/reaction_notes", ec.get("reaction_notes")),
+            ("context/reaction/notes", rx.get("notes"))]
+    return [(p, t) for p, t in out if isinstance(t, str) and t]
+
+
+def _record_content_errors(record: dict) -> list:
+    errors = []
+    for path, text in _curated_text_fields(record):
+        for label, rx in _REASONING_PATTERNS:
+            m = rx.search(text)
+            if m:
+                excerpt = text[max(0, m.start() - 40): m.end() + 40].replace("\n", " ")
+                errors.append({
+                    "code": "REASONING_IN_RECORD", "path": path,
+                    "message": (f"This field contains {label} ('...{excerpt}...'). A record is knowledge: what "
+                                f"was measured, computed or reported, on what, under which conditions, by whom, "
+                                f"from which source. Hypotheses, verdicts, the use the record was collected for, "
+                                f"and benchmark or case identifiers belong to whatever uses the record, outside "
+                                f"the repository. Rewrite the field to describe the data only.")})
+                break
+    for i, t in enumerate(record.get("tags") or []):
+        if isinstance(t, str) and _WORKFLOW_TAG.match(t):
+            errors.append({
+                "code": "TAG_ENCODES_USE", "path": f"tags/{i}",
+                "message": (f"Tag '{t}' names how the record is used (a benchmark case or item, a hypothesis), not "
+                            f"what the data is. Tags group data: a dataset, a campaign, a material system, a "
+                            f"facility, a publication (e.g. 'jcap-hte', 'xu-2026-cuag-stripes'). Keep workflow "
+                            f"bookkeeping outside the repository.")})
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Warnings tier (2026-06-12) — accepted-but-improvable feedback.
 # Warnings NEVER block ingestion; they teach. Three severities in the
 # response: errors (block), warnings (educate), info (suggest).
@@ -977,6 +1056,7 @@ def validate_record_full(record: dict) -> dict:
     vocabulary_errors = vocabulary_errors + _canonical_form_errors(record)
     vocabulary_errors = vocabulary_errors + _potential_contract_errors(record)
     vocabulary_errors = vocabulary_errors + _descriptor_name_errors(record)
+    vocabulary_errors = vocabulary_errors + _record_content_errors(record)
 
     try:
         semantic_errors = ontology.validate_semantic_integrity(record)
