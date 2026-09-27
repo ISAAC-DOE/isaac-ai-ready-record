@@ -569,6 +569,119 @@ def _record_content_errors(record: dict) -> list:
 
 
 # ---------------------------------------------------------------------------
+# Honest potentials and a described cell (2026-09-27).
+#
+# A potential on the axis is a statement about THIS experiment: measured in it, or
+# reported for it by the source. When a source reports only the current (a galvanostatic
+# run, often in a gas-diffusion or membrane-electrode-assembly cell), the record carries the
+# current and a complete description of the cell, and says openly that the potential was
+# not reported. It never borrows a potential stated for a model, a DFT calculation or
+# another experiment (on 2026-09-27, ten literature records carried -1.11 V_RHE converted
+# from a potential their source stated for its DFT calculations, labelled as measured).
+# ---------------------------------------------------------------------------
+FULL_CELLS = {"mea_cell", "zero_gap_cell"}
+FLOW_FED_CELLS = {"gde_cell", "mea_cell", "zero_gap_cell"}
+_POTENTIAL_CLASSES = {"steady_state_potential", "onset_potential", "half_wave_potential"}
+_OTHER_CONTEXT = re.compile(
+    r"\b(?:DFT|density[- ]functional|for\s+(?:the\s+)?(?:DFT\s+)?calculations?|model(?:led)?\s+(?:condition|potential)"
+    r"|simulation\s+(?:condition|potential))\b", re.I)
+
+
+def _cell_and_potential_checks(record: dict):
+    """(errors, warnings) for honest potentials and a described cell."""
+    errors, warnings = [], []
+    ctx = record.get("context") or {}
+    ec = ctx.get("electrochemistry") if isinstance(ctx.get("electrochemistry"), dict) else None
+    if not ec:
+        return errors, warnings
+    sample = record.get("sample") or {}
+    pvr = ec.get("potential_vs_RHE") if isinstance(ec.get("potential_vs_RHE"), dict) else {}
+    cell = ec.get("cell_type")
+    experimental = (record.get("system") or {}).get("domain") != "computational"
+
+    if experimental:
+        for oi, o in enumerate((record.get("descriptors") or {}).get("outputs") or []):
+            for di, d in enumerate(o.get("descriptors") or [] if isinstance(o, dict) else []):
+                if not isinstance(d, dict) or (d.get("name") or "").split(".")[0] not in _POTENTIAL_CLASSES:
+                    continue
+                if _OTHER_CONTEXT.search(d.get("definition") or ""):
+                    errors.append({
+                        "code": "POTENTIAL_FROM_OTHER_CONTEXT", "path": f"descriptors/outputs/{oi}/descriptors/{di}",
+                        "message": (f"Descriptor '{d.get('name')}': its definition says the value was stated for a "
+                                    f"model or a calculation. A potential on an experimental record is the potential "
+                                    f"measured in THIS experiment or reported for it by the source; a value stated "
+                                    f"for a DFT model, a simulation or another experiment was never measured here. "
+                                    f"If the source reports only the current, remove the potential, declare "
+                                    f"potential_vs_RHE {{value_V: null, rhe_basis: 'not_reported'}} and describe "
+                                    f"the cell completely (Context wiki, Potential Contract).")})
+
+    if record.get("record_domain") == "performance" and not cell:
+        errors.append({
+            "code": "CELL_TYPE_MISSING", "path": "context/electrochemistry/cell_type",
+            "message": ("An electrochemical performance record names its cell body in "
+                        "context.electrochemistry.cell_type (flow_cell, h_cell, gde_cell, mea_cell, zero_gap_cell, "
+                        "beaker_cell, scanning_droplet_cell, ...). Performance is a property of a catalyst IN a "
+                        "cell; without the cell it cannot be compared.")})
+    if cell == "three_electrode":
+        warnings.append({
+            "code": "DEPRECATED_CELL_TYPE", "path": "context/electrochemistry/cell_type",
+            "message": ("cell_type 'three_electrode' describes wiring, not the cell body. Name the body (beaker_cell, "
+                        "h_cell, flow_cell, ...); the electrode configuration goes in "
+                        "system.configuration.electrode_configuration.")})
+
+    if cell in FULL_CELLS:
+        comp = sample.get("composition") or {}
+        geo = sample.get("geometry") or {}
+        missing = []
+        if not (ec.get("membrane") or comp.get("membrane")):
+            missing.append("the membrane (context.electrochemistry.membrane)")
+        if not (geo.get("geometric_area_cm2") or comp.get("active_area_cm2")):
+            missing.append("the active area (sample.geometry.geometric_area_cm2 or sample.composition.active_area_cm2)")
+        if missing:
+            errors.append({
+                "code": "FULL_CELL_DESCRIPTION_INCOMPLETE", "path": "context/electrochemistry",
+                "message": (f"A {cell} record must describe the device: {'; '.join(missing)} is missing. A two-"
+                            f"electrode device is characterised by its catalysts and loadings on each side, the "
+                            f"membrane, the active area, what each side is fed and the temperature (Context wiki, "
+                            f"Full-cell electrolyzers).")})
+        if pvr.get("value_V") is not None and not ec.get("reference_electrode"):
+            errors.append({
+                "code": "HALF_CELL_POTENTIAL_IN_FULL_CELL", "path": "context/electrochemistry/potential_vs_RHE",
+                "message": (f"A {cell} is a two-electrode device: without a reference electrode it has no half-cell "
+                            f"potential. Report the cell voltage as the descriptor cell_voltage (V_cell) and declare "
+                            f"potential_vs_RHE {{value_V: null, rhe_basis: 'not_applicable'}}. If a reference "
+                            f"electrode was integrated, declare it in reference_electrode.")})
+    if cell in FLOW_FED_CELLS and not ((ctx.get("transport") or {}).get("feed")):
+        errors.append({
+            "code": "FEED_UNDECLARED", "path": "context/transport/feed",
+            "message": (f"A {cell} is fed: declare what, in context.transport.feed {{phase, composition, flow_rate, "
+                        f"flow_rate_unit}} (e.g. CO2 gas at 20 sccm, humidified CO, deionized water, 1 M KOH). The "
+                        f"feed decides the reaction environment and is part of the cell description.")})
+
+    if record.get("record_domain") == "performance" and ec.get("control_mode") == "galvanostatic":
+        voltage_accounted = pvr.get("rhe_basis") in ("not_reported", "not_applicable") or cell in FULL_CELLS
+        if not voltage_accounted and pvr.get("value_V") is None:
+            has_pot = any("potential" in (d.get("name") or "").lower() or "cell_voltage" in (d.get("name") or "").lower()
+                          for o in (record.get("descriptors") or {}).get("outputs") or []
+                          for d in (o.get("descriptors") or [] if isinstance(o, dict) else []) if isinstance(d, dict))
+            has_pot = has_pot or any(
+                "potential" in (ch.get("name") or "").lower() or "cell_voltage" in (ch.get("name") or "").lower()
+                or ch.get("unit") == "V_cell"
+                for se in (record.get("measurement") or {}).get("series") or []
+                for ch in (se.get("channels") or []) + (se.get("independent_variables") or []) if isinstance(ch, dict))
+            if not has_pot:
+                errors.append({
+                    "code": "GALVANOSTATIC_NO_POTENTIAL", "path": "context/electrochemistry/potential_vs_RHE",
+                    "message": ("Galvanostatic record with no potential anywhere and no statement about it. If the "
+                                "potential was measured, add it (steady_state_potential in V_RHE, or the series). If "
+                                "the source reports only the current, say so openly: potential_vs_RHE {value_V: null, "
+                                "rhe_basis: 'not_reported'} for a half cell, or 'not_applicable' for a two-electrode "
+                                "device (report cell_voltage in V_cell if given). Never fill it with a value from "
+                                "another context.")})
+    return errors, warnings
+
+
+# ---------------------------------------------------------------------------
 # Warnings tier (2026-06-12) — accepted-but-improvable feedback.
 # Warnings NEVER block ingestion; they teach. Three severities in the
 # response: errors (block), warnings (educate), info (suggest).
@@ -656,36 +769,6 @@ def _warning_checks(record: dict):
             if not (record.get("sample") or {}).get("electrode_type"):
                 warnings.append({"code": "MISSING_ELECTRODE_TYPE", "path": "sample/electrode_type",
                                  "message": "sample.electrode_type is recommended (GDE, thin_film, patterned_film, ...)."})
-            # Galvanostatic with no potential anywhere and no honest marker.
-            # Full-cell electrolyzers (mea_cell/zero_gap_cell) report CELL VOLTAGE,
-            # not a half-cell RHE potential — for them the half-cell projection is
-            # not merely unreported but INAPPLICABLE, so this must not nag.
-            pvr = ec.get("potential_vs_RHE") or {}
-            full_cell = ec.get("cell_type") in ("mea_cell", "zero_gap_cell")
-            voltage_accounted = (
-                pvr.get("rhe_basis") in ("not_reported", "not_applicable")
-                or full_cell
-            )
-            if ec.get("control_mode") == "galvanostatic" and not voltage_accounted:
-                has_pot = False
-                for o in (record.get("descriptors") or {}).get("outputs") or []:
-                    for d in o.get("descriptors") or [] if isinstance(o, dict) else []:
-                        nm = (d.get("name") or "").lower()
-                        if "potential" in nm or "cell_voltage" in nm:
-                            has_pot = True
-                for s in (record.get("measurement") or {}).get("series") or []:
-                    for ch in (s.get("channels") or []) + (s.get("independent_variables") or []):
-                        nm = (ch.get("name") or "").lower()
-                        if "potential" in nm or "cell_voltage" in nm or ch.get("unit") == "V_cell":
-                            has_pot = True
-                if not has_pot:
-                    warnings.append({"code": "GALVANOSTATIC_NO_POTENTIAL", "path": "context/electrochemistry/potential_vs_RHE",
-                                     "message": "Galvanostatic record carries no measured voltage anywhere. Half-cell study: "
-                                                "add steady_state_potential (V_RHE) or declare potential_vs_RHE {value_V: null, "
-                                                "rhe_basis: 'not_reported'}. Full-cell electrolyzer: report cell_voltage (V_cell) "
-                                                "or declare potential_vs_RHE {value_V: null, rhe_basis: 'not_applicable'} — the "
-                                                "half-cell potential does not exist for a 2-electrode device."})
-
         contribs = (record.get("attribution") or {}).get("contributors") or []
         if record.get("record_type") == "evidence" and not any(
                 c.get("role") == "data_owner" for c in contribs if isinstance(c, dict)):
@@ -1079,8 +1162,9 @@ def validate_record_full(record: dict) -> dict:
     warnings, info = _warning_checks(record)
     adr_warnings, adr_errors = _adr001_warnings(record)
     rx_errors, rx_warnings = _reaction_checks(record)
-    adr_errors = adr_errors + rx_errors
-    warnings = warnings + adr_warnings + rx_warnings
+    cell_errors, cell_warnings = _cell_and_potential_checks(record)
+    adr_errors = adr_errors + rx_errors + cell_errors
+    warnings = warnings + adr_warnings + rx_warnings + cell_warnings
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)

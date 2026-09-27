@@ -215,7 +215,8 @@ def test_warnings_tier():
     assert res["valid"], "FE-sum is a warning, must not block"
     assert any(w["code"] == "COMPONENT_SET_EXCEEDS_TOTAL" for w in res.get("warnings", []))
 
-    # Galvanostatic with no potential -> GALVANOSTATIC_NO_POTENTIAL warning
+    # Galvanostatic with no potential and no statement about it -> GALVANOSTATIC_NO_POTENTIAL
+    # (an error since 2026-09-27: silence about the potential is not allowed)
     r = json.loads(json.dumps(base))
     ec = r["context"]["electrochemistry"]
     ec["control_mode"] = "galvanostatic"
@@ -225,13 +226,14 @@ def test_warnings_tier():
     # strip potential-named descriptors/channels for the test
     r["measurement"]["series"] = []
     res = validation.validate_record_full(r)
-    assert res["valid"]
-    assert any(w["code"] == "GALVANOSTATIC_NO_POTENTIAL" for w in res.get("warnings", []))
+    assert not res["valid"]
+    assert any(e["code"] == "GALVANOSTATIC_NO_POTENTIAL" for e in res.get("errors", []))
 
-    # And the honest not_reported marker silences it
+    # And the honest not_reported marker satisfies it
     ec["potential_vs_RHE"] = {"value_V": None, "rhe_basis": "not_reported"}
     res = validation.validate_record_full(r)
-    assert not any(w["code"] == "GALVANOSTATIC_NO_POTENTIAL" for w in res.get("warnings", []))
+    assert res["valid"], res["errors"][:3]
+    assert not any(e["code"] == "GALVANOSTATIC_NO_POTENTIAL" for e in res.get("errors", []))
 
     # No-links warning fires on linkless, untagged record
     r = json.loads(json.dumps(base))
@@ -357,7 +359,7 @@ def test_electrolyzer_voltage_optional():
     rec = json.loads((REPO / "examples" / "electrolyzer_durability_record.json").read_text())
     res = validation.validate_record_full(rec)
     assert res["valid"], f"electrolyzer example must validate: {res['errors'][:3]}"
-    assert not any(w["code"] == "GALVANOSTATIC_NO_POTENTIAL" for w in res.get("warnings", [])), \
+    assert not any(e["code"] == "GALVANOSTATIC_NO_POTENTIAL" for e in res.get("errors", [])), \
         "full-cell electrolyzer (rhe_basis not_applicable + cell_voltage) must not be nagged"
 
     # Pure literature case: only current density + duration, no voltage, no measurement
@@ -369,7 +371,7 @@ def test_electrolyzer_voltage_optional():
          "value": 1000.0, "unit": "mA/cm2", "uncertainty": {"sigma": None, "unit": "mA/cm2", "basis": "reported"}}]
     res = validation.validate_record_full(bare)
     assert res["valid"], "current-density-only electrolyzer must validate"
-    assert not any(w["code"] == "GALVANOSTATIC_NO_POTENTIAL" for w in res.get("warnings", []))
+    assert not any(e["code"] == "GALVANOSTATIC_NO_POTENTIAL" for e in res.get("errors", []))
 
     # not_applicable requires value_V null (Potential Contract invariant holds)
     bad = json.loads(json.dumps(rec))

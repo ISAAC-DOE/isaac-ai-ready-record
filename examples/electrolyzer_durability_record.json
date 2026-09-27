@@ -41,6 +41,13 @@
         "value_V": null,
         "rhe_basis": "not_applicable"
       }
+    },
+    "transport": {
+      "feed": {
+        "phase": "liquid",
+        "composition": "deionized water",
+        "notes": "Fed to the anode; the cathode is not fed."
+      }
     }
   },
   "measurement": {

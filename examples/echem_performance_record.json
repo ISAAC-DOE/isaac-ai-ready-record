@@ -40,7 +40,7 @@
       "catalysis": "heterogeneous"
     },
     "electrochemistry": {
-      "cell_type": "three_electrode",
+      "cell_type": "beaker_cell",
       "control_mode": "potentiodynamic",
       "potential_scale": "RHE",
       "electrolyte": {
