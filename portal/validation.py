@@ -892,6 +892,23 @@ def _calculation_votes(record: dict):
     return calc, meas
 
 
+def _producer_warnings(record: dict) -> list:
+    """A placeholder producer outside the literature: accepted, and asked to name the producer if known."""
+    if record.get("record_type") != "evidence" or record.get("source_type") == "literature":
+        return []
+    pb = (record.get("attribution") or {}).get("produced_by") if isinstance(record.get("attribution"), dict) else None
+    pb = pb if isinstance(pb, dict) else {}
+    group, org = str(pb.get("group") or "").strip(), str(pb.get("organization") or "").strip()
+    if group and not (_names_someone(group) or _names_someone(org)):
+        return [{
+            "code": "PRODUCED_BY_UNNAMED", "path": "attribution/produced_by",
+            "message": (f"'{group}' names no producer. If the producer is known, name the group (the PI's "
+                        f"name as printed, plus 'group') or the organization: two results from one producer are "
+                        f"not independent evidence. If it cannot be named (anonymized or industrial data), keep "
+                        f"'not_reported'; the discovery engine treats it as absent, never as a shared producer.")}]
+    return []
+
+
 def _computation_role_warnings(record: dict) -> list:
     """A computation.method on a record whose fields say measurement: the fit of this measurement,
     or a computed result that is a record of its own. Only the record says which, so this warns."""
@@ -1059,7 +1076,11 @@ def _origin_errors(record: dict) -> list:
     pb = pb if isinstance(pb, dict) else {}
     org = str(pb.get("organization") or "").strip()
     group = str(pb.get("group") or "").strip()
-    if not (_names_someone(group) or _names_someone(org)):
+    # A paper always names its authors, so a placeholder group on a literature record is an error.
+    # Outside the literature a producer may honestly be unnameable (anonymized or industrial data): a
+    # placeholder group there is accepted with PRODUCED_BY_UNNAMED, and the engine reads it as absent.
+    unnameable = st != "literature" and bool(group)
+    if not (_names_someone(group) or _names_someone(org) or unnameable):
         who = {
             "literature": "the group of the paper's authors (group, organization, people)",
             "database": "the group that produced the database entry; the database itself goes in assets",
@@ -1612,7 +1633,7 @@ def validate_record_full(record: dict) -> dict:
     cell_errors, cell_warnings = _cell_and_potential_checks(record)
     adr_errors = adr_errors + rx_errors + cell_errors
     warnings = (warnings + adr_warnings + rx_warnings + cell_warnings + _one_result_warnings(record)
-                + _computation_role_warnings(record))
+                + _computation_role_warnings(record) + _producer_warnings(record))
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)

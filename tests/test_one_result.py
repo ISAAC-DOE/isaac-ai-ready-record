@@ -148,6 +148,17 @@ def test_a_placeholder_producer_names_no_one():
         assert hit and "names no one" in hit[0]["message"], group
 
 
+def test_an_unnameable_producer_outside_the_literature_is_accepted_and_warned():
+    for st in ("laboratory", "industrial", "facility"):
+        r = copy.deepcopy(BASE)
+        r["source_type"] = st
+        r["assets"] = []
+        r["attribution"]["produced_by"] = {"group": "not_reported"}
+        res = validation.validate_record_full(r)
+        assert res["valid"], (st, [e.get("code") for e in res["errors"]])
+        assert "PRODUCED_BY_UNNAMED" in _warnings(r), st
+
+
 def test_a_named_group_or_organization_is_a_producer():
     for pb in ({"group": "Lilong Jiang group"}, {"group": "the authors", "organization": "SLAC"},
                {"group": "Authors Lab consortium"}):
