@@ -94,6 +94,19 @@ def test_an_in_silico_environment_on_a_measurement_is_rejected():
     assert _errors(r, "DOMAIN_INCONSISTENT")
 
 
+def test_a_declared_method_on_a_measurement_is_rejected():
+    """A calculation whose technique, domain, environment, sample form and provenance all say
+    measurement is still a calculation when it declares computation.method."""
+    r = copy.deepcopy(CO2RR)
+    r["computation"] = {"method": {"family": "DFT", "functional_name": "PBE", "code": "VASP"}}
+    errs = _errors(r, "DOMAIN_INCONSISTENT")
+    assert errs and "computation.method (declared)" in errs[0]["message"]
+
+
+def test_a_declared_method_on_a_calculation_is_consistent():
+    assert not _errors(_literature_calculation(), "DOMAIN_INCONSISTENT")
+
+
 def test_a_simulated_spectrum_may_name_the_spectroscopy():
     sim = json.loads((REPO / "examples" / "simulation_xas_record.json").read_text())
     sim["system"]["technique"] = "XAS"

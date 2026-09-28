@@ -1,0 +1,1081 @@
+{
+ "isaac_record_version": "1.05",
+ "record_id": "01M3K44NDE6RJ5KM341A0TVFWD",
+ "record_type": "evidence",
+ "record_domain": "performance",
+ "source_type": "literature",
+ "attribution": {
+  "produced_by": {
+   "group": "Probe group"
+  }
+ },
+ "timestamps": {
+  "created_utc": "2026-09-27T20:00:00Z"
+ },
+ "sample": {
+  "material": {
+   "name": "Ru/CeO2 catalyst A",
+   "formula": "Ru/CeO2",
+   "provenance": "synthesized"
+  },
+  "sample_form": "powder"
+ },
+ "context": {
+  "environment": "operando",
+  "temperature_K": 673.15,
+  "thermodynamics": {
+   "pressure_Pa": 1000000
+  },
+  "reaction": {
+   "name": "NH3_synthesis",
+   "drive": "thermal",
+   "catalysis": "heterogeneous",
+   "equation": "N2 + 3 H2 -> 2 NH3"
+  }
+ },
+ "system": {
+  "domain": "experimental",
+  "technique": "catalytic_reactor_test"
+ },
+ "descriptors": {
+  "outputs": [
+   {
+    "label": "NH3 synthesis rate, catalyst A",
+    "generated_utc": "2026-09-27T20:00:00Z",
+    "generated_by": {
+     "agent": "curator"
+    },
+    "descriptors": [
+     {
+      "name": "mass_specific_rate.NH3",
+      "kind": "absolute",
+      "source": "imported",
+      "value": 9240.0,
+      "unit": "umol/g/h",
+      "uncertainty": {
+       "sigma": null,
+       "basis": "not_reported"
+      },
+      "definition": "NH3 formation rate per gram of catalyst at 400 °C and 1.0 MPa."
+     }
+    ]
+   }
+  ]
+ },
+ "assets": [
+  {
+   "asset_id": "source_paper",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0001",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0001",
+    "title": "Probe paper",
+    "journal": "Probe Journal",
+    "year": 2021,
+    "authors": "Probe, A.",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_2",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0002",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0002",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_3",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0003",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0003",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_4",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0004",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0004",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_5",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0005",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0005",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_6",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0006",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0006",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_7",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0007",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0007",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_8",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0008",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0008",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_9",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0009",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0009",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_10",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0010",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0010",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_11",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0011",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0011",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_12",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0012",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0012",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_13",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0013",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0013",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_14",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0014",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0014",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_15",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0015",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0015",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_16",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0016",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0016",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_17",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0017",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0017",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_18",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0018",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0018",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_19",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0019",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0019",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_20",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0020",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0020",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_21",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0021",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0021",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_22",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0022",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0022",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_23",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0023",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0023",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_24",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0024",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0024",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_25",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0025",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0025",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_26",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0026",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0026",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_27",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0027",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0027",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_28",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0028",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0028",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_29",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0029",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0029",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_30",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0030",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0030",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_31",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0031",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0031",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_32",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0032",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0032",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_33",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0033",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0033",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_34",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0034",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0034",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_35",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0035",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0035",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_36",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0036",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0036",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_37",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0037",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0037",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_38",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0038",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0038",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_39",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0039",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0039",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_40",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0040",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0040",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_41",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0041",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0041",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_42",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0042",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0042",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_43",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0043",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0043",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_44",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0044",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0044",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_45",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0045",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0045",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_46",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0046",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0046",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_47",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0047",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0047",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_48",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0048",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0048",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_49",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0049",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0049",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_50",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0050",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0050",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_51",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0051",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0051",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_52",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0052",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0052",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_53",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0053",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0053",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_54",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0054",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0054",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_55",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0055",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0055",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_56",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0056",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0056",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_57",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0057",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0057",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_58",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0058",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0058",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_59",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0059",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0059",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_60",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0060",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0060",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_61",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0061",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0061",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_62",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0062",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0062",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_63",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0063",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0063",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_64",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0064",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0064",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_65",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0065",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0065",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_66",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0066",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0066",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_67",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0067",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0067",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_68",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0068",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0068",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_69",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0069",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0069",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_70",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0070",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0070",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_71",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0071",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0071",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_72",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0072",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0072",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_73",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0073",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0073",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_74",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0074",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0074",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_75",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0075",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0075",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_76",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0076",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0076",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_77",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0077",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0077",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_78",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0078",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0078",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_79",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0079",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0079",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_80",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0080",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0080",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_81",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0081",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0081",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_82",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0082",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0082",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_83",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0083",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0083",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_84",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0084",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0084",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_85",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0085",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0085",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_86",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0086",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0086",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_87",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0087",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0087",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_88",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0088",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0088",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_89",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0089",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0089",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_90",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0090",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0090",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_91",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0091",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0091",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_92",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0092",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0092",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_93",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0093",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0093",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_94",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0094",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0094",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_95",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0095",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0095",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_96",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0096",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0096",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_97",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0097",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0097",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_98",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0098",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0098",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_99",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0099",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0099",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_100",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0100",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0100",
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "source_101",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0101",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0101",
+    "relation": "source"
+   }
+  }
+ ]
+}

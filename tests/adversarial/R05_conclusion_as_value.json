@@ -1,0 +1,91 @@
+{
+ "isaac_record_version": "1.05",
+ "record_id": "01M3K44NDE6RJ5KM341A0TVFWD",
+ "record_type": "evidence",
+ "record_domain": "performance",
+ "source_type": "literature",
+ "attribution": {
+  "produced_by": {
+   "group": "Probe group"
+  }
+ },
+ "timestamps": {
+  "created_utc": "2026-09-27T20:00:00Z"
+ },
+ "sample": {
+  "material": {
+   "name": "Ru/CeO2 catalyst A",
+   "formula": "Ru/CeO2",
+   "provenance": "synthesized"
+  },
+  "sample_form": "powder"
+ },
+ "context": {
+  "environment": "operando",
+  "temperature_K": 673.15,
+  "thermodynamics": {
+   "pressure_Pa": 1000000
+  },
+  "reaction": {
+   "name": "NH3_synthesis",
+   "drive": "thermal",
+   "catalysis": "heterogeneous",
+   "equation": "N2 + 3 H2 -> 2 NH3"
+  }
+ },
+ "system": {
+  "domain": "experimental",
+  "technique": "catalytic_reactor_test"
+ },
+ "descriptors": {
+  "outputs": [
+   {
+    "label": "NH3 synthesis rate, catalyst A",
+    "generated_utc": "2026-09-27T20:00:00Z",
+    "generated_by": {
+     "agent": "curator"
+    },
+    "descriptors": [
+     {
+      "name": "mass_specific_rate.NH3",
+      "kind": "absolute",
+      "source": "imported",
+      "value": 9240.0,
+      "unit": "umol/g/h",
+      "uncertainty": {
+       "sigma": null,
+       "basis": "not_reported"
+      },
+      "definition": "NH3 formation rate per gram of catalyst at 400 °C and 1.0 MPa."
+     },
+     {
+      "name": "activity_origin",
+      "kind": "categorical",
+      "source": "imported",
+      "value": "CO activation creates oxygen vacancies that raise the rate",
+      "uncertainty": {
+       "sigma": null,
+       "basis": "not_reported"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "assets": [
+  {
+   "asset_id": "source_paper",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.9999/probe.0001",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.9999/probe.0001",
+    "title": "Probe paper",
+    "journal": "Probe Journal",
+    "year": 2021,
+    "authors": "Probe, A.",
+    "relation": "source"
+   }
+  }
+ ]
+}

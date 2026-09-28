@@ -700,10 +700,14 @@ def _cell_and_potential_checks(record: dict):
 # domain, environment, sample form and provenance all saying measurement); no record stated who
 # produced its result; 13 records built from a paper's public data were typed as facility
 # measurements; the code of 130 calculations sat in system.instrument, where the discovery
-# engine never reads it; and no database record identified the entry it came from.
+# engine never reads it; and no database record identified the entry it came from. A record that
+# declared computation.method while every other field said measurement passed as a measurement
+# until the declaration itself became a signal ('computation.method=*').
 # ---------------------------------------------------------------------------
 DOMAIN_SIGNALS = _vocab_map("System", "system.domain_signals")
-_SIGNAL_FIELDS = sorted({k.split("=", 1)[0] for k in DOMAIN_SIGNALS})
+# 'field=*' says: the field being present at all is the signal (a declared computation.method).
+_PRESENCE_SIGNALS = {k[:-2]: v for k, v in DOMAIN_SIGNALS.items() if k.endswith("=*")}
+_SIGNAL_FIELDS = sorted({k.split("=", 1)[0] for k in DOMAIN_SIGNALS if not k.endswith("=*")})
 _CLAIM_FIELDS = ("system.domain", "system.technique", "source_type")
 METHOD_REQUIRED = _vocab_values("Computation", "computation.method_requirements")
 METHOD_REQUIRED_BY_FAMILY = _vocab_map("Computation", "computation.method_requirements_by_family")
@@ -736,13 +740,24 @@ def _value_at(record: dict, dotted: str):
     return node if isinstance(node, str) else None
 
 
+def _is_present(record: dict, dotted: str) -> bool:
+    node = record
+    for part in dotted.split("."):
+        node = node.get(part) if isinstance(node, dict) else None
+    return node not in (None, "", {}, [])
+
+
 def _calculation_votes(record: dict):
-    """(calc, meas): the 'field=value' signals that say calculation and those that say measurement."""
+    """(calc, meas): the 'field=value' signals that say calculation and those that say measurement,
+    plus the 'field=*' signals of fields that are present."""
     calc, meas = [], []
     for field in _SIGNAL_FIELDS:
         value = _value_at(record, field)
         says = DOMAIN_SIGNALS.get(f"{field}={value}") if value is not None else None
         (calc if says == "calculation" else meas if says == "measurement" else []).append(f"{field}={value}")
+    for field, says in sorted(_PRESENCE_SIGNALS.items()):
+        if _is_present(record, field):
+            (calc if says == "calculation" else meas if says == "measurement" else []).append(f"{field} (declared)")
     return calc, meas
 
 
