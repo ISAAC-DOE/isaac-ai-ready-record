@@ -71,7 +71,8 @@ def test_a_condition_in_the_name_is_rejected_with_a_structured_alternative():
 
 
 def test_potential_temperature_and_time_conditions_are_caught():
-    for name in ("mass_activity_0p9V", "h_loading.x_at_minus0p38V", "coke_content_600c", "cu0_fraction_15min"):
+    for name in ("mass_activity_0p9V", "h_loading.x_at_minus0p38V", "coke_content_600c", "cu0_fraction_15min",
+                 "edge_shift_30s", "current_0p5s"):
         r = _with(ORR, name=name, value=1.0, unit="dimensionless")
         assert _errors(r, "CONDITION_IN_DESCRIPTOR_NAME"), name
 
@@ -140,7 +141,8 @@ def test_product_tokens_element_qualifiers_and_organization_namespaces_are_clean
     names = [("faradaic_efficiency.C2H4", 0.3, "fraction"), ("faradaic_efficiency.n_C3H7OH", 0.02, "fraction"),
              ("partial_current_density.C2plus", -12.0, "mA/cm2"), ("binding_energy.Cu_2p3_2", 932.6, "eV"),
              ("oxidation_state.Cu", 1.0, "dimensionless"), ("lattice_parameter.Pd_fcc", 3.89, "angstrom"),
-             ("lbnl.xps.elements_detected", "C; Au", None), ("edge_position.Cu_K", 8979.0, "eV")]
+             ("lbnl.xps.elements_detected", "C; Au", None), ("edge_position.Cu_K", 8979.0, "eV"),
+             ("binding_energy.C_1s", 284.8, "eV"), ("binding_energy.O_1s", 530.1, "eV")]
     for name, value, unit in names:
         r = _with(CO2RR, name=name, value=value, unit=unit)
         naming = [e for e in _errors(r) if e.get("code") in (
