@@ -129,3 +129,10 @@ def test_the_list_filter_and_engine_read_both_homes():
     for f in ("database.py", "discovery.py"):
         src = (PORTAL / f).read_text()
         assert "'reaction'->>'name'" in src, f
+
+
+def test_a_calculation_of_an_electrochemical_reaction_needs_no_cell():
+    neb = json.loads((REPO / "examples" / "dft_neb_evidence_record.json").read_text())
+    neb["context"]["reaction"] = {"name": "CO2RR", "drive": "electrochemical", "catalysis": "heterogeneous"}
+    neb["context"].pop("electrochemistry", None)
+    assert "REACTION_DRIVE_INCONSISTENT" not in _codes(neb)

@@ -289,8 +289,10 @@ _CONDITION_PATTERNS = (
         r"(?:minus|neg)?\d+p\d+_?v(?:_?rhe)?(?:$|[._])|\d+(?:p\d+)?_?v_?rhe|(?:^|[._])\d+mv(?:$|[._])",
         re.I)),
     ("a temperature", re.compile(r"(?:^|[._])\d{2,4}_?(?:c|k|degc)(?:$|[._])", re.I)),
+    # Seconds need two digits, a decimal or 'sec': '_1s', '_2s' are core levels (C_1s, O_1s).
     ("a time", re.compile(
-        r"(?:^|[._])\d+(?:p\d+)?_?(?:s|sec|min|h|hr|hours?)(?:$|[._])", re.I)),
+        r"(?:^|[._])(?:\d{2,}(?:p\d+)?|\d+p\d+)_?s(?:$|[._])"
+        r"|(?:^|[._])\d+(?:p\d+)?_?(?:sec|min|h|hr|hours?)(?:$|[._])", re.I)),
 )
 _LOWER_CLASS = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -474,7 +476,9 @@ def _reaction_checks(record: dict):
                         "this field.")})
     if rx:
         drive = rx.get("drive")
-        if drive in ELECTROCHEMICAL_DRIVES and not ec:
+        # A calculation has no cell: its potential treatment is computation.potential_method and
+        # context.simulation_assumptions, so only a measurement must state the electrochemistry.
+        if drive in ELECTROCHEMICAL_DRIVES and not ec and not _claims_calculation(record):
             errors.append({
                 "code": "REACTION_DRIVE_INCONSISTENT", "path": "context/electrochemistry",
                 "message": (f"context.reaction.drive is '{drive}' but the record has no context.electrochemistry "
@@ -740,6 +744,12 @@ def _calculation_votes(record: dict):
     return calc, meas
 
 
+def _claims_calculation(record: dict) -> bool:
+    """system.domain, system.technique or source_type says the record is a calculation."""
+    calc, _ = _calculation_votes(record)
+    return any(v.split("=", 1)[0] in _CLAIM_FIELDS for v in calc)
+
+
 def _dois_in(node) -> set:
     found = set()
     if isinstance(node, dict):
@@ -797,8 +807,7 @@ def _publication_signs(record: dict) -> list:
 def _code_home_errors(record: dict) -> list:
     """A calculation of any record type states its code once, in computation.method.code."""
     sysb = record.get("system") if isinstance(record.get("system"), dict) else {}
-    calc, _ = _calculation_votes(record)
-    if not any(v.split("=", 1)[0] in _CLAIM_FIELDS for v in calc):
+    if not _claims_calculation(record):
         return []
     cfg = sysb.get("configuration") if isinstance(sysb.get("configuration"), dict) else {}
     where = (["system.instrument"] if sysb.get("instrument") else []) + [
@@ -841,7 +850,7 @@ def _origin_errors(record: dict) -> list:
                         f"reported in a paper is still a calculation: keep source_type 'literature' and set the "
                         f"calculation fields (System wiki, system.domain_signals).")})
 
-    is_calc = any(v.split("=", 1)[0] in _CLAIM_FIELDS for v in calc)
+    is_calc = _claims_calculation(record)
     comp = record.get("computation") if isinstance(record.get("computation"), dict) else {}
     method = comp.get("method") if isinstance(comp.get("method"), dict) else {}
     if is_calc and not method.get("family"):
