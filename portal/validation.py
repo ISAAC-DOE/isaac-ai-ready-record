@@ -931,6 +931,36 @@ def _origin_errors(record: dict) -> list:
 
 
 # ---------------------------------------------------------------------------
+# Stored records under the current rules (2026-09-27).
+#
+# The rules tighten over time and a stored record is never rejected retroactively, so an
+# owner needs to see which of their records no longer meet the current contract, and why,
+# without anyone writing to them. The portal and GET /records/attention both use this.
+# ---------------------------------------------------------------------------
+def current_contract_report(records: list) -> dict:
+    """Which of these stored records fail the current rules, with each error."""
+    from collections import Counter
+    needing, by_code = [], Counter()
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        res = validate_record_full(record)
+        if res.get("valid"):
+            continue
+        errors = []
+        for layer, fallback in (("schema_errors", "SCHEMA"), ("vocabulary_errors", "VOCABULARY"),
+                                ("semantic_errors", "SEMANTIC")):
+            for e in res.get(layer) or []:
+                errors.append({"code": e.get("code") or fallback, "path": e.get("path"),
+                               "message": e.get("message")})
+        by_code.update({e["code"] for e in errors})
+        needing.append({"record_id": str(record.get("record_id") or "").strip(),
+                        "record_domain": record.get("record_domain"), "errors": errors})
+    return {"checked": len(records), "needing_update": len(needing),
+            "by_code": dict(by_code.most_common()), "records": needing}
+
+
+# ---------------------------------------------------------------------------
 # Warnings tier (2026-06-12) — accepted-but-improvable feedback.
 # Warnings NEVER block ingestion; they teach. Three severities in the
 # response: errors (block), warnings (educate), info (suggest).

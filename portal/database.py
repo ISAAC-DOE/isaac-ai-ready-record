@@ -1049,6 +1049,23 @@ def acl_list(record_id: str) -> list:
         cur.close(); conn.close()
 
 
+def records_editable_by(identity: str) -> list:
+    """Full records the identity may edit: those it submitted and those it co-authors."""
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT data FROM records WHERE data->'attribution'->>'uploaded_by' = %s "
+            "OR record_id IN (SELECT record_id FROM record_acl WHERE grantee_identity = %s) "
+            "ORDER BY created_at DESC", (identity, identity))
+        out = []
+        for row in cur.fetchall():
+            rec = row["data"]
+            out.append(json.loads(rec) if isinstance(rec, str) else rec)
+        return out
+    finally:
+        cur.close(); conn.close()
+
+
 def acl_editor_usernames(record_id: str) -> set:
     """The set of usernames holding an editor grant — consumed by the authz resolver."""
     conn = get_db_connection(); cur = conn.cursor()
