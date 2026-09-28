@@ -291,6 +291,7 @@ def sync_from_wiki(synced_by: str = "system") -> tuple:
             return False, "No vocabulary data found in wiki pages"
 
         save_vocabulary_cache(vocab, synced_by)
+        _forget_vocabulary()
 
         msg = f"Synced {parsed_pages} pages, {sum(len(cats) for cats in vocab.values())} categories"
         if skipped_pages:
@@ -627,7 +628,8 @@ def apply_approved_proposal(proposal: dict, wiki_prose: str = "") -> tuple:
     Returns:
         (success: bool, message: str, wiki_push_ok: bool)
     """
-    vocab = load_vocabulary()
+    import copy
+    vocab = copy.deepcopy(load_vocabulary())  # changed below; the memoized dict is shared
 
     section = proposal['section']
     proposal_type = proposal['proposal_type']
@@ -658,6 +660,7 @@ def apply_approved_proposal(proposal: dict, wiki_prose: str = "") -> tuple:
     if _use_database():
         try:
             save_vocabulary_cache(vocab, proposal.get('reviewed_by', 'system'))
+            _forget_vocabulary()
         except Exception as e:
             return False, f"Failed to update cache: {e}", False
 
@@ -686,8 +689,34 @@ def apply_approved_proposal(proposal: dict, wiki_prose: str = "") -> tuple:
 # Public API
 # =============================================================================
 
+_VOCAB_MEMO = {"at": 0.0, "value": None}
+_VOCAB_MEMO_SECONDS = 30.0
+
+
+def _forget_vocabulary():
+    """Drop the memo, so the next read sees a vocabulary that was just saved."""
+    _VOCAB_MEMO.update(at=0.0, value=None)
+
+
 def load_vocabulary():
-    """Loads the vocabulary from DB cache, falling back to file."""
+    """Loads the vocabulary from DB cache, falling back to file.
+
+    Memoized for 30 s per process. Validation reads the vocabulary several times per record,
+    and each uncached read costs a connection test plus a query: about 100 ms per record in
+    production, 41 s to check one owner's 409 records. data/vocabulary.json ships with the
+    image and the cache is synced from it, and every save below clears the memo. The returned
+    dict is shared: copy it before changing it.
+    """
+    import time
+    now = time.monotonic()
+    if _VOCAB_MEMO["value"] is not None and now - _VOCAB_MEMO["at"] < _VOCAB_MEMO_SECONDS:
+        return _VOCAB_MEMO["value"]
+    value = _load_vocabulary_uncached()
+    _VOCAB_MEMO.update(at=now, value=value)
+    return value
+
+
+def _load_vocabulary_uncached():
     if _use_database():
         try:
             cached = load_vocabulary_cache()
@@ -732,6 +761,7 @@ def sync_file_to_db():
         return False, "No vocabulary file found"
 
     save_vocabulary_cache(vocab, "file_sync")
+    _forget_vocabulary()
     return True, f"Synced {sum(len(cats) for cats in vocab.values())} categories to database"
 
 
