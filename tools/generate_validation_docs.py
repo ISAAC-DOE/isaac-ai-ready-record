@@ -28,7 +28,7 @@ REGISTRY = {
     # --- errors (block) ---
     "SIGN_CONVENTION": ("error", "A cathodic-reaction current is positive; IUPAC convention requires reduction currents negative (ADR-001)."),
     "WRONG_BLOCK": ("error", "A field is in the wrong block (e.g. reference_electrode/membrane in system.configuration); see the Concept Home Matrix."),
-    "DUPLICATE_DESCRIPTOR_NAME": ("error", "The same descriptor name appears twice in one output block. One name, one value per block: a second value is a different condition (state it in `at`) or a different record."),
+    "DUPLICATE_DESCRIPTOR_NAME": ("error", "The same descriptor name appears twice in one output block with the same `at`. One name, one value per condition: a second value is a different condition (state it in `at`) or a different record."),
     "DESCRIPTOR_CLASS_ALIAS": ("error", "A descriptor uses a deprecated spelling listed in descriptors.class_aliases; the message names the canonical class."),
     "PREFIX_IN_DESCRIPTOR_NAME": ("error", "A descriptor name begins with a reaction, technique or method token (orr_, oer_, dft_, xanes., ...; descriptors.name_prefix_tokens). The reaction lives in context, the technique in system.technique, experimental vs computational in system.domain; the name carries only the quantity."),
     "CONDITION_IN_DESCRIPTOR_NAME": ("error", "A descriptor name contains an operating condition (a current density, potential, temperature, time or an _at_ point). Conditions go in the descriptor's `at` or in context; the name is the quantity class, e.g. overpotential with at.current_density_mA_cm2 = 10."),

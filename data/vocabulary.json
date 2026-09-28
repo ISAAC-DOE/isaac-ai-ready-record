@@ -453,7 +453,9 @@
         "Eindhoven University of Technology": "https://ror.org/02c2kyt77",
         "Xi'an Jiaotong University": "https://ror.org/017zhmm22",
         "European Synchrotron Radiation Facility": "https://ror.org/02550n020",
-        "Oak Ridge National Laboratory": "https://ror.org/01qz5mb56"
+        "Oak Ridge National Laboratory": "https://ror.org/01qz5mb56",
+        "Beijing University of Chemical Technology": "https://ror.org/00df5yc52",
+        "City University of Hong Kong": "https://ror.org/03q8dnn23"
       }
     },
     "system.organization_aliases": {
@@ -481,7 +483,9 @@
         "Spallation Neutron Source": "Oak Ridge National Laboratory",
         "HFIR": "Oak Ridge National Laboratory",
         "ALS": "Lawrence Berkeley National Laboratory",
-        "Advanced Light Source": "Lawrence Berkeley National Laboratory"
+        "Advanced Light Source": "Lawrence Berkeley National Laboratory",
+        "BUCT": "Beijing University of Chemical Technology",
+        "CityU": "City University of Hong Kong"
       }
     },
     "system.organization_placeholders": {

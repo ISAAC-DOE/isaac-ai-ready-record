@@ -2021,7 +2021,7 @@
           "properties": {
             "group": {
               "type": "string",
-              "description": "Research group, team or collaboration."
+              "description": "Research group, team or collaboration that produced the result. Write a PI's group as the PI's name as printed in the byline followed by 'group' ('Edward H. Sargent group'; two PIs: 'David Sinton and Edward H. Sargent groups'); a facility team, center or collaboration by its own name ('JCAP high-throughput experimentation', 'SUNCAT'). The same producer must be written the same way in every record, because the discovery engine matches it exactly."
             },
             "organization": {
               "type": "string"
