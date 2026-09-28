@@ -35,8 +35,7 @@ EXAMPLES = sorted((REPO / "examples").glob("*.json"))
 KNOWN_GAPS = {
     "P02_fe_sum_1p40": ("warning-tier FE_SUM_EXCEEDS_UNITY fires (verified below); hard error pending policy", "warning != rejection by design"),
     "P03_negative_ecsa": ("WS2 schema: numeric bounds per descriptor class", "wave 2"),
-    # P04_value_as_dict_and_string: rejected since 2026-09-27 by NUMBER_AS_TEXT (its string value); a dict
-    # value alone still passes (kind-conditional value types, wave 2).
+    "P04_value_as_dict_and_string": ("WS2 schema: kind-conditional value types; NUMBER_AS_TEXT warns", "wave 2"),
     "P05_series_condition_smuggling": ("WS3 semantic: series.conditions vs context consistency", "wave 2"),
     "P06_qc_compromised_evidence_na": ("WS2 schema: qc.status enum + conditional evidence", "wave 2"),
     "P07_qc_invented_status": ("WS2 schema: qc.status enum", "wave 2"),
@@ -86,20 +85,20 @@ def test_adversarial_probes_rejected(path):
 # the gap it probes. Each maps to the code that must catch it and the tier of that code.
 RECORD_KIND = sorted((REPO / "tests" / "adversarial").glob("R*.json"))
 RIGHT_REASON = {
-    "R01_hundred_source_papers": ("MULTIPLE_SOURCES", "error"),
-    "R02_survey_as_sample": ("SAMPLE_NOT_ONE_MATERIAL", "error"),
-    "R03_catalysts_told_apart_by_name": ("QUALIFIER_NOT_A_PRODUCT", "error"),
+    "R01_hundred_source_papers": ("MULTIPLE_SOURCES", "warning"),
+    "R02_survey_as_sample": ("SAMPLE_NOT_ONE_MATERIAL", "warning"),
+    "R03_catalysts_told_apart_by_name": ("QUALIFIER_NOT_A_PRODUCT", "warning"),
     "R04_comparison_as_value": ("COMPARISON_AS_VALUE", "warning"),
-    "R05_conclusion_as_value": ("SENTENCE_AS_VALUE", "error"),
-    "R06_series_as_text": ("NUMBER_AS_TEXT", "error"),
-    "R07_hot_test_stored_at_298K_ex_situ": ("PERFORMANCE_EX_SITU", "error"),
+    "R05_conclusion_as_value": ("SENTENCE_AS_VALUE", "warning"),
+    "R06_series_as_text": ("NUMBER_AS_TEXT", "warning"),
+    "R07_hot_test_stored_at_298K_ex_situ": ("PERFORMANCE_EX_SITU", "warning"),
     "R08_hot_test_stored_at_298K_operando": ("TEMPERATURE_CONTRADICTS_DEFINITION", "error"),
-    "R09_vocabulary_substitution_admitted": ("VOCABULARY_SUBSTITUTION", "error"),
+    "R09_vocabulary_substitution_admitted": ("VOCABULARY_SUBSTITUTION", "warning"),
     "R10_false_technique_silent": ("TECHNIQUE_CANNOT_MEASURE", "error"),
     "R11_model_output_as_measurement": ("DOMAIN_INCONSISTENT", "error"),
     "R12_placeholder_producer": ("PRODUCED_BY_MISSING", "error"),
     "R13_calculation_as_experiment": ("DOMAIN_INCONSISTENT", "error"),
-    "R14_value_quoted_from_another_paper": ("SAMPLE_NAME_CITES_A_PAPER", "error"),
+    "R14_value_quoted_from_another_paper": ("SAMPLE_NAME_CITES_A_PAPER", "warning"),
     "R15_activity_and_characterization_mixed": ("MIXED_RECORD", "error"),
 }
 # Probes whose rule has not landed yet: stem -> what closes it. When a rule lands, its probe

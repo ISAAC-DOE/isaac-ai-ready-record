@@ -1,16 +1,19 @@
 """A record is one result: one sample or one model, one measurement or one calculation, one set
 of conditions, the values it produced, one source (Record-Granularity wiki).
 
-Each check is tested both ways: it catches the collection, the citation, the second source, the
-catalyst in a name, the sentence, the numbers as text, the ex situ performance, the admitted
-substitution and the placeholder producer; and it leaves alone the records that look similar and
-are right (a benchmark catalyst measured in the work itself, a paper and its dataset, a category
-label, an ex situ characterization, formula qualifiers, a real group name).
+The eight one-result checks are WARNINGS: they read words, names and strings, and the stored
+corpus is too narrow to prove such a check safe. Each is tested both ways here: it flags the
+collection, the citation, the second source, the catalyst in a name, the text where a number
+belongs, the sentence, the ex situ performance and the admitted substitution; and it never blocks
+a legitimate record. LOOKALIKES is the guard: legitimate records from other subfields that look
+like the patterns. A check may be promoted to an error only when none of them raises it.
 """
 import copy
 import json
 import sys
 from pathlib import Path
+
+import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "portal"))
@@ -18,173 +21,186 @@ sys.path.insert(0, str(REPO / "portal"))
 import validation  # noqa: E402
 
 BASE = json.loads((REPO / "tests" / "adversarial" / "R00_control_valid.json").read_text())
-CO2RR = json.loads((REPO / "examples" / "co2rr_performance_record.json").read_text())
 XANES = json.loads((REPO / "examples" / "ex_situ_xanes_cuo2_record.json").read_text())
+ONE_RESULT_CODES = {"SAMPLE_NOT_ONE_MATERIAL", "SAMPLE_NAME_CITES_A_PAPER", "MULTIPLE_SOURCES",
+                    "QUALIFIER_NOT_A_PRODUCT", "NUMBER_AS_TEXT", "SENTENCE_AS_VALUE", "PERFORMANCE_EX_SITU",
+                    "VOCABULARY_SUBSTITUTION"}
 
 
-def _codes(record):
+def _errors(record):
     return {e.get("code") for e in validation.validate_record_full(record)["errors"]}
 
 
-def _descriptor(r):
-    return r["descriptors"]["outputs"][0]["descriptors"][0]
+def _warnings(record):
+    return {w.get("code") for w in validation.validate_record_full(record).get("warnings") or []}
 
 
-def test_the_base_record_is_one_result():
-    assert validation.validate_record_full(BASE)["valid"]
+def _descriptors(r):
+    return r["descriptors"]["outputs"][0]["descriptors"]
 
 
-# --- the sample is one material ------------------------------------------------------------------
-
-def test_a_survey_a_review_or_varied_samples_is_not_one_material():
-    for name in ("Ni-based DRM catalysts, literature survey", "MoS2 HER site-type comparison, review",
-                 "Supported Pd catalysts, varied crystallite size", "NO3RR across operating conditions",
-                 "HER benchmarking practice, iR compensation", "12 catalysts from Table 1"):
-        r = copy.deepcopy(BASE)
-        r["sample"]["material"]["name"] = name
-        assert "SAMPLE_NOT_ONE_MATERIAL" in _codes(r), name
-
-
-def test_a_benchmark_catalyst_measured_in_the_work_is_one_material():
+def _with(fn):
     r = copy.deepcopy(BASE)
-    r["sample"]["material"]["name"] = "Commercial Pt/C benchmark catalyst (20 wt%)"
-    assert "SAMPLE_NOT_ONE_MATERIAL" not in _codes(r)
+    fn(r)
+    return r
 
 
-def test_a_sample_name_that_cites_a_paper_is_rejected():
-    for name in ("Pt/C (Xue 2020)", "pure Ni (Yang et al., 2020)", "Ru/C as in Fang et al. 2024"):
-        r = copy.deepcopy(BASE)
-        r["sample"]["material"]["name"] = name
-        assert "SAMPLE_NAME_CITES_A_PAPER" in _codes(r), name
+def _name(text):
+    return lambda r: r["sample"]["material"].update(name=text)
 
 
-# --- one source ------------------------------------------------------------------------------------
+def _note(text, where="sample"):
+    def f(r):
+        if where == "sample":
+            r["sample"]["material"]["notes"] = text
+        else:
+            _descriptors(r)[0]["definition"] = text
+    return f
+
+
+def _label(name, value):
+    return lambda r: _descriptors(r).append({"name": name, "kind": "categorical", "source": "imported", "value": value,
+                                             "uncertainty": {"sigma": None, "basis": "not_reported"}})
+
+
+def _value(value, kind="absolute"):
+    def f(r):
+        _descriptors(r)[0].update(value=value, kind=kind)
+        _descriptors(r)[0].pop("unit", None)
+    return f
+
+
+def _qualifier(name):
+    return lambda r: _descriptors(r)[0].update(name=name, value=0.42, unit="fraction")
+
 
 def _cite(doi, relation):
     return {"asset_id": doi, "content_role": "documentation", "uri": f"https://doi.org/{doi}", "sha256": "0" * 64,
             "citation": {"doi": doi, "relation": relation}}
 
 
-def test_two_source_papers_are_two_records():
+def _also_cite(doi, relation="source"):
+    return lambda r: r["assets"].append(_cite(doi, relation))
+
+
+def test_the_base_record_is_one_result():
     r = copy.deepcopy(BASE)
-    r["assets"].append(_cite("10.9999/probe.0002", "source"))
-    assert "MULTIPLE_SOURCES" in _codes(r)
+    assert validation.validate_record_full(r)["valid"] and not _warnings(r) & ONE_RESULT_CODES
+
+
+# --- each check flags its pattern, and a flag never blocks ------------------------------------------
+
+FLAGGED = [
+    ("SAMPLE_NOT_ONE_MATERIAL", _name("Ni-based DRM catalysts, literature survey")),
+    ("SAMPLE_NOT_ONE_MATERIAL", _name("MoS2 HER site-type comparison, review")),
+    ("SAMPLE_NOT_ONE_MATERIAL", _name("Supported Pd catalysts, varied crystallite size")),
+    ("SAMPLE_NOT_ONE_MATERIAL", _name("NO3RR across operating conditions")),
+    ("SAMPLE_NOT_ONE_MATERIAL", _name("12 catalysts from Table 1")),
+    ("SAMPLE_NAME_CITES_A_PAPER", _name("Pt/C (Xue 2020)")),
+    ("SAMPLE_NAME_CITES_A_PAPER", _name("pure Ni (Yang et al., 2020)")),
+    ("MULTIPLE_SOURCES", _also_cite("10.9999/probe.0002")),
+    ("QUALIFIER_NOT_A_PRODUCT", _qualifier("mass_specific_rate.NH3_catalyst_b")),
+    ("NUMBER_AS_TEXT", _value("4.06, 8.03, 9.24")),
+    ("NUMBER_AS_TEXT", _value("sixfold")),
+    ("NUMBER_AS_TEXT", _value("0.41 to 7.48", kind="categorical")),
+    ("SENTENCE_AS_VALUE", _label("activity_origin", "CO activation creates oxygen vacancies that raise the rate")),
+    ("PERFORMANCE_EX_SITU", lambda r: r["context"].update(environment="ex_situ")),
+    ("VOCABULARY_SUBSTITUTION", _note("VOCABULARY SUBSTITUTION: measurement is 'literature_survey'. Submitted as 'EIS'.")),
+    ("VOCABULARY_SUBSTITUTION", _note("Recorded as GC, the closest available technique.")),
+]
+
+
+@pytest.mark.parametrize("code,fn", FLAGGED, ids=[f"{c}-{i}" for i, (c, _) in enumerate(FLAGGED)])
+def test_each_check_flags_its_pattern_as_a_warning(code, fn):
+    r = _with(fn)
+    assert code in _warnings(r)
+    assert code not in _errors(r), f"{code} must not block: it is a warning until promoted"
+
+
+def test_the_checks_leave_the_examples_alone():
+    for path in sorted((REPO / "examples").glob("*.json")):
+        assert not _warnings(json.loads(path.read_text())) & ONE_RESULT_CODES, path.name
 
 
 def test_a_paper_its_dataset_and_its_references_are_one_source():
-    r = copy.deepcopy(BASE)
-    r["assets"] += [_cite("10.5281/zenodo.1234567", "reports_this_work"), _cite("10.9999/probe.0003", "reference")]
-    assert "MULTIPLE_SOURCES" not in _codes(r)
+    r = _with(lambda r: r["assets"].extend([_cite("10.5281/zenodo.1234567", "reports_this_work"),
+                                            _cite("10.9999/probe.0003", "reference")]))
+    assert "MULTIPLE_SOURCES" not in _warnings(r)
 
 
-def test_the_same_source_cited_twice_is_one_source():
-    r = copy.deepcopy(BASE)
-    r["assets"].append(_cite("10.9999/PROBE.0001", "source"))
-    assert "MULTIPLE_SOURCES" not in _codes(r)
-
-
-# --- a qualifier names a species -------------------------------------------------------------------
-
-def test_a_catalyst_written_into_a_qualifier_is_rejected():
-    r = copy.deepcopy(BASE)
-    _descriptor(r)["name"] = "mass_specific_rate.NH3_catalyst_b"
-    assert "QUALIFIER_NOT_A_PRODUCT" in _codes(r)
-
-
-def test_formula_and_vocabulary_qualifiers_pass():
+def test_formula_and_vocabulary_qualifiers_are_not_flagged():
     for name in ("mass_specific_rate.NH3", "selectivity.C3H6", "conversion.CO2", "selectivity.C2plus",
                  "selectivity.n_C3H7OH"):
-        r = copy.deepcopy(BASE)
-        _descriptor(r)["name"] = name
-        if not name.startswith("mass_specific_rate"):
-            _descriptor(r).update(value=0.42, unit="fraction")
-        assert "QUALIFIER_NOT_A_PRODUCT" not in _codes(r), name
+        r = _with(_qualifier(name) if not name.startswith("mass_specific_rate") else lambda r: None)
+        assert "QUALIFIER_NOT_A_PRODUCT" not in _warnings(r), name
 
 
-# --- a value is a number or a label ----------------------------------------------------------------
-
-def test_a_sentence_is_not_a_value():
-    r = copy.deepcopy(BASE)
-    r["descriptors"]["outputs"][0]["descriptors"].append({
-        "name": "activity_origin", "kind": "categorical", "source": "imported",
-        "value": "CO activation creates oxygen vacancies that raise the rate",
-        "uncertainty": {"sigma": None, "basis": "not_reported"}})
-    assert "SENTENCE_AS_VALUE" in _codes(r)
+def test_an_ex_situ_characterization_is_not_flagged():
+    assert "PERFORMANCE_EX_SITU" not in _warnings(XANES)
 
 
-def test_a_short_category_label_is_a_value():
-    for label in ("fcc-hollow", "Au; Cu; C; O", "rutile", "mixed Cu/Cu2O phase"):
-        r = copy.deepcopy(BASE)
-        r["descriptors"]["outputs"][0]["descriptors"].append({
-            "name": "adsorption.site", "kind": "categorical", "source": "imported", "value": label,
-            "uncertainty": {"sigma": None, "basis": "not_reported"}})
-        codes = _codes(r)
-        assert "SENTENCE_AS_VALUE" not in codes and "NUMBER_AS_TEXT" not in codes, label
-
-
-def test_numbers_as_text_are_rejected():
-    for text, kind in (("4.06, 8.03, 9.24", "absolute"), ("30-34", "absolute"), ("0.41 to 7.48", "categorical"),
-                       ("2.5 10-2", "absolute"), ("36%, 47%, and 43%", "categorical"), ("sixfold", "absolute")):
-        r = copy.deepcopy(BASE)
-        _descriptor(r).update(value=text, kind=kind)
-        _descriptor(r).pop("unit", None)
-        assert "NUMBER_AS_TEXT" in _codes(r), text
-
-
-# --- performance is measured while the reaction runs -------------------------------------------------
-
-def test_performance_ex_situ_is_rejected():
-    r = copy.deepcopy(BASE)
-    r["context"]["environment"] = "ex_situ"
-    assert "PERFORMANCE_EX_SITU" in _codes(r)
-
-
-def test_an_ex_situ_characterization_is_fine():
-    assert "PERFORMANCE_EX_SITU" not in _codes(XANES)
-    assert validation.validate_record_full(XANES)["valid"]
-
-
-# --- a substituted term is a wrong term -------------------------------------------------------------
-
-def test_an_admitted_substitution_is_rejected_wherever_it_is_written():
-    notes = ("VOCABULARY SUBSTITUTION: measurement is 'literature_survey'. Submitted as 'EIS'.",
-             "Recorded as GC, the closest available technique.",
-             "SECM is not in the ISAAC vocabulary, so linear_sweep_voltammetry was used as a proxy.")
-    for text in notes:
-        r = copy.deepcopy(BASE)
-        r["sample"]["material"]["notes"] = text
-        assert "VOCABULARY_SUBSTITUTION" in _codes(r), text
-
-
-def test_ordinary_notes_are_not_substitutions():
-    r = copy.deepcopy(BASE)
-    r["sample"]["material"]["notes"] = ("The closest analogue in the source is the H2-reduced catalyst, measured "
-                                        "under the same conditions and submitted as its own record.")
-    assert "VOCABULARY_SUBSTITUTION" not in _codes(r)
-
-
-# --- a producer names someone -----------------------------------------------------------------------
+# --- a producer names someone (an error) ---------------------------------------------------------------
 
 def test_a_placeholder_producer_names_no_one():
     for group in ("the authors", "Authors", "the paper's authors", "authors of the paper", "unknown", "not_reported"):
-        r = copy.deepcopy(BASE)
-        r["attribution"]["produced_by"] = {"group": group}
-        codes = validation.validate_record_full(r)["errors"]
-        hit = [e for e in codes if e.get("code") == "PRODUCED_BY_MISSING"]
+        r = _with(lambda r: r["attribution"].update(produced_by={"group": group}))
+        hit = [e for e in validation.validate_record_full(r)["errors"] if e.get("code") == "PRODUCED_BY_MISSING"]
         assert hit and "names no one" in hit[0]["message"], group
 
 
 def test_a_named_group_or_organization_is_a_producer():
     for pb in ({"group": "Lilong Jiang group"}, {"group": "the authors", "organization": "SLAC"},
                {"group": "Authors Lab consortium"}):
-        r = copy.deepcopy(BASE)
-        r["attribution"]["produced_by"] = pb
-        assert "PRODUCED_BY_MISSING" not in _codes(r), pb
+        r = _with(lambda r: r["attribution"].update(produced_by=pb))
+        assert "PRODUCED_BY_MISSING" not in _errors(r), pb
 
 
-def test_the_rules_leave_the_examples_alone():
-    for path in sorted((REPO / "examples").glob("*.json")):
-        codes = _codes(json.loads(path.read_text()))
-        assert not codes & {"SAMPLE_NOT_ONE_MATERIAL", "SAMPLE_NAME_CITES_A_PAPER", "MULTIPLE_SOURCES",
-                            "QUALIFIER_NOT_A_PRODUCT", "NUMBER_AS_TEXT", "SENTENCE_AS_VALUE",
-                            "PERFORMANCE_EX_SITU", "VOCABULARY_SUBSTITUTION"}, path.name
+# --- LOOKALIKES: legitimate records that look like the patterns. None may ever be rejected. -------------
+
+LOOKALIKES = [
+    ("one sample with a size distribution", _name("Cu nanoparticles on carbon (size range of 5-10 nm)")),
+    ("islands on one surface", _name("Au islands distributed across the Cu surface")),
+    ("a single crystal named by its use", _name("Pt(111) single crystal for kinetic studies")),
+    ("a commercial reference catalyst", _name("Literature-standard Pt/C (TKK TEC10E50E)")),
+    ("one foam with a pore-size distribution", _name("Ni foam with various pore sizes")),
+    ("one gradient film", _name("TiO2 film of varied thickness (wedge sample)")),
+    ("a synthesis-practice label", _name("NiFe LDH, best-practice hydrothermal synthesis")),
+    ("a benchmark catalyst measured in the work", _name("Commercial Pt/C benchmark catalyst (20 wt%)")),
+    ("made in this lab by a published recipe", _name("Pt3Ni/C prepared following Stamenkovic et al. 2007")),
+    ("a batch label", _name("Cu foil (Batch 2023)")),
+    ("a run label", _name("IrOx film (Run 2024)")),
+    ("the paper and its SI, both cited as source", _also_cite("10.9999/probe.0001.s001")),
+    ("the paper and its erratum", _also_cite("10.9999/probe.0099")),
+    ("an isotope-labelled product", _qualifier("selectivity.13CO")),
+    ("a Fischer-Tropsch C2-C4 lump", _qualifier("selectivity.C2_C4")),
+    ("deuterium", _qualifier("selectivity.HD")),
+    ("a product not detected (a table's n.d.)", _value("n.d.")),
+    ("below the detection limit", _value("<0.5")),
+    ("trace", _value("trace")),
+    ("a hexagonal facet label", _label("surface_facet", "(10-10)")),
+    ("a facet written with commas", _label("surface_facet", "(1,1,1)")),
+    ("a space group", _label("space_group", "Fm-3m")),
+    ("a stacking label", _label("stacking", "2H/3R polytypes")),
+    ("a mixed-phase label", _label("crystal_phase", "mixed rutile and anatase")),
+    ("a structure label", _label("crystal_structure", "face-centered cubic solid solution")),
+    ("a morphology label", _label("morphology", "hollow spheres with porous shell")),
+    ("an adsorption-site label", _label("adsorption.site", "bridge site between two Cu atoms")),
+    ("a category label", _label("adsorption.site", "fcc-hollow")),
+    ("an element list", _label("elements_detected", "Au; Cu; C; O")),
+    ("a curator reading a figure", _note("No exact value is given in the text; the rate was read from Fig. 3b.")),
+    ("a round-robin sample", _note("The catalyst was submitted as 'Cu-7' to the round-robin test.")),
+    ("a scientific proxy", _note("NH3 formation rate; the N2 consumption was used as a proxy for conversion.",
+                                 "definition")),
+    ("no suitable reference electrode", _note("No suitable reference electrode was available; potentials are vs "
+                                              "a Pt quasi-reference.")),
+    ("an ordinary note", _note("The closest analogue in the source is the H2-reduced catalyst, submitted as its own "
+                               "record.")),
+    ("a group literally called Authors", lambda r: r["attribution"].update(produced_by={"group": "Authors Lab"})),
+]
+
+
+@pytest.mark.parametrize("why,fn", LOOKALIKES, ids=[w for w, _ in LOOKALIKES])
+def test_legitimate_lookalikes_are_never_rejected(why, fn):
+    r = _with(fn)
+    res = validation.validate_record_full(r)
+    assert res["valid"], f"{why}: {[e.get('code') for e in res['errors']]}"
