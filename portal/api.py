@@ -628,6 +628,54 @@ def record_quality(record_id):
     return jsonify({"record_id": record_id, **result}), 200
 
 
+_ATTENTION_PARAMS = {"limit", "offset", "code", "owner"}
+
+
+@app.route("/portal/api/records/attention", methods=["GET"])
+@_require_auth
+def records_attention():
+    """
+    The caller's stored records (submitted or co-authored) that no longer pass the CURRENT
+    validator, each with every error and its teaching message. The rules tighten over time
+    and a stored record is never rejected retroactively; this is where its owner, or the
+    owner's agent, finds what to bring up to date: GET the record, fix it, POST /validate,
+    then PUT /records/<id> (versioned; the previous version is kept).
+
+    Query params: limit (default 50, max 500), offset, code (only records failing that
+    code), owner (admins only: another identity's records).
+    """
+    unknown = set(request.args.keys()) - _ATTENTION_PARAMS
+    if unknown:
+        return jsonify({"error": f"Unknown query parameter(s): {sorted(unknown)}. "
+                                 f"Supported: {sorted(_ATTENTION_PARAMS)}"}), 400
+    caller = (request.auth_info or {}).get("user")
+    owner = request.args.get("owner") or caller
+    if owner != caller and not _caller_is_admin():
+        return jsonify({"error": "Only an admin may list another identity's records."}), 403
+    try:
+        limit = max(1, min(int(request.args.get("limit", 50)), 500))
+        offset = max(0, int(request.args.get("offset", 0)))
+    except (ValueError, TypeError):
+        return jsonify({"error": "limit and offset must be integers"}), 400
+    try:
+        records = database.records_editable_by(owner)
+    except Exception:
+        logger.exception("Database error listing records for %s", owner)
+        return jsonify({"error": "internal server error"}), 500
+    report = validation.current_contract_report(records)
+    rows = report["records"]
+    code = request.args.get("code")
+    if code:
+        rows = [r for r in rows if any(e["code"] == code for e in r["errors"])]
+    return jsonify({
+        "owner": owner, "checked": report["checked"], "needing_update": report["needing_update"],
+        "by_code": report["by_code"], "matching": len(rows), "records": rows[offset:offset + limit],
+        "how_to_fix": ("Each error names its fix; the rules are on the wiki page Validation-Rules. GET "
+                       "/records/<id>, correct it, POST /validate until it passes, then PUT /records/<id> "
+                       "with a change_note. The previous version is kept."),
+    }), 200
+
+
 @app.route("/portal/api/records/<record_id>/suggestions", methods=["GET"])
 @_require_auth
 def record_suggestions(record_id):

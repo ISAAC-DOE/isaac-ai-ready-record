@@ -164,6 +164,12 @@ def _dashboard_stats():
     return database.get_dashboard_stats()
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _attention_report(identity):
+    """The identity's stored records that fail the current rules (validation.current_contract_report)."""
+    return validation.current_contract_report(database.records_editable_by(identity))
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def _access_stats():
     return database.get_access_stats()
@@ -1049,7 +1055,33 @@ elif page == "Saved Records":
         st.warning("Database not connected. Configure PGHOST, PGUSER, PGPASSWORD, PGDATABASE environment variables.")
     else:
         if st.button("Refresh"):
+            _attention_report.clear()
             st.rerun()
+
+        # --- Your records under the current rules ---
+        # The rules tighten over time and a stored record is never rejected retroactively, so
+        # every owner sees here which of their records to bring up to date, and why.
+        if current_username and current_username != "anonymous":
+            try:
+                att = _attention_report(current_username)
+            except Exception:
+                att = None
+            if att and att["needing_update"]:
+                with st.expander(f"{att['needing_update']} of your {att['checked']} records do not meet "
+                                 f"the current rules", expanded=True):
+                    st.caption("The rules tighten over time; a stored record is never rejected "
+                               "retroactively. Open a record below by its ID: each error names its fix. "
+                               "Edit and save it, and the previous version is kept. The rules are on the "
+                               "wiki page Validation-Rules; agents get the same list from "
+                               "GET /portal/api/records/attention.")
+                    st.dataframe(pd.DataFrame([{"Rule": c, "Records": n} for c, n in att["by_code"].items()]),
+                                 hide_index=True)
+                    st.dataframe(pd.DataFrame([{"Record ID": r["record_id"], "Domain": r["record_domain"],
+                                                "Rules": ", ".join(sorted({e["code"] for e in r["errors"]}))}
+                                               for r in att["records"]]),
+                                 width='stretch', hide_index=True)
+            elif att:
+                st.caption(f"All {att['checked']} of your records meet the current rules.")
 
         # --- Filters ---
         with st.expander("Filters", expanded=False):
@@ -1086,6 +1118,9 @@ elif page == "Saved Records":
                 st.subheader("Record detail")
                 selected_id = st.selectbox("Select a record on this page",
                                            [r["record_id"] for r in rows], key="sr_sel")
+                typed_id = st.text_input("Or open any record by its ID", key="sr_open_id").strip()
+                if typed_id:
+                    selected_id = typed_id
                 if selected_id:
                     record_data = database.get_record(selected_id)
                     if record_data:
@@ -1098,6 +1133,12 @@ elif page == "Saved Records":
 
                         st.caption(f"Owner: **{owner or 'unowned'}**"
                                    + ("  ·  ✏️ you can edit this record" if can_edit else ""))
+                        current = validation.validate_record_full(record_data)
+                        if not current.get("valid"):
+                            st.warning(f"This record does not meet the current rules "
+                                       f"({len(current.get('errors') or [])} errors). Each message names its fix.")
+                            for e in current.get("errors") or []:
+                                st.markdown(f"- **{e.get('code') or 'schema'}**: {e.get('message')}")
                         st.json(record_data, expanded=False)
                         st.download_button("Download JSON", json.dumps(record_data, indent=2),
                                            file_name=f"isaac_record_{selected_id}.json",
@@ -1125,6 +1166,7 @@ elif page == "Saved Records":
                                                 change_note=(note or None))
                                             st.success(f"Saved as version {res['version']} "
                                                        f"({res['change_class']} change).")
+                                            _attention_report.clear()
                                             st.rerun()
                                         except validation.ValidationError as ve:
                                             st.error("Validation failed — fix and retry:")
