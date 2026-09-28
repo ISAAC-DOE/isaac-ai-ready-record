@@ -843,14 +843,13 @@ def _cell_and_potential_checks(record: dict):
 # domain, environment, sample form and provenance all saying measurement); no record stated who
 # produced its result; 13 records built from a paper's public data were typed as facility
 # measurements; the code of 130 calculations sat in system.instrument, where the discovery
-# engine never reads it; and no database record identified the entry it came from. A record that
-# declared computation.method while every other field said measurement passed as a measurement
-# until the declaration itself became a signal ('computation.method=*').
+# engine never reads it; and no database record identified the entry it came from. A declared
+# computation.method is not a domain signal: an experimental record may carry the method that
+# analysed it (an EXAFS fit, a Rietveld refinement), so it draws the warning
+# COMPUTATION_ON_MEASUREMENT instead (made an error on 2026-09-27, reverted a day later).
 # ---------------------------------------------------------------------------
 DOMAIN_SIGNALS = _vocab_map("System", "system.domain_signals")
-# 'field=*' says: the field being present at all is the signal (a declared computation.method).
-_PRESENCE_SIGNALS = {k[:-2]: v for k, v in DOMAIN_SIGNALS.items() if k.endswith("=*")}
-_SIGNAL_FIELDS = sorted({k.split("=", 1)[0] for k in DOMAIN_SIGNALS if not k.endswith("=*")})
+_SIGNAL_FIELDS = sorted({k.split("=", 1)[0] for k in DOMAIN_SIGNALS})
 _CLAIM_FIELDS = ("system.domain", "system.technique", "source_type")
 METHOD_REQUIRED = _vocab_values("Computation", "computation.method_requirements")
 METHOD_REQUIRED_BY_FAMILY = _vocab_map("Computation", "computation.method_requirements_by_family")
@@ -883,25 +882,36 @@ def _value_at(record: dict, dotted: str):
     return node if isinstance(node, str) else None
 
 
-def _is_present(record: dict, dotted: str) -> bool:
-    node = record
-    for part in dotted.split("."):
-        node = node.get(part) if isinstance(node, dict) else None
-    return node not in (None, "", {}, [])
-
-
 def _calculation_votes(record: dict):
-    """(calc, meas): the 'field=value' signals that say calculation and those that say measurement,
-    plus the 'field=*' signals of fields that are present."""
+    """(calc, meas): the 'field=value' signals that say calculation and those that say measurement."""
     calc, meas = [], []
     for field in _SIGNAL_FIELDS:
         value = _value_at(record, field)
         says = DOMAIN_SIGNALS.get(f"{field}={value}") if value is not None else None
         (calc if says == "calculation" else meas if says == "measurement" else []).append(f"{field}={value}")
-    for field, says in sorted(_PRESENCE_SIGNALS.items()):
-        if _is_present(record, field):
-            (calc if says == "calculation" else meas if says == "measurement" else []).append(f"{field} (declared)")
     return calc, meas
+
+
+def _computation_role_warnings(record: dict) -> list:
+    """A computation.method on a record whose fields say measurement: the fit of this measurement,
+    or a computed result that is a record of its own. Only the record says which, so this warns."""
+    if record.get("record_type") != "evidence":
+        return []
+    comp = record.get("computation") if isinstance(record.get("computation"), dict) else {}
+    if not (isinstance(comp.get("method"), dict) and comp.get("method")):
+        return []
+    calc, meas = _calculation_votes(record)
+    if calc or not meas:
+        return []
+    return [{
+        "code": "COMPUTATION_ON_MEASUREMENT", "path": "computation/method",
+        "message": ("This record declares computation.method while its other fields say it is a measurement "
+                    f"({', '.join(meas)}). A method that analysed this measurement (an EXAFS fit with a "
+                    "scattering code, a Rietveld refinement, an equivalent-circuit fit) is part of the measurement: "
+                    "name the step in "
+                    "measurement.processing.steps and point recipe_link to the analysis files. A method that "
+                    "computed a result of its own (a DFT energy, a microkinetic rate) makes that result a separate "
+                    "calculation record, linked to this one with derived_from or validates.")}]
 
 
 def _claims_calculation(record: dict) -> bool:
@@ -1601,7 +1611,8 @@ def validate_record_full(record: dict) -> dict:
     rx_errors, rx_warnings = _reaction_checks(record)
     cell_errors, cell_warnings = _cell_and_potential_checks(record)
     adr_errors = adr_errors + rx_errors + cell_errors
-    warnings = warnings + adr_warnings + rx_warnings + cell_warnings + _one_result_warnings(record)
+    warnings = (warnings + adr_warnings + rx_warnings + cell_warnings + _one_result_warnings(record)
+                + _computation_role_warnings(record))
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)

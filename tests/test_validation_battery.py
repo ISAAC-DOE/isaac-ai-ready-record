@@ -97,7 +97,7 @@ RIGHT_REASON = {
     "R10_false_technique_silent": ("TECHNIQUE_CANNOT_MEASURE", "error"),
     "R11_model_output_as_measurement": ("DOMAIN_INCONSISTENT", "error"),
     "R12_placeholder_producer": ("PRODUCED_BY_MISSING", "error"),
-    "R13_calculation_as_experiment": ("DOMAIN_INCONSISTENT", "error"),
+    "R13_calculation_as_experiment": ("COMPUTATION_ON_MEASUREMENT", "warning"),
     "R14_value_quoted_from_another_paper": ("SAMPLE_NAME_CITES_A_PAPER", "warning"),
     "R15_activity_and_characterization_mixed": ("MIXED_RECORD", "error"),
 }

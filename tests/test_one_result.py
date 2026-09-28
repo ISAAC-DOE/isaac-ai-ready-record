@@ -196,6 +196,8 @@ LOOKALIKES = [
     ("an ordinary note", _note("The closest analogue in the source is the H2-reduced catalyst, submitted as its own "
                                "record.")),
     ("a group literally called Authors", lambda r: r["attribution"].update(produced_by={"group": "Authors Lab"})),
+    ("a Rietveld refinement declared as a method", lambda r: r.update(computation={"method": {
+        "code": "GSAS-II"}})),
 ]
 
 

@@ -512,9 +512,8 @@
       ]
     },
     "system.domain_signals": {
-      "description": "Field values that say whether a record is a calculation or a measurement. Every one present in a record must say the same (DOMAIN_INCONSISTENT); a value missing from this table says neither, so a spectroscopy technique can name a measured or a simulated spectrum. A calculation reported in a paper is still a calculation. An entry 'field=*' is a signal whenever the field is present, whatever its value: a record that declares computation.method is a calculation.",
+      "description": "Field values that say whether a record is a calculation or a measurement. Every one present in a record must say the same (DOMAIN_INCONSISTENT); a value missing from this table says neither, so a spectroscopy technique can name a measured or a simulated spectrum. A calculation reported in a paper is still a calculation.",
       "map": {
-        "computation.method=*": "calculation",
         "context.environment=ex_situ": "measurement",
         "context.environment=in_silico": "calculation",
         "context.environment=in_situ": "measurement",
@@ -594,6 +593,10 @@
         "energy_referencing",
         "thermodynamic_summation",
         "rietveld_refinement",
+        "exafs_fitting",
+        "linear_combination_fitting",
+        "peak_fitting",
+        "equivalent_circuit_fitting",
         "article_style_replot_checked",
         "overlay_comparison_checked"
       ]
