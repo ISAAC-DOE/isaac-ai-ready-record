@@ -505,8 +505,14 @@ def _reaction_checks(record: dict):
 # ways no rule saw: a survey, a review or a series of samples as the "sample"; a value the source
 # quoted from another paper; catalysts told apart inside descriptor names; sentences, series and
 # factors stored as values; reactor tests stored ex_situ; and 124 notes admitting that a wrong
-# vocabulary term had been submitted. Before shipping, each check below was run on every stored
-# record from other uploaders, the wiki examples and the blind-test records: no false alarm.
+# vocabulary term had been submitted. Each check below was run on every stored record from other
+# uploaders, the wiki examples and the blind-test records with no false alarm, and shipped as an
+# error. A day later 26 of 31 legitimate look-alikes (a particle 'size range of 5-10 nm', 'Au
+# islands across the Cu surface', 'n.d.' in a table, a '(10-10)' facet, 'mixed rutile and
+# anatase', a paper plus its SI) were rejected, so these checks are WARNINGS: they teach and do not
+# block. The stored corpus is too narrow to prove a word-based check safe. A check becomes an error
+# only when tests/test_one_result.py LOOKALIKES, a corpus of legitimate records built from other
+# subfields, raises no false alarm, and the live warning log shows it firing only on real faults.
 # ---------------------------------------------------------------------------
 _COLLECTION_NAME = re.compile(
     r"\b(?:survey(?:ed)?|review(?:ed)?|meta-?analysis|compilation|literature|studies"
@@ -545,15 +551,15 @@ def _source_citations(record: dict) -> list:
     return list(seen.values())
 
 
-def _one_result_errors(record: dict) -> list:
-    """Errors for an evidence record that holds more, or less, than one result."""
+def _one_result_warnings(record: dict) -> list:
+    """Warnings for an evidence record that may hold more, or less, than one result."""
     if record.get("record_type") != "evidence":
         return []
-    errors = []
+    warnings = []
     name = str(((record.get("sample") or {}).get("material") or {}).get("name") or "")
     m = _COLLECTION_NAME.search(name)
     if m:
-        errors.append({
+        warnings.append({
             "code": "SAMPLE_NOT_ONE_MATERIAL", "path": "sample/material/name",
             "message": (f"sample.material.name '{name}' names a collection ('{m.group(0)}'), not one material. A "
                         f"record is one result on one sample or one model. A survey, a review, a compilation or "
@@ -562,7 +568,7 @@ def _one_result_errors(record: dict) -> list:
                         f"with intended_comparison_target. {_ONE_RESULT}")})
     m = _NAME_CITATION.search(name)
     if m:
-        errors.append({
+        warnings.append({
             "code": "SAMPLE_NAME_CITES_A_PAPER", "path": "sample/material/name",
             "message": (f"sample.material.name '{name}' cites a paper ('{m.group(0)}'). A value the source quotes "
                         f"from another paper is that paper's result: build its record from the paper that "
@@ -571,7 +577,7 @@ def _one_result_errors(record: dict) -> list:
     sources = _source_citations(record)
     if len(sources) > 1:
         shown = ", ".join(str(x) for x in sources[:3]) + (f" and {len(sources) - 3} more" if len(sources) > 3 else "")
-        errors.append({
+        warnings.append({
             "code": "MULTIPLE_SOURCES", "path": "assets",
             "message": (f"This record names {len(sources)} sources ({shown}). One result comes from one work, and "
                         f"results from different papers are different records. If the same work also appears "
@@ -579,7 +585,7 @@ def _one_result_errors(record: dict) -> list:
                         f"a paper cited for context has relation 'reference'. {_ONE_RESULT}")})
     ctx = record.get("context") if isinstance(record.get("context"), dict) else {}
     if record.get("record_domain") == "performance" and ctx.get("environment") == "ex_situ":
-        errors.append({
+        warnings.append({
             "code": "PERFORMANCE_EX_SITU", "path": "context/environment",
             "message": ("A performance record measures a catalyst while the reaction runs, so context.environment "
                         "is 'in_situ' or 'operando'; this one says 'ex_situ'. A measurement on a catalyst outside "
@@ -592,7 +598,7 @@ def _one_result_errors(record: dict) -> list:
             path = f"descriptors/outputs/{oi}/descriptors/{di}"
             stem, _, qual = dname.partition(".")
             if qual and stem in _SPECIES_CLASSES and qual not in _PRODUCT_TOKENS and not _FORMULA_TOKEN.match(qual):
-                errors.append({
+                warnings.append({
                     "code": "QUALIFIER_NOT_A_PRODUCT", "path": f"{path}/name",
                     "message": (f"Descriptor '{dname}': the part after the dot names a species, as a chemical "
                                 f"formula (selectivity.C3H6, conversion.CO2) or a product token from the vocabulary "
@@ -602,7 +608,7 @@ def _one_result_errors(record: dict) -> list:
             if not isinstance(v, str):
                 continue
             if d.get("kind") in ("absolute", "differential") or _NUMBER_LIST.search(v):
-                errors.append({
+                warnings.append({
                     "code": "NUMBER_AS_TEXT", "path": f"{path}/value",
                     "message": (f"Descriptor '{dname}' holds text where a number belongs ('{v[:60]}'). A value is "
                                 f"one number with its unit; a label is kind 'categorical'. Several values are a "
@@ -610,7 +616,7 @@ def _one_result_errors(record: dict) -> list:
                                 f"value is its uncertainty; a factor relative to another sample ('sixfold') is each "
                                 f"sample's own value, in its own record. {_ONE_RESULT}")})
             elif len(_LOWER_WORD.findall(v)) >= 4:
-                errors.append({
+                warnings.append({
                     "code": "SENTENCE_AS_VALUE", "path": f"{path}/value",
                     "message": (f"Descriptor '{dname}' holds a sentence ('{v[:80]}'). A value is a number with a "
                                 f"unit, or a short category label. A statement about results (a trend, an "
@@ -621,7 +627,7 @@ def _one_result_errors(record: dict) -> list:
         m = _SUBSTITUTION.search(text)
         if m:
             excerpt = text[max(0, m.start() - 40): m.end() + 60].replace("\n", " ")
-            errors.append({
+            warnings.append({
                 "code": "VOCABULARY_SUBSTITUTION", "path": path,
                 "message": (f"This field says a vocabulary term was substituted ('...{excerpt}...'). A substituted "
                             f"term is a wrong term, and every query on that field returns this record by mistake. "
@@ -630,7 +636,7 @@ def _one_result_errors(record: dict) -> list:
                             f"calculation stands behind the value (a literature survey, a model's conclusion), it is "
                             f"not an ISAAC record. {_ONE_RESULT}")})
             break
-    return errors
+    return warnings
 
 # ---------------------------------------------------------------------------
 # A record is knowledge, not reasoning (2026-09-27).
@@ -1570,7 +1576,6 @@ def validate_record_full(record: dict) -> dict:
     vocabulary_errors = vocabulary_errors + _potential_contract_errors(record)
     vocabulary_errors = vocabulary_errors + _descriptor_name_errors(record)
     vocabulary_errors = vocabulary_errors + _record_content_errors(record)
-    vocabulary_errors = vocabulary_errors + _one_result_errors(record)
     vocabulary_errors = vocabulary_errors + _origin_errors(record) + _code_home_errors(record)
 
     try:
@@ -1596,7 +1601,7 @@ def validate_record_full(record: dict) -> dict:
     rx_errors, rx_warnings = _reaction_checks(record)
     cell_errors, cell_warnings = _cell_and_potential_checks(record)
     adr_errors = adr_errors + rx_errors + cell_errors
-    warnings = warnings + adr_warnings + rx_warnings + cell_warnings
+    warnings = warnings + adr_warnings + rx_warnings + cell_warnings + _one_result_warnings(record)
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)
