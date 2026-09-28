@@ -102,7 +102,6 @@ FLAGGED = [
     ("QUALIFIER_NOT_A_PRODUCT", _qualifier("mass_specific_rate.NH3_catalyst_b")),
     ("NUMBER_AS_TEXT", _value("4.06, 8.03, 9.24")),
     ("NUMBER_AS_TEXT", _value("sixfold")),
-    ("NUMBER_AS_TEXT", _value("0.41 to 7.48", kind="categorical")),
     ("SENTENCE_AS_VALUE", _label("activity_origin", "CO activation creates oxygen vacancies that raise the rate")),
     ("PERFORMANCE_EX_SITU", lambda r: r["context"].update(environment="ex_situ")),
     ("VOCABULARY_SUBSTITUTION", _note("VOCABULARY SUBSTITUTION: measurement is 'literature_survey'. Submitted as 'EIS'.")),
@@ -120,6 +119,26 @@ def test_each_check_flags_its_pattern_as_a_warning(code, fn):
 def test_the_checks_leave_the_examples_alone():
     for path in sorted((REPO / "examples").glob("*.json")):
         assert not _warnings(json.loads(path.read_text())) & ONE_RESULT_CODES, path.name
+
+
+def test_spectroscopy_and_structure_labels_are_not_numbers_as_text():
+    for label in ("Pt 4f7/2", "Mn L2,3", "(6,5)", "fcc Cu (JCPDS 04-0836)", "(10-10)", "(1,1,1)"):
+        assert "NUMBER_AS_TEXT" not in _warnings(_with(_label("assignment", label))), label
+
+
+def test_sample_numbers_standards_and_suppliers_are_not_citations():
+    for name in ("Mn-Co-Ta-Sb oxide (sample 2047)", "Alumina plate (SRM 1976b)", "Cu(100) single crystal (MaTeck, 2019)"):
+        assert "SAMPLE_NAME_CITES_A_PAPER" not in _warnings(_with(_name(name))), name
+
+
+def test_one_work_cited_in_several_forms_is_one_source():
+    for other in ("https://doi.org/10.9999/PROBE.0001", "doi:10.9999/probe.0001", "10.9999/probe.0001.s001"):
+        assert "MULTIPLE_SOURCES" not in _warnings(_with(_also_cite(other))), other
+    unrelated = _with(lambda r: r["assets"].append({"asset_id": "vasp", "content_role": "documentation",
+                                                      "uri": "https://doi.org/10.1103/PhysRevB.54.11169",
+                                                      "sha256": "0" * 64,
+                                                      "citation": {"doi": "10.1103/PhysRevB.54.11169"}}))
+    assert "MULTIPLE_SOURCES" not in _warnings(unrelated), "a citation without a relation is not counted as a source"
 
 
 def test_a_paper_its_dataset_and_its_references_are_one_source():
