@@ -35,7 +35,8 @@ EXAMPLES = sorted((REPO / "examples").glob("*.json"))
 KNOWN_GAPS = {
     "P02_fe_sum_1p40": ("warning-tier FE_SUM_EXCEEDS_UNITY fires (verified below); hard error pending policy", "warning != rejection by design"),
     "P03_negative_ecsa": ("WS2 schema: numeric bounds per descriptor class", "wave 2"),
-    "P04_value_as_dict_and_string": ("WS2 schema: kind-conditional value types", "wave 2"),
+    # P04_value_as_dict_and_string: rejected since 2026-09-27 by NUMBER_AS_TEXT (its string value); a dict
+    # value alone still passes (kind-conditional value types, wave 2).
     "P05_series_condition_smuggling": ("WS3 semantic: series.conditions vs context consistency", "wave 2"),
     "P06_qc_compromised_evidence_na": ("WS2 schema: qc.status enum + conditional evidence", "wave 2"),
     "P07_qc_invented_status": ("WS2 schema: qc.status enum", "wave 2"),
@@ -96,7 +97,7 @@ RIGHT_REASON = {
     "R09_vocabulary_substitution_admitted": ("VOCABULARY_SUBSTITUTION", "error"),
     "R10_false_technique_silent": ("TECHNIQUE_CANNOT_MEASURE", "error"),
     "R11_model_output_as_measurement": ("DOMAIN_INCONSISTENT", "error"),
-    "R12_placeholder_producer": ("PRODUCED_BY_PLACEHOLDER", "error"),
+    "R12_placeholder_producer": ("PRODUCED_BY_MISSING", "error"),
     "R13_calculation_as_experiment": ("DOMAIN_INCONSISTENT", "error"),
     "R14_value_quoted_from_another_paper": ("SAMPLE_NAME_CITES_A_PAPER", "error"),
     "R15_activity_and_characterization_mixed": ("MIXED_RECORD", "error"),
@@ -104,19 +105,10 @@ RIGHT_REASON = {
 # Probes whose rule has not landed yet: stem -> what closes it. When a rule lands, its probe
 # fails here until its line is deleted, so this list is always the true set of open gaps.
 RECORD_KIND_GAPS = {
-    "R01_hundred_source_papers": "release 2: one source per record",
-    "R02_survey_as_sample": "release 2: the sample is one material or one model",
-    "R03_catalysts_told_apart_by_name": "release 2: a product qualifier names a product",
     "R04_comparison_as_value": "release 3: comparison warning, then a structured relative_to",
-    "R05_conclusion_as_value": "release 2: no sentence as a value",
-    "R06_series_as_text": "release 2: no number or series as text",
-    "R07_hot_test_stored_at_298K_ex_situ": "release 2: a performance record is never ex_situ",
     "R08_hot_test_stored_at_298K_operando": "release 3: context temperature agrees with the definitions",
-    "R09_vocabulary_substitution_admitted": "release 2: an admitted substitution cannot be stored",
     "R10_false_technique_silent": "open: which quantities a technique can measure, as vocabulary data",
     "R11_model_output_as_measurement": "open: a model named only in prose is invisible to field signals",
-    "R12_placeholder_producer": "release 2: produced_by is never a placeholder",
-    "R14_value_quoted_from_another_paper": "release 2: a sample name carries no citation",
     "R15_activity_and_characterization_mixed": "open: descriptor families tagged measured-only vs computable",
 }
 

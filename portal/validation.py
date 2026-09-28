@@ -495,6 +495,143 @@ def _reaction_checks(record: dict):
     return errors, warnings
 
 
+
+# ---------------------------------------------------------------------------
+# A record is one result (2026-09-27).
+#
+# One sample or one model, one measurement or one calculation, one set of conditions, the values
+# it produced, one source (Record-Granularity wiki, "What an ISAAC record is"). On 2026-09-27, 436
+# records built by an agent from papers through a question-answering search tool broke this in
+# ways no rule saw: a survey, a review or a series of samples as the "sample"; a value the source
+# quoted from another paper; catalysts told apart inside descriptor names; sentences, series and
+# factors stored as values; reactor tests stored ex_situ; and 124 notes admitting that a wrong
+# vocabulary term had been submitted. Before shipping, each check below was run on every stored
+# record from other uploaders, the wiki examples and the blind-test records: no false alarm.
+# ---------------------------------------------------------------------------
+_COLLECTION_NAME = re.compile(
+    r"\b(?:survey(?:ed)?|review(?:ed)?|meta-?analysis|compilation|literature|studies"
+    r"|benchmarking\s+(?:practice|study|survey|protocol)s?|practices?|sensitivity\s+analysis|range\s+of|various|varied"
+    r"|across\s+(?:\d+|several|multiple|many|different|various|the)"
+    r"|across\s+(?:[\w-]+\s+){0,2}(?:conditions|samples|catalysts|materials|loadings|compositions|temperatures"
+    r"|potentials|pressures|studies|papers)"
+    r"|(?:multiple|several|many|different|various|\d+)\s+(?:catalysts|materials|compositions|studies|papers|systems))\b",
+    re.I)
+_NAME_CITATION = re.compile(
+    r"\((?:[A-Z][A-Za-z'\u2019\-]+(?:\s+et\s+al\.?)?,?\s+(?:19|20)\d\d[a-z]?)\)|\bet\s+al\.?,?\s+(?:19|20)\d\d", re.I)
+_SUBSTITUTION = re.compile(
+    r"vocabulary\s+substitution|submitted\s+as\s+['\"\u2018\u2019]|not\s+a\s+value\s+in\s+the\s+.{0,40}vocabulary"
+    r"|closest\s+(?:available|allowed|matching|permitted|valid)\s+(?:term|value|technique|option|token)"
+    r"|(?:used|chosen|recorded|entered|mapped)\s+as\s+(?:a\s+)?(?:proxy|stand-?in|substitute)\b"
+    r"|no\s+(?:matching|appropriate|suitable|exact)\s+(?:term|value|technique|vocabulary|token|option)"
+    r"|not\s+(?:in|part\s+of|available\s+in)\s+the\s+(?:isaac\s+)?(?:closed\s+|controlled\s+)?vocabulary", re.I)
+_LOWER_WORD = re.compile(r"\b[a-z]{2,}\b")
+_NUMBER_LIST = re.compile(r"-?\d+(?:\.\d+)?\s*%?\s*(?:[,;/]|\bto\b|\u2013|\u2014|-(?=\s*\d))\s*-?\d")
+_FORMULA_TOKEN = re.compile(r"^(?:[A-Z][a-z]?\d*)+(?:plus)?$")
+_SPECIES_CLASSES = set(_vocab_values("Descriptors", "descriptors.catalytic_performance"))
+_PRODUCT_TOKENS = set(_vocab_values("Descriptors", "descriptors.faradaic_efficiency_products"))
+for _agg, _members in _vocab_map("Descriptors", "descriptors.aggregate_descriptors").items():
+    _PRODUCT_TOKENS.update(n.split(".", 1)[1] for n in [_agg] + list(_members or []) if "." in n)
+_ONE_RESULT = "What an ISAAC record is: Record-Granularity wiki."
+
+
+def _source_citations(record: dict) -> list:
+    """Distinct works cited as the source (relation 'source', or no relation)."""
+    seen = {}
+    for a in _assets(record):
+        c = a.get("citation") if isinstance(a.get("citation"), dict) else None
+        if c and c.get("relation") in (None, "", "source"):
+            key = str(c.get("doi") or "").strip().lower() or f"{c.get('title')}|{c.get('year')}" or a.get("uri")
+            seen.setdefault(key, c.get("doi") or c.get("title") or a.get("uri"))
+    return list(seen.values())
+
+
+def _one_result_errors(record: dict) -> list:
+    """Errors for an evidence record that holds more, or less, than one result."""
+    if record.get("record_type") != "evidence":
+        return []
+    errors = []
+    name = str(((record.get("sample") or {}).get("material") or {}).get("name") or "")
+    m = _COLLECTION_NAME.search(name)
+    if m:
+        errors.append({
+            "code": "SAMPLE_NOT_ONE_MATERIAL", "path": "sample/material/name",
+            "message": (f"sample.material.name '{name}' names a collection ('{m.group(0)}'), not one material. A "
+                        f"record is one result on one sample or one model. A survey, a review, a compilation or "
+                        f"a series of samples (varied loading, several catalysts) is many results: make one record "
+                        f"per sample, built from the paper that measured or computed it, and link the records "
+                        f"with intended_comparison_target. {_ONE_RESULT}")})
+    m = _NAME_CITATION.search(name)
+    if m:
+        errors.append({
+            "code": "SAMPLE_NAME_CITES_A_PAPER", "path": "sample/material/name",
+            "message": (f"sample.material.name '{name}' cites a paper ('{m.group(0)}'). A value the source quotes "
+                        f"from another paper is that paper's result: build its record from the paper that "
+                        f"measured it, with that paper as the source. The name names the material only. "
+                        f"{_ONE_RESULT}")})
+    sources = _source_citations(record)
+    if len(sources) > 1:
+        shown = ", ".join(str(x) for x in sources[:3]) + (f" and {len(sources) - 3} more" if len(sources) > 3 else "")
+        errors.append({
+            "code": "MULTIPLE_SOURCES", "path": "assets",
+            "message": (f"This record names {len(sources)} sources ({shown}). One result comes from one work, and "
+                        f"results from different papers are different records. If the same work also appears "
+                        f"elsewhere (its dataset, a thesis), cite that with citation.relation 'reports_this_work'; "
+                        f"a paper cited for context has relation 'reference'. {_ONE_RESULT}")})
+    ctx = record.get("context") if isinstance(record.get("context"), dict) else {}
+    if record.get("record_domain") == "performance" and ctx.get("environment") == "ex_situ":
+        errors.append({
+            "code": "PERFORMANCE_EX_SITU", "path": "context/environment",
+            "message": ("A performance record measures a catalyst while the reaction runs, so context.environment "
+                        "is 'in_situ' or 'operando'; this one says 'ex_situ'. A measurement on a catalyst outside "
+                        f"the reaction is a characterization record (record_domain 'characterization'). {_ONE_RESULT}")})
+    for oi, o in enumerate((record.get("descriptors") or {}).get("outputs") or []):
+        for di, d in enumerate(o.get("descriptors") or [] if isinstance(o, dict) else []):
+            if not isinstance(d, dict):
+                continue
+            dname = str(d.get("name") or "")
+            path = f"descriptors/outputs/{oi}/descriptors/{di}"
+            stem, _, qual = dname.partition(".")
+            if qual and stem in _SPECIES_CLASSES and qual not in _PRODUCT_TOKENS and not _FORMULA_TOKEN.match(qual):
+                errors.append({
+                    "code": "QUALIFIER_NOT_A_PRODUCT", "path": f"{path}/name",
+                    "message": (f"Descriptor '{dname}': the part after the dot names a species, as a chemical "
+                                f"formula (selectivity.C3H6, conversion.CO2) or a product token from the vocabulary "
+                                f"(Descriptors wiki). '{qual}' is neither. A second catalyst is a second record, and "
+                                f"a condition goes in `at`. {_ONE_RESULT}")})
+            v = d.get("value")
+            if not isinstance(v, str):
+                continue
+            if d.get("kind") in ("absolute", "differential") or _NUMBER_LIST.search(v):
+                errors.append({
+                    "code": "NUMBER_AS_TEXT", "path": f"{path}/value",
+                    "message": (f"Descriptor '{dname}' holds text where a number belongs ('{v[:60]}'). A value is "
+                                f"one number with its unit; a label is kind 'categorical'. Several values are a "
+                                f"series (measurement.series) or one value per condition (`at`); the spread of one "
+                                f"value is its uncertainty; a factor relative to another sample ('sixfold') is each "
+                                f"sample's own value, in its own record. {_ONE_RESULT}")})
+            elif len(_LOWER_WORD.findall(v)) >= 4:
+                errors.append({
+                    "code": "SENTENCE_AS_VALUE", "path": f"{path}/value",
+                    "message": (f"Descriptor '{dname}' holds a sentence ('{v[:80]}'). A value is a number with a "
+                                f"unit, or a short category label. A statement about results (a trend, an "
+                                f"observation, a conclusion) interprets them: store the values it rests on, each "
+                                f"in its record, and leave the statement to whatever reasons over the records. "
+                                f"{_ONE_RESULT}")})
+    for path, text in _curated_text_fields(record):
+        m = _SUBSTITUTION.search(text)
+        if m:
+            excerpt = text[max(0, m.start() - 40): m.end() + 60].replace("\n", " ")
+            errors.append({
+                "code": "VOCABULARY_SUBSTITUTION", "path": path,
+                "message": (f"This field says a vocabulary term was substituted ('...{excerpt}...'). A substituted "
+                            f"term is a wrong term, and every query on that field returns this record by mistake. "
+                            f"Use the exact term. If the vocabulary lacks it, propose it (portal, Ontology Editor, "
+                            f"'Propose a Change') and store the record once it exists. If no measurement or "
+                            f"calculation stands behind the value (a literature survey, a model's conclusion), it is "
+                            f"not an ISAAC record. {_ONE_RESULT}")})
+            break
+    return errors
+
 # ---------------------------------------------------------------------------
 # A record is knowledge, not reasoning (2026-09-27).
 #
@@ -840,6 +977,17 @@ def _code_home_errors(record: dict) -> list:
                     f"organization, cluster).")}]
 
 
+_AUTHORS_PLACEHOLDER = re.compile(
+    r"^(?:the\s+)?(?:(?:paper|publication|study|source|article)['\u2019]?s?\s+|original\s+)?authors?"
+    r"(?:\s+of\s+the\s+(?:paper|publication|study|source|article))?$", re.I)
+
+
+def _names_someone(value: str) -> bool:
+    """A producer group or organization that names a group or an institution, not a placeholder."""
+    v = (value or "").strip()
+    return bool(v) and v.lower() not in _ORG_PLACEHOLDERS and not _AUTHORS_PLACEHOLDER.match(v)
+
+
 def _origin_errors(record: dict) -> list:
     """Errors for an evidence record that is unclear about what it is, where it came from, or
     who produced it."""
@@ -894,7 +1042,8 @@ def _origin_errors(record: dict) -> list:
     pb = (record.get("attribution") or {}).get("produced_by") if isinstance(record.get("attribution"), dict) else None
     pb = pb if isinstance(pb, dict) else {}
     org = str(pb.get("organization") or "").strip()
-    if not (str(pb.get("group") or "").strip() or (org and org.lower() not in _ORG_PLACEHOLDERS)):
+    group = str(pb.get("group") or "").strip()
+    if not (_names_someone(group) or _names_someone(org)):
         who = {
             "literature": "the group of the paper's authors (group, organization, people)",
             "database": "the group that produced the database entry; the database itself goes in assets",
@@ -902,7 +1051,8 @@ def _origin_errors(record: dict) -> list:
         }.get(st, "the group that made the measurement: a curator uploading another lab's data names that lab")
         errors.append({
             "code": "PRODUCED_BY_MISSING", "path": "attribution/produced_by",
-            "message": (f"State who produced this result in attribution.produced_by {{group, organization, "
+            "message": ((f"'{group or org}' names no one. " if (group or org) else "")
+                        + f"State who produced this result in attribution.produced_by {{group, organization, "
                         f"people}}: {who}. uploaded_by records only who deposited the record. The source "
                         f"(source_type '{st}') and the producer together say whether a result is a published "
                         f"calculation, a calculation the uploader ran, or someone else's; two results from one "
@@ -1420,6 +1570,7 @@ def validate_record_full(record: dict) -> dict:
     vocabulary_errors = vocabulary_errors + _potential_contract_errors(record)
     vocabulary_errors = vocabulary_errors + _descriptor_name_errors(record)
     vocabulary_errors = vocabulary_errors + _record_content_errors(record)
+    vocabulary_errors = vocabulary_errors + _one_result_errors(record)
     vocabulary_errors = vocabulary_errors + _origin_errors(record) + _code_home_errors(record)
 
     try:
