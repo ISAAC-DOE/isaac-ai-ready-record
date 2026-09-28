@@ -79,6 +79,69 @@ def test_adversarial_probes_rejected(path):
     )
 
 
+# Record-kind probes (R*.json): one good literature record, broken one way each, in the ways
+# records built by agents from papers were broken in September 2026. A probe passes only when it
+# is caught FOR ITS OWN REASON: an incidental rejection (a capital letter, a malformed block) hides
+# the gap it probes. Each maps to the code that must catch it and the tier of that code.
+RECORD_KIND = sorted((REPO / "tests" / "adversarial").glob("R*.json"))
+RIGHT_REASON = {
+    "R01_hundred_source_papers": ("MULTIPLE_SOURCES", "error"),
+    "R02_survey_as_sample": ("SAMPLE_NOT_ONE_MATERIAL", "error"),
+    "R03_catalysts_told_apart_by_name": ("QUALIFIER_NOT_A_PRODUCT", "error"),
+    "R04_comparison_as_value": ("COMPARISON_AS_VALUE", "warning"),
+    "R05_conclusion_as_value": ("SENTENCE_AS_VALUE", "error"),
+    "R06_series_as_text": ("NUMBER_AS_TEXT", "error"),
+    "R07_hot_test_stored_at_298K_ex_situ": ("PERFORMANCE_EX_SITU", "error"),
+    "R08_hot_test_stored_at_298K_operando": ("TEMPERATURE_CONTRADICTS_DEFINITION", "error"),
+    "R09_vocabulary_substitution_admitted": ("VOCABULARY_SUBSTITUTION", "error"),
+    "R10_false_technique_silent": ("TECHNIQUE_CANNOT_MEASURE", "error"),
+    "R11_model_output_as_measurement": ("DOMAIN_INCONSISTENT", "error"),
+    "R12_placeholder_producer": ("PRODUCED_BY_PLACEHOLDER", "error"),
+    "R13_calculation_as_experiment": ("DOMAIN_INCONSISTENT", "error"),
+    "R14_value_quoted_from_another_paper": ("SAMPLE_NAME_CITES_A_PAPER", "error"),
+    "R15_activity_and_characterization_mixed": ("MIXED_RECORD", "error"),
+}
+# Probes whose rule has not landed yet: stem -> what closes it. When a rule lands, its probe
+# fails here until its line is deleted, so this list is always the true set of open gaps.
+RECORD_KIND_GAPS = {
+    "R01_hundred_source_papers": "release 2: one source per record",
+    "R02_survey_as_sample": "release 2: the sample is one material or one model",
+    "R03_catalysts_told_apart_by_name": "release 2: a product qualifier names a product",
+    "R04_comparison_as_value": "release 3: comparison warning, then a structured relative_to",
+    "R05_conclusion_as_value": "release 2: no sentence as a value",
+    "R06_series_as_text": "release 2: no number or series as text",
+    "R07_hot_test_stored_at_298K_ex_situ": "release 2: a performance record is never ex_situ",
+    "R08_hot_test_stored_at_298K_operando": "release 3: context temperature agrees with the definitions",
+    "R09_vocabulary_substitution_admitted": "release 2: an admitted substitution cannot be stored",
+    "R10_false_technique_silent": "open: which quantities a technique can measure, as vocabulary data",
+    "R11_model_output_as_measurement": "open: a model named only in prose is invisible to field signals",
+    "R12_placeholder_producer": "release 2: produced_by is never a placeholder",
+    "R14_value_quoted_from_another_paper": "release 2: a sample name carries no citation",
+    "R15_activity_and_characterization_mixed": "open: descriptor families tagged measured-only vs computable",
+}
+
+
+def test_every_record_kind_probe_has_a_reason():
+    assert {p.stem for p in RECORD_KIND} - {"R00_control_valid"} == set(RIGHT_REASON)
+    assert set(RECORD_KIND_GAPS) <= set(RIGHT_REASON)
+
+
+@pytest.mark.parametrize("path", RECORD_KIND, ids=[p.stem for p in RECORD_KIND])
+def test_record_kind_probes_caught_for_their_own_reason(path):
+    record = json.loads(path.read_text())
+    result = validation.validate_record_full(record)
+    if path.stem == "R00_control_valid":
+        assert result["valid"], f"Control probe must PASS but failed: {result['errors'][:3]}"
+        return
+    code, tier = RIGHT_REASON[path.stem]
+    found = {e.get("code") for e in (result["errors"] if tier == "error" else result.get("warnings") or [])}
+    if path.stem in RECORD_KIND_GAPS:
+        assert code not in found, f"{path.stem} is now caught by {code}: delete its RECORD_KIND_GAPS line"
+        pytest.xfail(f"known gap: {RECORD_KIND_GAPS[path.stem]}")
+    assert code in found, (f"{path.name} must raise {tier} {code}; it raised "
+                           f"{sorted(found) or 'nothing'} (valid={result['valid']})")
+
+
 def test_degraded_flag_surfaces():
     """If a validation layer throws, the result must say so visibly."""
     import ontology

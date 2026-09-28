@@ -230,7 +230,7 @@
       ]
     },
     "context.electrochemistry.cell_type": {
-      "description": "The specific hardware rig body.",
+      "description": "The specific hardware rig body. 'not_reported' when the source does not state the cell; never a guessed cell.",
       "values": [
         "flow_cell",
         "microfluidic_flow_cell",
@@ -241,7 +241,8 @@
         "zero_gap_cell",
         "coin_cell",
         "three_electrode",
-        "scanning_droplet_cell"
+        "scanning_droplet_cell",
+        "not_reported"
       ]
     },
     "context.electrochemistry.pH_basis": {
@@ -384,10 +385,13 @@
         "chronopotentiometry",
         "EIS",
         "linear_sweep_voltammetry",
+        "galvanostatic_cycling",
         "TEM",
         "SEM",
         "AFM",
         "STM",
+        "SECM",
+        "atom_probe_tomography",
         "DFT",
         "ab_initio_MD",
         "classical_MD",
@@ -399,10 +403,15 @@
         "ICP_MS",
         "ICP_OES",
         "NMR",
+        "EPR",
         "mass_spectrometry",
         "FTIR",
         "Raman",
-        "UV_Vis"
+        "UV_Vis",
+        "TGA",
+        "chemisorption",
+        "physisorption",
+        "catalytic_reactor_test"
       ]
     },
     "system.instrument.instrument_type": {
@@ -503,8 +512,9 @@
       ]
     },
     "system.domain_signals": {
-      "description": "Field values that say whether a record is a calculation or a measurement. Every one present in a record must say the same (DOMAIN_INCONSISTENT); a value missing from this table says neither, so a spectroscopy technique can name a measured or a simulated spectrum. A calculation reported in a paper is still a calculation.",
+      "description": "Field values that say whether a record is a calculation or a measurement. Every one present in a record must say the same (DOMAIN_INCONSISTENT); a value missing from this table says neither, so a spectroscopy technique can name a measured or a simulated spectrum. A calculation reported in a paper is still a calculation. An entry 'field=*' is a signal whenever the field is present, whatever its value: a record that declares computation.method is a calculation.",
       "map": {
+        "computation.method=*": "calculation",
         "context.environment=ex_situ": "measurement",
         "context.environment=in_silico": "calculation",
         "context.environment=in_situ": "measurement",

@@ -345,10 +345,13 @@
             "chronopotentiometry",
             "EIS",
             "linear_sweep_voltammetry",
+            "galvanostatic_cycling",
             "TEM",
             "SEM",
             "AFM",
             "STM",
+            "SECM",
+            "atom_probe_tomography",
             "DFT",
             "ab_initio_MD",
             "classical_MD",
@@ -360,10 +363,15 @@
             "ICP_MS",
             "ICP_OES",
             "NMR",
+            "EPR",
             "mass_spectrometry",
             "FTIR",
             "Raman",
-            "UV_Vis"
+            "UV_Vis",
+            "TGA",
+            "chemisorption",
+            "physisorption",
+            "catalytic_reactor_test"
           ],
           "description": "Primary technique or computational method used to produce this record."
         },
@@ -534,7 +542,8 @@
                 "zero_gap_cell",
                 "coin_cell",
                 "three_electrode",
-                "scanning_droplet_cell"
+                "scanning_droplet_cell",
+                "not_reported"
               ]
             },
             "control_mode": {
