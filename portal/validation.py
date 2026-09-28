@@ -515,24 +515,28 @@ def _reaction_checks(record: dict):
 # subfields, raises no false alarm, and the live warning log shows it firing only on real faults.
 # ---------------------------------------------------------------------------
 _COLLECTION_NAME = re.compile(
-    r"\b(?:survey(?:ed)?|review(?:ed)?|meta-?analysis|compilation|literature|studies"
-    r"|benchmarking\s+(?:practice|study|survey|protocol)s?|practices?|sensitivity\s+analysis|range\s+of|various|varied"
-    r"|across\s+(?:\d+|several|multiple|many|different|various|the)"
+    r"\b(?:survey(?:ed)?|review(?:ed)?|meta-?analysis|compilation"
+    r"|literature[\s-](?:survey|cited|values?|data|review|compilation)"
+    r"|benchmarking\s+(?:practice|study|survey|protocol)s?|sensitivity\s+analysis|varied"
+    r"|across\s+(?:\d+|several|multiple|many|different|various)\b"
     r"|across\s+(?:[\w-]+\s+){0,2}(?:conditions|samples|catalysts|materials|loadings|compositions|temperatures"
     r"|potentials|pressures|studies|papers)"
     r"|(?:multiple|several|many|different|various|\d+)\s+(?:catalysts|materials|compositions|studies|papers|systems))\b",
     re.I)
+# Case-sensitive: a surname is a capital and lowercase letters, so "(sample 2047)", "(SRM 1976b)" and
+# "(MaTeck, 2019)" are not citations.
 _NAME_CITATION = re.compile(
-    r"\((?:[A-Z][A-Za-z'\u2019\-]+(?:\s+et\s+al\.?)?,?\s+(?:19|20)\d\d[a-z]?)\)|\bet\s+al\.?,?\s+(?:19|20)\d\d", re.I)
+    r"\([A-Z][a-z]+(?:[-'\u2019][A-Z]?[a-z]+)?(?:\s+et\s+al\.?)?,?\s+(?:19|20)\d\d[a-z]?\)"
+    r"|\bet\s+al\.?,?\s+(?:19|20)\d\d")
+# Only notes that speak of the vocabulary: 'used as a proxy', 'no exact value' and 'submitted as' are
+# ordinary science and curation.
 _SUBSTITUTION = re.compile(
-    r"vocabulary\s+substitution|submitted\s+as\s+['\"\u2018\u2019]|not\s+a\s+value\s+in\s+the\s+.{0,40}vocabulary"
-    r"|closest\s+(?:available|allowed|matching|permitted|valid)\s+(?:term|value|technique|option|token)"
-    r"|(?:used|chosen|recorded|entered|mapped)\s+as\s+(?:a\s+)?(?:proxy|stand-?in|substitute)\b"
-    r"|no\s+(?:matching|appropriate|suitable|exact)\s+(?:term|value|technique|vocabulary|token|option)"
-    r"|not\s+(?:in|part\s+of|available\s+in)\s+the\s+(?:isaac\s+)?(?:closed\s+|controlled\s+)?vocabulary", re.I)
+    r"vocabulary\s+substitution|not\s+a\s+value\s+in\s+the\s+.{0,40}vocabulary"
+    r"|not\s+(?:in|part\s+of|available\s+in)\s+the\s+(?:isaac\s+)?(?:closed\s+|controlled\s+)?vocabulary"
+    r"|closest\s+(?:available|allowed|matching|permitted|valid)\s+(?:vocabulary\s+)?(?:term|token|technique)", re.I)
 _LOWER_WORD = re.compile(r"\b[a-z]{2,}\b")
-_NUMBER_LIST = re.compile(r"-?\d+(?:\.\d+)?\s*%?\s*(?:[,;/]|\bto\b|\u2013|\u2014|-(?=\s*\d))\s*-?\d")
-_FORMULA_TOKEN = re.compile(r"^(?:[A-Z][a-z]?\d*)+(?:plus)?$")
+# A formula, optionally isotope-labelled (13CO), or formula lumps joined by underscores (C2_C4).
+_FORMULA_TOKEN = re.compile(r"^(?:\d{1,3})?(?:[A-Z][a-z]?\d*)+(?:plus)?(?:_(?:[A-Z][a-z]?\d*)+(?:plus)?)*$")
 _SPECIES_CLASSES = set(_vocab_values("Descriptors", "descriptors.catalytic_performance"))
 _PRODUCT_TOKENS = set(_vocab_values("Descriptors", "descriptors.faradaic_efficiency_products"))
 for _agg, _members in _vocab_map("Descriptors", "descriptors.aggregate_descriptors").items():
@@ -540,15 +544,27 @@ for _agg, _members in _vocab_map("Descriptors", "descriptors.aggregate_descripto
 _ONE_RESULT = "What an ISAAC record is: Record-Granularity wiki."
 
 
+def _normalized_doi(value) -> str:
+    v = str(value or "").strip().lower()
+    v = re.sub(r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", "", v)
+    return v.rstrip(".,;)")
+
+
 def _source_citations(record: dict) -> list:
-    """Distinct works cited as the source (relation 'source', or no relation)."""
-    seen = {}
+    """Distinct works cited with relation 'source'. A DOI that extends another cited DOI (a paper's
+    SI, '10.x/abc.s001' under '10.x/abc') is the same work."""
+    keys = []
     for a in _assets(record):
         c = a.get("citation") if isinstance(a.get("citation"), dict) else None
-        if c and c.get("relation") in (None, "", "source"):
-            key = str(c.get("doi") or "").strip().lower() or f"{c.get('title')}|{c.get('year')}" or a.get("uri")
-            seen.setdefault(key, c.get("doi") or c.get("title") or a.get("uri"))
-    return list(seen.values())
+        if not c or c.get("relation") != "source":
+            continue
+        doi = _normalized_doi(c.get("doi"))
+        key = doi or (f"{c.get('title')}|{c.get('year')}" if c.get("title") else str(a.get("uri") or ""))
+        if key and key not in keys:
+            keys.append(key)
+    dois = [k for k in keys if k.startswith("10.")]
+    return [k for k in keys
+            if not any(k != d and k.startswith(d) and k[len(d)] in "./-_" for d in dois)]
 
 
 def _one_result_warnings(record: dict) -> list:
@@ -607,15 +623,17 @@ def _one_result_warnings(record: dict) -> list:
             v = d.get("value")
             if not isinstance(v, str):
                 continue
-            if d.get("kind") in ("absolute", "differential") or _NUMBER_LIST.search(v):
+            if d.get("kind") in ("absolute", "differential"):
                 warnings.append({
                     "code": "NUMBER_AS_TEXT", "path": f"{path}/value",
-                    "message": (f"Descriptor '{dname}' holds text where a number belongs ('{v[:60]}'). A value is "
-                                f"one number with its unit; a label is kind 'categorical'. Several values are a "
-                                f"series (measurement.series) or one value per condition (`at`); the spread of one "
-                                f"value is its uncertainty; a factor relative to another sample ('sixfold') is each "
-                                f"sample's own value, in its own record. {_ONE_RESULT}")})
-            elif len(_LOWER_WORD.findall(v)) >= 4:
+                    "message": (f"Descriptor '{dname}' is kind '{d.get('kind')}' and holds text ('{v[:60]}'). A "
+                                f"value is one number with its unit; a label is kind 'categorical'. Several values "
+                                f"are a series (measurement.series), or separate records when they come from "
+                                f"separate measurements; the spread of one value is its uncertainty; a factor "
+                                f"relative to another sample ('sixfold') is each sample's own value, in its own "
+                                f"record. A value below a detection limit has no number form yet: omit it and say "
+                                f"so in the definition of a related value or in qc.notes. {_ONE_RESULT}")})
+            elif len(_LOWER_WORD.findall(v)) >= 6:
                 warnings.append({
                     "code": "SENTENCE_AS_VALUE", "path": f"{path}/value",
                     "message": (f"Descriptor '{dname}' holds a sentence ('{v[:80]}'). A value is a number with a "
