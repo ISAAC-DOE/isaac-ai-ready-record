@@ -168,3 +168,13 @@ def test_no_prefix_token_can_reject_a_canonical_class():
     clash = [(t, c) for t in validation.NAME_PREFIX_TOKENS for c in validation.CANONICAL_CLASSES
              if c == t or c.startswith(t + "_")]
     assert not clash, clash
+
+
+def test_the_same_quantity_at_another_condition_is_not_a_duplicate():
+    r = _with(ORR, name="overpotential", value=0.36, unit="V", at={"current_density_mA_cm2": -3.0})
+    r["descriptors"]["outputs"][0]["descriptors"].append(
+        {"name": "overpotential", "kind": "absolute", "source": "manual", "value": 0.41, "unit": "V",
+         "uncertainty": {"sigma": None, "basis": "not_reported"}, "at": {"current_density_mA_cm2": -10.0}})
+    assert not _errors(r, "DUPLICATE_DESCRIPTOR_NAME")
+    r["descriptors"]["outputs"][0]["descriptors"][-1]["at"] = {"current_density_mA_cm2": -3.0}
+    assert _errors(r, "DUPLICATE_DESCRIPTOR_NAME")

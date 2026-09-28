@@ -333,14 +333,16 @@ def _descriptor_name_errors(record: dict) -> list:
             stem = name.split(".")[0]
             low = stem.lower()
 
-            if name in seen:
+            # The same quantity at another condition is a second value, told apart by its `at`.
+            key = (name, json.dumps(d.get("at") or {}, sort_keys=True))
+            if key in seen:
                 errors.append({
                     "code": "DUPLICATE_DESCRIPTOR_NAME", "path": f"{path}/name",
                     "message": (f"Descriptor '{name}' appears twice in output block {oi} (positions "
-                                f"{seen[name]} and {di}). One name, one value per block: a second value of "
-                                f"the same quantity is a different condition (state it in `at`) or a "
-                                f"different record, never a duplicate.")})
-            seen.setdefault(name, di)
+                                f"{seen[key]} and {di}) with the same `at`. One name, one value per condition: "
+                                f"a second value of the same quantity is a different condition (state it in "
+                                f"`at`) or a different record, never a duplicate.")})
+            seen.setdefault(key, di)
 
             alias = CLASS_ALIASES.get(name) or CLASS_ALIASES.get(stem)
             if alias:
