@@ -67,6 +67,7 @@ REGISTRY = {
     "VOCABULARY_SUBSTITUTION": ("warning", "A curator-written field says a vocabulary term was substituted ('submitted as', 'closest available term', 'not in the vocabulary'). A substituted term is a wrong term; use the exact term or propose it, and a value with no measurement or calculation behind it is not a record."),
     "AT_READOUT_WITHOUT_SWEEP": ("error", "A read-out key (at.current_density_mA_cm2, at.current_density_ECSA_mA_cm2, at.potential_V_RHE) is used on a record that is not a sweep. Read-out keys locate a value on a potentiodynamic sweep; a record held at one potential or current states it in context.electrochemistry."),
     # --- warnings (accepted, but improvable) ---
+    "COMPUTATION_ON_MEASUREMENT": ("warning", "A record whose fields say measurement declares computation.method. A method that analysed the measurement (an EXAFS fit, a Rietveld refinement) belongs in measurement.processing; a method that computed a result of its own makes that result a separate calculation record."),
     "MISSING_PH": ("warning", "Performance record has no pH/pH_basis — needed for RHE conversion and cross-record comparison."),
     "MISSING_ELECTRODE_TYPE": ("warning", "sample.electrode_type is unset (GDE, thin_film, MEA, ...)."),
     "IMPLAUSIBLE_CURRENT_DENSITY": ("warning", "A current density exceeds ~10 A/cm2 — almost always a unit/area-normalization bug."),

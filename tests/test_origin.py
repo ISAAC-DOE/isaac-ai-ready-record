@@ -94,17 +94,30 @@ def test_an_in_silico_environment_on_a_measurement_is_rejected():
     assert _errors(r, "DOMAIN_INCONSISTENT")
 
 
-def test_a_declared_method_on_a_measurement_is_rejected():
-    """A calculation whose technique, domain, environment, sample form and provenance all say
-    measurement is still a calculation when it declares computation.method."""
+def _warned(record, code):
+    return [w for w in validation.validate_record_full(record).get("warnings") or [] if w.get("code") == code]
+
+
+def test_a_declared_method_on_a_measurement_warns_and_does_not_block():
+    """A method on a measurement is either the analysis of that measurement (a FEFF fit) or a
+    computed result of its own; only the record can say which, so it teaches and does not block."""
     r = copy.deepcopy(CO2RR)
     r["computation"] = {"method": {"family": "DFT", "functional_name": "PBE", "code": "VASP"}}
-    errs = _errors(r, "DOMAIN_INCONSISTENT")
-    assert errs and "computation.method (declared)" in errs[0]["message"]
+    assert _warned(r, "COMPUTATION_ON_MEASUREMENT")
+    assert not _errors(r, "DOMAIN_INCONSISTENT")
+    assert validation.validate_record_full(r)["valid"]
+
+
+def test_a_fit_declared_as_a_method_on_a_spectrum_is_accepted():
+    xanes = json.loads((REPO / "examples" / "ex_situ_xanes_cuo2_record.json").read_text())
+    xanes["computation"] = {"method": {"code": "FEFF", "code_version": "10"}}
+    assert validation.validate_record_full(xanes)["valid"]
+    assert _warned(xanes, "COMPUTATION_ON_MEASUREMENT")
 
 
 def test_a_declared_method_on_a_calculation_is_consistent():
-    assert not _errors(_literature_calculation(), "DOMAIN_INCONSISTENT")
+    r = _literature_calculation()
+    assert not _errors(r, "DOMAIN_INCONSISTENT") and not _warned(r, "COMPUTATION_ON_MEASUREMENT")
 
 
 def test_a_simulated_spectrum_may_name_the_spectroscopy():
