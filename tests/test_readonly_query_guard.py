@@ -33,6 +33,8 @@ def test_agent_mode_blocks_sensitive_tables(sql):
 @pytest.mark.parametrize("sql", [
     "SELECT term FROM vocabulary_cache LIMIT 1",
     "SELECT * FROM templates LIMIT 1",
+    "SELECT record_id FROM record_keys WHERE 'doi:10.1038/x' = ANY(study)",   # derived from records
+    "SELECT source_id FROM record_links WHERE rel = 'same_sample_as'",
 ])
 def test_agent_mode_allows_non_sensitive_tables(sql):
     with pytest.raises(Exception) as ei:
