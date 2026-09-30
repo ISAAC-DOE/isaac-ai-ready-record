@@ -910,6 +910,29 @@ def _calculation_votes(record: dict):
     return calc, meas
 
 
+# Classes stored as a non-negative magnitude (vocabulary data). On 2026-09-30 agents building
+# records from one HER paper stored its 38 mV overpotential as +0.038 V and as -0.038 V; nothing said
+# which, and no stored record had a negative value of these classes.
+MAGNITUDE_CLASSES = set(_vocab_values("Descriptors", "descriptors.magnitude_classes"))
+
+
+def _magnitude_warnings(record: dict) -> list:
+    """A negative value of a class stored as a magnitude (descriptors.magnitude_classes)."""
+    out = []
+    for oi, o in enumerate((record.get("descriptors") or {}).get("outputs") or []):
+        for di, d in enumerate(o.get("descriptors") or [] if isinstance(o, dict) else []):
+            if not isinstance(d, dict):
+                continue
+            v, stem = d.get("value"), str(d.get("name") or "").split(".")[0]
+            if stem in MAGNITUDE_CLASSES and isinstance(v, (int, float)) and not isinstance(v, bool) and v < 0:
+                out.append({
+                    "code": "NEGATIVE_MAGNITUDE", "path": f"descriptors/outputs/{oi}/descriptors/{di}/value",
+                    "message": (f"Descriptor '{d.get('name')}' is {v}, and class '{stem}' is stored as a non-negative "
+                                f"magnitude (descriptors.magnitude_classes). The direction is carried by the reaction "
+                                f"and by the sign of the current density at which the value is read: store {abs(v)}.")})
+    return out
+
+
 def _producer_warnings(record: dict) -> list:
     """A placeholder producer outside the literature: accepted, and asked to name the producer if known."""
     if record.get("record_type") != "evidence" or record.get("source_type") == "literature":
@@ -1651,7 +1674,8 @@ def validate_record_full(record: dict) -> dict:
     cell_errors, cell_warnings = _cell_and_potential_checks(record)
     adr_errors = adr_errors + rx_errors + cell_errors
     warnings = (warnings + adr_warnings + rx_warnings + cell_warnings + _one_result_warnings(record)
-                + _computation_role_warnings(record) + _producer_warnings(record))
+                + _computation_role_warnings(record) + _producer_warnings(record)
+                + _magnitude_warnings(record))
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)

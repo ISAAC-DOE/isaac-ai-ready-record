@@ -82,6 +82,7 @@
         "nanoparticle",
         "foil",
         "mesh",
+        "foam",
         "RDE",
         "RRDE",
         "pellet",
@@ -1087,6 +1088,17 @@
           "K"
         ]
       }
+    },
+    "descriptors.magnitude_classes": {
+      "description": "Descriptor classes stored as a non-negative magnitude. Some are positive by definition (an area, a turnover rate, an exchange current density). For the others the literature uses both signs, and ISAAC stores the magnitude: the direction is carried by the reaction and by the sign of the current density at which the value is read (ADR-001). An HER overpotential of 38 mV at -10 mA/cm2 is overpotential = 0.038 V with at.current_density_mA_cm2 = -10; a cathodic Tafel slope of -120 mV/dec is tafel_slope = 120 mV/dec. A negative value draws NEGATIVE_MAGNITUDE.",
+      "values": [
+        "overpotential",
+        "tafel_slope",
+        "ecsa",
+        "roughness_factor",
+        "turnover_frequency",
+        "exchange_current_density"
+      ]
     },
     "descriptors.name_prefix_tokens": {
       "description": "Reaction, technique and method tokens that must not begin a descriptor name (PREFIX_IN_DESCRIPTOR_NAME). The reaction is stated in context, the technique in system.technique and experimental vs computational in system.domain, so the name carries only the quantity: half_wave_potential, not orr_half_wave_potential; edge_position, not xanes.edge_position; adsorption_energy.O2, not dft_o2_adsorption_energy. Organization namespaces (lbnl.xps.elements_detected) are not affected.",

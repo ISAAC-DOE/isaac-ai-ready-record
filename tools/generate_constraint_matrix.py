@@ -58,6 +58,7 @@ CODE_SCOPE = {
     "CITATION_RELATION_UNDECLARED": "all records",
     "DATABASE_ENTRY_MISSING": "all records",
     "CODE_OUTSIDE_METHOD": "computation",
+    "NEGATIVE_MAGNITUDE": "all records",
     "PRODUCED_BY_UNNAMED": "all records",
     "COMPUTATION_ON_MEASUREMENT": "all records",
     "SAMPLE_NOT_ONE_MATERIAL": "all records",
