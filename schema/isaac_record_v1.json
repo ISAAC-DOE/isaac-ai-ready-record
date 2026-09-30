@@ -473,7 +473,20 @@
           ]
         },
         "temperature_K": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Temperature of the sample during the measurement or calculation, in K. null only when the source does not state it, with temperature_basis 'not_reported'; never a default."
+        },
+        "temperature_basis": {
+          "type": "string",
+          "enum": [
+            "stated",
+            "room_temperature",
+            "not_reported"
+          ],
+          "description": "Where temperature_K comes from: 'stated' (the source or instrument gives the number), 'room_temperature' (the source says room temperature without a number: 298.15 K), 'not_reported' (the source does not say: temperature_K is null)."
         },
         "reaction": {
           "type": "object",
@@ -1114,7 +1127,50 @@
           }
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "temperature_K": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "temperature_K"
+            ]
+          },
+          "then": {
+            "properties": {
+              "temperature_basis": {
+                "const": "not_reported"
+              }
+            },
+            "required": [
+              "temperature_basis"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "temperature_basis": {
+                "const": "not_reported"
+              }
+            },
+            "required": [
+              "temperature_basis"
+            ]
+          },
+          "then": {
+            "properties": {
+              "temperature_K": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
     },
     "measurement": {
       "type": "object",

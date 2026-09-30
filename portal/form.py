@@ -821,6 +821,12 @@ def build_record(**kwargs) -> dict:
         for cat_key, value in extras.items():
             _set_nested(record, cat_key, value)
 
+    # A temperature the source does not state is null with temperature_basis 'not_reported'
+    # (the schema requires the key; the form leaves it out when the box is empty).
+    ctx = record.get('context')
+    if isinstance(ctx, dict) and ctx.get('temperature_basis') == 'not_reported':
+        ctx.setdefault('temperature_K', None)
+
     return record
 
 
