@@ -452,6 +452,80 @@ def record_contract():
     return jsonify(contract), 200
 
 
+# --- Vocabulary proposals ---------------------------------------------------
+# An agent that meets a missing term needs an honest path that does not go through a person
+# clicking in the portal: the September records carried 124 notes admitting a substituted term.
+# A proposal is reviewed by an admin (portal, Vocabulary Proposal Review) before it becomes
+# vocabulary; nothing here changes the vocabulary.
+
+_MAX_PENDING_PROPOSALS = 50
+
+
+@app.route("/portal/api/vocabulary/proposals", methods=["POST"])
+@_require_auth
+def vocabulary_propose():
+    """Propose a term for an existing vocabulary category: {section, category, term, description}."""
+    body = request.get_json(silent=True) or {}
+    section, category = str(body.get("section") or "").strip(), str(body.get("category") or "").strip()
+    term, description = str(body.get("term") or "").strip(), str(body.get("description") or "").strip()
+    vocab = ontology.load_vocabulary() or {}
+    cat = (vocab.get(section) or {}).get(category)
+    if not isinstance(cat, dict) or not cat.get("values"):
+        return jsonify({"success": False, "reason": "unknown_category",
+                        "message": (f"'{category}' is not a term list in section '{section}'. GET /portal/api/contract "
+                                    f"links the vocabulary; a new category is proposed in the portal's Ontology Editor.")}), 400
+    if not term or len(term) > 80 or any(c.isspace() for c in term):
+        return jsonify({"success": False, "reason": "invalid_term",
+                        "message": "A term is one token of at most 80 characters, without spaces (e.g. catalytic_reactor_test)."}), 400
+    if len(description) < 20:
+        return jsonify({"success": False, "reason": "description_required",
+                        "message": "Say what the term means and where it is used, in a sentence or more; the reviewer "
+                                   "writes the wiki definition from it."}), 400
+    if term in (cat.get("values") or []):
+        return jsonify({"success": False, "reason": "term_exists",
+                        "message": f"'{term}' is already in {category}; use it."}), 409
+    caller = (request.auth_info or {}).get("user") or "anonymous"
+    try:
+        mine = database.list_proposals(proposed_by=caller)
+    except Exception:
+        logger.exception("vocabulary proposal: listing failed")
+        return jsonify({"error": "internal server error"}), 500
+    for p in mine:
+        if (p.get("status") == "pending" and p.get("section") == section and p.get("category") == category
+                and p.get("term") == term):
+            return jsonify({"success": True, "proposal_id": p.get("id"), "status": "pending",
+                            "message": "You already proposed this term; it is waiting for review."}), 200
+    if sum(1 for p in mine if p.get("status") == "pending") >= _MAX_PENDING_PROPOSALS:
+        return jsonify({"success": False, "reason": "too_many_pending",
+                        "message": f"You have {_MAX_PENDING_PROPOSALS} proposals waiting for review; "
+                                   f"wait for decisions before proposing more."}), 429
+    try:
+        pid = database.create_proposal(proposal_type="add_term", section=section, category=category, term=term,
+                                       description=description, proposed_by=caller)
+    except Exception:
+        logger.exception("vocabulary proposal: create failed")
+        return jsonify({"error": "internal server error"}), 500
+    return jsonify({"success": True, "proposal_id": pid, "status": "pending",
+                    "message": ("Submitted for review. Store the record once the term is in the vocabulary; "
+                                "GET /portal/api/vocabulary/proposals shows the decision.")}), 201
+
+
+@app.route("/portal/api/vocabulary/proposals", methods=["GET"])
+@_require_auth
+def vocabulary_proposals_mine():
+    """The caller's own proposals and their review status."""
+    caller = (request.auth_info or {}).get("user") or "anonymous"
+    try:
+        rows = database.list_proposals(proposed_by=caller)
+    except Exception:
+        logger.exception("vocabulary proposal: listing failed")
+        return jsonify({"error": "internal server error"}), 500
+    keep = ("id", "proposal_type", "section", "category", "term", "description", "status", "proposed_at",
+            "reviewed_at", "review_comment")
+    return jsonify({"proposals": [{k: (str(p[k]) if k.endswith("_at") and p.get(k) else p.get(k)) for k in keep if k in p}
+                                  for p in rows]}), 200
+
+
 @app.route("/portal/api/validate", methods=["POST"])
 @_require_auth
 def validate():
