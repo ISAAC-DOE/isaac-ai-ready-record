@@ -69,6 +69,7 @@ REGISTRY = {
     # --- warnings (accepted, but improvable) ---
     "COMPUTATION_ON_MEASUREMENT": ("warning", "A record whose fields say measurement declares computation.method. A method that analysed the measurement (an EXAFS fit, a Rietveld refinement) belongs in measurement.processing; a method that computed a result of its own makes that result a separate calculation record."),
     "PRODUCED_BY_UNNAMED": ("warning", "A record that is not from the literature names a placeholder producer group ('not_reported', 'unknown'). Accepted: some producers cannot be named (anonymized or industrial data), and the discovery engine reads the placeholder as absent. Name the group or organization when it is known."),
+    "NEGATIVE_MAGNITUDE": ("warning", "A descriptor of a class stored as a non-negative magnitude (descriptors.magnitude_classes: overpotential, Tafel slope, ECSA, roughness factor, turnover frequency, exchange current density) has a negative value. The direction is carried by the reaction and by the sign of the current density at which the value is read."),
     "MISSING_PH": ("warning", "Performance record has no pH/pH_basis — needed for RHE conversion and cross-record comparison."),
     "MISSING_ELECTRODE_TYPE": ("warning", "sample.electrode_type is unset (GDE, thin_film, MEA, ...)."),
     "IMPLAUSIBLE_CURRENT_DENSITY": ("warning", "A current density exceeds ~10 A/cm2 — almost always a unit/area-normalization bug."),
