@@ -396,6 +396,62 @@ def get_ontology():
 
 # --- Validate (dry-run, no DB write) --------------------------------------
 
+# --- The record contract ----------------------------------------------------
+# What an ISAAC record is, as data: the definition, the procedure for deciding what goes in one
+# record, what is never a record (with the codes that flag each case, and their tier today), how
+# to submit, and worked examples. The wiki page Record-Granularity is rendered from the same file
+# (tools/generate_record_contract.py), so an agent that only talks to the API reads the same rules.
+
+_CONTRACT_PATH = Path(__file__).resolve().parent.parent / "data" / "record_contract.json"
+_CONTRACT_WIKI = "https://github.com/ISAAC-DOE/isaac-ai-ready-record/wiki/Record-Granularity"
+_RULES_WIKI = "https://github.com/ISAAC-DOE/isaac-ai-ready-record/wiki/Validation-Rules"
+_EXAMPLE_BLOB = "https://github.com/ISAAC-DOE/isaac-ai-ready-record/blob/main/"
+
+
+@functools.lru_cache(maxsize=1)
+def _code_tiers() -> dict:
+    """{code: tier} from the validation registry; empty if the tools are not shipped. Read once:
+    the registry changes only with a deploy."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "generate_validation_docs", Path(__file__).resolve().parent.parent / "tools" / "generate_validation_docs.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return {code: tier for code, (tier, _) in mod.REGISTRY.items()}
+    except Exception:
+        logger.exception("record contract: validation registry unavailable")
+        return {}
+
+
+@functools.lru_cache(maxsize=1)
+def _contract_version():
+    try:
+        return json.loads(_CONTRACT_PATH.read_text()).get("version")
+    except Exception:
+        return None
+
+
+def _contract_pointer() -> dict:
+    version = _contract_version()
+    return {"version": version, "url": "/portal/api/contract", "wiki": _CONTRACT_WIKI,
+            "read": "Fix every error; read every warning. Each names its fix."}
+
+
+@app.route("/portal/api/contract", methods=["GET"])
+def record_contract():
+    """What an ISAAC record is. Public, like the wiki it mirrors: an agent can read it before it holds a token."""
+    contract = json.loads(_CONTRACT_PATH.read_text())
+    tiers = _code_tiers()
+    for row in contract.get("never_a_record") or []:
+        row["flagged_as"] = [{"code": c, "tier": tiers.get(c)} for c in row.get("codes") or []]
+    for ex in contract.get("examples") or []:
+        ex["urls"] = [_EXAMPLE_BLOB + f for f in ex.get("files") or []]
+    contract["wiki"] = _CONTRACT_WIKI
+    contract["validation_rules"] = _RULES_WIKI
+    return jsonify(contract), 200
+
+
 @app.route("/portal/api/validate", methods=["POST"])
 @_require_auth
 def validate():
@@ -411,8 +467,10 @@ def validate():
             "errors": [{"path": "(root)", "message": "Request body is not valid JSON"}],
         }), 400
 
-    # One call to the shared validation module — identical result shape.
-    return jsonify(validation.validate_record_full(data)), 200
+    # One call to the shared validation module — identical result shape, plus where the rules live.
+    result = validation.validate_record_full(data)
+    result["contract"] = _contract_pointer()
+    return jsonify(result), 200
 
 
 # --- Create record ---------------------------------------------------------
@@ -442,6 +500,7 @@ def create_record():
             "vocabulary_errors": result["vocabulary_errors"],
             "semantic_errors": result["semantic_errors"],
             "errors": result["errors"],
+            "contract": _contract_pointer(),
         }), 400
 
     # Persist via shared database module (save_record re-validates
@@ -475,6 +534,7 @@ def create_record():
             resp["warnings"] = result["warnings"]
         if result.get("info"):
             resp["info"] = result["info"]
+        resp["contract"] = _contract_pointer()
         return jsonify(resp), 201
     except database.RecordExistsError:
         return jsonify({

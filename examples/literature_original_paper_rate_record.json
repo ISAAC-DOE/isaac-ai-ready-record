@@ -1,0 +1,120 @@
+{
+ "isaac_record_version": "1.05",
+ "record_id": "01M3250V009XXBSPV775XG3DNE",
+ "record_type": "evidence",
+ "record_domain": "performance",
+ "source_type": "literature",
+ "timestamps": {
+  "created_utc": "2026-09-30T12:00:00Z"
+ },
+ "sample": {
+  "sample_id": "example-original-paper/Ni-SBA15-MgO3",
+  "material": {
+   "name": "Ni/SBA-15 promoted with 3 wt% MgO",
+   "formula": "Ni-MgO/SiO2",
+   "provenance": "synthesized",
+   "notes": "Example record. The curator first read this result in a review; the values, sample and conditions come from the original paper that measured them."
+  },
+  "sample_form": "powder"
+ },
+ "context": {
+  "environment": "in_situ",
+  "temperature_K": 1023.15,
+  "thermodynamics": {
+   "pressure_Pa": 101325
+  },
+  "reaction": {
+   "name": "methane_dry_reforming",
+   "drive": "thermal",
+   "catalysis": "heterogeneous",
+   "equation": "CH4 + CO2 -> 2 CO + 2 H2"
+  }
+ },
+ "system": {
+  "domain": "experimental",
+  "technique": "catalytic_reactor_test"
+ },
+ "descriptors": {
+  "outputs": [
+   {
+    "label": "Dry reforming of methane at 750 C, CH4:CO2 = 1:1 (Table 2 of the original paper)",
+    "generated_utc": "2026-09-30T12:00:00Z",
+    "generated_by": {
+     "agent": "curator"
+    },
+    "descriptors": [
+     {
+      "name": "conversion.CH4",
+      "kind": "absolute",
+      "source": "imported",
+      "value": 0.85,
+      "unit": "fraction",
+      "uncertainty": {
+       "sigma": null,
+       "basis": "not_reported"
+      },
+      "definition": "CH4 conversion at 750 C and atmospheric pressure, CH4:CO2 = 1:1, as reported in Table 2 of the original paper."
+     },
+     {
+      "name": "conversion.CO2",
+      "kind": "absolute",
+      "source": "imported",
+      "value": 0.9,
+      "unit": "fraction",
+      "uncertainty": {
+       "sigma": null,
+       "basis": "not_reported"
+      },
+      "definition": "CO2 conversion in the same test."
+     }
+    ]
+   }
+  ]
+ },
+ "assets": [
+  {
+   "asset_id": "cite_example-original-dry-reforming-paper",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.0000/example-original-dry-reforming-paper",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.0000/example-original-dry-reforming-paper",
+    "title": "Example original paper: MgO-promoted Ni/SBA-15 for dry reforming of methane",
+    "year": 2021,
+    "relation": "source"
+   }
+  },
+  {
+   "asset_id": "cite_example-dry-reforming-review",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.0000/example-dry-reforming-review",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.0000/example-dry-reforming-review",
+    "title": "Example review of Ni catalysts for dry reforming",
+    "year": 2021,
+    "relation": "reference"
+   },
+   "notes": "The review in which the curator first found this result. It reports the value second-hand, so it is cited as a reference and the record is built from the original paper."
+  }
+ ],
+ "attribution": {
+  "produced_by": {
+   "group": "Example original-paper group"
+  },
+  "contributors": [
+   {
+    "name": "Example corresponding author of the original paper",
+    "role": "data_owner"
+   },
+   {
+    "name": "Example curator",
+    "role": "curated_record",
+    "notes": "Built this record from the paper; the curator is not the producer."
+   }
+  ]
+ },
+ "tags": [
+  "example"
+ ]
+}

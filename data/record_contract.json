@@ -1,0 +1,171 @@
+{
+  "title": "What an ISAAC record is",
+  "version": "2026-09-30",
+  "purpose": "The contract every person and agent follows to build ISAAC records. Served at GET /portal/api/contract and rendered on the Record-Granularity wiki page from this one file.",
+  "definition": "One record holds one result: one sample or one model, one measurement or one calculation, one set of conditions, the values that measurement or calculation produced, and the one work they come from. Several values from the same measurement stay together: three Faradaic efficiencies from one GC injection are one record, and a spectrum or a time series is a measurement.series inside one record.",
+  "kinds": [
+    {
+      "kind": "A catalytic activity, measured",
+      "record_domain": "performance",
+      "example": "Faradaic efficiencies of a Cu electrode at -1.0 V vs RHE in a flow cell; the NH3 formation rate of a Ru catalyst at 673 K and 1 MPa"
+    },
+    {
+      "kind": "A structure or state, measured",
+      "record_domain": "characterization",
+      "example": "The Cu K-edge XANES of the as-prepared catalyst; its XRD lattice parameter"
+    },
+    {
+      "kind": "A calculation",
+      "record_domain": "simulation",
+      "example": "The CO adsorption energy on Cu(100) with PBE; a simulated XANES spectrum"
+    }
+  ],
+  "procedure": [
+    "For each value you want to store, answer four questions: which work measured or computed it; on which sample or model; by which technique; under which conditions.",
+    "The work that measured or computed a value is its source. If the document in front of you reports a value from other work (a review, a benchmark table, an introduction), open that work and build the record from it. Cite the document you started from with relation 'reference'.",
+    "Values with the same four answers go in one record. A different answer to any of the four starts a new record.",
+    "A measured value and a computed value are two records, even when one paper reports both. Link them with intended_comparison_target when one bears on the other.",
+    "A comparison between samples is one record per sample, each with its own absolute value, linked with intended_comparison_target. A factor, a ratio against another sample, or a sentence is never the value.",
+    "A statement without a value of its own (a trend, a mechanism, a conclusion) is not an evidence record. Store the values it rests on.",
+    "State each condition as the source states it. A condition the source does not give is not_reported where the vocabulary offers it, and is never filled with a default.",
+    "If the vocabulary lacks the right term, do not substitute a nearby one. Propose the term (portal, Ontology Editor, 'Propose a Change') and store the record once the term exists."
+  ],
+  "never_a_record_note": "Each of these has reached the repository, and each loses what a reader needs to use the number. An error blocks the upload; a warning is accepted and names the fix. Most of these checks read words and strings, so they warn: a legitimate record can look like one of these patterns (a particle size range, a facet label, a paper cited with its SI).",
+  "never_a_record": [
+    {
+      "stored_as": "A whole paper in one record",
+      "why": "Several catalysts at several conditions in one record cannot be queried",
+      "isaac_form": "One record per sample, measurement and condition",
+      "codes": [
+        "DUPLICATE_DESCRIPTOR_NAME",
+        "QUALIFIER_NOT_A_PRODUCT"
+      ]
+    },
+    {
+      "stored_as": "A survey, review or benchmark across studies",
+      "why": "No sample, no condition and no single measurement stand behind the number",
+      "isaac_form": "One record per original result, built from the original paper",
+      "codes": [
+        "SAMPLE_NOT_ONE_MATERIAL",
+        "MULTIPLE_SOURCES"
+      ]
+    },
+    {
+      "stored_as": "A value the source quotes from another paper",
+      "why": "The measurement belongs to the other paper",
+      "isaac_form": "A record of the other paper, built from that paper",
+      "codes": [
+        "SAMPLE_NAME_CITES_A_PAPER"
+      ]
+    },
+    {
+      "stored_as": "A conclusion or a mechanism",
+      "why": "A claim interprets results",
+      "isaac_form": "No record; store the measurements it rests on",
+      "codes": [
+        "SENTENCE_AS_VALUE"
+      ]
+    },
+    {
+      "stored_as": "A series, a range or a factor written as text ('4.06, 8.03, 9.24'; 'sixfold')",
+      "why": "A string cannot be compared, filtered or plotted",
+      "isaac_form": "measurement.series, separate records, or each sample's own value",
+      "codes": [
+        "NUMBER_AS_TEXT"
+      ]
+    },
+    {
+      "stored_as": "A comparison with another sample stored as a value",
+      "why": "The number means nothing without the other sample's own value",
+      "isaac_form": "One record per sample, linked with intended_comparison_target",
+      "codes": []
+    },
+    {
+      "stored_as": "An activity, a characterization and a calculation in one record",
+      "why": "Three kinds of result share one set of fields",
+      "isaac_form": "Three records, linked",
+      "codes": []
+    },
+    {
+      "stored_as": "A reactor or cell test stored as ex_situ",
+      "why": "Performance is measured while the reaction runs",
+      "isaac_form": "context.environment in_situ or operando; a measurement outside the reaction is a characterization record",
+      "codes": [
+        "PERFORMANCE_EX_SITU"
+      ]
+    },
+    {
+      "stored_as": "A calculation filed as a measurement",
+      "why": "A computed number would be compared as if it were measured",
+      "isaac_form": "system.domain computational, a model sample, computation.method",
+      "codes": [
+        "DOMAIN_INCONSISTENT",
+        "COMPUTATION_ON_MEASUREMENT"
+      ]
+    },
+    {
+      "stored_as": "'The authors' or 'unknown' as the producer",
+      "why": "It names no one, and the independence of two results is judged by who produced them",
+      "isaac_form": "The group as printed in the source: the PI's name plus 'group'. Outside the literature, a producer that truly cannot be named (anonymized or industrial data) is not_reported",
+      "codes": [
+        "PRODUCED_BY_MISSING",
+        "PRODUCED_BY_UNNAMED"
+      ]
+    },
+    {
+      "stored_as": "A vocabulary term known to be wrong",
+      "why": "Every query on that field returns a false match",
+      "isaac_form": "Propose the right term and store the record once it exists",
+      "codes": [
+        "VOCABULARY_SUBSTITUTION"
+      ]
+    }
+  ],
+  "submission": [
+    "Validate every record with POST /portal/api/validate before submitting it.",
+    "Fix every error. Errors block the upload, and each one names its fix.",
+    "Read every warning. A warning is accepted, and it flags a pattern on this page: fix the record, or keep it as it is only when you have checked that the warning does not apply.",
+    "Submit with POST /portal/api/records and read the whole response. A 201 can carry warnings.",
+    "Check GET /portal/api/records/attention from time to time. It lists your stored records that no longer meet the current rules, each with its fix."
+  ],
+  "examples": [
+    {
+      "case": "A laboratory measurement of catalytic activity",
+      "files": [
+        "examples/co2rr_performance_record.json"
+      ]
+    },
+    {
+      "case": "An ex situ spectrum of a material",
+      "files": [
+        "examples/ex_situ_xanes_cuo2_record.json"
+      ]
+    },
+    {
+      "case": "A calculation",
+      "files": [
+        "examples/dft_neb_evidence_record.json"
+      ]
+    },
+    {
+      "case": "A value first read in a review, recorded from the original paper that measured it",
+      "files": [
+        "examples/literature_original_paper_rate_record.json"
+      ]
+    },
+    {
+      "case": "One paper, two catalysts: one record each, linked as a comparison",
+      "files": [
+        "examples/literature_paper_catalyst_a_record.json",
+        "examples/literature_paper_catalyst_b_record.json"
+      ]
+    },
+    {
+      "case": "One paper, a measurement and a calculation: two records, linked",
+      "files": [
+        "examples/literature_paper_catalyst_a_record.json",
+        "examples/literature_paper_calculation_record.json"
+      ]
+    }
+  ]
+}

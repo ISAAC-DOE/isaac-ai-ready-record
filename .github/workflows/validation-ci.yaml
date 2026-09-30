@@ -52,8 +52,10 @@ jobs:
           m=$?
           python3 tools/check_wiki_structure.py --check /tmp/wiki
           w=$?
+          python3 tools/generate_record_contract.py --check /tmp/wiki
+          c=$?
           set -e
-          if [ $d -ne 0 ] || [ $v -ne 0 ] || [ $r -ne 0 ] || [ $m -ne 0 ] || [ $w -ne 0 ]; then
+          if [ $d -ne 0 ] || [ $v -ne 0 ] || [ $r -ne 0 ] || [ $m -ne 0 ] || [ $w -ne 0 ] || [ $c -ne 0 ]; then
             if [ "${{ github.ref }}" = "refs/heads/main" ]; then
               echo "::error::Wiki generated sections are stale on main — run the generators and push the wiki."
               exit 1
