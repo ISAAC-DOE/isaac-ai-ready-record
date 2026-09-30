@@ -21,7 +21,8 @@ import re
 from pathlib import Path
 
 # Bump when a derivation rule changes: the startup backfill re-derives every record whose keys are older.
-KEYS_VERSION = 1
+# 2: a sample_id that is not globally unique is scoped by its organization (else its lab).
+KEYS_VERSION = 2
 VOCAB_PATH = Path(__file__).resolve().parent.parent / "data" / "vocabulary.json"
 
 # Cluster dimensions, and the record_keys column each one reads.
@@ -38,6 +39,10 @@ _PLACEHOLDER_TEXT = re.compile(r"\b(?:not (?:specified|reported|stated|given|ava
 _AUTHORS_AS_GROUP = re.compile(
     r"^(?:the )?(?:(?:paper|publication|study|source|article)['’]?s? |original )?authors?"
     r"(?: of the (?:paper|publication|study|source|article))?$")
+# A sample_id unique beyond any one lab by its form: a UUID, an IGSN, a DOI, a URN, ARK or URL.
+_GLOBAL_SAMPLE_ID = re.compile(
+    r"^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    r"|(?:igsn:|urn:|ark:|doi:|https?://|10\.\d{4,9}/)\S+)$", re.I)
 # A density-functional result is only comparable to another at the same functional.
 _FUNCTIONAL_DEFINED = frozenset({"dft", "dft_u", "hybrid_dft", "aimd"})
 
@@ -119,9 +124,18 @@ def study_keys(record: dict) -> list:
     return sorted(keys)
 
 
-def sample_key(record: dict) -> str:
-    sid = key_text(_dig(record, "sample", "sample_id"))
-    return f"sample:{sid}" if sid else None
+def sample_key(record: dict, scope: str = None) -> str:
+    """The physical object a record measured. A globally unique sample_id keys it as written. A
+    local one ('S1', 'cat-A') is scoped by the record's organization (else its lab), because two
+    labs writing 'S1' mean two objects; without either, it keys nothing. One lab's object measured
+    at another lab joins by a same_sample_as link or a globally unique id."""
+    raw = str(_dig(record, "sample", "sample_id") or "").strip()
+    sid = key_text(raw)
+    if not sid:
+        return None
+    if _GLOBAL_SAMPLE_ID.match(raw):
+        return f"sample:{sid}"
+    return f"sample:{scope}/{sid}" if scope else None
 
 
 def lab_key(record: dict, placeholders=()) -> str:
@@ -176,11 +190,13 @@ def derive_keys(record: dict, vocab: dict = None) -> dict:
     aliases, registry, placeholders = _vocab_lists(vocabulary() if vocab is None else vocab)
     org = (_dig(record, "attribution", "produced_by", "organization")
            or _dig(record, "system", "facility", "organization"))
+    organization = organization_key(org, aliases, registry, placeholders)
+    lab = lab_key(record, placeholders)
     return {
         "study": study_keys(record),
-        "sample_id": sample_key(record),
-        "lab": lab_key(record, placeholders),
-        "organization": organization_key(org, aliases, registry, placeholders),
+        "sample_id": sample_key(record, organization or lab),
+        "lab": lab,
+        "organization": organization,
         "setup": setup_key(record, placeholders),
         "method": method_key(record, placeholders),
     }
@@ -219,10 +235,16 @@ def key_from_param(dimension: str, value, vocab: dict = None):
             return f"work:{key_text(rest)}" if key_text(rest) else None
         doi = normalize_doi(value)
         return f"doi:{doi}" if doi else None
-    if dimension in ("sample", "lab"):
-        stored = "sample" if dimension == "sample" else "group"
-        text = key_text(rest if prefix == stored else value)
-        return f"{stored}:{text}" if text else None
+    if dimension == "sample":
+        # A key /cluster returned, a globally unique id, or a local id to be matched in every lab.
+        if prefix == "sample":
+            return f"sample:{rest.strip().casefold()}" if rest.strip() else None
+        if _GLOBAL_SAMPLE_ID.match(value):
+            return f"sample:{key_text(value)}"
+        return f"sample:*/{key_text(value)}" if key_text(value) else None
+    if dimension == "lab":
+        text = key_text(rest if prefix == "group" else value)
+        return f"group:{text}" if text else None
     if dimension == "organization":
         if prefix == "ror":
             return f"ror:{rest.strip().lower()}" if rest.strip() else None

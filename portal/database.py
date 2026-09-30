@@ -1279,9 +1279,17 @@ def list_records(limit: int = 100, offset: int = 0, filters: dict | None = None,
         where.append('record_id IN (SELECT record_id FROM record_keys WHERE study @> ARRAY[%s]::text[])')
         params.append(filters['study'])
     for col in _KEY_COLUMNS:
-        if filters.get(col):
-            where.append(f'record_id IN (SELECT record_id FROM record_keys WHERE {col} = %s)')
-            params.append(filters[col])
+        value = filters.get(col)
+        if not value:
+            continue
+        if col == 'sample_id' and value.startswith('sample:*/'):
+            # a local sample_id asked for as written: every lab's object of that name
+            local = value[len('sample:*/'):].replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+            where.append("record_id IN (SELECT record_id FROM record_keys WHERE sample_id LIKE %s)")
+            params.append('sample:%/' + local)
+            continue
+        where.append(f'record_id IN (SELECT record_id FROM record_keys WHERE {col} = %s)')
+        params.append(value)
     where_sql = ('WHERE ' + ' AND '.join(where)) if where else ''
 
     conn = get_db_connection()
@@ -1622,21 +1630,112 @@ def _ensure_indexed(conn, record_id: str) -> None:
         _index_after_commit(conn, record_id)
 
 
-def _sample_members(cur, record_id: str) -> set:
-    """The records of the same physical sample: a shared sample.sample_id, or a same_sample_as
-    link declared by either record, followed transitively."""
+class GroupTooLargeError(Exception):
+    """A linked group reached _SAMPLE_CLUSTER_CAP records, so its full membership (and its first
+    record) is unknown."""
+
+
+def _linked_group(cur, record_id: str, rel: str, share_sample_id: bool = False,
+                  strict: bool = False) -> set:
+    """The records joined to this one by `rel` links, whichever record declared each link and
+    through any number of other records; with share_sample_id, also every record stating the
+    same sample.sample_id (and their links in turn). Stops at _SAMPLE_CLUSTER_CAP records; with
+    strict it raises there instead, because a truncated group named from different starting
+    records could get different names."""
     seen, frontier = {record_id}, [record_id]
-    while frontier and len(seen) < _SAMPLE_CLUSTER_CAP:
-        cur.execute('''
-            SELECT target_id AS id FROM record_links WHERE rel = 'same_sample_as' AND source_id = ANY(%s)
-            UNION SELECT source_id FROM record_links WHERE rel = 'same_sample_as' AND target_id = ANY(%s)
-            UNION SELECT k2.record_id FROM record_keys k1 JOIN record_keys k2 ON k2.sample_id = k1.sample_id
-                  WHERE k1.record_id = ANY(%s) AND k1.sample_id IS NOT NULL
-        ''', (frontier, frontier, frontier))
+    while frontier:
+        if len(seen) >= _SAMPLE_CLUSTER_CAP:
+            if strict:
+                raise GroupTooLargeError(f"{rel} group of {record_id} exceeds {_SAMPLE_CLUSTER_CAP} records")
+            break
+        sql = ("SELECT target_id AS id FROM record_links WHERE rel = %s AND source_id = ANY(%s) "
+               "UNION SELECT source_id FROM record_links WHERE rel = %s AND target_id = ANY(%s)")
+        params = [rel, frontier, rel, frontier]
+        if share_sample_id:
+            sql += (" UNION SELECT k2.record_id FROM record_keys k1 JOIN record_keys k2 "
+                    "ON k2.sample_id = k1.sample_id WHERE k1.record_id = ANY(%s) AND k1.sample_id IS NOT NULL")
+            params.append(frontier)
+        cur.execute(sql, params)
         found = {str(row["id"]).strip() for row in cur.fetchall()} - seen
         seen |= found
         frontier = sorted(found)
     return seen
+
+
+def _sample_members(cur, record_id: str) -> set:
+    """The records of the same physical sample: a shared sample.sample_id, or a same_sample_as
+    link declared by either record, followed transitively."""
+    return _linked_group(cur, record_id, "same_sample_as", share_sample_id=True)
+
+
+def _sample_namespace(key: str) -> str:
+    """Who issued a derived sample key: the scope of a local id ('ror:<id>', 'org:<name>',
+    'group:<name>'), or 'global' for an id unique by its form. An issuer names one object once,
+    so two different ids from one issuer in one group contradict each other; ids from different
+    issuers are the same object's names in different labs."""
+    body = str(key or "")[len("sample:"):]
+    scope, sep, _ = body.partition("/")
+    return scope if sep and scope.startswith(("ror:", "org:", "group:")) else "global"
+
+
+def sample_groups(record_ids) -> dict:
+    """For each record id, what the discovery engine needs to know about shared specimens:
+      sample     - the record's sample group, named by its lowest record_id (its first-created
+                   record): every record joined to it by same_sample_as links read from both
+                   ends and through other records, or by a shared sample.sample_id. None when
+                   the record is alone.
+      replicas   - the records it is joined to by one replica_of link, declared by either side.
+                   Replication is pairwise: sibling replicates of one record are not joined.
+      unresolved - why the sample group could not be named, or None: 'conflicting_sample_ids'
+                   when the group holds two different sample_ids from one issuer (two globally
+                   unique ids, or two local ids of one organization or group): a link or an id
+                   is wrong, and merging would erase the difference. 'too_large' past
+                   _SAMPLE_CLUSTER_CAP records.
+    Raises when the index cannot be read, so a caller never reads a failure as independence."""
+    ids = sorted({str(r).strip() for r in record_ids if str(r or "").strip()})
+    out = {rid: {"sample": None, "replicas": [], "unresolved": None} for rid in ids}
+    if not ids:
+        return out
+    refresh_record_graph_if_due()
+    conn = get_db_connection()
+    try:
+        for rid in ids:
+            _ensure_indexed(conn, rid)
+        cur = conn.cursor()
+        try:
+            named = {}   # member -> (name, unresolved) for every group already resolved
+            for rid in ids:
+                if rid not in named:
+                    try:
+                        group = _linked_group(cur, rid, "same_sample_as", True, strict=True)
+                    except GroupTooLargeError:
+                        named[rid] = (None, "too_large")
+                    else:
+                        cur.execute("SELECT DISTINCT sample_id FROM record_keys "
+                                    "WHERE record_id = ANY(%s) AND sample_id IS NOT NULL", (sorted(group),))
+                        issuers = {}
+                        for row in cur.fetchall():
+                            issuers.setdefault(_sample_namespace(row["sample_id"]), set()).add(row["sample_id"])
+                        verdict = ((None, "conflicting_sample_ids") if any(len(v) > 1 for v in issuers.values())
+                                   else (min(group) if len(group) > 1 else None, None))
+                        named.update({member: verdict for member in group})
+                out[rid]["sample"], out[rid]["unresolved"] = named[rid]
+            cur.execute("SELECT source_id::text AS a, target_id AS b FROM record_links "
+                        "WHERE rel = 'replica_of' AND (source_id = ANY(%s) OR target_id = ANY(%s))",
+                        (ids, ids))
+            for row in cur.fetchall():
+                a, b = row["a"].strip(), row["b"].strip()
+                for one, other in ((a, b), (b, a)):
+                    if one in out and other != one and other not in out[one]["replicas"]:
+                        out[one]["replicas"].append(other)
+            for entry in out.values():
+                entry["replicas"].sort()
+            conn.rollback()
+        finally:
+            cur.close()
+    finally:
+        conn.close()
+    return out
 
 
 def _cluster_condition(cur, record_id: str, dimension: str, keys_row):

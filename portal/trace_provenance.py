@@ -267,7 +267,8 @@ POLICY_DERIVED_MARGIN = 62     # margin derived from structured threshold + obse
 POLICY_OBSERVED_SCALE = 63     # the scale the margin divides by must be the evidence's own
 POLICY_VERDICT_BASIS = 64      # a verdict declares what it RESTS ON, and the claim is checked
 POLICY_SHARED_CAUSE = 65       # independence is shared-CAUSE, not shared-identifier
-CURRENT_POLICY_VERSION = 65
+POLICY_SAMPLE_GROUPS = 66      # a specimen is its whole sample group, found from both ends
+CURRENT_POLICY_VERSION = 66
 
 # What a decisive verdict may rest on. The point of the vocabulary is not bookkeeping: it
 # separates the variance a CONTRACT can address from the variance that is irreducibly the
