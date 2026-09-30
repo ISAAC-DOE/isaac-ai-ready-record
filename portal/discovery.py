@@ -170,7 +170,7 @@ def get_manifest() -> dict:
         # Shipping 0.61's text under the 0.60 label would have been the real error: a
         # reproducibility study pins the contract it measured, and two rounds run against
         # different manifests bearing one version string are silently incomparable.
-        "version": "0.75-the-contract-names-no-ones-case",
+        "version": "0.76-a-specimen-is-its-sample-group",
         # Read from the constant, never retyped. This drifted exactly once and it was caught
         # by an adversarial review rather than by a test: 0.70 raised CURRENT to 63 while the
         # manifest still advertised 62, so every agent reading the contract would have been
@@ -716,14 +716,32 @@ def get_manifest() -> dict:
                 "evidence sharing a specimen (`same_sample_as` / `replica_of`) or an "
                 "instrument-and-session is treated as CORRELATED (attenuated, and it does not "
                 "add to n_decisive); evidence sharing only a facility or group is treated as "
-                "ROBUSTNESS rather than independence. Evidence whose provenance is ABSENT stays "
-                "independent - the platform will not infer correlation from silence, because a "
-                "missing field is not a claim. What this means for you: when a hypothesis needs "
-                "independent support, look for a second measurement that could fail for a "
-                "DIFFERENT reason - another specimen, another instrument, another group, "
-                "another technique - not merely another record. And when you deposit, record "
-                "`system.session` (or `computation.method` for a calculation), `attribution.produced_by` and `replica_of` links, because "
-                "un-recorded provenance is scored as independence you may not have earned.",
+                "ROBUSTNESS rather than independence. "
+                "⚠ FOR policy_version >= 66 a specimen is the whole SAMPLE GROUP in the "
+                "repository: every record joined to the one you cite by `same_sample_as` links, "
+                "whichever record declared the link and through any number of other records, "
+                "plus every record stating the same `sample.sample_id` (a local id counts within "
+                "one organization; a globally unique one across labs). A `replica_of` link ties "
+                "its two records, read from either side; two replicates of one record stay "
+                "independent of each other. The groups are frozen into your verdict when you "
+                "evaluate it, so the score is reproducible; if a later deposit regroups your "
+                "evidence, the briefing raises evidence_regrouped and the score changes only "
+                "when you re-evaluate. A cited record's group is UNRESOLVED when the index is "
+                "unreachable, when the group states two different sample ids from one issuer "
+                "(two globally unique ids, or two local ids of one organization), or when it "
+                "exceeds 5,000 records; a verdict citing it moves belief but cannot add to "
+                "n_decisive until you re-evaluate. Evidence whose provenance is ABSENT stays "
+                "independent: the platform does not infer correlation from a missing field. "
+                "What this means for you: when a hypothesis needs independent support, look for "
+                "a second measurement that could fail for a DIFFERENT reason (another specimen, "
+                "another instrument, another group, another technique); another record of the "
+                "same measurement adds no independence. When you deposit, record "
+                "`system.session` (or `computation.method` for a calculation), "
+                "`attribution.produced_by`, `sample.sample_id` on every record of one physical "
+                "object (a UUID, IGSN, URI or DOI-form id when it may be measured elsewhere), "
+                "and a `same_sample_as` or `replica_of` link to an earlier record when you know "
+                "its ID. Provenance you leave out is scored as independence. A link is declared "
+                "once: never edit an older record only to add the reverse.",
             "why_a_criterion_cannot_be_decided": "There are TWO reasons a falsification "
                 "criterion may fail to be decided, they are not interchangeable, and choosing "
                 "between them is part of the answer. **`insufficient`** — the evidence the "
@@ -1332,6 +1350,12 @@ def get_manifest() -> dict:
                      "the briefing raises evidence_drift naming the prediction and the "
                      "record. It NEVER moves a score — it asks you to re-examine. "
                      "Re-evaluating re-pins, and the warning self-clears.",
+            "evidence_regrouped": "FOR policy_version >= 66 each pin also freezes the "
+                     "record's sample group and replicate group (named by the group's first "
+                     "record). If a later deposit joins your cited evidence to other records, "
+                     "or a deletion splits a group, the briefing raises evidence_regrouped "
+                     "naming the prediction and the record. It NEVER moves a score. "
+                     "Re-evaluating re-pins and applies the new grouping.",
             "records_vs_projects": "Two separate stores. The ISAAC RECORD repository is "
                      "shared: every agent reads the same corpus, and that is the point. "
                      "Discovery PROJECTS are private to their owner and whoever they are "
@@ -1941,6 +1965,11 @@ def get_project(project_id, owner_identity=None) -> dict | None:
         hypotheses = cur.fetchall()
         for h in hypotheses:
             h.pop("id", None)  # internal row-id: ULIDs are the ONLY public ids
+            # Every score of this hypothesis (briefing, fragility, synthesis) is computed under
+            # the contract the project was born under, as the stored confidence is. Without it
+            # a displayed score silently used no policy at all and could differ from the
+            # stored one for identical evidence.
+            h["policy_version"] = project.get("policy_version")
             cur.execute(
                 """SELECT * FROM hyp_predictions WHERE hypothesis_id=%s
                    ORDER BY created_at""",
@@ -2243,7 +2272,9 @@ def evaluate_prediction(prediction_id, verdict, *, strength=None,
                 raise TraceContractError(_why)
         # Pin the cited evidence at evaluate-time so a later MATERIAL edit can be flagged
         # (drift). Re-evaluating re-pins -> the warning self-clears.
-        _pins = _pin_evidence(evidence_record_ids)
+        _pins = _pin_evidence(
+            evidence_record_ids,
+            with_groups=int(row.get("policy_version") or 0) >= _tp.POLICY_SAMPLE_GROUPS)
         cur.execute(
             """UPDATE hyp_predictions
                   SET verdict=%s, strength=%s, evidence_record_ids=%s,
@@ -3114,9 +3145,45 @@ def _cause_signature(rec):
     return sig
 
 
-def _cause_signatures(record_ids):
-    """Union of cause signatures over a cited evidence set, plus the sample components it
-    belongs to. Returns (tier12, tier3) as two sets."""
+def _pinned_group_keys(p):
+    """Policy 66: {record_id: tier-1 keys} from what a verdict's evidence pins froze when it was
+    evaluated (see _pin_evidence): the record's sample group, and one pairwise key per replica
+    partner. A first record has nothing to link to, so a same-specimen link is declared by the
+    later record only, and two later records may each point back to the first without naming
+    each other; reading the declaring side alone (policy 65) missed both. Freezing keeps a score
+    reproducible; a later deposit that regroups the evidence is flagged in the briefing
+    (evidence_regrouped) and changes the score only when the verdict is re-evaluated. Records
+    whose groups were not resolved are absent here; _ungrouped_evidence names them."""
+    out = {}
+    for pin in p.get("evidence_pins") or []:
+        if isinstance(pin, dict) and pin.get("record_id") and "sample_group" in pin:
+            rid = str(pin["record_id"])
+            keys = {"sample-group:" + pin["sample_group"]} if pin.get("sample_group") else set()
+            keys |= {"replica:" + "|".join(sorted((rid, str(partner))))
+                     for partner in pin.get("replica_partners") or []}
+            out[rid] = keys
+    return out
+
+
+_RECORD_ID = re.compile(r"^[0-9A-Z]{26}$")
+
+
+def _ungrouped_evidence(p):
+    """Policy 66: cited records whose specimen groups the verdict's pins do not carry (the index
+    was unreachable, the group held conflicting sample_ids or was too large, or the record could
+    not be pinned). Their independence is unknown, so the verdict moves belief but cannot add to
+    n_decisive until it is re-evaluated: counting it would read an unknown as independence."""
+    grouped = {str(pin.get("record_id")) for pin in p.get("evidence_pins") or []
+               if isinstance(pin, dict) and "sample_group" in pin}
+    return sorted({str(r) for r in p.get("evidence_record_ids") or []
+                   if _RECORD_ID.match(str(r)) and str(r) not in grouped})
+
+
+def _cause_signatures(record_ids, groups=None):
+    """Union of cause signatures over a cited evidence set. Returns (tier12, tier3) as two sets.
+    With `groups` (policy 66, from _pinned_group_keys), a record's same-specimen and replicate
+    keys are its groups in the repository; a record without them keys the unordered pairs its
+    own links declare (policy 65)."""
     if not record_ids:
         return set(), set()
     try:
@@ -3125,17 +3192,21 @@ def _cause_signatures(record_ids):
         logger.warning("cause-signature lookup failed", exc_info=True)
         return set(), set()
     t12, t3 = set(), set()
-    ids = {str(r.get("record_id")) for r in recs if isinstance(r, dict)}
     for r in recs:
+        rid = str(r.get("record_id") or "") if isinstance(r, dict) else ""
+        grouped = groups is not None and rid in groups
         for tier, key in _cause_signature(r):
             if tier == 1:
-                # a same-sample link only binds if BOTH endpoints are in play, or the target is
-                # cited by the other verdict - the key is unordered so intersection handles it
-                t12.add(key)
+                # policy 65: an unordered pair from the record's own link binds only when the
+                # other record declared the same link
+                if not grouped:
+                    t12.add(key)
             elif tier == 2:
                 t12.add(key)
             else:
                 t3.add(key)
+        if grouped:
+            t12 |= groups[rid]
     return t12, t3
 
 
@@ -3192,7 +3263,9 @@ def compute_hypothesis_score(h) -> dict:
         standing — like cross_system). So 'reliable' = >=2 such complete, independent decisive
         verdicts — a hypothesis earns standing only on a SET of genuinely auditable tests, never
         on uncited, unfalsifiable, under-structured, or unexplained claims. The breakdown tracks
-        each facet (uncited/unfalsifiable/unstructured/unexplained_excluded).
+        each facet (uncited/unfalsifiable/unstructured/unexplained_excluded). From policy 66 a
+        fifth: GROUPED, the cited records' specimen groups were resolved when the verdict was
+        evaluated (ungrouped_excluded otherwise), since unknown independence is not independence.
     SHARPNESS (optional per-verdict `margin` ∈ [0,1]): how decisively the observation
     diverged past the falsification threshold. Scales the contribution 0.7×..1.3×
     within the strength tier, and a STRONG contradiction only triggers the falsification
@@ -3219,13 +3292,19 @@ def compute_hypothesis_score(h) -> dict:
           "blocked": 0, "unevaluated": 0, "circular_discounted": 0,
           "circular_softened": 0, "correlated_attenuated": 0, "robustness_attenuated": 0,
           "cross_system_attenuated": 0, "low_reliability_excluded": 0, "uncited_excluded": 0,
-          "unfalsifiable_excluded": 0, "unstructured_excluded": 0, "unexplained_excluded": 0}
+          "unfalsifiable_excluded": 0, "unstructured_excluded": 0, "unexplained_excluded": 0,
+          "ungrouped_excluded": 0}
     hyp_grounding = _grounding(h)   # gates the accommodation discount (standing_prior vs ad_hoc)
     try:
         _use_derived = int(h.get("policy_version") or 0) >= _tp.POLICY_DERIVED_STRENGTH
         _use_derived_margin = int(h.get("policy_version") or 0) >= _tp.POLICY_DERIVED_MARGIN
     except (TypeError, ValueError):
         _use_derived = _use_derived_margin = False
+    try:
+        _use_sample_groups = int(h.get("policy_version") or 0) >= _tp.POLICY_SAMPLE_GROUPS
+    except (TypeError, ValueError):
+        _use_sample_groups = False
+    pinned_groups = {}   # policy 66: prediction key -> {record_id: tier-1 group keys}
     logit = 0.0
     decisive = []   # (direction, strength_weight, evidence_key, margin, cross_system)
     # Per-prediction admissibility, surfaced so the UI can show WHY a verdict isn't
@@ -3283,7 +3362,11 @@ def compute_hypothesis_score(h) -> dict:
                  else "unfalsifiable" if not _falsifiable
                  else "unstructured" if not _structured
                  else "unexplained")
+        if _gate is None and _use_sample_groups and _ungrouped_evidence(p):
+            _gate = "ungrouped"   # policy 66: independence of the cited specimens unknown
         _pdkey = p.get("prediction_id") or p.get("id") or ("idx%d" % len(pred_detail))
+        if _use_sample_groups:
+            pinned_groups[_pdkey] = _pinned_group_keys(p)
         pred_detail[_pdkey] = {
             "verdict": v, "cited": _cited, "falsifiable": _falsifiable,
             "structured": _structured, "explained": _explained,
@@ -3362,7 +3445,8 @@ def compute_hypothesis_score(h) -> dict:
             # yields no signature and therefore stays independent (falsifier F3).
             _cause_t12 = _cause_t3 = set()
             if int(h.get("policy_version") or 0) >= _tp.POLICY_SHARED_CAUSE and ev:
-                _cause_t12, _cause_t3 = _cause_signatures(ev)
+                _cause_t12, _cause_t3 = _cause_signatures(
+                    ev, pinned_groups.get(pdkey) if _use_sample_groups else None)
                 if _cause_t12 & claimed_cause:
                     shares_ev = True
                     pred_detail.setdefault(pdkey, {})["shared_cause"] = sorted(
@@ -3510,7 +3594,8 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
                           evidence_independence, evidence_record_ids, margin,
                           cross_system, reliability_tier, observable_key,
                           falsification_criterion, direction, reference_condition,
-                          rationale, literature, discriminates, threshold, observed
+                          rationale, literature, discriminates, threshold, observed,
+                          evidence_pins
                      FROM hyp_predictions WHERE hypothesis_id=%s
                      ORDER BY prediction_id""", (hypothesis_id,))
     preds = [dict(r) for r in cur.fetchall()]
@@ -3550,10 +3635,15 @@ def _recompute_and_store_confidence(cur, hypothesis_id, *, actor=None) -> float:
 
 # --- Briefing (the curated "universal truth" digest the agent reads first) --
 
-def _pin_evidence(evidence_record_ids):
+def _pin_evidence(evidence_record_ids, with_groups=False):
     """Snapshot {record_id, version, content_hash} for each cited record at evaluate-time
     (read-only cross-DB lookup into the records store). Degrades to no pin for an id whose
-    lookup fails — pinning is best-effort and never blocks an evaluation."""
+    lookup fails — pinning is best-effort and never blocks an evaluation.
+
+    with_groups (policy 66): each pin also freezes the record's sample_group (the first record of
+    its group, or None when it is alone) and replica_partners, so the score reads the grouping
+    the verdict was made on. When they cannot be resolved the pin says why in groups_unresolved
+    instead; the verdict then cannot add to n_decisive, and the briefing asks for re-evaluation."""
     pins = []
     for rid in (evidence_record_ids or []):
         try:
@@ -3563,6 +3653,18 @@ def _pin_evidence(evidence_record_ids):
         if vh:
             pins.append({"record_id": rid, "version": vh.get("version"),
                          "content_hash": vh.get("content_hash")})
+    if with_groups and pins:
+        try:
+            groups = database.sample_groups([pin["record_id"] for pin in pins])
+        except Exception:
+            logger.warning("sample groups unresolved at evaluate-time", exc_info=True)
+            groups = None
+        for pin in pins:
+            g = (groups or {}).get(pin["record_id"]) or {}
+            if groups is None or g.get("unresolved"):
+                pin["groups_unresolved"] = g.get("unresolved") or "index_unavailable"
+            else:
+                pin["sample_group"], pin["replica_partners"] = g.get("sample"), list(g.get("replicas") or [])
     return pins
 
 
@@ -3777,6 +3879,50 @@ def _evidence_drift_for(hyps):
     except Exception:
         return []
     return _rp.evidence_drift(preds, current)
+
+
+def _evidence_regrouped_for(hyps, policy_version):
+    """Policy 66 freezes each cited record's sample and replicate groups into the verdict's
+    pins. Flag every verdict whose frozen groups differ from the repository's groups now (a
+    later deposit joined its evidence to other records, or a deletion split a group), or whose
+    groups were never resolved. Advisory: re-evaluating re-pins; it NEVER moves a score.
+    Degrades to [] when the index cannot be read (never blocks a briefing)."""
+    try:
+        if int(policy_version or 0) < _tp.POLICY_SAMPLE_GROUPS:
+            return []
+    except (TypeError, ValueError):
+        return []
+    items, rids = [], set()
+    for h in (hyps or []):
+        for p in (h.get("predictions") or []):
+            if not p.get("verdict"):
+                continue
+            pins = [pin for pin in (p.get("evidence_pins") or []) if isinstance(pin, dict) and pin.get("record_id")]
+            pinned_ids = {str(pin["record_id"]) for pin in pins}
+            pins += [{"record_id": r, "groups_unresolved": "not_pinned"}
+                     for r in _ungrouped_evidence(p) if r not in pinned_ids]
+            for pin in pins:
+                items.append((h.get("label"), p.get("prediction_id"), pin))
+                rids.add(str(pin["record_id"]))
+    if not items:
+        return []
+    try:
+        now = database.sample_groups(sorted(rids))
+    except Exception:
+        logger.warning("evidence regrouping check unavailable", exc_info=True)
+        return []
+    out = []
+    for hyp, pid, pin in items:
+        g = now.get(str(pin["record_id"])) or {}
+        current = ({"unresolved": g["unresolved"]} if g.get("unresolved")
+                   else {"sample_group": g.get("sample"), "replica_partners": list(g.get("replicas") or [])})
+        pinned = ({"sample_group": pin.get("sample_group"),
+                   "replica_partners": list(pin.get("replica_partners") or [])}
+                  if "sample_group" in pin else {"unresolved": pin.get("groups_unresolved") or "not_pinned"})
+        if pinned != current or "unresolved" in pinned:
+            out.append({"prediction_id": pid, "hypothesis": hyp, "record_id": pin["record_id"],
+                        "pinned": pinned, "current": current})
+    return out
 
 
 def get_briefing(project_id, owner_identity=None) -> dict | None:
@@ -4220,6 +4366,9 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
     # Advisory only — a flag to re-examine; it NEVER moves a score (re-evaluate to re-pin,
     # and the warning clears itself). Records merely browsed (no verdict) are not flagged.
     evidence_drift = _evidence_drift_for(hyps)
+    # EVIDENCE REGROUPED (policy 66): the sample or replicate group a verdict's evidence was
+    # scored in has changed since the verdict was made. Advisory, like drift: re-evaluate.
+    evidence_regrouped = _evidence_regrouped_for(hyps, proj.get("policy_version"))
     try:
         _descriptor_gap = _descriptor_absent_from_evidence(hyps)
     except Exception:
@@ -4286,6 +4435,20 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
                 "used them to reason. RE-EXAMINE the affected verdict(s) and re-evaluate to "
                 "re-pin (the warning clears itself). This did NOT change any score — confidence "
                 "stays on the evidence you actually weighed.")
+    if evidence_regrouped:
+        _by_hyp = {}
+        for _d in evidence_regrouped:
+            _by_hyp.setdefault(_d["hypothesis"], set()).add(_d["record_id"])
+        for _h, _rids in _by_hyp.items():
+            _ids = sorted(_rids)
+            recommended_actions.append(
+                f"⚠ EVIDENCE REGROUPED: {len(_rids)} record(s) you CITED on {_h} "
+                f"({', '.join(_ids[:4])}{'…' if len(_ids) > 4 else ''}) now sit in a different "
+                "sample or replicate group than when your verdict was scored (a later deposit "
+                "linked them to other records), or their groups could not be resolved, in which "
+                "case the verdict moves belief but cannot add to n_decisive. Evidence in one "
+                "group counts as one measurement. Re-evaluate the affected verdict(s) to re-pin; "
+                "until then the score stays on the grouping you weighed.")
 
     return {
         "project_id": project_id,
@@ -4304,6 +4467,7 @@ def get_briefing(project_id, owner_identity=None) -> dict | None:
         "pending_compute": pending_compute,
         "failed_compute": failed_compute,   # crashed/non-converged calcs — re-run to-dos, no score effect
         "evidence_drift": evidence_drift,    # cited records edited since used — re-examine, NO score effect
+        "evidence_regrouped": evidence_regrouped,  # policy 66: evidence regrouped since scored — re-evaluate, NO score effect
         "discrimination_matrix": matrix,
         "convergence": convergence,
         "pending_work": pending_work,
@@ -5327,7 +5491,10 @@ def _resume_synthesis(data, briefing, pending_work, history) -> dict:
     Read `headline` FIRST (the 30-second punchline), then `detail`, then `history`."""
     hyps = data.get("hypotheses", []) or []
     scored = [(h, compute_hypothesis_score({"predictions": h.get("predictions", []),
-                                            "grounding": h.get("grounding")})) for h in hyps]
+                                            "grounding": h.get("grounding"),
+                                            "label": h.get("label"),
+                                            "policy_version": h.get("policy_version")}))
+              for h in hyps]
     _dead = ("eliminated", "superseded")
     live = [(h, sc) for h, sc in scored if (h.get("status") or "proposed") not in _dead]
     leader = None

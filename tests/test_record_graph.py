@@ -102,10 +102,28 @@ def test_the_contract_paper_examples_are_one_study_and_the_review_is_not_theirs(
 
 # --- sample, lab, organization ------------------------------------------------------
 
-def test_sample_key_is_the_stated_sample_id():
-    assert rg.sample_key(_record(sample={"sample_id": " Cu-Foil_07 "})) == "sample:cu-foil 07"
+def test_a_globally_unique_sample_id_is_keyed_as_written():
+    for sid in ("6f1c2a3e-8b1d-4c5e-9f00-1a2b3c4d5e6f", "IGSN:IEXYZ0001", "https://igsn.org/10.58052/IEXYZ0001",
+                "10.58052/IEXYZ0001", "urn:uuid:6f1c2a3e-8b1d-4c5e-9f00-1a2b3c4d5e6f"):
+        record = _record(sample={"sample_id": sid}, attribution={"produced_by": {"organization": "SLAC"}})
+        assert rg.derive_keys(record, VOCAB)["sample_id"] == "sample:" + rg.key_text(sid), sid
+        assert rg.key_from_param("sample", sid) == "sample:" + rg.key_text(sid)
+
+
+def test_a_local_sample_id_is_scoped_by_organization_then_lab():
+    """Two labs writing 'S1' mean two objects; a local name keys nothing without a scope."""
+    ours = _record(sample={"sample_id": " Cu-Foil_07 "}, attribution={"produced_by": {"organization": "SLAC"}})
+    theirs = _record(sample={"sample_id": "Cu-Foil_07"}, attribution={"produced_by": {"organization": "LBNL"}})
+    lab_only = _record(sample={"sample_id": "Cu-Foil_07"}, attribution={"produced_by": {"group": "Some group"}})
+    alone = _record(sample={"sample_id": "Cu-Foil_07"})
+    k_ours, k_theirs = rg.derive_keys(ours, VOCAB)["sample_id"], rg.derive_keys(theirs, VOCAB)["sample_id"]
+    assert k_ours.startswith("sample:ror:") and k_ours.endswith("/cu-foil 07") and k_ours != k_theirs
+    assert rg.derive_keys(lab_only, VOCAB)["sample_id"] == "sample:group:some group/cu-foil 07"
+    assert rg.derive_keys(alone, VOCAB)["sample_id"] is None
     assert rg.sample_key(_record(sample={})) is None
-    assert rg.key_from_param("sample", "cu-foil 07") == rg.key_from_param("sample", "SAMPLE:Cu-Foil_07") == "sample:cu-foil 07"
+    # asked for by name, a local id matches that name in every lab; a returned key matches itself
+    assert rg.key_from_param("sample", "Cu-Foil_07") == "sample:*/cu-foil 07"
+    assert rg.key_from_param("sample", k_ours.upper()) == k_ours
 
 
 @pytest.mark.parametrize("group", ["the authors", "Authors", "original authors", "authors of the paper",
@@ -325,6 +343,17 @@ def test_the_index_refreshes_itself_at_most_every_ten_minutes(monkeypatch):
     assert len(runs) == 2
 
 
+def test_a_local_sample_id_filter_matches_that_name_in_every_lab(monkeypatch):
+    import database
+    conn = _Conn(lambda sql: [{"count": 0}] if "COUNT(*)" in sql else [])
+    monkeypatch.setattr(database, "get_db_connection", lambda: conn)
+    database.list_records(filters={"sample_id": "sample:*/cu-foil 07%"})
+    count_sql, params = conn.log[0]
+    assert "sample_id LIKE %s" in count_sql and params == ["sample:%/cu-foil 07\\%"]
+    database.list_records(filters={"sample_id": "sample:ror:05gzmn429/cu-foil 07"})
+    assert conn.log[2][1] == ["sample:ror:05gzmn429/cu-foil 07"]
+
+
 def test_the_new_tables_are_public_like_records():
     import database
     assert {"record_keys", "record_links"} <= set(database._AGENT_PUBLIC_TABLES)
@@ -352,7 +381,7 @@ def test_list_filters_normalize_before_querying(client, monkeypatch):
     assert res.status_code == 200
     f = seen["filters"]
     assert f["study"] == "doi:10.1038/s41929-023-01008-0" and f["lab"] == "group:joel w. ager group"
-    assert f["organization"].startswith("ror:") and f["sample_id"] == "sample:cu-foil 07"
+    assert f["organization"].startswith("ror:") and f["sample_id"] == "sample:*/cu-foil 07"
 
 
 @pytest.mark.parametrize("query", ["study=not-a-doi", "setup=ESRF", "method=PBE", "lab=%20%20", "lab=group:",

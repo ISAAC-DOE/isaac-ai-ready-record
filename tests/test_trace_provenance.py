@@ -927,7 +927,7 @@ class TestPolicy65SharedCauseIndependence:
 
     def test_the_gate_is_registered_and_current(self):
         assert tp.POLICY_SHARED_CAUSE == 65
-        assert tp.CURRENT_POLICY_VERSION == tp.POLICY_SHARED_CAUSE
+        assert tp.CURRENT_POLICY_VERSION >= tp.POLICY_SHARED_CAUSE
 
     def test_the_manifest_states_the_rule_and_advertises_its_version(self):
         man = discovery.get_manifest()
@@ -936,7 +936,7 @@ class TestPolicy65SharedCauseIndependence:
         # The contract TEXT version moves independently - it bumps whenever a clause changes,
         # even when nothing new is enforced - so pinning it here made a text-only rung (0.74)
         # fail a test about enforcement.
-        assert node["policy_version"] == tp.CURRENT_POLICY_VERSION == 65
+        assert node["policy_version"] == tp.CURRENT_POLICY_VERSION >= 65
         src = open(discovery.__file__.replace(".pyc", ".py")).read()
         assert "independence_is_shared_cause_not_shared_identifier" in src
         assert "policy_version >= 65" in src
@@ -978,7 +978,8 @@ class TestContract074UndecidableBoundary:
         node = man.get("contract", man)
         major, minor = node["version"].split("-")[0].split(".")
         assert (int(major), int(minor)) >= (0, 74)
-        assert node["policy_version"] == 65 == tp.CURRENT_POLICY_VERSION
+        # 0.74 added no gate; later rungs may (0.76 added policy 66).
+        assert node["policy_version"] == tp.CURRENT_POLICY_VERSION >= 65
 
     def test_the_clause_states_both_halves_and_the_deciding_test(self):
         src = open(discovery.__file__.replace(".pyc", ".py")).read()
