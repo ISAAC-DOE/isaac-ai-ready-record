@@ -8,6 +8,7 @@ import json
 import re
 import functools
 import logging
+import time
 from datetime import datetime
 
 
@@ -303,11 +304,47 @@ def init_tables():
             )
         ''')
 
+        # Record graph (2026-09-30): the keys a record shares with others (study, sample, lab,
+        # organization, setup, method) and the links it declares, indexed so each link can be
+        # followed from either end. Derived from records.data by portal/record_graph.py and
+        # rebuildable from it at any time, so these tables hold nothing the records do not.
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS record_keys (
+                record_id CHAR(26) PRIMARY KEY,
+                derivation TEXT NOT NULL,
+                record_version INT,
+                content_hash VARCHAR(80),
+                study TEXT[] NOT NULL DEFAULT '{}',
+                sample_id TEXT,
+                lab TEXT,
+                organization TEXT,
+                setup TEXT,
+                method TEXT,
+                indexed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_record_keys_study ON record_keys USING GIN (study)')
+        for col in ("sample_id", "lab", "organization", "setup", "method"):
+            cur.execute(f'CREATE INDEX IF NOT EXISTS idx_record_keys_{col} ON record_keys ({col})')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS record_links (
+                source_id CHAR(26) NOT NULL,
+                target_id TEXT NOT NULL,
+                rel TEXT NOT NULL,
+                basis TEXT,
+                PRIMARY KEY (source_id, target_id, rel)
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_record_links_target ON record_links (target_id)')
+
         conn.commit()
         cur.close()
         conn.close()
         # One-time: stamp content_hash on pre-versioning records (idempotent, no-op after).
         backfill_content_hashes()
+        _grant_readonly(("record_keys", "record_links"))
+        # Keys and links of every record not yet indexed or changed since (a no-op when current).
+        backfill_record_graph()
         return True
     except Exception as e:
         print(f"Error initializing tables: {e}")
@@ -866,6 +903,7 @@ def save_record(record_data: dict, *, skip_validation: bool = False,
                 conn.rollback()
                 raise RecordNotFoundError(record_id)
             conn.commit()
+            _index_after_commit(conn, record_id.strip())
             return record_id.strip()
         else:  # "upsert" — admin/migration paths only (never a user door)
             cur.execute('''
@@ -882,6 +920,7 @@ def save_record(record_data: dict, *, skip_validation: bool = False,
 
         result = cur.fetchone()
         conn.commit()
+        _index_after_commit(conn, result['record_id'].strip())
         return result['record_id'].strip()
     finally:
         cur.close()
@@ -966,6 +1005,7 @@ def update_record_versioned(record_id: str, new_data: dict, *, actor: str | None
             conn.rollback()
             raise VersionConflictError("concurrent edit detected")
         conn.commit()
+        _index_after_commit(conn, record_id)
         return {"record_id": record_id, "version": upd["version"],
                 "content_hash": new_hash, "change_class": change_class}
     finally:
@@ -1007,6 +1047,7 @@ def reassign_owner(record_id: str, new_owner: str, *, actor: str | None, reason:
             conn.rollback()
             raise VersionConflictError("concurrent edit during reassign")
         conn.commit()
+        _index_after_commit(conn, record_id)
         return upd["version"]
     finally:
         cur.close()
@@ -1211,6 +1252,8 @@ def list_records(limit: int = 100, offset: int = 0, filters: dict | None = None,
                                          context.electrochemistry.reaction)
         material_contains             -> ILIKE on sample.material.name
         created_after, created_before -> created_at range (ISO 8601)
+        study, sample_id, lab,        -> derived keys (record_keys); study matches any of the
+        organization, setup, method      record's studies
 
     Returns (rows, total_count). rows carry summary fields, or the full
     record JSON when full=True (callers should cap limit accordingly).
@@ -1231,6 +1274,14 @@ def list_records(limit: int = 100, offset: int = 0, filters: dict | None = None,
         where.append('created_at >= %s'); params.append(filters['created_after'])
     if filters.get('created_before'):
         where.append('created_at <= %s'); params.append(filters['created_before'])
+    # Keys derived by portal/record_graph.py; values arrive already normalized (key_from_param).
+    if filters.get('study'):
+        where.append('record_id IN (SELECT record_id FROM record_keys WHERE study @> ARRAY[%s]::text[])')
+        params.append(filters['study'])
+    for col in _KEY_COLUMNS:
+        if filters.get(col):
+            where.append(f'record_id IN (SELECT record_id FROM record_keys WHERE {col} = %s)')
+            params.append(filters[col])
     where_sql = ('WHERE ' + ' AND '.join(where)) if where else ''
 
     conn = get_db_connection()
@@ -1378,6 +1429,8 @@ def delete_record(record_id: str, actor: str | None = None) -> bool:
         cur.execute('DELETE FROM records WHERE record_id = %s RETURNING record_id', (record_id,))
         deleted = cur.fetchone()
         conn.commit()
+        if deleted is not None:
+            _index_after_commit(conn, record_id)
         return deleted is not None
     finally:
         cur.close()
@@ -1395,6 +1448,310 @@ def count_records() -> int:
         return row['count']
     finally:
         cur.close()
+        conn.close()
+
+
+# =============================================================================
+# Record graph: derived keys and the two-way link index (portal/record_graph.py)
+# =============================================================================
+# record_keys columns a list filter reads by equality (study, an array, is matched apart).
+_KEY_COLUMNS = ("sample_id", "lab", "organization", "setup", "method")
+_GRAPH_BACKFILL_LOCK = 728_141_002
+_GRAPH_REFRESH_SECONDS = 600
+_graph_refreshed_at = {"t": None}
+_SAMPLE_CLUSTER_CAP = 5000
+_STALE_KEYS = ("k.record_id IS NULL OR k.derivation IS DISTINCT FROM %s "
+               "OR k.record_version IS DISTINCT FROM r.version "
+               "OR k.content_hash IS DISTINCT FROM r.content_hash")
+
+
+def _grant_readonly(tables) -> None:
+    """Let the read-only SQL role (PGUSER_RO) read public tables this code creates. Skipped
+    without a read-only role; a failure is logged (the records-DB owner then grants by hand)
+    and never blocks startup."""
+    role = os.environ.get('PGUSER_RO')
+    if not role:
+        return
+    try:
+        from psycopg2 import sql as _sql
+        conn = get_db_connection(); cur = conn.cursor()
+        try:
+            cur.execute(_sql.SQL("GRANT SELECT ON {} TO {}").format(
+                _sql.SQL(", ").join(_sql.Identifier(t) for t in tables), _sql.Identifier(role)))
+            conn.commit()
+        finally:
+            cur.close(); conn.close()
+    except Exception:
+        logger.exception("GRANT SELECT on %s to the read-only role failed", ", ".join(tables))
+
+
+def _write_graph(cur, record_id: str, data, version, content_hash) -> None:
+    """Replace one record's keys and declared links with those derived from `data`. Callers read
+    `data` under FOR SHARE in the same transaction, so it is the record as committed and no edit
+    can land before the index is written."""
+    import record_graph as rg
+    data = data if isinstance(data, dict) else {}
+    keys = rg.derive_keys(data)
+    cur.execute('''
+        INSERT INTO record_keys (record_id, derivation, record_version, content_hash, study,
+                                 sample_id, lab, organization, setup, method, indexed_at)
+        VALUES (%s, %s, %s, %s, %s::text[], %s, %s, %s, %s, %s, NOW())
+        ON CONFLICT (record_id) DO UPDATE SET
+            derivation = EXCLUDED.derivation, record_version = EXCLUDED.record_version,
+            content_hash = EXCLUDED.content_hash, study = EXCLUDED.study,
+            sample_id = EXCLUDED.sample_id, lab = EXCLUDED.lab,
+            organization = EXCLUDED.organization, setup = EXCLUDED.setup,
+            method = EXCLUDED.method, indexed_at = NOW()
+    ''', (record_id, rg.derivation_id(), version, content_hash, keys["study"], keys["sample_id"],
+          keys["lab"], keys["organization"], keys["setup"], keys["method"]))
+    cur.execute("DELETE FROM record_links WHERE source_id = %s", (record_id,))
+    edges = rg.link_edges(record_id, data)
+    if edges:
+        cur.execute("INSERT INTO record_links (source_id, target_id, rel, basis) VALUES "
+                    + ", ".join(["(%s, %s, %s, %s)"] * len(edges)) + " ON CONFLICT DO NOTHING",
+                    [v for target, rel, basis in edges for v in (record_id, target, rel, basis)])
+
+
+def _index_after_commit(conn, record_id: str) -> None:
+    """Refresh one record's keys and links on the connection whose write just committed.
+    Best-effort: a failure is logged and rolled back, never raised, so indexing can never fail
+    an upload, and the startup backfill re-indexes whatever this missed. FOR SHARE holds the
+    row until the index is written, so an edit landing meanwhile waits and is indexed after."""
+    cur = None
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT data, version, content_hash FROM records WHERE record_id = %s FOR SHARE",
+                    (record_id,))
+        row = cur.fetchone()
+        if row is None:
+            cur.execute("DELETE FROM record_keys WHERE record_id = %s", (record_id,))
+            cur.execute("DELETE FROM record_links WHERE source_id = %s", (record_id,))
+        else:
+            _write_graph(cur, record_id, row["data"], row["version"], row["content_hash"])
+        conn.commit()
+    except Exception:
+        logger.exception("record graph: indexing %s failed; the startup backfill retries it", record_id)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    finally:
+        if cur is not None:
+            try:
+                cur.close()
+            except Exception:
+                pass
+
+
+def backfill_record_graph(batch: int = 500) -> int:
+    """Index every record whose keys are missing or stale: new, edited since (version or content
+    hash moved), or derived under an older rule or vocabulary. Drops the keys and declared links
+    of deleted records. Idempotent and exception-safe, so it never blocks startup. Works in
+    batches, one transaction each, reading each batch under FOR SHARE (an edit to one of its
+    records waits for that batch only); a try-lock taken per transaction keeps it to one
+    process at a time, and the others skip. Returns how many records it indexed."""
+    import record_graph as rg
+    done = 0
+    try:
+        conn = get_db_connection(); cur = conn.cursor()
+        try:
+            def locked():
+                cur.execute("SELECT pg_try_advisory_xact_lock(%s) AS ok", (_GRAPH_BACKFILL_LOCK,))
+                return cur.fetchone()["ok"]
+
+            if not locked():
+                conn.rollback()
+                return 0
+            cur.execute("DELETE FROM record_keys k WHERE NOT EXISTS "
+                        "(SELECT 1 FROM records r WHERE r.record_id = k.record_id)")
+            cur.execute("DELETE FROM record_links l WHERE NOT EXISTS "
+                        "(SELECT 1 FROM records r WHERE r.record_id = l.source_id)")
+            cur.execute("SELECT r.record_id FROM records r LEFT JOIN record_keys k "
+                        f"ON k.record_id = r.record_id WHERE {_STALE_KEYS}", (rg.derivation_id(),))
+            stale = [row["record_id"].strip() for row in cur.fetchall()]
+            conn.commit()
+            for i in range(0, len(stale), batch):
+                if not locked():
+                    conn.rollback()
+                    break
+                cur.execute("SELECT record_id, data, version, content_hash FROM records "
+                            "WHERE record_id = ANY(%s) FOR SHARE", (stale[i:i + batch],))
+                for row in cur.fetchall():
+                    rid = row["record_id"].strip()
+                    cur.execute("SAVEPOINT graph_row")
+                    try:
+                        _write_graph(cur, rid, row["data"], row["version"], row["content_hash"])
+                        cur.execute("RELEASE SAVEPOINT graph_row")
+                        done += 1
+                    except Exception:
+                        cur.execute("ROLLBACK TO SAVEPOINT graph_row")
+                        logger.exception("record graph: indexing %s failed", rid)
+                conn.commit()
+        finally:
+            cur.close(); conn.close()
+        if done:
+            logger.info("record graph: indexed %d record(s)", done)
+    except Exception:
+        logger.exception("record graph backfill aborted")
+    return done
+
+
+def refresh_record_graph_if_due() -> None:
+    """Run the backfill at most every ten minutes per process, before a query that reads the
+    index, so a record whose hook failed, or that an older release wrote during a rollout, is
+    found without waiting for a restart. A no-op scan when the index is current."""
+    now = time.monotonic()
+    if _graph_refreshed_at["t"] is not None and now - _graph_refreshed_at["t"] < _GRAPH_REFRESH_SECONDS:
+        return
+    _graph_refreshed_at["t"] = now
+    backfill_record_graph()
+
+
+def _ensure_indexed(conn, record_id: str) -> None:
+    """Index the record now if its keys are missing or stale, so a query about it is answered
+    from its current content even before the next backfill."""
+    import record_graph as rg
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT (" + _STALE_KEYS + ") AS stale FROM records r LEFT JOIN record_keys k "
+                    "ON k.record_id = r.record_id WHERE r.record_id = %s", (rg.derivation_id(), record_id))
+        row = cur.fetchone()
+    finally:
+        cur.close()
+    if row is not None and row["stale"]:
+        _index_after_commit(conn, record_id)
+
+
+def _sample_members(cur, record_id: str) -> set:
+    """The records of the same physical sample: a shared sample.sample_id, or a same_sample_as
+    link declared by either record, followed transitively."""
+    seen, frontier = {record_id}, [record_id]
+    while frontier and len(seen) < _SAMPLE_CLUSTER_CAP:
+        cur.execute('''
+            SELECT target_id AS id FROM record_links WHERE rel = 'same_sample_as' AND source_id = ANY(%s)
+            UNION SELECT source_id FROM record_links WHERE rel = 'same_sample_as' AND target_id = ANY(%s)
+            UNION SELECT k2.record_id FROM record_keys k1 JOIN record_keys k2 ON k2.sample_id = k1.sample_id
+                  WHERE k1.record_id = ANY(%s) AND k1.sample_id IS NOT NULL
+        ''', (frontier, frontier, frontier))
+        found = {str(row["id"]).strip() for row in cur.fetchall()} - seen
+        seen |= found
+        frontier = sorted(found)
+    return seen
+
+
+def _cluster_condition(cur, record_id: str, dimension: str, keys_row):
+    """(keys, SQL condition over records r / record_keys k, params) selecting the record's cluster
+    in one dimension, or (keys, None, None) when it has none there."""
+    import record_graph as rg
+    keys_row = keys_row or {}
+    if dimension == "study":
+        keys = list(keys_row.get("study") or [])
+        return (keys, "k.study && %s::text[]", [keys]) if keys else (keys, None, None)
+    column = rg.DIMENSIONS[dimension]
+    keys = [keys_row[column]] if keys_row.get(column) else []
+    if dimension == "sample":
+        members = _sample_members(cur, record_id)
+        if len(members) > 1 or keys:
+            return keys, "r.record_id = ANY(%s)", [sorted(members)]
+        return keys, None, None
+    return (keys, f"k.{column} = %s", keys) if keys else (keys, None, None)
+
+
+def record_clusters(record_id: str, by: str | None = None, limit: int = 100, offset: int = 0):
+    """The record's clusters. Without `by`: every dimension's key(s) and cluster size (the
+    record itself included; 0 when it has no cluster there). With `by`: that cluster's members,
+    ordered by record_id, paged. None when the record does not exist."""
+    import record_graph as rg
+    conn = get_db_connection()
+    try:
+        _ensure_indexed(conn, record_id)
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT 1 FROM records WHERE record_id = %s", (record_id,))
+            if cur.fetchone() is None:
+                return None
+            cur.execute("SELECT * FROM record_keys WHERE record_id = %s", (record_id,))
+            keys_row = cur.fetchone()
+            base = "FROM records r LEFT JOIN record_keys k ON k.record_id = r.record_id WHERE "
+            if by is None:
+                clusters = {}
+                for dimension in rg.DIMENSIONS:
+                    keys, cond, params = _cluster_condition(cur, record_id, dimension, keys_row)
+                    count = 0
+                    if cond:
+                        cur.execute("SELECT COUNT(*) AS n " + base + cond, params)
+                        count = cur.fetchone()["n"]
+                    clusters[dimension] = {"keys": keys, "count": count}
+                conn.rollback()
+                return {"record_id": record_id, "clusters": clusters}
+            keys, cond, params = _cluster_condition(cur, record_id, by, keys_row)
+            members, count = [], 0
+            if cond:
+                cur.execute("SELECT COUNT(*) AS n " + base + cond, params)
+                count = cur.fetchone()["n"]
+                cur.execute("SELECT r.record_id, r.record_type, r.record_domain, "
+                            "r.data->'sample'->'material'->>'name' AS material, r.created_at "
+                            + base + cond + " ORDER BY r.record_id LIMIT %s OFFSET %s",
+                            params + [limit, offset])
+                for row in cur.fetchall():
+                    created = row["created_at"]
+                    members.append({"record_id": row["record_id"].strip(), "record_type": row["record_type"],
+                                    "record_domain": row["record_domain"], "material": row["material"],
+                                    "created_at": created.isoformat() if hasattr(created, "isoformat") else created})
+            conn.rollback()
+            return {"record_id": record_id, "by": by, "keys": keys, "count": count,
+                    "limit": limit, "offset": offset, "records": members}
+        finally:
+            cur.close()
+    finally:
+        conn.close()
+
+
+def record_neighbors(record_id: str, direction: str = "both", rel: str | None = None,
+                     limit: int = 200, offset: int = 0):
+    """The records this one links to (declared 'out') and the records that link to it
+    (declared 'in'), one entry per neighbor and relation ('both' when each declared it), with
+    whether the neighbor exists. None when the record does not exist."""
+    import record_graph as rg
+    conn = get_db_connection()
+    try:
+        _ensure_indexed(conn, record_id)
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT 1 FROM records WHERE record_id = %s", (record_id,))
+            if cur.fetchone() is None:
+                return None
+            parts, params = [], []
+            rel_sql = " AND rel = %s" if rel else ""
+            if direction in ("out", "both"):
+                parts.append("SELECT target_id AS neighbor, rel, basis, 'out' AS declared "
+                             "FROM record_links WHERE source_id = %s" + rel_sql)
+                params += [record_id] + ([rel] if rel else [])
+            if direction in ("in", "both"):
+                parts.append("SELECT source_id::text AS neighbor, rel, basis, 'in' AS declared "
+                             "FROM record_links WHERE target_id = %s" + rel_sql)
+                params += [record_id] + ([rel] if rel else [])
+            cur.execute("SELECT e.neighbor, e.rel, e.basis, e.declared, (r.record_id IS NOT NULL) AS present "
+                        "FROM (" + " UNION ALL ".join(parts) + ") e "
+                        "LEFT JOIN records r ON r.record_id = e.neighbor "
+                        "ORDER BY e.rel, e.neighbor, e.declared DESC", params)
+            merged = {}
+            for row in cur.fetchall():
+                key = (row["neighbor"].strip(), row["rel"])
+                entry = merged.get(key)
+                if entry is None:
+                    merged[key] = {"record_id": key[0], "rel": row["rel"], "declared": row["declared"],
+                                   "symmetric": row["rel"] in rg.SYMMETRIC_RELATIONS,
+                                   "basis": row["basis"], "exists": bool(row["present"])}
+                elif entry["declared"] != row["declared"]:
+                    entry["declared"] = "both"
+            conn.rollback()
+            neighbors = list(merged.values())
+            return {"record_id": record_id, "direction": direction, "rel": rel, "count": len(neighbors),
+                    "limit": limit, "offset": offset, "neighbors": neighbors[offset:offset + limit]}
+        finally:
+            cur.close()
+    finally:
         conn.close()
 
 
@@ -1422,7 +1779,7 @@ _AGENT_FORBIDDEN_TABLES = (
 # creates — a test introspects the DDL and fails on any UNCLASSIFIED table, so a new
 # table can never silently ship readable-by-default. (The isaac_readonly DB GRANT is
 # the real gate; this keeps the in-code belt honest as the schema grows.)
-_AGENT_PUBLIC_TABLES = ("records", "templates", "vocabulary_cache")
+_AGENT_PUBLIC_TABLES = ("records", "templates", "vocabulary_cache", "record_keys", "record_links")
 
 
 def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
@@ -1532,9 +1889,9 @@ def execute_readonly_query(sql: str, max_rows: int = 50, timeout_ms: int = 5000,
             # allowed by the in-code belt but not yet GRANTed to isaac_readonly at the DB.
             if pgcode == "42501":
                 raise ValueError(
-                    "Read access to that table is not enabled. The `records`, `templates`, "
-                    "and `vocabulary_cache` tables are open to all authenticated users; other "
-                    "tables are admin-only — ask an admin.")
+                    "Read access to that table is not enabled. The `records`, `record_keys`, "
+                    "`record_links`, `templates` and `vocabulary_cache` tables are open to all "
+                    "authenticated users; other tables are admin-only — ask an admin.")
             # Any other Postgres error (bad column/function, syntax, timeout) is the USER's
             # query — surface the first line of the DB message as a 400, not a 500. It's about
             # their own SELECT over the public records schema, so nothing sensitive leaks.

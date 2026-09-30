@@ -118,6 +118,7 @@ _TOKEN_CACHE_TTL = 300  # 5 minutes
 import validation  # noqa: E402  (same import style as database/ontology)
 import record_authz  # noqa: E402  (pure edit-authorization logic)
 import record_provenance  # noqa: E402  (content hashing / diff)
+import record_graph  # noqa: E402  (keys that connect records: study, sample, lab, setup, method)
 
 ISAAC_SCHEMA = validation.ISAAC_SCHEMA
 ISAAC_VALIDATOR = validation.ISAAC_VALIDATOR
@@ -644,8 +645,21 @@ def create_record():
 
 # --- List records ----------------------------------------------------------
 
+# Filters on keys derived from each record (portal/record_graph.py), by the cluster dimension
+# each one reads. A value may be written any way the record could have written it.
+_KEY_PARAMS = {"study": "study", "sample_id": "sample", "lab": "lab", "organization": "organization",
+               "setup": "setup", "method": "method"}
+_KEY_PARAM_FORMS = {
+    "study": "a DOI (10.xxxx/..., doi:10.xxxx/... or https://doi.org/10.xxxx/...) or a study key "
+             "returned by /records/<id>/cluster (db:<database>:<collection>, work:<title>|<year>)",
+    "sample_id": "a sample.sample_id as records state it",
+    "lab": "a producing group as records state it in attribution.produced_by.group",
+    "organization": "an institution name, an alias the vocabulary lists (SLAC, LBNL), a ROR id or a ROR URL",
+    "setup": "a setup key returned by /records/<id>/cluster (setup:...)",
+    "method": "a method key returned by /records/<id>/cluster (method:...)",
+}
 _LIST_PARAMS = {"limit", "offset", "record_type", "record_domain", "reaction",
-                "material_contains", "created_after", "created_before", "full"}
+                "material_contains", "created_after", "created_before", "full"} | set(_KEY_PARAMS)
 
 
 @app.route("/portal/api/records", methods=["GET"])
@@ -655,7 +669,8 @@ def list_records():
     List records with optional server-side filters.
 
     Query params: limit, offset, record_type, record_domain, reaction,
-    material_contains, created_after, created_before, full=true.
+    material_contains, created_after, created_before, full=true, and the
+    derived keys study, sample_id, lab, organization, setup, method.
     Unknown params are REJECTED (400) — silently ignoring filters made
     clients believe they had filtered when they had not.
     Response: JSON list (backward compatible); X-Total-Count header
@@ -678,6 +693,14 @@ def list_records():
     filters = {k: request.args.get(k) for k in
                ("record_type", "record_domain", "reaction", "material_contains",
                 "created_after", "created_before") if request.args.get(k)}
+    for param, dimension in _KEY_PARAMS.items():
+        if request.args.get(param):
+            key = record_graph.key_from_param(dimension, request.args[param])
+            if key is None:
+                return jsonify({"error": f"'{param}' takes {_KEY_PARAM_FORMS[param]}."}), 400
+            filters[param] = key
+    if set(filters) & set(_KEY_PARAMS):
+        database.refresh_record_graph_if_due()
     try:
         rows, total = database.list_records(limit=limit, offset=offset,
                                             filters=filters, full=full)
@@ -687,6 +710,86 @@ def list_records():
     except Exception as exc:
         logger.exception("Database error listing records")
         return jsonify({"error": "internal server error"}), 500
+
+
+def _paging(default_limit: int, max_limit: int):
+    """(limit, offset) from the query string, or raises ValueError with the message to return."""
+    try:
+        limit = int(request.args.get("limit", default_limit))
+        offset = int(request.args.get("offset", 0))
+    except (TypeError, ValueError):
+        raise ValueError("limit and offset must be integers")
+    if limit < 1 or offset < 0:
+        raise ValueError("limit must be at least 1 and offset at least 0")
+    return min(limit, max_limit), offset
+
+
+@app.route("/portal/api/records/<record_id>/cluster", methods=["GET"])
+@_require_auth
+def record_cluster(record_id):
+    """
+    The records that share something with this one. Without `by`: for each dimension, the
+    record's key(s) and the cluster size, this record included (0 when it has no cluster there).
+    With `by=study|sample|lab|organization|setup|method`: that cluster's records, ordered by
+    record_id and paged (limit, default 100, max 1000; offset). `sample` follows a shared
+    sample.sample_id and same_sample_as links declared by either record.
+    """
+    unknown = set(request.args.keys()) - {"by", "limit", "offset"}
+    if unknown:
+        return jsonify({"error": f"Unknown query parameter(s): {sorted(unknown)}. "
+                                 f"Supported: ['by', 'limit', 'offset']"}), 400
+    by = request.args.get("by")
+    if by is not None and by not in record_graph.DIMENSIONS:
+        return jsonify({"error": f"'by' is one of {list(record_graph.DIMENSIONS)}"}), 400
+    try:
+        limit, offset = _paging(100, 1000)
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    try:
+        database.refresh_record_graph_if_due()
+        result = database.record_clusters(record_id, by=by, limit=limit, offset=offset)
+    except Exception:
+        logger.exception("Database error computing clusters of %s", record_id)
+        return jsonify({"error": "internal server error"}), 500
+    if result is None:
+        return jsonify({"error": "Record not found"}), 404
+    return jsonify(result), 200
+
+
+@app.route("/portal/api/records/<record_id>/neighbors", methods=["GET"])
+@_require_auth
+def record_neighbors(record_id):
+    """
+    The records this one links to and the records that link to it, so a link declared by
+    either record is found from both. `direction=out|in|both` (default both), `rel` (one
+    relation), limit (default 200, max 1000), offset. Each neighbor says which record declared
+    the link (out, in, or both), whether the relation is symmetric, and whether it exists.
+    """
+    unknown = set(request.args.keys()) - {"direction", "rel", "limit", "offset"}
+    if unknown:
+        return jsonify({"error": f"Unknown query parameter(s): {sorted(unknown)}. "
+                                 f"Supported: ['direction', 'limit', 'offset', 'rel']"}), 400
+    direction = request.args.get("direction", "both")
+    if direction not in ("out", "in", "both"):
+        return jsonify({"error": "'direction' is one of ['out', 'in', 'both']"}), 400
+    rel = request.args.get("rel")
+    rels = record_graph.vocabulary().get("Links", {}).get("links.rel", {}).get("values") or []
+    if rel is not None and rel not in rels:
+        return jsonify({"error": f"'rel' is one of {list(rels)}"}), 400
+    try:
+        limit, offset = _paging(200, 1000)
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    try:
+        database.refresh_record_graph_if_due()
+        result = database.record_neighbors(record_id, direction=direction, rel=rel,
+                                           limit=limit, offset=offset)
+    except Exception:
+        logger.exception("Database error listing neighbors of %s", record_id)
+        return jsonify({"error": "internal server error"}), 500
+    if result is None:
+        return jsonify({"error": "Record not found"}), 404
+    return jsonify(result), 200
 
 
 @app.route("/portal/api/records/batch", methods=["POST"])
@@ -717,6 +820,7 @@ def records_query():
     read-only DB role — delegates to database.execute_readonly_query.
 
     Access: ANY authenticated user may read NON-SENSITIVE tables — `records`,
+    `record_keys` and `record_links` (keys and links derived from records),
     `vocabulary_cache` (the controlled ontology), `templates`. SENSITIVE tables (usage/access
     logs with PII, `record_acl`, `vocabulary_proposals`, and `record_history` — an audit log
     carrying editor identity + archived/deleted record snapshots) are admin-only.
