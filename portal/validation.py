@@ -668,25 +668,28 @@ def _one_result_warnings(record: dict) -> list:
 # records matched these patterns. Paper quotes stored in assets are source text and are
 # not scanned.
 # ---------------------------------------------------------------------------
+# H2 is also molecular hydrogen ("favours H2 evolution", "stable against H2 reduction"), so a bare H2
+# counts as a hypothesis label only with the word hypothesis; H1 and H3-H9 do not collide with
+# chemistry. A benchmark identifier is the case-and-item form (case_10-LIT-0038), not any "case_3".
 _REASONING_PATTERNS = (
     ("a hypothesis label", re.compile(
-        r"\b(?:hypothes[ie]s|mechanism|explanation)\s+H[1-9]\b"
-        r"|\bH[1-9]\s*(?:['\u2019]s\b|is\s+(?:supported|refuted|favou?red|disfavou?red|scored|decisive)|would\b|predicts?\b)"
-        r"|\b(?:against|supports?|refutes?|contradicts?|favou?rs?|disfavou?rs?|keeps?|scored\s+as)\s+H[1-9]\b", re.I)),
+        r"\bhypothes[ie]s\s+H[1-9]\b|\bH[1-9]\s+hypothesis\b|\b(?:mechanism|explanation)\s+H[13-9]\b"
+        r"|\bH[13-9]\s*(?:['’]s\b|is\s+(?:supported|refuted|favou?red|disfavou?red|scored|decisive)|would\b|predicts?\b)"
+        r"|\b(?:against|supports?|refutes?|contradicts?|favou?rs?|disfavou?rs?|keeps?|scored\s+as)\s+H[13-9]\b", re.I)),
     ("a reference to a competing hypothesis", re.compile(
-        r"\bthe\s+residual(?:['\u2019]s)?\s+(?:hypothesis|claim|mechanism|explanation|central)\b"
+        r"\bthe\s+residual(?:['’]s)?\s+(?:hypothesis|claim|mechanism|explanation|central)\b"
         r"|\bresidual\s+hypothesis\b", re.I)),
     ("benchmark machinery", re.compile(
         r"\b(?:frozen[- ]set|cold[- ]seat|answer[- ]key|gold[- ](?:set|verdict|key)|benchmark\s+(?:case|item|question)"
         r"|wave[- ]\d+\s+(?:seat|run|agent)s?)\b", re.I)),
-    ("a benchmark case or item identifier", re.compile(r"\bcase_\d+\b|\bLIT-\d{3,4}\b", re.I)),
+    ("a benchmark case or item identifier", re.compile(r"\bcase_\d+(?:-LIT-\d+|['’]s)\b|\bLIT-\d{3,4}\b", re.I)),
     ("a verdict", re.compile(r"\bdecisive\s+(?:against|for|record|test|evidence)\b", re.I)),
     ("the purpose the record serves", re.compile(
-        r"\b(?:this|the)\s+record\s+(?:tests|supports|refutes|contradicts|is\s+decisive|was\s+(?:chosen|included|selected)"
-        r"|matters\s+because|is\s+included)\b", re.I)),
+        r"\b(?:this|the)\s+record\s+(?:tests|supports|refutes|contradicts|is\s+decisive|matters\s+because"
+        r"|(?:was|is)\s+(?:chosen|included|selected)\s+(?:because|to|as|for))\b", re.I)),
 )
 _WORKFLOW_TAG = re.compile(
-    r"^(?:case[_-]?\d+.*|.*\blit-\d{3,}.*|h\d|.*hypothes.*|.*frozen.*|.*answer[-_]key.*|seat[-_][a-f])$", re.I)
+    r"^(?:case[_-]?\d+.*|.*\blit-\d{3,}.*|.*hypothes.*|.*frozen[-_ ]?set.*|.*answer[-_]key.*|seat[-_][a-f])$", re.I)
 
 
 def _curated_text_fields(record: dict):
