@@ -7,6 +7,7 @@ import streamlit as st
 import json
 from datetime import datetime
 import database
+import form_fields
 import ontology
 
 # Try to import ulid, fall back to simple generation if not available
@@ -30,32 +31,23 @@ def get_vocab_values(section: str, category: str) -> list:
     """Get allowed values from vocabulary for dropdowns"""
     vocab = ontology.load_vocabulary()
     if section in vocab and category in vocab[section]:
-        return vocab[section][category].get('values', [])
+        return form_fields.options(vocab[section][category].get('values', []))
     return []
 
 
 def render_extra_vocab_fields(section: str, handled_categories: list, prefix: str) -> dict:
     """
-    Render selectboxes for any vocabulary categories in a section
-    that aren't already handled by the hardcoded form fields.
+    Render selectboxes for the vocabulary categories of a section that name a text field of
+    the record and aren't already handled by the hardcoded form fields (form_fields.py says
+    which categories qualify).
 
     Returns dict of {category_key: selected_value} for categories rendered.
     """
-    vocab = ontology.load_vocabulary()
     extra = {}
-    if section not in vocab:
-        return extra
-    for cat_key, cat_data in vocab[section].items():
-        if cat_key in handled_categories:
-            continue
-        values = cat_data.get('values', [])
-        if not values:
-            continue
-        desc = cat_data.get('description', '')
-        options = [""] + values
+    for cat_key, values, desc in form_fields.extra_categories(section, handled_categories):
         selected = st.selectbox(
             cat_key,
-            options,
+            [""] + values,
             help=desc,
             key=f"{prefix}_{cat_key}"
         )
