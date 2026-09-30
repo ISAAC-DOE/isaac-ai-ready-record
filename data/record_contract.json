@@ -28,7 +28,7 @@
     "A comparison between samples is one record per sample, each with its own absolute value, linked with intended_comparison_target. A factor, a ratio against another sample, or a sentence is never the value.",
     "A statement without a value of its own (a trend, a mechanism, a conclusion) is not an evidence record. Store the values it rests on.",
     "State each condition as the source states it. A condition the source does not give is not_reported where the vocabulary offers it, and is never filled with a default.",
-    "If the vocabulary lacks the right term, do not substitute a nearby one. Propose the term (portal, Ontology Editor, 'Propose a Change') and store the record once the term exists."
+    "If the vocabulary lacks the right term, do not substitute a nearby one. Propose the term with POST /portal/api/vocabulary/proposals (section, category, term, and what it means) or in the portal's Ontology Editor, and store the record once the term is added; GET /portal/api/vocabulary/proposals shows the decision."
   ],
   "never_a_record_note": "Each of these has reached the repository, and each loses what a reader needs to use the number. An error blocks the upload; a warning is accepted and names the fix. Most of these checks read words and strings, so they warn: a legitimate record can look like one of these patterns (a particle size range, a facet label, a paper cited with its SI).",
   "never_a_record": [
@@ -115,7 +115,7 @@
     {
       "stored_as": "A vocabulary term known to be wrong",
       "why": "Every query on that field returns a false match",
-      "isaac_form": "Propose the right term and store the record once it exists",
+      "isaac_form": "Propose the right term (POST /portal/api/vocabulary/proposals) and store the record once it exists",
       "codes": [
         "VOCABULARY_SUBSTITUTION"
       ]

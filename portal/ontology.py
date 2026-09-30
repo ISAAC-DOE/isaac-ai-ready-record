@@ -811,6 +811,13 @@ def _resolve_path(data, path_parts):
     return results
 
 
+def _propose_hint(section: str, category: str) -> str:
+    """How to ask for a missing term: every unknown-term error names the honest path."""
+    return (f"If the right term is missing, propose it (POST /portal/api/vocabulary/proposals with "
+            f"section '{section}', category '{category}', the term and what it means) and store the record once "
+            f"it is added. Never substitute a nearby term.")
+
+
 def validate_record_vocabulary(record):
     """
     Validate *record* (a dict) against the live vocabulary.
@@ -843,7 +850,8 @@ def validate_record_vocabulary(record):
                             "path": dotted_path,
                             "message": (
                                 f"'{value}' is not in the vocabulary for "
-                                f"{cat_key}. Allowed: {allowed}"
+                                f"{cat_key}. Allowed: {list(allowed)}. "
+                                + _propose_hint(section_name, cat_key)
                             ),
                         })
                 elif isinstance(value, list):
@@ -857,7 +865,8 @@ def validate_record_vocabulary(record):
                                 "path": f"{dotted_path}.{idx}",
                                 "message": (
                                     f"'{item}' is not in the vocabulary for "
-                                    f"{cat_key}. Allowed: {allowed}"
+                                    f"{cat_key}. Allowed: {list(allowed)}. "
+                                    + _propose_hint(section_name, cat_key)
                                 ),
                             })
 

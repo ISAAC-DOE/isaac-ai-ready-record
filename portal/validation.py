@@ -649,8 +649,8 @@ def _one_result_warnings(record: dict) -> list:
                 "code": "VOCABULARY_SUBSTITUTION", "path": path,
                 "message": (f"This field says a vocabulary term was substituted ('...{excerpt}...'). A substituted "
                             f"term is a wrong term, and every query on that field returns this record by mistake. "
-                            f"Use the exact term. If the vocabulary lacks it, propose it (portal, Ontology Editor, "
-                            f"'Propose a Change') and store the record once it exists. If no measurement or "
+                            f"Use the exact term. If the vocabulary lacks it, propose it (POST "
+                            f"/portal/api/vocabulary/proposals) and store the record once it exists. If no measurement or "
                             f"calculation stands behind the value (a literature survey, a model's conclusion), it is "
                             f"not an ISAAC record. {_ONE_RESULT}")})
             break
