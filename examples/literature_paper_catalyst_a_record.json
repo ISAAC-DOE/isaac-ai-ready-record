@@ -1,0 +1,103 @@
+{
+ "isaac_record_version": "1.05",
+ "record_id": "01M3250V01CPX3DEJZDNW4GCA5",
+ "record_type": "evidence",
+ "record_domain": "performance",
+ "source_type": "literature",
+ "timestamps": {
+  "created_utc": "2026-09-30T12:00:00Z"
+ },
+ "sample": {
+  "sample_id": "example-ammonia-paper/catalyst-A",
+  "material": {
+   "name": "Ru/CeO2, CO-activated (catalyst A)",
+   "formula": "Ru/CeO2",
+   "provenance": "synthesized",
+   "notes": "Example record. Ru on CeO2 activated in CO before reduction in H2."
+  },
+  "sample_form": "powder"
+ },
+ "context": {
+  "environment": "in_situ",
+  "temperature_K": 673.15,
+  "thermodynamics": {
+   "pressure_Pa": 1000000
+  },
+  "reaction": {
+   "name": "NH3_synthesis",
+   "drive": "thermal",
+   "catalysis": "heterogeneous",
+   "equation": "N2 + 3 H2 -> 2 NH3"
+  }
+ },
+ "system": {
+  "domain": "experimental",
+  "technique": "catalytic_reactor_test"
+ },
+ "descriptors": {
+  "outputs": [
+   {
+    "label": "NH3 synthesis rate, catalyst-A",
+    "generated_utc": "2026-09-30T12:00:00Z",
+    "generated_by": {
+     "agent": "curator"
+    },
+    "descriptors": [
+     {
+      "name": "mass_specific_rate.NH3",
+      "kind": "absolute",
+      "source": "imported",
+      "value": 9000.0,
+      "unit": "umol/g/h",
+      "uncertainty": {
+       "sigma": null,
+       "basis": "not_reported"
+      },
+      "definition": "NH3 formation rate per gram of catalyst at 400 C and 1.0 MPa, H2:N2 = 3:1, as reported in Table 1 of the paper."
+     }
+    ]
+   }
+  ]
+ },
+ "links": [
+  {
+   "rel": "intended_comparison_target",
+   "target": "01M3250V029PABRJV2BRWE853B",
+   "basis": "matched_operating_conditions",
+   "notes": "The other catalyst of the same study, measured under the same conditions. A comparison between the two is made from the two records; neither stores the ratio."
+  }
+ ],
+ "assets": [
+  {
+   "asset_id": "cite_example-ammonia-synthesis-paper",
+   "content_role": "documentation",
+   "uri": "https://doi.org/10.0000/example-ammonia-synthesis-paper",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "citation": {
+    "doi": "10.0000/example-ammonia-synthesis-paper",
+    "title": "Example paper: CO activation of Ru/CeO2 for ammonia synthesis",
+    "year": 2021,
+    "relation": "source"
+   }
+  }
+ ],
+ "attribution": {
+  "produced_by": {
+   "group": "Example ammonia-paper group"
+  },
+  "contributors": [
+   {
+    "name": "Example corresponding author of the ammonia paper",
+    "role": "data_owner"
+   },
+   {
+    "name": "Example curator",
+    "role": "curated_record",
+    "notes": "Built this record from the paper; the curator is not the producer."
+   }
+  ]
+ },
+ "tags": [
+  "example"
+ ]
+}
