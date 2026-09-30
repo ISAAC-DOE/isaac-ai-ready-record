@@ -122,6 +122,14 @@
         "in_silico"
       ]
     },
+    "context.temperature_basis": {
+      "description": "Where context.temperature_K comes from. 'stated': the source or the instrument gives the number. 'room_temperature': the source says room temperature without a number (store 298.15 K). 'not_reported': the source does not say (temperature_K is null). A default is never a stated temperature.",
+      "values": [
+        "stated",
+        "room_temperature",
+        "not_reported"
+      ]
+    },
     "context.reaction.name": {
       "description": "The transformation a record is about, for any chemistry. The token names what is transformed; context.reaction.drive says what drives it (photocatalytic CO2 reduction is CO2RR with drive photochemical). Electrochemical: CO2RR, CORR (CO reduction), OER, HER, ORR, HOR, N2RR (N2 reduction), NO3RR (nitrate reduction), urea_synthesis (from CO2 + nitrate), AOR (alcohol oxidation), FOR (formic acid oxidation), UOR (urea oxidation), CER (chlorine evolution), H2O2_electrosynthesis, water_splitting (full cell), H_absorption (hydrogen uptake into a host lattice, e.g. PdHx), sulfur_redox (Li-S and related cathodes), surface_oxidation and stripping_voltammetry (surface processes, not catalytic turnover). Thermal and molecular: NH3_synthesis, NH3_decomposition, CO_oxidation, CO_hydrogenation, CO2_hydrogenation, CO2_methanation, methanol_synthesis, methane_dry_reforming, methane_steam_reforming, methane_partial_oxidation, water_gas_shift, Fischer_Tropsch_synthesis, propane_dehydrogenation, ethane_dehydrogenation, acetylene_semihydrogenation, alkene_hydrogenation, hydrodeoxygenation, NH3_SCR (selective catalytic reduction of NOx by NH3), ethylene_epoxidation, hydroformylation, olefin_metathesis, cross_coupling. Request an addition through a vocabulary proposal.",
       "values": [

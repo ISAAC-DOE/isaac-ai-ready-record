@@ -1,6 +1,6 @@
 {
   "title": "What an ISAAC record is",
-  "version": "2026-09-30",
+  "version": "2026-09-30.2",
   "purpose": "The contract every person and agent follows to build ISAAC records. Served at GET /portal/api/contract and rendered on the Record-Granularity wiki page from this one file.",
   "definition": "One record holds one result: one sample or one model, one measurement or one calculation, one set of conditions, the values that measurement or calculation produced, and the one work they come from. Several values from the same measurement stay together: three Faradaic efficiencies from one GC injection are one record, and a spectrum or a time series is a measurement.series inside one record.",
   "kinds": [
@@ -22,12 +22,12 @@
   ],
   "procedure": [
     "For each value you want to store, answer four questions: which work measured or computed it; on which sample or model; by which technique; under which conditions.",
-    "The work that measured or computed a value is its source. If the document in front of you reports a value from other work (a review, a benchmark table, an introduction), open that work and build the record from it. Cite the document you started from with relation 'reference'.",
-    "Values with the same four answers go in one record. A different answer to any of the four starts a new record.",
+    "The work that measured or computed a value is its source. If the text in front of you reports a value from other work (a review, a benchmark table, an introduction, or the answer of a search or question-answering tool), open that work and build the record from it. Cite the document you started from with relation 'reference'. A tool's answer is never a source, and a value you cannot read in the work itself is not recorded.",
+    "Values with the same four answers go in one record. A different answer to any of the four starts a new record. For a calculation, the model is the whole computed system: a different adsorbate, site or coverage is a different model and a new record (CO, H and O adsorbed on Pd(111) are three records).",
     "A measured value and a computed value are two records, even when one paper reports both. Link them with intended_comparison_target when one bears on the other.",
     "A comparison between samples is one record per sample, each with its own absolute value, linked with intended_comparison_target. A factor, a ratio against another sample, or a sentence is never the value.",
     "A statement without a value of its own (a trend, a mechanism, a conclusion) is not an evidence record. Store the values it rests on.",
-    "State each condition as the source states it. A condition the source does not give is not_reported where the vocabulary offers it, and is never filled with a default.",
+    "State each condition as the source states it, and never fill one with a default. A temperature the source does not give is temperature_K null with temperature_basis 'not_reported'; 'room temperature' in the source is 298.15 K with temperature_basis 'room_temperature'. Other conditions the source does not give are not_reported where the vocabulary offers it.",
     "If the vocabulary lacks the right term, do not substitute a nearby one. Propose the term with POST /portal/api/vocabulary/proposals (section, category, term, and what it means) or in the portal's Ontology Editor, and store the record once the term is added; GET /portal/api/vocabulary/proposals shows the decision."
   ],
   "never_a_record_note": "Each of these has reached the repository, and each loses what a reader needs to use the number. An error blocks the upload; a warning is accepted and names the fix. Most of these checks read words and strings, so they warn: a legitimate record can look like one of these patterns (a particle size range, a facet label, a paper cited with its SI).",
