@@ -51,6 +51,9 @@ def render_extra_vocab_fields(section: str, handled_categories: list, prefix: st
         values = cat_data.get('values', [])
         if not values:
             continue
+        # Convert dict to list of keys if needed
+        if isinstance(values, dict):
+            values = list(values.keys())
         desc = cat_data.get('description', '')
         options = [""] + values
         selected = st.selectbox(
