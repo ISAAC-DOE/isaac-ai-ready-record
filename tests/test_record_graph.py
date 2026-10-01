@@ -284,7 +284,8 @@ class _Conn:
 
 def test_an_upload_succeeds_when_indexing_fails(monkeypatch):
     import database
-    conn = _Conn(lambda sql: [{"record_id": "01TESTRECORD00000000000000"}], fail_on="FOR SHARE")
+    conn = _Conn(lambda sql: [] if "records_held" in sql else [{"record_id": "01TESTRECORD00000000000000"}],
+                 fail_on="FOR SHARE")
     monkeypatch.setattr(database, "get_db_connection", lambda: conn)
     record = json.loads((EXAMPLES / "literature_paper_catalyst_a_record.json").read_text())
     saved = database.save_record(record, skip_validation=True, mode="insert")

@@ -69,7 +69,7 @@ def test_the_contract_is_served_without_sign_in_with_tiers_and_links(client):
     assert body["definition"] == CONTRACT["definition"] and body["procedure"] == CONTRACT["procedure"]
     tiers = {f["code"]: f["tier"] for row in body["never_a_record"] for f in row["flagged_as"]}
     assert tiers["DOMAIN_INCONSISTENT"] == REGISTRY["DOMAIN_INCONSISTENT"][0] == "error"
-    assert tiers["SAMPLE_NOT_ONE_MATERIAL"] == "warning"
+    assert tiers["SAMPLE_NOT_ONE_MATERIAL"] == "hold"
     assert all(u.startswith("https://github.com/ISAAC-DOE/") for ex in body["examples"] for u in ex["urls"])
     assert body["wiki"].endswith("/wiki/Record-Granularity")
 
@@ -90,4 +90,4 @@ def test_the_rendered_section_is_what_the_wiki_shows():
     assert text.startswith(gen.BEGIN) and text.endswith(gen.END)
     for step in CONTRACT["procedure"]:
         assert step in text
-    assert "`DOMAIN_INCONSISTENT` (error)" in text and "`SAMPLE_NOT_ONE_MATERIAL` (warning)" in text
+    assert "`DOMAIN_INCONSISTENT` (error)" in text and "`SAMPLE_NOT_ONE_MATERIAL` (hold)" in text

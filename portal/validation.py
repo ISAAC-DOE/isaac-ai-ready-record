@@ -1720,6 +1720,28 @@ def _adr001_warnings(record):
     return warnings, errors
 
 
+# Warnings that HOLD a record (2026-10-01). A record that passes every hard rule but carries one of these is
+# stored privately and published only once it is fixed: it is never public, never searched, never read by
+# the discovery engine. On 2026-09-29 one pipeline uploaded 147 records, each with a warning that named its
+# problem, and published all of them: an agent reads a success response as success. Each code here has a
+# remedy by edit and, on the live repository, fired only on that pipeline's records. NUMBER_AS_TEXT and
+# COMPUTATION_ON_MEASUREMENT stay warnings: a value below a detection limit has no number form yet, and a
+# refinement may sit on a measurement legitimately.
+HOLD_CODES = frozenset({
+    "SAMPLE_NOT_ONE_MATERIAL", "SAMPLE_NAME_CITES_A_PAPER", "MULTIPLE_SOURCES", "QUALIFIER_NOT_A_PRODUCT",
+    "SENTENCE_AS_VALUE", "PERFORMANCE_EX_SITU", "VOCABULARY_SUBSTITUTION", "PRODUCED_BY_UNNAMED",
+    "COMPETING_HYPOTHESIS_LANGUAGE", "SECOND_HAND_SOURCE", "CONDITIONS_IN_SAMPLE_NAME",
+})
+
+
+def outcome(result: dict) -> tuple:
+    """('reject' | 'hold' | 'publish', sorted hold codes) for a validation result."""
+    if not result.get("valid"):
+        return "reject", []
+    held = sorted({w.get("code") for w in result.get("warnings") or []} & HOLD_CODES)
+    return ("hold" if held else "publish"), held
+
+
 def validate_record_full(record: dict) -> dict:
     """
     Run ALL validation layers against a record dict.
@@ -1803,6 +1825,9 @@ def validate_record_full(record: dict) -> dict:
         result["info"] = info
     if degraded:
         result["degraded"] = degraded
+    result["outcome"], hold = outcome(result)
+    if hold:
+        result["hold"] = hold
     return result
 
 

@@ -304,6 +304,24 @@ def init_tables():
             )
         ''')
 
+        # Held records (2026-10-01): a record that passes every hard rule but carries a hold warning
+        # (validation.HOLD_CODES) is stored here, private to its owner, until a corrected version is
+        # sent. Nothing that reads `records` sees it: not search, not read-only SQL, not the discovery
+        # engine, not the record graph. A record_id lives in one table or the other, never both.
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS records_held (
+                record_id CHAR(26) PRIMARY KEY,
+                owner TEXT,
+                record_type VARCHAR(50) NOT NULL,
+                record_domain VARCHAR(50) NOT NULL,
+                data JSONB NOT NULL,
+                hold_codes TEXT[] NOT NULL DEFAULT '{}',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        ''')
+        cur.execute('CREATE INDEX IF NOT EXISTS idx_records_held_owner ON records_held (owner)')
+
         # Record graph (2026-09-30): the keys a record shares with others (study, sample, lab,
         # organization, setup, method) and the links it declares, indexed so each link can be
         # followed from either end. Derived from records.data by portal/record_graph.py and
@@ -813,6 +831,39 @@ class RecordNotFoundError(Exception):
     """Raised when an UPDATE targets a record_id that does not exist."""
 
 
+# An uploader with this many held records gets no more held until they deal with them; clean records
+# still publish. A pipeline that ignores every response stops here.
+HELD_BACKLOG_LIMIT = 20
+
+
+class RecordHeldError(Exception):
+    """The record passed every hard rule but carries a hold warning (validation.HOLD_CODES). It is
+    stored privately in records_held and is published once a corrected version is sent -> HTTP 409,
+    reason 'held'."""
+
+    def __init__(self, record_id, hold, warnings):
+        super().__init__(record_id)
+        self.record_id, self.hold, self.warnings = record_id, list(hold), list(warnings or [])
+
+
+class HeldBacklogError(Exception):
+    """The uploader already has HELD_BACKLOG_LIMIT held records; this one, which would be held too, was
+    not stored -> HTTP 409, reason 'held_backlog'."""
+
+    def __init__(self, owner, held):
+        super().__init__(owner)
+        self.owner, self.held = owner, held
+
+
+class EditHeldError(Exception):
+    """An edit of a published record would introduce a hold warning the record does not carry now. The
+    edit is not applied and the published version stays as it is -> HTTP 409, reason 'edit_held'."""
+
+    def __init__(self, record_id, hold, warnings):
+        super().__init__(record_id)
+        self.record_id, self.hold, self.warnings = record_id, list(hold), list(warnings or [])
+
+
 def save_record(record_data: dict, *, skip_validation: bool = False,
                 uploaded_by: str | None = None, mode: str = "upsert") -> str:
     """
@@ -847,6 +898,7 @@ def save_record(record_data: dict, *, skip_validation: bool = False,
     if uploaded_by:
         record_data.setdefault("attribution", {})["uploaded_by"] = uploaded_by
 
+    hold, warnings = [], []
     if skip_validation:
         logger.warning(
             "save_record VALIDATION BYPASS (skip_validation=True) for record_id=%s",
@@ -857,6 +909,7 @@ def save_record(record_data: dict, *, skip_validation: bool = False,
         result = validation.validate_record_full(record_data)
         if not result["valid"]:
             raise validation.ValidationError(result)
+        hold, warnings = list(result.get("hold") or []), list(result.get("warnings") or [])
 
     record_id = record_data.get('record_id')
     record_type = record_data.get('record_type')
@@ -880,6 +933,39 @@ def save_record(record_data: dict, *, skip_validation: bool = False,
             # Pure INSERT. A record_id collision RAISES (RecordExistsError) — a
             # caller may NOT silently overwrite an existing record by supplying
             # its id. Editing an owned record goes through PUT (update).
+            # A record carrying a hold warning goes to records_held instead, private to its owner;
+            # the same owner sending the same id again replaces the draft, and a clean version
+            # publishes it. The id is locked for the transaction, so it lands in one table only.
+            owner = (record_data.get("attribution") or {}).get("uploaded_by")
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (record_id,))
+            cur.execute("SELECT owner FROM records_held WHERE record_id = %s", (record_id,))
+            held_row = cur.fetchone()
+            if held_row is not None and held_row["owner"] != owner:
+                conn.rollback()
+                raise RecordExistsError(record_id)
+            if hold:
+                cur.execute("SELECT 1 FROM records WHERE record_id = %s", (record_id,))
+                if cur.fetchone() is not None:
+                    conn.rollback()
+                    raise RecordExistsError(record_id)
+                if held_row is None:
+                    cur.execute("SELECT COUNT(*) AS n FROM records_held WHERE owner IS NOT DISTINCT FROM %s",
+                                (owner,))
+                    held_now = cur.fetchone()["n"]
+                    if held_now >= HELD_BACKLOG_LIMIT:
+                        conn.rollback()
+                        raise HeldBacklogError(owner, held_now)
+                cur.execute('''
+                    INSERT INTO records_held (record_id, owner, record_type, record_domain, data, hold_codes)
+                    VALUES (%s, %s, %s, %s, %s, %s::text[])
+                    ON CONFLICT (record_id) DO UPDATE SET
+                        record_type = EXCLUDED.record_type, record_domain = EXCLUDED.record_domain,
+                        data = EXCLUDED.data, hold_codes = EXCLUDED.hold_codes, updated_at = NOW()
+                ''', (record_id, owner, record_type, record_domain, json.dumps(record_data), hold))
+                conn.commit()
+                raise RecordHeldError(record_id, hold, warnings)
+            if held_row is not None:
+                cur.execute("DELETE FROM records_held WHERE record_id = %s", (record_id,))
             try:
                 cur.execute('''
                     INSERT INTO records (record_id, record_type, record_domain, data, content_hash)
@@ -940,7 +1026,7 @@ class PreconditionFailedError(Exception):
 
 def update_record_versioned(record_id: str, new_data: dict, *, actor: str | None,
                             change_note: str | None = None, if_match=None,
-                            action: str = "update") -> dict:
+                            action: str = "update", allow_hold: bool = False) -> dict:
     """The ONE transactional edit path for owned records (PUT).
 
     In a single transaction: validate (chokepoint) -> SELECT ... FOR UPDATE ->
@@ -978,6 +1064,14 @@ def update_record_versioned(record_id: str, new_data: dict, *, actor: str | None
             if want != int(cur_version):
                 conn.rollback()
                 raise PreconditionFailedError(f"expected version {want}, current {cur_version}")
+
+        # An edit may not bring in a hold warning the published record does not already carry: the
+        # published version stays as it is (EditHeldError -> 409). Fixing a record never trips this.
+        if not allow_hold and result.get("hold"):
+            added = sorted(set(result["hold"]) - set(validation.validate_record_full(prior_data).get("hold") or []))
+            if added:
+                conn.rollback()
+                raise EditHeldError(record_id, added, result.get("warnings"))
 
         # Ownership is immutable on edit: re-stamp the existing owner over whatever the body says.
         prior_owner = (prior_data.get("attribution") or {}).get("uploaded_by")
@@ -1445,6 +1539,56 @@ def delete_record(record_id: str, actor: str | None = None) -> bool:
         conn.close()
 
 
+def get_held_record(record_id: str):
+    """{owner, data, hold_codes, created_at, updated_at} of a held record, or None."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT owner, data, hold_codes, created_at, updated_at FROM records_held WHERE record_id = %s",
+                    (record_id,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+    finally:
+        cur.close()
+        conn.close()
+
+
+def list_held(owner: str | None, limit: int = 100, offset: int = 0) -> tuple:
+    """(rows, total) of the held records of one owner (None: every owner, for admins), newest first."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        where, params = ("WHERE owner = %s", [owner]) if owner is not None else ("", [])
+        cur.execute(f"SELECT COUNT(*) AS n FROM records_held {where}", params)
+        total = cur.fetchone()["n"]
+        cur.execute(f"SELECT record_id, owner, record_domain, hold_codes, created_at, updated_at FROM records_held "
+                    f"{where} ORDER BY updated_at DESC, record_id LIMIT %s OFFSET %s", params + [limit, offset])
+        rows = []
+        for row in cur.fetchall():
+            rows.append({"record_id": row["record_id"].strip(), "owner": row["owner"],
+                         "record_domain": row["record_domain"], "hold": list(row["hold_codes"] or []),
+                         "created_at": row["created_at"].isoformat() if hasattr(row["created_at"], "isoformat") else row["created_at"],
+                         "updated_at": row["updated_at"].isoformat() if hasattr(row["updated_at"], "isoformat") else row["updated_at"]})
+        return rows, total
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_held(record_id: str) -> bool:
+    """Discard a held record. It was never public, so nothing else refers to it."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM records_held WHERE record_id = %s RETURNING record_id", (record_id,))
+        gone = cur.fetchone() is not None
+        conn.commit()
+        return gone
+    finally:
+        cur.close()
+        conn.close()
+
+
 def count_records() -> int:
     """Return the total number of records in the database."""
     conn = get_db_connection()
@@ -1871,6 +2015,7 @@ _AGENT_FORBIDDEN_TABLES = (
     "vocabulary_proposals",  # proposer/reviewer identities + moderation state
     "record_acl",            # who-can-edit-what (access-control / collaboration graph)
     "record_history",        # audit log: editor identity (actor) + archived/deleted snapshots
+    "records_held",          # unpublished drafts, private to their owner until fixed
 )
 
 # The records-DB tables OPEN to any authenticated user via /records/query. Together

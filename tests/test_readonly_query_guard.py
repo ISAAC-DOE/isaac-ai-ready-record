@@ -45,9 +45,10 @@ def test_agent_mode_allows_non_sensitive_tables(sql):
 def test_denylist_is_exactly_the_sensitive_set():
     # Pins the exact admin-only set (a change here is a conscious security decision).
     from database import _AGENT_FORBIDDEN_TABLES
+    # records_held (2026-10-01): unpublished drafts, private to their owner until fixed.
     assert set(_AGENT_FORBIDDEN_TABLES) == {
         "api_requests", "portal_access_log", "vocabulary_sync_log",
-        "vocabulary_proposals", "record_acl", "record_history"}
+        "vocabulary_proposals", "record_acl", "record_history", "records_held"}
 
 
 def test_every_records_table_is_classified():

@@ -195,7 +195,7 @@ def render():
          "relevant when an electrochemistry context exists."),
     ]
 
-    order = {"error": 0, "warning": 1, "info": 2}
+    order = {"error": 0, "hold": 1, "warning": 2, "info": 3}
     scope_order = {"all records": 0, "electrochemistry": 1, "computation": 2}
 
     code_rows = [(f"`{c}`", CODE_SCOPE[c], REGISTRY[c][0], REGISTRY[c][1]) for c in REGISTRY]
