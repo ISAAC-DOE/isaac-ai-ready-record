@@ -1,6 +1,6 @@
 {
   "title": "What an ISAAC record is",
-  "version": "2026-09-30.2",
+  "version": "2026-10-01.1",
   "purpose": "The contract every person and agent follows to build ISAAC records. Served at GET /portal/api/contract and rendered on the Record-Granularity wiki page from this one file.",
   "definition": "One record holds one result: one sample or one model, one measurement or one calculation, one set of conditions, the values that measurement or calculation produced, and the one work they come from. Several values from the same measurement stay together: three Faradaic efficiencies from one GC injection are one record, and a spectrum or a time series is a measurement.series inside one record.",
   "kinds": [
@@ -122,11 +122,12 @@
     }
   ],
   "submission": [
-    "Validate every record with POST /portal/api/validate before submitting it.",
-    "Fix every error. Errors block the upload, and each one names its fix.",
-    "Read every warning. A warning is accepted, and it flags a pattern on this page: fix the record, or keep it as it is only when you have checked that the warning does not apply.",
-    "Submit with POST /portal/api/records and read the whole response. A 201 can carry warnings.",
-    "Check GET /portal/api/records/attention from time to time. It lists your stored records that no longer meet the current rules, each with its fix."
+    "Validate every record with POST /portal/api/validate before submitting it. Its outcome says what a submission would do: publish, hold or reject.",
+    "Fix every error. Errors reject the upload (HTTP 400), and each one names its fix.",
+    "Fix every hold warning. A record that carries one is stored privately and not published (HTTP 409, reason held). It is not visible to anyone else, in search results, or to discovery agents. Send a corrected version without hold warnings with POST or PUT, and it is published. Stop a batch at the first held record, fix the cause in your pipeline, then continue.",
+    "Read every other warning. Records with other warnings are accepted; each warning flags a pattern on this page: fix the record, or keep it as it is only when you have checked that the warning does not apply.",
+    "Submit with POST /portal/api/records and read the whole response: 201 published, 409 held or held_backlog, 400 rejected.",
+    "Check GET /portal/api/records/held and GET /portal/api/records/attention from time to time. They list your held records and your stored records that no longer meet the current rules, each with its fix."
   ],
   "examples": [
     {

@@ -1008,6 +1008,16 @@ elif page == "Record Validator":
                                 # the displayed PASS cannot slip through.
                                 saved_id = database.save_record(record_data, uploaded_by=(current_username if current_username != "anonymous" else None), mode="insert")
                                 st.success(f"Record saved! ID: `{saved_id}`")
+                            except database.RecordHeldError as held:
+                                st.warning(f"Record `{held.record_id}` is held, not published: only you can see "
+                                           f"it. Fix the fields below and save it again with the same ID; a "
+                                           f"version without these warnings is published.")
+                                for w in held.warnings:
+                                    if w.get("code") in held.hold:
+                                        st.write(f"- **{w.get('code')}** at `{w.get('path')}`: {w.get('message')}")
+                            except database.HeldBacklogError as backlog:
+                                st.error(f"You have {backlog.held} held records, the limit. Fix or discard them "
+                                         f"below on Saved Records before saving more records that would be held.")
                             except Exception as exc:
                                 import validation
                                 if isinstance(exc, validation.ValidationError):
@@ -1057,6 +1067,31 @@ elif page == "Saved Records":
         if st.button("Refresh"):
             _attention_report.clear()
             st.rerun()
+
+        # --- Your held records ---
+        # A record with a hold warning is stored privately until a corrected version is saved.
+        if current_username and current_username != "anonymous":
+            try:
+                held_rows, held_total = database.list_held(current_username, limit=200)
+            except Exception:
+                held_rows, held_total = [], 0
+            if held_total:
+                with st.expander(f"{held_total} of your records are held, not published", expanded=True):
+                    st.caption("Each one carries a warning that holds it: only you can see it, and no search "
+                               "or discovery agent reads it. Fix the fields its warnings name and save it "
+                               "again with the same record ID (Upload & Validate, or PUT "
+                               "/portal/api/records/<id>); a version without these warnings is published.")
+                    st.dataframe(pd.DataFrame([{"Record ID": r["record_id"], "Domain": r["record_domain"],
+                                                "Held for": ", ".join(r["hold"]), "Updated": r["updated_at"]}
+                                               for r in held_rows]), hide_index=True)
+                    drop = st.selectbox("Discard a held record you will not fix",
+                                        [""] + [r["record_id"] for r in held_rows], key="held_discard_pick")
+                    if drop and st.button("Discard", key="held_discard_btn"):
+                        held = database.get_held_record(drop)
+                        if held and held.get("owner") == current_username:
+                            database.delete_held(drop)
+                            st.success(f"Held record {drop} discarded.")
+                            st.rerun()
 
         # --- Your records under the current rules ---
         # The rules tighten over time and a stored record is never rejected retroactively, so

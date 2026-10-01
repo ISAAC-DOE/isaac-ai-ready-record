@@ -550,6 +550,40 @@ def validate():
 
 # --- Create record ---------------------------------------------------------
 
+def _held_body(err, reason="held"):
+    """The 409 an uploader gets when a record is held, or when an edit would bring in a hold warning.
+    Written for an agent: stop, fix these warnings, send the record again. Wording reviewed blind by
+    two external models for agents and non-native readers."""
+    warnings = [w for w in err.warnings if w.get("code") in set(err.hold)]
+    fixes = "; ".join(f"{w.get('code')} at {w.get('path')}" for w in warnings) or ", ".join(err.hold)
+    if reason == "held":
+        message = (f"Record {err.record_id} is HELD and was not published. Only you can read it. It is not "
+                   f"visible to anyone else, in search results, or to discovery agents. Do not retry this "
+                   f"payload unchanged, and do not upload more records with the same problem. Fix these "
+                   f"hold warnings: {fixes}. Each warning below names its remedy. Then send a corrected "
+                   f"version without hold warnings with POST /portal/api/records or PUT "
+                   f"/portal/api/records/{err.record_id}; it is then published. If a hold warning misreads "
+                   f"a correct record, contact an ISAAC admin. Held records: GET /portal/api/records/held.")
+    else:
+        what = "a hold warning" if len(err.hold) == 1 else "hold warnings"
+        message = (f"This edit of record {err.record_id} was not applied because it would add {fixes}, "
+                   f"{what} the published record does not carry. The published version is unchanged. Fix "
+                   f"{'it' if len(err.hold) == 1 else 'them'} and send the edit again.")
+    return {"success": False, "reason": reason, "published": False, "retryable": False,
+            "record_id": err.record_id, "hold": err.hold, "warnings": warnings, "message": message,
+            "contract": _contract_pointer()}
+
+
+def _backlog_body(err):
+    return {"success": False, "reason": "held_backlog", "published": False, "retryable": False,
+            "held": err.held, "limit": database.HELD_BACKLOG_LIMIT,
+            "message": (f"You have {err.held} held records, the limit. This record would also be held, so it "
+                        f"was not stored. Records with no errors and no hold warnings still publish. Fix or "
+                        f"discard your held records first: GET /portal/api/records/held, then PUT a corrected "
+                        f"version, or DELETE /portal/api/records/<id> for a record you will not fix."),
+            "contract": _contract_pointer()}
+
+
 @app.route("/portal/api/records", methods=["POST"])
 @_require_auth
 def create_record():
@@ -598,6 +632,8 @@ def create_record():
             except database.VersionConflictError as vc:
                 return jsonify({"success": False, "reason": "version_conflict",
                                 "message": str(vc)}), 409
+            except database.EditHeldError as eh:
+                return jsonify(_held_body(eh, reason="edit_held")), 409
             resp = {"success": True, "record_id": rid, "updated": True, "version": res["version"]}
             if result.get("warnings"):
                 resp["warnings"] = result["warnings"]
@@ -611,6 +647,10 @@ def create_record():
             resp["info"] = result["info"]
         resp["contract"] = _contract_pointer()
         return jsonify(resp), 201
+    except database.RecordHeldError as rh:
+        return jsonify(_held_body(rh)), 409
+    except database.HeldBacklogError as hb:
+        return jsonify(_backlog_body(hb)), 409
     except database.RecordExistsError:
         return jsonify({
             "success": False,
@@ -914,6 +954,37 @@ def records_attention():
     }), 200
 
 
+@app.route("/portal/api/records/held", methods=["GET"])
+@_require_auth
+def records_held():
+    """Your held records: stored privately because each carries a hold warning, published once a
+    corrected version is sent (POST or PUT). Query params: limit (default 50, max 500), offset,
+    owner (admins only; 'all' for every owner)."""
+    unknown = set(request.args.keys()) - {"limit", "offset", "owner"}
+    if unknown:
+        return jsonify({"error": f"Unknown query parameter(s): {sorted(unknown)}. "
+                                 f"Supported: ['limit', 'offset', 'owner']"}), 400
+    caller = (request.auth_info or {}).get("user")
+    owner = request.args.get("owner") or caller
+    if owner != caller and not _caller_is_admin():
+        return jsonify({"error": "Only an admin may list another identity's held records."}), 403
+    try:
+        limit = max(1, min(int(request.args.get("limit", 50)), 500))
+        offset = max(0, int(request.args.get("offset", 0)))
+    except (ValueError, TypeError):
+        return jsonify({"error": "limit and offset must be integers"}), 400
+    try:
+        rows, total = database.list_held(None if owner == "all" else owner, limit=limit, offset=offset)
+    except Exception:
+        logger.exception("Database error listing held records for %s", owner)
+        return jsonify({"error": "internal server error"}), 500
+    return jsonify({"owner": owner, "held": total, "limit": database.HELD_BACKLOG_LIMIT, "records": rows,
+                    "how_to_publish": ("GET /portal/api/records/<id> returns the held record. Fix the fields "
+                                       "its hold warnings name, check with POST /portal/api/validate (outcome "
+                                       "'publish'), then PUT /portal/api/records/<id>. DELETE discards a "
+                                       "held record you will not fix.")}), 200
+
+
 @app.route("/portal/api/records/<record_id>/suggestions", methods=["GET"])
 @_require_auth
 def record_suggestions(record_id):
@@ -1051,10 +1122,17 @@ def get_record(record_id):
 
     try:
         record = database.get_record(record_id)
+        held = database.get_held_record(record_id) if record is None else None
     except Exception as exc:
         logger.exception("Database error fetching record %s", record_id)
         return jsonify({"error": "internal server error"}), 500
 
+    if record is None and held is not None and (
+            held["owner"] == (request.auth_info or {}).get("user") or _caller_is_admin()):
+        resp = jsonify(held["data"])
+        resp.headers["X-ISAAC-Record-Status"] = "held"
+        resp.headers["X-ISAAC-Hold"] = ",".join(held.get("hold_codes") or [])
+        return resp, 200
     if record is None:
         return jsonify({"error": "Record not found"}), 404
 
@@ -1080,9 +1158,28 @@ def update_record(record_id):
     caller = (request.auth_info or {}).get("user")
     try:
         existing = database.get_record(record_id)
+        held = database.get_held_record(record_id) if existing is None else None
     except Exception:
         logger.exception("Database error loading record %s", record_id)
         return jsonify({"error": "internal server error"}), 500
+    if existing is None and held is not None and (held["owner"] == caller or _caller_is_admin()):
+        # A held record: the corrected version is sent through the same chokepoint as a POST, under
+        # its owner's identity. Without hold warnings it is published; with them the draft is replaced.
+        if isinstance(data, dict):
+            data.pop("change_note", None)
+            data["record_id"] = record_id
+        try:
+            saved = database.save_record(data, uploaded_by=held["owner"], mode="insert")
+        except database.RecordHeldError as rh:
+            return jsonify(_held_body(rh)), 409
+        except validation.ValidationError as ve:
+            return jsonify({"success": False, "reason": "validation_failed", **ve.result,
+                            "contract": _contract_pointer()}), 400
+        except Exception:
+            logger.exception("Database error publishing held record %s", record_id)
+            return jsonify({"error": "internal server error"}), 500
+        logger.info("Held record %s published by %s", saved, caller)
+        return jsonify({"success": True, "record_id": saved, "published": True, "version": 1}), 201
     if existing is None:
         return jsonify({"success": False, "reason": "not_found",
                         "message": "Record not found. Use POST to create a new record."}), 404
@@ -1122,6 +1219,8 @@ def update_record(record_id):
     except database.VersionConflictError as vc:
         return jsonify({"success": False, "reason": "version_conflict", "message": str(vc),
                         "hint": "A concurrent edit landed first — re-fetch and retry."}), 409
+    except database.EditHeldError as eh:
+        return jsonify(_held_body(eh, reason="edit_held")), 409
     except Exception:
         logger.exception("Database error updating record %s", record_id)
         return jsonify({"error": "internal server error"}), 500
@@ -1291,13 +1390,30 @@ def reassign_record_owner_bulk():
 # --- Delete record (admin only) -------------------------------------------
 
 @app.route("/portal/api/records/<record_id>", methods=["DELETE"])
-@_require_admin
+@_require_auth
 def delete_record(record_id):
     """
-    Delete a record by its ULID. Requires admin privileges. Regular users
-    (including a record's own submitter) CANNOT delete — only edit via PUT.
-    Prior content is archived to record_history.
+    Delete a record by its ULID. A published record: admins only. Regular users
+    (including a record's own submitter) CANNOT delete a published record — only edit
+    via PUT. Prior content is archived to record_history. A held record, which was never
+    public, may be discarded by its owner.
     """
+    caller = (request.auth_info or {}).get("user")
+    if not _caller_is_admin():
+        try:
+            held = database.get_held_record(record_id) if database.get_record(record_id) is None else None
+        except Exception:
+            logger.exception("Database error loading record %s", record_id)
+            return jsonify({"error": "internal server error"}), 500
+        if held is None or held["owner"] != caller:
+            return jsonify({"error": "Admin access required to delete a published record. You may "
+                                     "discard your own held records."}), 403
+        database.delete_held(record_id)
+        logger.info("Held record %s discarded by %s", record_id, caller)
+        return jsonify({"success": True, "record_id": record_id, "deleted": True, "held": True}), 200
+    if database.get_record(record_id) is None and database.get_held_record(record_id) is not None:
+        database.delete_held(record_id)
+        return jsonify({"success": True, "record_id": record_id, "deleted": True, "held": True}), 200
 
     try:
         deleted = database.delete_record(record_id, actor=request.auth_info.get("user"))

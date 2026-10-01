@@ -547,6 +547,16 @@ def render_form():
                         st.success(f"Record saved successfully! ID: {saved_id}")
                         # Generate new ID for next record
                         st.session_state.record_id = generate_ulid()
+                    except database.RecordHeldError as held:
+                        st.warning(f"Record {held.record_id} is held, not published: only you can see it. "
+                                   f"Fix the fields below and save it again with the same ID; a version "
+                                   f"without these warnings is published.")
+                        for w in held.warnings:
+                            if w.get("code") in held.hold:
+                                st.write(f"- **{w.get('code')}** at `{w.get('path')}`: {w.get('message')}")
+                    except database.HeldBacklogError as backlog:
+                        st.error(f"You have {backlog.held} held records, the limit. Fix or discard them on the "
+                                 f"Saved Records page before saving more records that would be held.")
                     except Exception as e:
                         st.error(f"Failed to save record: {e}")
                 else:
