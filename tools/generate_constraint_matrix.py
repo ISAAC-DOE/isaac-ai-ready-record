@@ -74,6 +74,7 @@ CODE_SCOPE = {
     "HALF_CELL_POTENTIAL_IN_FULL_CELL": "electrochemistry",
     "FEED_UNDECLARED": "electrochemistry",
     "DEPRECATED_CELL_TYPE": "electrochemistry",
+    "COMPETING_HYPOTHESIS_LANGUAGE": "all records",
     "REASONING_IN_RECORD": "all records",
     "TAG_ENCODES_USE": "all records",
     "MISSING_REACTION": "performance records",

@@ -712,6 +712,48 @@ def _curated_text_fields(record: dict):
     return [(p, t) for p, t in out if isinstance(t, str) and t]
 
 
+# A competing hypothesis named in a curator's note ("Supports the INTERFACE rival", "Metal-interface
+# rival.", "Baseline for the vacancy-count rival"): 14 live records carried such text on 2026-10-01 and
+# REASONING_IN_RECORD missed it. Chemistry and engineering also say "rival" for a competing material or
+# technology ("activity rivaling Pt", "a Pt-free rival to IrO2", "rival technologies", "the Ni-Fe rival
+# showed"), so a match needs a name built like a label: an all-capitals word of six or more letters, or a
+# hyphenated compound that is not a material description (-free, -based, -doped, low-cost, an element
+# chain such as Ni-Fe or Fe-N-C). Warn first: no other uploader's records match.
+_RIVAL_VERB = (r"(?i:support(?:s|ed|ing)?|favou?r(?:s|ed|ing)?|refut(?:e|es|ed|ing)|contradict(?:s|ed|ing)?"
+               r"|rul(?:e|es|ed|ing)\s+out|(?:in)?consistent\s+with|baseline\s+for|decisive\s+(?:for|against))")
+_RIVAL_LABEL = (r"(?:[A-Z][A-Z0-9]{5,}"
+                r"|(?!(?i:[a-z0-9]+-(?:free|based|rich|poor|doped|loaded|supported|containing|like|derived"
+                r"|modified|coated|known|called)\b))"
+                r"(?!(?i:(?:low|high|next|best|state|non|well|top|cost|world|industry)-))"
+                r"(?![A-Z][a-z]?(?:-[A-Z][a-z]?)+\b)"
+                r"[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+){1,3})")
+_RIVAL_AFTER = (r"(?!\s+(?i:to|of|for|with|in|catalysts?|anodes?|cathodes?|electrodes?|materials?|oxides?"
+                r"|metals?|technolog(?:y|ies)|systems?|devices?|process(?:es)?|routes?|pathways?)\b)")
+_RIVAL_PATTERNS = (
+    re.compile(rf"\b{_RIVAL_VERB}\s+(?:(?i:the)\s+)?{_RIVAL_LABEL}\s+(?i:rival)\b{_RIVAL_AFTER}"),
+    re.compile(rf"\b{_RIVAL_LABEL}\s+(?i:rival)\b(?=\s*(?:[.;:)\]]|$))"),
+)
+
+
+def _competing_hypothesis_warnings(record: dict) -> list:
+    """A curator-written field that names a competing hypothesis (warn first; see _RIVAL_PATTERNS)."""
+    warnings = []
+    for path, text in _curated_text_fields(record):
+        for rx in _RIVAL_PATTERNS:
+            m = rx.search(text)
+            if m:
+                excerpt = text[max(0, m.start() - 30): m.end() + 30].replace("\n", " ")
+                warnings.append({
+                    "code": "COMPETING_HYPOTHESIS_LANGUAGE", "path": path,
+                    "message": (f"This field names a competing hypothesis ('...{excerpt}...'). A record states "
+                                f"what was measured, computed or reported. Which explanation the data supports "
+                                f"belongs to the discovery platform that uses the record. If the source itself "
+                                f"draws this conclusion, quote it as a source excerpt in assets; otherwise "
+                                f"describe the data only.")})
+                break
+    return warnings
+
+
 def _record_content_errors(record: dict) -> list:
     errors = []
     for path, text in _curated_text_fields(record):
@@ -1678,7 +1720,7 @@ def validate_record_full(record: dict) -> dict:
     adr_errors = adr_errors + rx_errors + cell_errors
     warnings = (warnings + adr_warnings + rx_warnings + cell_warnings + _one_result_warnings(record)
                 + _computation_role_warnings(record) + _producer_warnings(record)
-                + _magnitude_warnings(record))
+                + _magnitude_warnings(record) + _competing_hypothesis_warnings(record))
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)
