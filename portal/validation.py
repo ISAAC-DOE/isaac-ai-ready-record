@@ -525,9 +525,21 @@ _COLLECTION_NAME = re.compile(
     re.I)
 # Case-sensitive: a surname is a capital and lowercase letters, so "(sample 2047)", "(SRM 1976b)" and
 # "(MaTeck, 2019)" are not citations.
+# A year after a lot, batch or run word, a month or a season ("Cu foil (Batch 2023)", "(May 2024)") labels the
+# object. Requiring a comma before the year would also spare "(Evonik 2021)", but on 2026-10-01 it lost 9
+# of the 10 live citations in sample names ("Pt/C (Xue 2020)"), so a supplier and year in brackets warns.
 _NAME_CITATION = re.compile(
-    r"\([A-Z][a-z]+(?:[-'\u2019][A-Z]?[a-z]+)?(?:\s+et\s+al\.?)?,?\s+(?:19|20)\d\d[a-z]?\)"
+    r"\((?!(?:Batch|Lot|Run|Series|Set|Sample|Campaign|Plate|Wafer|Cycle|Version|Revision|Grade|Edition"
+    r"|Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?"
+    r"|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|Spring|Summer|Fall|Autumn|Winter)\b)"
+    r"[A-Z][a-z]+(?:[-'\u2019][A-Z]?[a-z]+)?(?:\s+et\s+al\.?)?,?\s+(?:19|20)\d\d[a-z]?\)"
     r"|\bet\s+al\.?,?\s+(?:19|20)\d\d")
+# One object whose property varies across it (a wedge, a gradient, a composition spread) is one sample.
+_ONE_OBJECT_VARYING = re.compile(
+    r"\b(?:composition[- ]spread|(?:composition|thickness|dopant|loading|potential|temperature)[- ](?:gradient|graded)"
+    r"|(?:wedge|gradient|graded)[- ]?(?:shaped\s+)?(?:film|layer|wafer|crystal|electrode|foil|coating|disk|disc|sample))\b"
+    r"|\b(?:film|layer|wafer|crystal|electrode|foil|coating|disk|disc|sample)\s+(?:of|with)\s+(?:varied|varying)\b",
+    re.I)
 # Only notes that speak of the vocabulary: 'used as a proxy', 'no exact value' and 'submitted as' are
 # ordinary science and curation.
 _SUBSTITUTION = re.compile(
@@ -574,6 +586,8 @@ def _one_result_warnings(record: dict) -> list:
     warnings = []
     name = str(((record.get("sample") or {}).get("material") or {}).get("name") or "")
     m = _COLLECTION_NAME.search(name)
+    if m and m.group(0).lower() == "varied" and _ONE_OBJECT_VARYING.search(name):
+        m = None
     if m:
         warnings.append({
             "code": "SAMPLE_NOT_ONE_MATERIAL", "path": "sample/material/name",
@@ -597,7 +611,7 @@ def _one_result_warnings(record: dict) -> list:
             "code": "MULTIPLE_SOURCES", "path": "assets",
             "message": (f"This record names {len(sources)} sources ({shown}). One result comes from one work, and "
                         f"results from different papers are different records. If the same work also appears "
-                        f"elsewhere (its dataset, a thesis), cite that with citation.relation 'reports_this_work'; "
+                        f"elsewhere (its dataset, a thesis, an erratum or correction), cite that with citation.relation 'reports_this_work'; "
                         f"a paper cited for context has relation 'reference'. {_ONE_RESULT}")})
     ctx = record.get("context") if isinstance(record.get("context"), dict) else {}
     if record.get("record_domain") == "performance" and ctx.get("environment") == "ex_situ":
@@ -733,6 +747,63 @@ _RIVAL_PATTERNS = (
     re.compile(rf"\b{_RIVAL_VERB}\s+(?:(?i:the)\s+)?{_RIVAL_LABEL}\s+(?i:rival)\b{_RIVAL_AFTER}"),
     re.compile(rf"\b{_RIVAL_LABEL}\s+(?i:rival)\b(?=\s*(?:[.;:)\]]|$))"),
 )
+
+
+# A value the curator labels as quoted from a review ("SECOND-HAND (review table)", "this value is quoted in
+# a review article"). The review is then a reference; the record's source is the paper that measured the
+# value. "A second-hand potentiostat" is equipment, so the label must sit on a value or name a review.
+_SH_DATA = (r"(?:value|values|data|number|numbers|result|results|figure|figures|conversion|selectivity|yield"
+            r"|activity|rate|rates)")
+_SH_REVIEW = r"(?:a|the)\s+review(?:\s+(?:table|article|paper))?\b"
+_SECOND_HAND = re.compile(
+    rf"\bsecond[- ]hand\s*(?:[:(]\s*(?:[\w'-]+\s+){{0,6}}?(?:review|{_SH_DATA}|quoted)\b|{_SH_DATA}\b)"
+    rf"|\b{_SH_DATA}\b(?:\s+[\w'-]+){{0,5}}\s+(?:quoted\s+(?:in|from)|(?:taken|read|copied|extracted|transcribed"
+    rf"|obtained)\s+from|from)\s+{_SH_REVIEW}"
+    rf"|\breview[- ]derived\s+{_SH_DATA}\b", re.I)
+# A measurement condition in the sample name: a number with a temperature, pressure, potential or time
+# unit ("300 C at 50 bar", "at 1.2 V", "for 10 h"). A condition of how the material was made ("calcined
+# at 500 C") names the material and is left alone. C, K and V count only after "at", "for", "to", "over",
+# "between", a comma or a bracket, or in a range ("2.5-4.3 V"), so "3C-SiC", "Fe 3 C", "Cabot 300C" and
+# "Ti-6Al-4V" are names.
+_NAME_CONDITION = re.compile(
+    r"(?<![\w.])\d+(?:\.\d+)?\s*(?:°\s*C|degrees?\s+C|bar|mbar|atm|MPa|kPa|psi|torr|Torr|mV|h|hr|hrs|hours?|min)\b(?!\w)"
+    r"|(?:\bat|\bfor|\bafter|\bunder|\bto|\bover|\bbetween|\band|@|[,(])\s*-?\d+(?:\.\d+)?\s*(?:C|K|V)\b(?![\w-])"
+    r"|(?<![\w.])\d+(?:\.\d+)?\s*[-\u2013]\s*\d+(?:\.\d+)?\s*(?:°\s*C|C|K|V|bar|h)\b(?![\w-])")
+_MADE_BY = re.compile(
+    r"\b(?:calcin\w*|anneal\w*|reduced|sinter\w*|pyroly\w*|treated|dried|aged|synthesi[sz]ed|prepared"
+    r"|heated|grown|deposited|activated|cured|baked|quenched|oxidi[sz]ed|nitrided|sulfided|carburi[sz]ed"
+    r"|hydrothermal\w*|solvothermal\w*)\s+(?:[\w-]+\s+){0,3}(?:at|in|for|under|to)?\s*$", re.I)
+
+
+def _second_hand_and_name_condition_warnings(record: dict) -> list:
+    """A value labelled as quoted from a review, and a measurement condition in the sample name."""
+    if record.get("record_type") != "evidence":
+        return []
+    warnings = []
+    for path, text in _curated_text_fields(record):
+        m = _SECOND_HAND.search(text)
+        if m:
+            excerpt = text[max(0, m.start() - 30): m.end() + 40].replace("\n", " ")
+            warnings.append({
+                "code": "SECOND_HAND_SOURCE", "path": path,
+                "message": (f"This field says the value was taken from a review ('...{excerpt}...'). A value a "
+                            f"review quotes is the result of the paper that measured it: build the record from "
+                            f"that paper, cite it with citation.relation 'source', and cite the review with "
+                            f"relation 'reference'; or remove the value. {_ONE_RESULT}")})
+            break
+    name = str(((record.get("sample") or {}).get("material") or {}).get("name") or "")
+    for m in _NAME_CONDITION.finditer(name):
+        if _MADE_BY.search(name[:m.start()]):
+            continue
+        warnings.append({
+            "code": "CONDITIONS_IN_SAMPLE_NAME", "path": "sample/material/name",
+            "message": (f"sample.material.name '{name}' carries a measurement condition ('{m.group(0)}'). The "
+                        f"name names the material. Temperature, pressure, potential and duration of the "
+                        f"measurement go in context (temperature_K, pressure, potential_vs_RHE) or in a "
+                        f"descriptor's `at`. A condition of how the material was made, such as a calcination "
+                        f"temperature, belongs with the name or in sample.material.notes. {_ONE_RESULT}")})
+        break
+    return warnings
 
 
 def _competing_hypothesis_warnings(record: dict) -> list:
@@ -1720,7 +1791,8 @@ def validate_record_full(record: dict) -> dict:
     adr_errors = adr_errors + rx_errors + cell_errors
     warnings = (warnings + adr_warnings + rx_warnings + cell_warnings + _one_result_warnings(record)
                 + _computation_role_warnings(record) + _producer_warnings(record)
-                + _magnitude_warnings(record) + _competing_hypothesis_warnings(record))
+                + _magnitude_warnings(record) + _competing_hypothesis_warnings(record)
+                + _second_hand_and_name_condition_warnings(record))
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)
