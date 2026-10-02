@@ -22,7 +22,9 @@ from pathlib import Path
 
 # Bump when a derivation rule changes: the startup backfill re-derives every record whose keys are older.
 # 2: a sample_id that is not globally unique is scoped by its organization (else its lab).
-KEYS_VERSION = 2
+# 3: a lab key drops a trailing "group", "groups", "lab", "laboratory" or "research group", so
+#    "Jingguang G. Chen" and "Jingguang G. Chen group" are one lab.
+KEYS_VERSION = 3
 VOCAB_PATH = Path(__file__).resolve().parent.parent / "data" / "vocabulary.json"
 
 # Cluster dimensions, and the record_keys column each one reads.
@@ -138,9 +140,19 @@ def sample_key(record: dict, scope: str = None) -> str:
     return f"sample:{scope}/{sid}" if scope else None
 
 
+_LAB_SUFFIX = re.compile(r"\s+(?:research\s+)?(?:groups?|labs?|laborator(?:y|ies))$")
+
+
+def lab_name(text: str) -> str:
+    """The lab a producer string names, without a trailing 'group' or 'lab' word."""
+    return _LAB_SUFFIX.sub("", text).strip()
+
+
 def lab_key(record: dict, placeholders=()) -> str:
     group = _stated(_dig(record, "attribution", "produced_by", "group"), placeholders)
-    return f"group:{group}" if group and not _AUTHORS_AS_GROUP.match(group) else None
+    if not group or _AUTHORS_AS_GROUP.match(group):
+        return None
+    return f"group:{lab_name(group) or group}"
 
 
 def organization_key(name, aliases: dict, registry: dict, placeholders=()) -> str:
@@ -244,7 +256,7 @@ def key_from_param(dimension: str, value, vocab: dict = None):
         return f"sample:*/{key_text(value)}" if key_text(value) else None
     if dimension == "lab":
         text = key_text(rest if prefix == "group" else value)
-        return f"group:{text}" if text else None
+        return f"group:{lab_name(text) or text}" if text else None
     if dimension == "organization":
         if prefix == "ror":
             return f"ror:{rest.strip().lower()}" if rest.strip() else None

@@ -77,6 +77,8 @@ CODE_SCOPE = {
     "PRODUCER_AS_AUTHOR_LIST": "evidence records",
     "PRODUCER_NAME_FORMAT": "evidence records",
     "CONDITION_ONLY_IN_PROSE": "evidence records",
+    "SOURCE_LOOKS_LIKE_A_REVIEW": "evidence records",
+    "FUNCTIONAL_NOT_REPORTED": "computation",
     "LINK_TARGET_NOT_FOUND": "all records",
     "SECOND_HAND_SOURCE": "evidence records",
     "CONDITIONS_IN_SAMPLE_NAME": "evidence records",
