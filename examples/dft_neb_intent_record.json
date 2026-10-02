@@ -98,7 +98,7 @@
       "asset_id": "xu_reference",
       "content_role": "auxiliary_reference",
       "uri": "https://doi.org/10.1002/advs.202520469",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sha256": "not_available_literature_source",
       "media_type": "text/html",
       "citation": {
         "doi": "10.1002/advs.202520469",
@@ -110,7 +110,7 @@
       "asset_id": "vasp_incar",
       "content_role": "workflow_recipe",
       "uri": "repo://isaac-workflows/vasp_neb/cuag111_occo/INCAR",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sha256": "not_available",
       "media_type": "text/plain"
     }
   ],

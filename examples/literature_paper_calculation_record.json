@@ -71,7 +71,7 @@
    "asset_id": "cite_example-ammonia-synthesis-paper",
    "content_role": "documentation",
    "uri": "https://doi.org/10.0000/example-ammonia-synthesis-paper",
-   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "sha256": "not_available_literature_source",
    "citation": {
     "doi": "10.0000/example-ammonia-synthesis-paper",
     "title": "Example paper: CO activation of Ru/CeO2 for ammonia synthesis",

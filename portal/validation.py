@@ -1062,7 +1062,8 @@ def _producer_warnings(record: dict) -> list:
             "message": (f"'{group}' names no producer. If the producer is known, name the group (the PI's "
                         f"name as printed, plus 'group') or the organization: two results from one producer are "
                         f"not independent evidence. If it cannot be named (anonymized or industrial data), keep "
-                        f"'not_reported'; the discovery engine treats it as absent, never as a shared producer.")}]
+                        f"'not_reported'; the discovery engine treats it as absent, never as a shared producer. A source that "
+                        f"names its authors or its lab can always be named.")}]
     return []
 
 
@@ -1944,10 +1945,11 @@ def _adr001_warnings(record):
 # problem, and published all of them: an agent reads a success response as success. Each code here has a
 # remedy by edit and, on the live repository, fired only on that pipeline's records. NUMBER_AS_TEXT and
 # COMPUTATION_ON_MEASUREMENT stay warnings: a value below a detection limit has no number form yet, and a
-# refinement may sit on a measurement legitimately.
+# refinement may sit on a measurement legitimately. PRODUCED_BY_UNNAMED stays a warning too (2026-10-02):
+# a producer that cannot be named is kept as not_reported, so no edit could ever release the record.
 HOLD_CODES = frozenset({
     "SAMPLE_NOT_ONE_MATERIAL", "SAMPLE_NAME_CITES_A_PAPER", "MULTIPLE_SOURCES", "QUALIFIER_NOT_A_PRODUCT",
-    "SENTENCE_AS_VALUE", "PERFORMANCE_EX_SITU", "VOCABULARY_SUBSTITUTION", "PRODUCED_BY_UNNAMED",
+    "SENTENCE_AS_VALUE", "PERFORMANCE_EX_SITU", "VOCABULARY_SUBSTITUTION",
     "COMPETING_HYPOTHESIS_LANGUAGE", "SECOND_HAND_SOURCE", "CONDITIONS_IN_SAMPLE_NAME",
     "PRODUCER_AS_AUTHOR_LIST",
 })
