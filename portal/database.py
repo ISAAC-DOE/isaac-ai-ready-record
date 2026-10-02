@@ -1539,6 +1539,24 @@ def delete_record(record_id: str, actor: str | None = None) -> bool:
         conn.close()
 
 
+def existing_record_ids(record_ids, owner=None) -> set:
+    """The ids among record_ids that are published, or held by this owner (a link may name a draft of
+    one's own)."""
+    ids = sorted({str(i).strip() for i in record_ids or () if str(i or "").strip()})
+    if not ids:
+        return set()
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT record_id FROM records WHERE record_id = ANY(%s) UNION "
+                    "SELECT record_id FROM records_held WHERE record_id = ANY(%s) AND owner IS NOT DISTINCT FROM %s",
+                    (ids, ids, owner))
+        return {str(row["record_id"]).strip() for row in cur.fetchall()}
+    finally:
+        cur.close()
+        conn.close()
+
+
 def get_held_record(record_id: str):
     """{owner, data, hold_codes, created_at, updated_at} of a held record, or None."""
     conn = get_db_connection()
