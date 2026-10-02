@@ -118,7 +118,7 @@ def test_a_local_sample_id_is_scoped_by_organization_then_lab():
     alone = _record(sample={"sample_id": "Cu-Foil_07"})
     k_ours, k_theirs = rg.derive_keys(ours, VOCAB)["sample_id"], rg.derive_keys(theirs, VOCAB)["sample_id"]
     assert k_ours.startswith("sample:ror:") and k_ours.endswith("/cu-foil 07") and k_ours != k_theirs
-    assert rg.derive_keys(lab_only, VOCAB)["sample_id"] == "sample:group:some group/cu-foil 07"
+    assert rg.derive_keys(lab_only, VOCAB)["sample_id"] == "sample:group:some/cu-foil 07"
     assert rg.derive_keys(alone, VOCAB)["sample_id"] is None
     assert rg.sample_key(_record(sample={})) is None
     # asked for by name, a local id matches that name in every lab; a returned key matches itself
@@ -136,7 +136,7 @@ def test_a_placeholder_group_is_no_lab(group):
 def test_a_named_group_is_a_lab_in_any_case_or_spacing():
     one = rg.derive_keys(_record(attribution={"produced_by": {"group": "Joel W. Ager group"}}), VOCAB)["lab"]
     two = rg.derive_keys(_record(attribution={"produced_by": {"group": "joel w.  ager GROUP"}}), VOCAB)["lab"]
-    assert one == two == "group:joel w. ager group" == rg.key_from_param("lab", "Joel W. Ager group")
+    assert one == two == "group:joel w. ager" == rg.key_from_param("lab", "Joel W. Ager group")
     # A surname that reads like a placeholder abbreviation is still a name.
     assert rg.derive_keys(_record(attribution={"produced_by": {"group": "Kyungsu Na group"}}), VOCAB)["lab"]
 
@@ -381,7 +381,7 @@ def test_list_filters_normalize_before_querying(client, monkeypatch):
                 "&organization=SLAC&sample_id=Cu-Foil_07")
     assert res.status_code == 200
     f = seen["filters"]
-    assert f["study"] == "doi:10.1038/s41929-023-01008-0" and f["lab"] == "group:joel w. ager group"
+    assert f["study"] == "doi:10.1038/s41929-023-01008-0" and f["lab"] == "group:joel w. ager"
     assert f["organization"].startswith("ror:") and f["sample_id"] == "sample:*/cu-foil 07"
 
 
@@ -416,3 +416,16 @@ def test_cluster_and_neighbors_of_a_missing_record_are_404(client, monkeypatch):
     monkeypatch.setattr(api.database, "record_neighbors", lambda rid, **kw: None)
     assert c.get("/portal/api/records/01MISSING00000000000000000/cluster").status_code == 404
     assert c.get("/portal/api/records/01MISSING00000000000000000/neighbors").status_code == 404
+
+
+def test_a_person_and_their_group_are_one_lab():
+    """A producer written 'Jingguang G. Chen' in one record and 'Jingguang G. Chen group' in another
+    is one lab. The trailing word is dropped from the key; uploaders are asked for nothing."""
+    keys = {rg.derive_keys(_record(attribution={"produced_by": {"group": g}}), VOCAB)["lab"]
+            for g in ("Jingguang G. Chen", "Jingguang G. Chen group", "Jingguang G. Chen Lab",
+                      "Jingguang G. Chen research group")}
+    assert keys == {"group:jingguang g. chen"}
+    two = rg.derive_keys(_record(attribution={"produced_by": {"group": "David Sinton and Edward H. Sargent groups"}}), VOCAB)
+    assert two["lab"] == "group:david sinton and edward h. sargent"
+    assert rg.key_from_param("lab", "Jingguang G. Chen group") == rg.key_from_param("lab", "jingguang g. chen")
+    assert rg.derive_keys(_record(attribution={"produced_by": {"group": "SUNCAT"}}), VOCAB)["lab"] == "group:suncat"

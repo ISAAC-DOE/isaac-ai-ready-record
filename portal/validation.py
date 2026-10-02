@@ -1195,6 +1195,60 @@ def _producer_name_warnings(record: dict) -> list:
     return []
 
 
+# A review cited as the record's source (2026-10-01): a value a review quotes is the result of the paper
+# that measured it. A review may also be the first to report a value of its own (a benchmark it ran, a
+# meta-analysis), so this warns and the message says when to dismiss it. Three blind reviews set the
+# lists: full names of review-only venues, and title phrases that name a review; "Progress in ..."
+# journals, a bare "perspective" and "reviewed" publish or describe research and are left out.
+_REVIEW_VENUE = re.compile(
+    r"^\s*(?:Chem(?:ical|\.)?\s+Rev(?:iews|\.)?|Chem(?:ical|\.)?\s+Soc(?:iety|\.)?\s+Rev(?:iews|\.)?"
+    r"|Nat(?:ure|\.)?\s+Rev(?:iews|\.)?\b.*|Annu(?:al|\.)?\s+Rev(?:iew|\.)?\b.*|Curr(?:ent|\.)?\s+Opin(?:ion|\.)?\b.*"
+    r"|Acc(?:ounts|\.)?\s+(?:of\s+)?Chem(?:ical|\.)?\s+Res(?:earch|\.)?"
+    r"|Rev(?:iews|\.)?\s+(?:of\s+)?Mod(?:ern|\.)?\s+Phys(?:ics|\.)?|Phys(?:ics|\.)?\s+Rep(?:orts|\.)?"
+    r"|Earth-Science\s+Reviews|ACM\s+Computing\s+Surveys)\s*$", re.I)
+_REVIEW_TITLE = re.compile(
+    r"\b(?:mini-?)?review\b|\ba\s+survey\s+of\b|\bmeta-analysis\b|\brecent\s+(?:advances|progress|developments)\b"
+    r"|\bprogress\s+and\s+(?:perspectives?|prospects?|prospective|challenges)\b|\ba\s+roadmap\b", re.I)
+_FUNCTIONAL_FAMILIES = {"DFT", "DFT_U", "hybrid_DFT", "AIMD"}
+_NOT_GIVEN = {"", "not_reported", "not reported", "unknown", "none", "n/a", "na", "not_specified_in_source"}
+
+
+def _source_and_method_warnings(record: dict) -> list:
+    """A review cited as the source, and a density-functional result without its functional (warnings)."""
+    if record.get("record_type") != "evidence":
+        return []
+    warnings = []
+    for i, a in enumerate(_assets(record)):
+        c = a.get("citation") if isinstance(a.get("citation"), dict) else None
+        if not c or c.get("relation") not in (None, "source"):
+            continue
+        journal, title = str(c.get("journal") or ""), str(c.get("title") or "")
+        why = ("its journal publishes reviews" if _REVIEW_VENUE.match(journal)
+               else "its title names a review" if _REVIEW_TITLE.search(title) else None)
+        if why:
+            warnings.append({
+                "code": "SOURCE_LOOKS_LIKE_A_REVIEW", "path": f"assets/{i}/citation",
+                "message": (f"The source '{title[:90]}' looks like a review: {why}. A value a review quotes is the "
+                            f"result of the paper that measured or computed it: cite that paper with relation "
+                            f"'source' and the review with relation 'reference'. If this paper first reported "
+                            f"the value (its own benchmark, calculation or meta-analysis), keep it as the "
+                            f"source. {_ONE_RESULT}")})
+            break
+    comp = record.get("computation") if isinstance(record.get("computation"), dict) else {}
+    method = comp.get("method") if isinstance(comp.get("method"), dict) else {}
+    if method.get("family") in _FUNCTIONAL_FAMILIES and str(method.get("functional_name") or "").strip().lower() in _NOT_GIVEN:
+        code_too = str(method.get("code") or "").strip().lower() in _NOT_GIVEN
+        warnings.append({
+            "code": "FUNCTIONAL_NOT_REPORTED", "path": "computation/method/functional_name",
+            "message": ("This density-functional result does not name its exchange-correlation functional"
+                        + (", nor the code that ran it" if code_too else "") + ". A DFT value is comparable to "
+                        "another only at the same functional, and a paper almost always states it in its methods "
+                        "or supporting information. Write it (e.g. PBE, RPBE, BEEF-vdW, HSE06)"
+                        + (" and the code" if code_too else "") + "; keep 'not_reported' only when the source "
+                        "truly does not say.")})
+    return warnings
+
+
 def link_target_warnings(record: dict, known_ids) -> list:
     """Links whose target is no record the repository knows: not published, and not held by this uploader.
     The validator cannot see the repository; the API calls this with the ids it found."""
@@ -1960,7 +2014,7 @@ def validate_record_full(record: dict) -> dict:
                 + _computation_role_warnings(record) + _producer_warnings(record)
                 + _magnitude_warnings(record) + _competing_hypothesis_warnings(record)
                 + _second_hand_and_name_condition_warnings(record) + _prose_condition_warnings(record)
-                + _producer_name_warnings(record))
+                + _producer_name_warnings(record) + _source_and_method_warnings(record))
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)
