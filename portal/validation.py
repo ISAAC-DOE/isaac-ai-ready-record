@@ -1243,9 +1243,10 @@ def _source_and_method_warnings(record: dict) -> list:
             "message": ("This density-functional result does not name its exchange-correlation functional"
                         + (", nor the code that ran it" if code_too else "") + ". A DFT value is comparable to "
                         "another only at the same functional, and a paper almost always states it in its methods "
-                        "or supporting information. Write it (e.g. PBE, RPBE, BEEF-vdW, HSE06)"
-                        + (" and the code" if code_too else "") + "; keep 'not_reported' only when the source "
-                        "truly does not say.")})
+                        "or supporting information. Write the functional the source names, as it names it"
+                        + (", and the code" if code_too else "") + ". When the source does not name one, keep "
+                        "'not_reported': a usual functional written in its place makes the value look "
+                        "comparable when it is not.")})
     return warnings
 
 
@@ -1506,26 +1507,45 @@ def _origin_errors(record: dict) -> list:
 # without anyone writing to them. The portal and GET /records/attention both use this.
 # ---------------------------------------------------------------------------
 def current_contract_report(records: list) -> dict:
-    """Which of these stored records fail the current rules, with each error."""
+    """Which of these stored records fail the current rules, with each error, and which pass but
+    carry warnings, with each warning and its tier: 'hold' when a new upload carrying it would be
+    held, else 'warning'. A record that fails lists its warnings with its errors, and only records
+    that pass are counted in warnings_by_code, so the two queues never overlap."""
     from collections import Counter
-    needing, by_code = [], Counter()
+    needing, warned, by_code, by_warning = [], [], Counter(), Counter()
     for record in records:
         if not isinstance(record, dict):
             continue
         res = validate_record_full(record)
-        if res.get("valid"):
-            continue
         errors = []
         for layer, fallback in (("schema_errors", "SCHEMA"), ("vocabulary_errors", "VOCABULARY"),
                                 ("semantic_errors", "SEMANTIC")):
             for e in res.get(layer) or []:
                 errors.append({"code": e.get("code") or fallback, "path": e.get("path"),
                                "message": e.get("message")})
-        by_code.update({e["code"] for e in errors})
-        needing.append({"record_id": str(record.get("record_id") or "").strip(),
-                        "record_domain": record.get("record_domain"), "errors": errors})
+        warnings = [{"code": w["code"], "tier": "hold" if w["code"] in HOLD_CODES else "warning",
+                     "path": w.get("path"), "message": w.get("message")}
+                    for w in res.get("warnings") or [] if isinstance(w, dict) and w.get("code")]
+        row = {"record_id": str(record.get("record_id") or "").strip(),
+               "record_domain": record.get("record_domain"), "errors": errors, "warnings": warnings}
+        if not res.get("valid"):
+            by_code.update({e["code"] for e in errors})
+            needing.append(row)
+        elif warnings:
+            by_warning.update({(w["code"], w["tier"]) for w in warnings})
+            warned.append(row)
+    ordered = sorted(by_warning.items(), key=lambda kv: (kv[0][1] != "hold", -kv[1], kv[0][0]))
+    examples = {}
+    for r in warned:
+        for code in {w["code"] for w in r["warnings"]}:
+            if len(examples.setdefault(code, [])) < 3:
+                examples[code].append(r["record_id"])
     return {"checked": len(records), "needing_update": len(needing),
-            "by_code": dict(by_code.most_common()), "records": needing}
+            "by_code": dict(by_code.most_common()), "records": needing,
+            "stored_with_hold_warning": sum(any(w["tier"] == "hold" for w in r["warnings"]) for r in warned),
+            "warnings_by_code": {code: {"records": n, "tier": tier, "examples": examples[code]}
+                                 for (code, tier), n in ordered},
+            "warned": warned}
 
 
 # ---------------------------------------------------------------------------

@@ -75,6 +75,7 @@ def _method(**m):
 def test_dft_without_its_functional_warns_and_names_the_code_when_missing():
     w = validation._source_and_method_warnings(_method(family="DFT", functional_name="not_reported", code="not_reported"))
     assert [x["code"] for x in w] == ["FUNCTIONAL_NOT_REPORTED"] and "nor the code" in w[0]["message"]
+    assert "keep 'not_reported'" in w[0]["message"] and "PBE" not in w[0]["message"]
     w = validation._source_and_method_warnings(_method(family="DFT_U", code="VASP"))
     assert [x["code"] for x in w] == ["FUNCTIONAL_NOT_REPORTED"] and "nor the code" not in w[0]["message"]
 
