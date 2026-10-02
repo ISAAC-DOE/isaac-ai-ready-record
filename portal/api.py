@@ -926,7 +926,8 @@ def record_quality(record_id):
     return jsonify({"record_id": record_id, **result}), 200
 
 
-_ATTENTION_PARAMS = {"limit", "offset", "code", "owner"}
+_ATTENTION_PARAMS = {"limit", "offset", "code", "owner", "tier"}
+_ATTENTION_TIERS = ("error", "hold", "warning")
 
 
 @app.route("/portal/api/records/attention", methods=["GET"])
@@ -939,13 +940,22 @@ def records_attention():
     owner's agent, finds what to bring up to date: GET the record, fix it, POST /validate,
     then PUT /records/<id> (versioned; the previous version is kept).
 
-    Query params: limit (default 50, max 500), offset, code (only records failing that
-    code), owner (admins only: another identity's records).
+    Records that pass can carry warnings, some added after they were stored. warnings_by_code
+    counts each warning code with its tier and up to three example records, and
+    stored_with_hold_warning counts the records carrying a warning that would hold a new upload.
+    They are not a work queue: the list stays errors-only unless a tier or a warning code is
+    asked for. Info notes are left out.
+
+    Query params: limit (default 50, max 500), offset, code (one error or warning code), tier
+    (error, the default; hold; warning), owner (admins only: another identity's records).
     """
     unknown = set(request.args.keys()) - _ATTENTION_PARAMS
     if unknown:
         return jsonify({"error": f"Unknown query parameter(s): {sorted(unknown)}. "
                                  f"Supported: {sorted(_ATTENTION_PARAMS)}"}), 400
+    tier = request.args.get("tier")
+    if tier is not None and tier not in _ATTENTION_TIERS:
+        return jsonify({"error": f"tier must be one of {list(_ATTENTION_TIERS)}"}), 400
     caller = (request.auth_info or {}).get("user")
     owner = request.args.get("owner") or caller
     if owner != caller and not _caller_is_admin():
@@ -961,16 +971,35 @@ def records_attention():
         logger.exception("Database error listing records for %s", owner)
         return jsonify({"error": "internal server error"}), 500
     report = validation.current_contract_report(records)
-    rows = report["records"]
     code = request.args.get("code")
-    if code:
-        rows = [r for r in rows if any(e["code"] == code for e in r["errors"])]
+    if tier is None:
+        warned_code = report["warnings_by_code"].get(code) if code not in report["by_code"] else None
+        tier = warned_code["tier"] if warned_code else "error"
+    if tier == "error":
+        rows = report["records"]
+        if code:
+            rows = [r for r in rows if any(e["code"] == code for e in r["errors"])]
+    else:
+        rows = [r for r in report["warned"]
+                if any(w["tier"] == tier and (not code or w["code"] == code) for w in r["warnings"])]
     return jsonify({
         "owner": owner, "checked": report["checked"], "needing_update": report["needing_update"],
-        "by_code": report["by_code"], "matching": len(rows), "records": rows[offset:offset + limit],
-        "how_to_fix": ("Each error names its fix; the rules are on the wiki page Validation-Rules. GET "
-                       "/records/<id>, correct it, POST /validate until it passes, then PUT /records/<id> "
-                       "with a change_note. The previous version is kept."),
+        "by_code": report["by_code"], "stored_with_hold_warning": report["stored_with_hold_warning"],
+        "warnings_by_code": report["warnings_by_code"], "tier": tier,
+        "matching": len(rows), "records": rows[offset:offset + limit],
+        "how_to_fix": ("by_code, records and needing_update count errors, and each error names its fix "
+                       "(wiki page Validation-Rules). GET /records/<id>, correct it, POST /validate until it "
+                       "passes, then PUT /records/<id> with a change_note. The previous version is kept. "
+                       "warnings_by_code counts the records that pass every rule and still carry a warning, "
+                       "including warnings added after upload; stored_with_hold_warning counts those whose "
+                       "warning would hold a new upload. These counts are not a work queue and may stay "
+                       "above zero. Inspect one with ?code=<code>, or a tier with ?tier=hold. Send a new version "
+                       "only when the source, or your own data, states a value the record lacks or "
+                       "contradicts. If you cannot point to that statement, leave the record as it is; a "
+                       "warning that stays is an accepted outcome. Never supply a usual value (a functional, "
+                       "a temperature, a unit) to remove a warning. Make all fixes to a record in one edit: "
+                       "each edit is a new version, and every discovery project that cites the record, in any "
+                       "lab, is asked to re-check it."),
     }), 200
 
 
