@@ -76,7 +76,7 @@
    "asset_id": "cite_example-original-dry-reforming-paper",
    "content_role": "documentation",
    "uri": "https://doi.org/10.0000/example-original-dry-reforming-paper",
-   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "sha256": "not_available_literature_source",
    "citation": {
     "doi": "10.0000/example-original-dry-reforming-paper",
     "title": "Example original paper: MgO-promoted Ni/SBA-15 for dry reforming of methane",
@@ -88,7 +88,7 @@
    "asset_id": "cite_example-dry-reforming-review",
    "content_role": "documentation",
    "uri": "https://doi.org/10.0000/example-dry-reforming-review",
-   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "sha256": "not_available_literature_source",
    "citation": {
     "doi": "10.0000/example-dry-reforming-review",
     "title": "Example review of Ni catalysts for dry reforming",

@@ -72,7 +72,7 @@
       "asset_id": "source_publication",
       "content_role": "auxiliary_reference",
       "uri": "https://doi.org/10.1021/acsenergylett.1c01485",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sha256": "not_available_literature_source",
       "media_type": "publication/journal_article",
       "citation": {
         "doi": "https://doi.org/10.1021/acsenergylett.1c01485",
@@ -87,7 +87,7 @@
       "asset_id": "catalysis_hub_entry",
       "content_role": "raw_data_pointer",
       "uri": "https://www.catalysis-hub.org/publications/Gauthierrole2021",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sha256": "not_available",
       "media_type": "text/html",
       "database_entry": {
         "database": "Catalysis-Hub",
