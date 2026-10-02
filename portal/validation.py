@@ -1066,6 +1066,150 @@ def _producer_warnings(record: dict) -> list:
     return []
 
 
+# --- Conditions only in prose, and producers named as authors (2026-10-01) ------------------------
+# A rebuilt literature pipeline gave a turnover frequency's temperature only in its definition ("at 400 C")
+# while context.temperature_K said not_reported, and named every producer "<first author> et al.". Three
+# blind reviews: the prose rule warns, because C-rates, eV, ramp rates, reference values and fit ranges read
+# like conditions in some science; "et al." in a producer group holds, because no group is named that way.
+_PREP_WORDS = (r"(?:calcined|annealed|reduced|sputter-deposited|pretreated|pre-treated|dried|aged|quenched|refluxed"
+               r"|sintered|pyrolyzed|pyrolysed|impregnated|heat-treated|degassed|oxidized|oxidised|passivated|purged"
+               r"|sealed|stored|refrigerated|frozen|lyophilized|cultured|grown|fermented|synthesized|synthesised"
+               r"|prepared|deposited|activated)")
+_COND_NUM = r"(?:~|\u2248|ca\.\s*|approximately\s+)?(?P<num>[+\u2212-]?\d+(?:\.\d+)?)(?:\s*\u00b1\s*\d+(?:\.\d+)?)?"
+_COND_CUE = (r"(?:\bat\s+(?:a\s+)?(?:temperature|pressure|potential)\s+of\s+|\bat\s+|@\s*"
+             r"|\b(?:temperature|(?<![A-Za-z\u0394\u03b4])T)\s*[=:\u2248]\s*|\bunder\s+)")
+_COND_UNIT = (r"(?P<unit>\u00b0\s*C|\u2103|\u00baC|degrees?\s+C(?:elsius)?|Celsius|mbar|kPa|MPa|bara|barg|bar|atm"
+              r"|torr|Torr|(?<![A-Za-z])m?V|K|C)")
+_CONDITION = re.compile(
+    rf"(?P<cue>{_COND_CUE}){_COND_NUM}\s*{_COND_UNIT}(?![A-Za-z0-9])"
+    r"(?!\s*(?:/|\u00b7|\u22c5)|\s*(?:min|s|sec|h|hr|dec)\b|\s*\^)"
+    r"(?!\s*(?:-|\u2013|to)\s*[+\u2212-]?\d)"
+    r"(?P<ref>\s*(?:vs\.?|versus)\s*(?P<scale>[A-Za-z0-9/+]+))?")
+_COND_REFERENCE_BEFORE = re.compile(
+    r"(?:relative\s+to|compared\s+(?:with|to)|normali[sz]ed\s+to|referenced\s+to|with\s+respect\s+to)"
+    r"(?:\s+the\s+(?:value|rate|current|signal|response))?\s*$", re.I)
+_COND_PREP_BEFORE = re.compile(rf"\b{_PREP_WORDS}\b(?:\W+\w+){{0,7}}\W*$", re.I)
+_COND_BATTERY_BEFORE = re.compile(r"capacit|cycl|charg|discharg|capabilit", re.I)
+_TEMPERATURE_UNITS = {"k", "celsius", "degc", "c", "\u00b0c", "kelvin"}
+_PRESSURE_UNITS = {"bar", "mbar", "kpa", "mpa", "pa", "atm", "torr"}
+_POTENTIAL_UNITS = {"v", "mv", "v_rhe", "v vs rhe"}
+
+
+def _condition_dimension(m, before: str):
+    """'temperature', 'pressure', 'potential' or None for one match of _CONDITION."""
+    unit = re.sub(r"\s+", "", m.group("unit"))
+    cue = m.group("cue").strip().lower()
+    num = float(m.group("num").replace("\u2212", "-"))
+    if unit in ("mbar", "kPa", "MPa", "bara", "barg", "bar", "atm", "torr", "Torr"):
+        return "pressure"
+    if cue.startswith("under"):
+        return None
+    if unit in ("V", "mV"):
+        return "potential" if re.fullmatch(r"(?i)rhe", m.group("scale") or "") else None
+    if unit == "K":
+        return None if num == 0 else "temperature"
+    if unit == "C":
+        return "temperature" if num >= 50 and not _COND_BATTERY_BEFORE.search(before[-40:]) else None
+    return "temperature"
+
+
+def _structured(record: dict, at: dict, dimension: str) -> bool:
+    ctx = record.get("context") if isinstance(record.get("context"), dict) else {}
+    at = at if isinstance(at, dict) else {}
+    if dimension == "temperature":
+        return at.get("temperature_K") is not None or ctx.get("temperature_K") is not None
+    if dimension == "pressure":
+        feed = ((ctx.get("transport") or {}).get("feed") or {}) if isinstance(ctx.get("transport"), dict) else {}
+        thermo = ctx.get("thermodynamics") if isinstance(ctx.get("thermodynamics"), dict) else {}
+        return any(v is not None for v in (at.get("pressure_bar"), feed.get("pressure_bar"), thermo.get("pressure_Pa")))
+    ec = ctx.get("electrochemistry") if isinstance(ctx.get("electrochemistry"), dict) else {}
+    rhe = ec.get("potential_vs_RHE") if isinstance(ec.get("potential_vs_RHE"), dict) else {}
+    return any(v is not None for v in (at.get("potential_V_RHE"), rhe.get("value_V"), ec.get("potential_setpoint_V")))
+
+
+def _measures(unit: str, dimension: str) -> bool:
+    """The descriptor's own quantity is of this dimension, so the number is the measurand."""
+    u = str(unit or "").strip().lower().replace(" ", "")
+    return ((dimension == "temperature" and u in _TEMPERATURE_UNITS)
+            or (dimension == "pressure" and u in _PRESSURE_UNITS)
+            or (dimension == "potential" and u in _POTENTIAL_UNITS))
+
+
+def _prose_condition_warnings(record: dict) -> list:
+    """A descriptor definition that states the condition its value was read at, while no structured field
+    carries that quantity (warning)."""
+    if record.get("record_type") != "evidence":
+        return []
+    warnings = []
+    for oi, o in enumerate((record.get("descriptors") or {}).get("outputs") or []):
+        for di, d in enumerate(o.get("descriptors") or [] if isinstance(o, dict) else []):
+            if not isinstance(d, dict) or not isinstance(d.get("definition"), str):
+                continue
+            text = d["definition"]
+            for m in _CONDITION.finditer(text):
+                before = text[:m.start()]
+                if _COND_REFERENCE_BEFORE.search(before) or _COND_PREP_BEFORE.search(before):
+                    continue
+                dim = _condition_dimension(m, before)
+                if dim is None or _measures(d.get("unit"), dim) or _structured(record, d.get("at"), dim):
+                    continue
+                field = {"temperature": "`at.temperature_K` (or context.temperature_K with temperature_basis "
+                                        "'stated')",
+                         "pressure": "`at.pressure_bar` (or context.transport.feed.pressure_bar)",
+                         "potential": "`at.potential_V_RHE` (or context.electrochemistry.potential_vs_RHE)"}[dim]
+                warnings.append({
+                    "code": "CONDITION_ONLY_IN_PROSE", "path": f"descriptors/outputs/{oi}/descriptors/{di}/definition",
+                    "message": (f"The definition of '{d.get('name')}' states the {dim} it was read at "
+                                f"('{m.group(0).strip()}'), and no structured field carries it. Put it in {field}. "
+                                f"An agent filtering by {dim} finds only what the structured fields hold.")})
+                break
+    return warnings
+
+
+_AUTHOR_LIST_GROUP = re.compile(r"(?i)\bet\.?\s*al\b\.?|\band\s+co-?workers\b|\band\s+colleagues\b")
+_GROUP_WORDS = re.compile(r"(?i)\b(?:groups?|labs?|laborator(?:y|ies)|institutes?|cent(?:er|re)s?|consortium|team"
+                          r"|facilit(?:y|ies)|collaboration|initiative|program(?:me)?|project)\b")
+_SEMICOLON_AUTHORS = re.compile(r"[A-Z][A-Za-z'\u2019\-]+,\s*[A-Z][^;]{0,60};\s*[A-Z]")
+_AND_AUTHORS = re.compile(r"^\s*[A-Z][\w'\u2019.\- ]{0,40}?\s+(?:and|&)\s+[A-Z][\w'\u2019.\- ]{0,40}\s*$")
+
+
+def _producer_name_warnings(record: dict) -> list:
+    """A producer group written as a list of authors: 'Huihuang Fang et al.' holds; author-list shapes
+    without a group word ('Smith, J.; Lee, K.', 'Smith and Jones') warn."""
+    if record.get("record_type") != "evidence":
+        return []
+    pb = (record.get("attribution") or {}).get("produced_by") if isinstance(record.get("attribution"), dict) else None
+    group = str((pb or {}).get("group") or "").strip() if isinstance(pb, dict) else ""
+    if not group:
+        return []
+    fix = ("Name the group that produced the result by its principal investigator as the byline prints it, "
+           "'<PI name> group' (two PIs: 'A and B groups'), and add produced_by.organization. The discovery engine "
+           "matches this field exactly to judge whether two results are independent, so one group must be "
+           "written the same way in every record.")
+    if _AUTHOR_LIST_GROUP.search(group):
+        return [{"code": "PRODUCER_AS_AUTHOR_LIST", "path": "attribution/produced_by/group",
+                 "message": f"produced_by.group '{group}' is a list of authors. {fix}"}]
+    if not _GROUP_WORDS.search(group) and (_SEMICOLON_AUTHORS.search(group) or _AND_AUTHORS.match(group)):
+        return [{"code": "PRODUCER_NAME_FORMAT", "path": "attribution/produced_by/group",
+                 "message": f"produced_by.group '{group}' reads like author names. {fix}"}]
+    return []
+
+
+def link_target_warnings(record: dict, known_ids) -> list:
+    """Links whose target is no record the repository knows: not published, and not held by this uploader.
+    The validator cannot see the repository; the API calls this with the ids it found."""
+    known = {str(k).strip() for k in known_ids or ()}
+    out = []
+    for i, link in enumerate(record.get("links") if isinstance(record.get("links"), list) else []):
+        target = str((link or {}).get("target") or "").strip() if isinstance(link, dict) else ""
+        if target and target not in known:
+            out.append({"code": "LINK_TARGET_NOT_FOUND", "path": f"links/{i}/target",
+                        "message": (f"No record {target} exists in the repository yet. A link names a record that "
+                                    f"exists; within a batch, upload the target first or link from the later "
+                                    f"record. Check the id.")})
+    return out
+
+
 def _computation_role_warnings(record: dict) -> list:
     """A computation.method on a record whose fields say measurement: the fit of this measurement,
     or a computed result that is a record of its own. Only the record says which, so this warns."""
@@ -1731,6 +1875,7 @@ HOLD_CODES = frozenset({
     "SAMPLE_NOT_ONE_MATERIAL", "SAMPLE_NAME_CITES_A_PAPER", "MULTIPLE_SOURCES", "QUALIFIER_NOT_A_PRODUCT",
     "SENTENCE_AS_VALUE", "PERFORMANCE_EX_SITU", "VOCABULARY_SUBSTITUTION", "PRODUCED_BY_UNNAMED",
     "COMPETING_HYPOTHESIS_LANGUAGE", "SECOND_HAND_SOURCE", "CONDITIONS_IN_SAMPLE_NAME",
+    "PRODUCER_AS_AUTHOR_LIST",
 })
 
 
@@ -1814,7 +1959,8 @@ def validate_record_full(record: dict) -> dict:
     warnings = (warnings + adr_warnings + rx_warnings + cell_warnings + _one_result_warnings(record)
                 + _computation_role_warnings(record) + _producer_warnings(record)
                 + _magnitude_warnings(record) + _competing_hypothesis_warnings(record)
-                + _second_hand_and_name_condition_warnings(record))
+                + _second_hand_and_name_condition_warnings(record) + _prose_condition_warnings(record)
+                + _producer_name_warnings(record))
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)

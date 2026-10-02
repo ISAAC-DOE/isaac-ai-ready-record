@@ -544,8 +544,27 @@ def validate():
 
     # One call to the shared validation module — identical result shape, plus where the rules live.
     result = validation.validate_record_full(data)
+    _add_link_warnings(data, result, (request.auth_info or {}).get("user"))
     result["contract"] = _contract_pointer()
     return jsonify(result), 200
+
+
+def _add_link_warnings(record, result, owner) -> None:
+    """Links to records the repository does not know: a warning only, which never changes the outcome. The
+    pure validator cannot see the repository, so the API looks the targets up."""
+    if not isinstance(record, dict) or not isinstance(record.get("links"), list):
+        return
+    targets = [l.get("target") for l in record["links"] if isinstance(l, dict) and l.get("target")]
+    if not targets:
+        return
+    try:
+        known = database.existing_record_ids(targets, owner)
+    except Exception:
+        logger.warning("link-target check unavailable", exc_info=True)
+        return
+    extra = validation.link_target_warnings(record, known)
+    if extra:
+        result["warnings"] = (result.get("warnings") or []) + extra
 
 
 # --- Create record ---------------------------------------------------------
@@ -640,6 +659,7 @@ def create_record():
             return jsonify(resp), 200
         record_id = database.save_record(data, uploaded_by=caller, mode="insert")
         resp = {"success": True, "record_id": record_id}
+        _add_link_warnings(data, result, caller)
         # Warnings tier: accepted-but-improvable feedback travels with the 201
         if result.get("warnings"):
             resp["warnings"] = result["warnings"]
