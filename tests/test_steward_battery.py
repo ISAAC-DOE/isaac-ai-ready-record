@@ -61,3 +61,11 @@ def test_the_diff_reports_new_edited_and_deleted_records():
     after[0]["_meta"]["version"] = 2
     d = battery.diff(before, after, battery.measure(before), battery.measure(after))
     assert (d["new"], d["deleted"], d["edited"]) == (1, 1, 1)
+
+
+def test_runs_sort_by_time_across_both_name_formats(tmp_path):
+    for name in ("2026-10-06T1833Z", "2026-10-06T183305Z", "2026-10-07T061700Z", "2026-10-06T1832Z"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "metrics.json").write_text("{}")
+    assert [p.name for p in battery.runs_in(tmp_path)] == [
+        "2026-10-06T1832Z", "2026-10-06T1833Z", "2026-10-06T183305Z", "2026-10-07T061700Z"]
