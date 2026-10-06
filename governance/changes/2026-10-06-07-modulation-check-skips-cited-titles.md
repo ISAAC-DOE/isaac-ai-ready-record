@@ -77,4 +77,11 @@ to declare the block and when to keep the record as it is.
 
 ## Ship and watch
 
-Pending.
+- Shipped in #268 (portal v0.0.350, 2026-10-06), with the regenerated Validation-Rules and Constraint-Matrix
+  pages. The first main CI run failed: the Constraint-Matrix page had not been regenerated. `tools/ship.sh`
+  now checks the published wiki before merging and waits for the CI run of the merge commit itself.
+- Live check: the validator stays silent on a record whose only match is a cited title and fires on a
+  modulation file name. A live battery (2026-10-06T195904Z, 2,994 records) finds the advisory on 25 records,
+  all haochen_slac, all with a modulation file name.
+- Watch: the daily battery counts the advisory by uploader; a new firing on another uploader's records is
+  read before any further change to the regex.
