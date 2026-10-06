@@ -59,8 +59,21 @@ Codex, Grok and Gemini, blind.
 
 ## Gate 3
 
-Measured by run 3. First result, from the two agents whose runs completed: each result that needs a missing
-required term (a reaction for enzyme kinetics or battery cycling, a technique for thermal shift or broth
-microdilution) is now reported as waiting for that term, instead of being filed under the wrong kind or left
-out silently. One agent gave each waiting value with its conditions. The third agent's run is being repeated
-after a usage quota.
+Run 3 on the documentation with release 1, scored blind beside the baseline in one pass (three papers, three
+agents):
+
+| Agent | Outright errors | Links the paper does not support | Core values stored (of 107) |
+|---|---|---|---|
+| A | 5 to 2 | 0 to 0 | 80 to 42 |
+| B | 4 to 0 | 29 to 0 | 105 to 29 |
+| C | 13 to 25 | 18 to 5 | 86 to 75 |
+
+- Two agents did what step 8 says: each result whose required term is missing (a reaction for enzyme kinetics,
+  battery cycling or mineral dissolution) is reported as waiting for that term, 35 and 49 results, instead of
+  being filed under the wrong kind. Their kind errors are gone, and those results are not stored until the
+  vocabulary has the term.
+- The third agent barely reported waiting results. Its errors rose, from temperatures and an atmosphere
+  written where the paper states none, a crystal temperature, and two rows quoted from an earlier paper. Release 1
+  did not touch those rules; on the previous documentation the same agent's runs ranged from 2 to 13 errors.
+- By the gate-3 rule the worst agent got worse. A fourth run of that agent on the same documentation tests
+  whether the rise is the change or the agent's spread; the decision goes to the PI with it.
