@@ -38,8 +38,20 @@ the source does not identify one specimen)." The previous versions are kept.
 
 ## Battery (gate 1)
 
-Simulated on the 2026-10-02 snapshot: 143 publish and 8 reject, both before and after; 0 links left on the
-151. The before-and-after battery runs are recorded here after the change is applied.
+Simulated first on the 2026-10-02 snapshot: 143 publish and 8 reject, both before and after; 0 links left on
+the 151.
+
+Applied 2026-10-06 to the 143 valid records: one versioned edit each, removing 6,786 links. The 8 invalid
+records cannot be edited and left with change 03, taking their 632 links. That makes 7,418 in all.
+
+Battery, before (run 2026-10-06T1805Z) and after (2026-10-06T1806Z, which also includes change 03):
+- links written by the auto-linker: 7,418 to 0;
+- unsupported `same_sample_id` bases: 7,748 to 330, as declared;
+- `same_sample_as` links: 9,501 to 2,083;
+- sample groups: 311 to 304 (the seven auto-linked groups dissolved);
+- conflicting groups (58) and groups mixing a model with a physical sample (18): unchanged, as declared;
+- outcome changes: 0 (publish 2,969 before and after);
+- edited records: 143.
 
 ## Reviews (gate 2)
 
