@@ -59,4 +59,8 @@ Codex, Grok and Gemini, blind.
 
 ## Gate 3
 
-Measured by the next benchmark run against the two runs already made after changes 07 to 11.
+Measured by run 3. First result, from the two agents whose runs completed: each result that needs a missing
+required term (a reaction for enzyme kinetics or battery cycling, a technique for thermal shift or broth
+microdilution) is now reported as waiting for that term, instead of being filed under the wrong kind or left
+out silently. One agent gave each waiting value with its conditions. The third agent's run is being repeated
+after a usage quota.
