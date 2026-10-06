@@ -100,6 +100,7 @@ CODE_SCOPE = {
     "CHECKSUM_NOT_SHA256": "records with assets",
     "SAME_SAMPLE_ON_A_SHARED_BASIS": "records with links",
     "SAME_SAMPLE_WITHOUT_PASSAGE": "records with links",
+    "SAME_SAMPLE_LINK_ON_SAMPLE_ID": "records with links",
     "COMPONENT_SET_EXCEEDS_TOTAL": "all records",
     "COMPONENT_SET_INCOMPLETE_UNDECLARED": "all records",
     "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS": "all records",

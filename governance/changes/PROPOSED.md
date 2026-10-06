@@ -96,4 +96,6 @@ responsive (a waiting path for a record whose required term is missing, publishe
 proposed term; the first terms curated now), or open the performance domain to any process name with curation
 after the fact. The liquid-phase conditions block (pH, buffer, ionic strength, solvent) belongs to the generic
 core either way.
-
+- **From the review of change 13:** resolve each `same_sample_as` target at the API and say per link which case
+  applies (identifiers match: remove; they differ: the basis is false), next to the check for links declared in
+  both directions.
