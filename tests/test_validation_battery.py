@@ -684,6 +684,21 @@ class TestContextModulation:
         rec = {"assets": [{"uri": "s3://lab/tpd_chopped_beam_5Hz.h5"}]}
         assert "MODULATION_EVIDENT_BUT_UNDECLARED" in self._codes(rec)
 
+    def test_a_cited_TITLE_is_not_an_experiment(self):
+        """21 stored records and every enzyme record of the 2026-10-06 benchmark fired on a paper title."""
+        for title in ("Phosphate ions modulate enzyme activity",
+                      "Electronic modulation of metal-support interactions improves hydrogenolysis"):
+            rec = {"assets": [{"uri": "https://doi.org/10.1000/x", "content_role": "citation",
+                               "sha256": "not_available_literature_source",
+                               "citation": {"relation": "source", "title": title}}]}
+            assert "MODULATION_EVIDENT_BUT_UNDECLARED" not in self._codes(rec)
+
+    def test_a_cited_title_does_not_hide_a_buried_file(self):
+        rec = {"assets": [{"uri": "https://doi.org/10.1000/x",
+                           "citation": {"relation": "source", "title": "Electronic modulation of supports"}},
+                          {"uri": "s3://lab/Pure_Cu_record_50nm_modulation_1p3Hz.xlsx"}]}
+        assert "MODULATION_EVIDENT_BUT_UNDECLARED" in self._codes(rec)
+
     def test_declaring_the_block_silences_the_buried_advisory(self):
         rec = {"assets": [{"uri": "s3://lab/run_modulation_1p3Hz.xlsx"}],
                "context": {"modulation": {"driven_variable": "potential", "waveform": "square",
