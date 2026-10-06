@@ -80,9 +80,23 @@ Codex, Grok and Gemini, blind.
 ## Gate 3
 
 A contract change is documentation. It makes the contract agree with a rule already adopted and reviewed
-(change 01), so it ships on gates 0 to 2, and the next agent benchmark run measures it with the documentation
-release. The baseline agents wrote 109 `intended_comparison_target` links, all between records of one paper;
-that count is the measure to watch.
+(change 01), so it shipped on gates 0 to 2 and was measured afterwards, together with changes 07 to 10.
+
+Two benchmark runs on the documentation after changes 07 to 11 (the same three papers outside catalysis and
+the same three agents as the baseline), each scored blind beside the baseline in one pass:
+
+| Measure | Baseline | Run 1 | Run 2 |
+|---|---|---|---|
+| Comparison links written | 109 | 22 | 11 |
+| `same_sample_as` links written | 34 | 0 | 1 |
+| Links the paper does not support (blind) | 42 / 20 | 0 | 1 |
+
+The two scorers disagreed on the same baseline sets (42 against 20) on whether "compared with the pristine
+sample" assigns a reference. Outright errors fell for five of six agent runs (5 to 2, 7 to 2, 4 to 1; 5 to 3,
+10 to 13, 15 to 3). The one rise came from room temperatures written where the paper states none, a rule no
+change touched; the same agent's other run improved. Coverage moved with the rule that a performance record
+needs one of 41 catalytic reactions, not with the documentation: one agent stored 39 enzyme records in run 1
+and 4 in run 2 on the same documentation.
 
 ## Not done here
 

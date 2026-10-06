@@ -79,3 +79,21 @@ classify performance across sciences and extend a process vocabulary) failed: th
 
 **From the review of change 12:** a pending path for a record whose required closed term is missing (held
 privately, published once the proposed term is added), so a result is stored while it waits.
+
+**From the uploads of 2026-10-06 afternoon** (one uploader, 574 records, after contract 2026-10-06.1 went live):
+the batch still cites the old step 5 in 1,756 comparison links, and 3,562 of its links are declared in both
+directions. No warning flags either pattern, so the upload responses carry no signal.
+- **Warning: `same_sample_as` with basis `same_sample_id`.** By the Links rule two identical sample
+  identifiers already make one specimen, so the link adds nothing. Record-local. About 2,100 stored links (one
+  uploader about 2,080, two others 26).
+- **Check at the API: a directed link declared in both directions** (the target already links back with the
+  same relation). Needs the target record, like LINK_TARGET_NOT_FOUND.
+
+**Vocabulary growth (needs the PI's decision).** The benchmark names the missing terms: reactions (enzymatic
+hydrolysis, mineral dissolution, ion intercalation during cycling), techniques (laser diffraction, thermal-shift
+fluorimetry, broth microdilution), an environment for in vitro work. Either keep the closed lists and make them
+responsive (a waiting path for a record whose required term is missing, published when a curator adds the
+proposed term; the first terms curated now), or open the performance domain to any process name with curation
+after the fact. The liquid-phase conditions block (pH, buffer, ionic strength, solvent) belongs to the generic
+core either way.
+
