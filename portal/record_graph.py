@@ -30,8 +30,9 @@ VOCAB_PATH = Path(__file__).resolve().parent.parent / "data" / "vocabulary.json"
 # Cluster dimensions, and the record_keys column each one reads.
 DIMENSIONS = {"study": "study", "sample": "sample_id", "lab": "lab", "organization": "organization",
               "setup": "setup", "method": "method"}
-# Relations whose meaning does not depend on which record declared them.
-SYMMETRIC_RELATIONS = frozenset({"same_sample_as", "replica_of", "intended_comparison_target"})
+# Relations whose meaning does not depend on which record declared them. Only same_sample_as (Links): a record
+# that uses another as its reference, or repeats another's measurement, names a direction.
+SYMMETRIC_RELATIONS = frozenset({"same_sample_as"})
 
 _DOI_PREFIX = re.compile(r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", re.I)
 _DOI_SHAPE = re.compile(r"^10\.\d{4,9}/\S+$")

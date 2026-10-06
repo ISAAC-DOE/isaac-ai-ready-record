@@ -13,8 +13,10 @@ The process is in [`../README.md`](../README.md).
 | [2026-10-06-05](2026-10-06-05-same-sample-identity-without-identifier.md) | 2026-10-06 | same_sample_as for an identity the source establishes without naming the specimen | wiki | 0, 1, 2 | wiki, 2026-10-06 | shipped |
 | [2026-10-06-06](2026-10-06-06-lab-and-technique-out-of-a-descriptor-name.md) | 2026-10-06 | A lab and a technique out of a descriptor name (97 of our records) | data | 0, 1, 4 | data edit, 2026-10-06 | done |
 | [2026-10-06-07](2026-10-06-07-modulation-check-skips-cited-titles.md) | 2026-10-06 | The modulation check stops reading cited titles (21 false firings); the battery counts info codes | validator, steward | 0, 1, 2, 4 | #268, v0.0.350 | shipped |
-| [2026-10-06-08](2026-10-06-08-examples-teach-the-rules.md) | 2026-10-06 | The examples teach what the rules say: no invented checksums, no shared-batch links, links written once and directed | wiki, examples | 0, 1, 2 (two rounds) | pending | in review |
-| [2026-10-06-09](2026-10-06-09-checksum-and-shared-basis-warnings.md) | 2026-10-06 | Warnings for a checksum that is none (842 records) and same_sample_as on a shared basis (45) or without its passage | validator, wiki check | 0, 1, 2, 4 | pending | in review |
+| [2026-10-06-08](2026-10-06-08-examples-teach-the-rules.md) | 2026-10-06 | The examples teach what the rules say: no invented checksums, no shared-batch links, links written once and directed | wiki, examples | 0, 1, 2 (two rounds) | #271 and the wiki, 2026-10-06 | shipped |
+| [2026-10-06-09](2026-10-06-09-checksum-and-shared-basis-warnings.md) | 2026-10-06 | Warnings for a checksum that is none (842 records) and same_sample_as on a shared basis (45) or without its passage | validator, wiki check | 0, 1, 2, 4 | #271, v0.0.353 | shipped |
+| [2026-10-06-10](2026-10-06-10-our-checksums-and-batch-links.md) | 2026-10-06 | Our checksums (74 records), our shared-batch links (42) and our reciprocal comparison links (50) | data | 0, 1, 4 | data edits, 2026-10-06 | part A done; B and C in progress |
+| [2026-10-06-11](2026-10-06-11-contract-comparison-links.md) | 2026-10-06 | The contract stops teaching same-study comparison links (contract 2026-10-06.1); only same_sample_as is symmetric | contract, examples, API | 0, 1, 2 | pending | in review |
 
 Drafts not yet started: [PROPOSED.md](PROPOSED.md).
 

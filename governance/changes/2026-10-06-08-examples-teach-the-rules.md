@@ -74,4 +74,7 @@ All taken.
 
 ## Ship and watch
 
-Pending.
+- Shipped: the wiki pages on 2026-10-06 (wiki commit 3f817e9) and the example records in #271 (portal
+  v0.0.353).
+- Watch: `generate_validation_docs.py --check` now fails when a complete record shown in the wiki carries a
+  warning or differs from its file in `examples/`, so the tutorial cannot drift from its example again.

@@ -58,14 +58,6 @@
    }
   ]
  },
- "links": [
-  {
-   "rel": "intended_comparison_target",
-   "target": "01M3250V01CPX3DEJZDNW4GCA5",
-   "basis": "unspecified",
-   "notes": "The measured catalyst whose behaviour the paper explains with this calculation. The link says the records bear on each other; the paper's explanation itself is not stored in either record."
-  }
- ],
  "assets": [
   {
    "asset_id": "cite_example-ammonia-synthesis-paper",

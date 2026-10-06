@@ -89,4 +89,10 @@ Codex, Grok and Gemini, blind.
 
 ## Ship and watch
 
-Pending. Our own 74 and 42 records are corrected as change 10.
+- Shipped in #271 (portal v0.0.353, 2026-10-06).
+- Live check: the validator flags a zero checksum and a shared-batch `same_sample_as`, and is silent on the
+  example record. `/records/attention` by owner: changzhiai 674 checksum and 2 link warnings, haochen_slac 56,
+  mahajan 38, dsokaras 3 and 32 (the 71 and 10 of our early records have no owner, so only the battery sees
+  them). pbasera's record is rejected for other errors, so its warning appears in its quality report, not in
+  the warning counts.
+- Watch: the daily battery counts each warning by uploader; new uploads are read before any promotion.

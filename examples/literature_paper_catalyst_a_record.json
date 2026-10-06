@@ -8,7 +8,6 @@
   "created_utc": "2026-09-30T12:00:00Z"
  },
  "sample": {
-  "sample_id": "example-ammonia-paper/catalyst-A",
   "material": {
    "name": "Ru/CeO2, CO-activated (catalyst A)",
    "formula": "Ru/CeO2",
@@ -59,14 +58,6 @@
    }
   ]
  },
- "links": [
-  {
-   "rel": "intended_comparison_target",
-   "target": "01M3250V029PABRJV2BRWE853B",
-   "basis": "matched_operating_conditions",
-   "notes": "The other catalyst of the same study, measured under the same conditions. A comparison between the two is made from the two records; neither stores the ratio."
-  }
- ],
  "assets": [
   {
    "asset_id": "cite_example-ammonia-synthesis-paper",
@@ -99,5 +90,13 @@
  },
  "tags": [
   "example"
+ ],
+ "links": [
+  {
+   "rel": "intended_comparison_target",
+   "target": "01M3250V029PABRJV2BRWE853B",
+   "basis": "unspecified",
+   "notes": "Example passage, Table 1: \"The conventionally H2-reduced catalyst B is the baseline for the CO-activated catalyst A.\" The record that uses the baseline carries the link."
+  }
  ]
 }

@@ -212,6 +212,11 @@ def test_link_edges_are_one_per_target_and_relation_and_skip_self_and_junk():
     assert rg.link_edges("x", _record(links={"not": "a list"})) == []
 
 
+def test_only_same_sample_as_is_symmetric():
+    """Links: same_sample_as is symmetric; every other relation is directed."""
+    assert rg.SYMMETRIC_RELATIONS == {"same_sample_as"}
+
+
 def test_symmetric_relations_are_real_relations():
     assert rg.SYMMETRIC_RELATIONS <= set(VOCAB["Links"]["links.rel"]["values"])
 
@@ -296,6 +301,8 @@ def test_an_upload_succeeds_when_indexing_fails(monkeypatch):
 def test_indexing_writes_the_keys_and_replaces_the_declared_links(monkeypatch):
     import database
     record = json.loads((EXAMPLES / "literature_paper_catalyst_a_record.json").read_text())
+    record["links"] = [{"rel": "intended_comparison_target", "target": "01M3250V029PABRJV2BRWE853B",
+                        "basis": "unspecified", "notes": "Table 1 reports catalyst A against catalyst B as its reference."}]
     rid = record["record_id"]
 
     def answer(sql):

@@ -8,7 +8,6 @@
   "created_utc": "2026-09-30T12:00:00Z"
  },
  "sample": {
-  "sample_id": "example-ammonia-paper/catalyst-B",
   "material": {
    "name": "Ru/CeO2, H2-reduced (catalyst B)",
    "formula": "Ru/CeO2",
@@ -59,14 +58,6 @@
    }
   ]
  },
- "links": [
-  {
-   "rel": "intended_comparison_target",
-   "target": "01M3250V01CPX3DEJZDNW4GCA5",
-   "basis": "matched_operating_conditions",
-   "notes": "The other catalyst of the same study, measured under the same conditions. A comparison between the two is made from the two records; neither stores the ratio."
-  }
- ],
  "assets": [
   {
    "asset_id": "cite_example-ammonia-synthesis-paper",
