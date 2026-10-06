@@ -67,7 +67,7 @@
    "asset_id": "source_paper",
    "content_role": "documentation",
    "uri": "https://doi.org/10.9999/probe.0001",
-   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "sha256": "not_available_literature_source",
    "citation": {
     "doi": "10.9999/probe.0001",
     "title": "Probe paper",

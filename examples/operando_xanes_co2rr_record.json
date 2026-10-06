@@ -16,6 +16,7 @@
       "provenance": "synthesized",
       "notes": "Colloidal Cu nanoparticles deposited on GDE. Catalyst layer."
     },
+    "sample_id": "GDE-CuNP-2025-042",
     "sample_form": "film",
     "composition": {
       "catalyst_loading_mg_cm2": 1.0,
@@ -147,7 +148,7 @@
       "content_role": "raw_data_pointer",
       "uri": "ssrl-archive://BL15-2/2025_run_HiQ/raw_scans.h5",
       "media_type": "application/x-hdf5",
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "not_available",
       "notes": "Full raw scan set including monitor channels."
     },
     {
@@ -155,7 +156,7 @@
       "content_role": "reduction_product",
       "uri": "ssrl-archive://BL15-2/2025_run_HiQ/reduced/Cu_NP_operando_merged.xdi",
       "media_type": "text/plain",
-      "sha256": "25f563605c31278152283734135544710156784381389",
+      "sha256": "not_available",
       "notes": "Full resolution merged spectrum in XDI format."
     },
     {
@@ -163,28 +164,16 @@
       "content_role": "processing_script",
       "uri": "workflow://operando_xas_processing/v1.0",
       "media_type": "application/x-ipynb+json",
-      "sha256": "a3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852a111",
+      "sha256": "not_available",
       "notes": "Jupyter notebook used for time-alignment, averaging, and normalization."
     }
   ],
   "links": [
     {
-      "rel": "same_sample_as",
-      "target": "01JFH5Z0A3S9H2ZI5X9P6M4O0E",
-      "basis": "shared_material_batch",
-      "notes": "Performance testing on identical GDE batch."
-    },
-    {
       "rel": "intended_comparison_target",
       "target": "01JFH3Q8Z1Q9F0XG3V7N4K2M8C",
       "basis": "shared_reference_state",
-      "notes": "Ex-situ CuO2 standard used for calibration."
-    },
-    {
-      "rel": "intended_comparison_target",
-      "target": "01JFH8SIMXAS00000000000001",
-      "basis": "same_absorber_edge",
-      "notes": "Comparison to simulated Cu K-edge reference."
+      "notes": "Cu2O reference spectrum that the source compares this spectrum with."
     }
   ],
   "descriptors": {

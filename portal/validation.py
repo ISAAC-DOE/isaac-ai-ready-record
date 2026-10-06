@@ -1251,6 +1251,66 @@ def _source_and_method_warnings(record: dict) -> list:
     return warnings
 
 
+# A checksum is the SHA-256 of the bytes at the asset's URI, or a placeholder that says why there is none. On
+# 2026-10-06, 842 stored records carried zeros or a word ("pending") in its place: zeros read as a real
+# checksum, and a word is none. One character repeated (all zeros) is a placeholder written as a hash.
+_SHA256 = re.compile(r"[0-9a-fA-F]{64}")
+_CHECKSUM_PLACEHOLDERS = {"not_available_literature_source", "not_available"}
+# Bases that name something different specimens or models can share. same_sample_as on one of them asserts one
+# specimen on evidence that never establishes it (45 stored links on 2026-10-06, 42 of them the team's own).
+# identical_geometry establishes an identical model for a calculation only: two measured objects can share a shape.
+_SHARED_NOT_IDENTITY = {"shared_material_batch", "replicate_preparation", "shared_analysis_method",
+                        "same_absorber_edge", "matched_operating_conditions", "shared_reference_state",
+                        "matched_computational_method", "same_workflow_version", "analysis_pipeline_output"}
+
+
+def _bad_checksum(value) -> bool:
+    return isinstance(value, str) and value not in _CHECKSUM_PLACEHOLDERS and (
+        not _SHA256.fullmatch(value) or len(set(value.lower())) == 1)
+
+
+def _checksum_and_link_basis_warnings(record: dict) -> list:
+    """A checksum that is no SHA-256 and no placeholder; same_sample_as on a basis that does not establish one
+    specimen, or with basis unspecified and no establishing passage."""
+    warnings = []
+    assets = _assets(record)
+    bad = [i for i, a in enumerate(assets) if _bad_checksum(a.get("sha256"))]
+    if bad:
+        first = assets[bad[0]]["sha256"][:24]
+        lead = (f"1 asset has a sha256 that is not 64 hexadecimal characters, or is one character repeated "
+                f"(the value is '{first}')." if len(bad) == 1 else
+                f"{len(bad)} assets have a sha256 that is not 64 hexadecimal characters, or is one character "
+                f"repeated (the first is '{first}').")
+        warnings.append({
+            "code": "CHECKSUM_NOT_SHA256", "path": f"assets/{bad[0]}/sha256",
+            "message": (lead + " Write the SHA-256 of the bytes at the asset's URI. A cited paper whose file you do "
+                        "not hold takes not_available_literature_source. A file or resource you do not hold, or "
+                        "cannot hash, takes not_available.")})
+    calculation = ((record.get("system") or {}).get("domain") == "computational"
+                   or (record.get("context") or {}).get("environment") == "in_silico")
+    for i, link in enumerate(record.get("links") if isinstance(record.get("links"), list) else []):
+        if not isinstance(link, dict) or link.get("rel") != "same_sample_as":
+            continue
+        basis = link.get("basis")
+        if basis in _SHARED_NOT_IDENTITY or (basis == "identical_geometry" and not calculation):
+            warnings.append({
+                "code": "SAME_SAMPLE_ON_A_SHARED_BASIS", "path": f"links/{i}/basis",
+                "message": (f"same_sample_as says both records concern one physical specimen, or one identical model "
+                            f"for a calculation. The basis '{basis}' does not establish that: different specimens can "
+                            f"share it. If the source gives the specimen an identifier both records can store, write "
+                            f"it in sample_id on both and remove the link. If the source establishes one specimen "
+                            f"without an identifier, keep the link with basis 'unspecified' and the passage that "
+                            f"establishes it in notes. Otherwise remove the link.")})
+        elif basis == "unspecified" and not str(link.get("notes") or "").strip():
+            warnings.append({
+                "code": "SAME_SAMPLE_WITHOUT_PASSAGE", "path": f"links/{i}/notes",
+                "message": ("same_sample_as with basis 'unspecified' carries, in notes, the shortest passage or "
+                            "locator in the source that establishes one physical specimen (one identical model for a "
+                            "calculation). These notes are empty. Add the passage, or remove the link if the source "
+                            "does not establish the identity.")})
+    return warnings
+
+
 def link_target_warnings(record: dict, known_ids) -> list:
     """Links whose target is no record the repository knows: not published, and not held by this uploader.
     The validator cannot see the repository; the API calls this with the ids it found."""
@@ -2044,7 +2104,8 @@ def validate_record_full(record: dict) -> dict:
                 + _computation_role_warnings(record) + _producer_warnings(record)
                 + _magnitude_warnings(record) + _competing_hypothesis_warnings(record)
                 + _second_hand_and_name_condition_warnings(record) + _prose_condition_warnings(record)
-                + _producer_name_warnings(record) + _source_and_method_warnings(record))
+                + _producer_name_warnings(record) + _source_and_method_warnings(record)
+                + _checksum_and_link_basis_warnings(record))
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)

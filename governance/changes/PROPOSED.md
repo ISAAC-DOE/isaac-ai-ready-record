@@ -60,5 +60,19 @@ both arms scored in one blind run):
 - **The ratio naming rule** (`*_ratio.*` rejected so ratios are computed from stored parts) assumes the parts
   are reported. When a source reports only the ratio, agents renamed it to pass.
 
+**Edison (PaperQA3) on these conventions, 2026-10-06.** Across STRENDA and SABIO-RK or BRENDA (enzyme
+kinetics), mineral-dissolution compilations and EarthChem, BattINFO, and electrocatalysis reporting guidelines:
+conditions belong to each observation, and pH is a condition of the observation where the medium makes it
+meaningful, never one field for every experiment type; STRENDA DB requires buffer type, buffer concentration
+and the final assay pH for every assay; a fitted law (rate constants, activation energy, reaction order) is a
+result of its own with the pH and temperature range its inputs support; a result below a detection limit keeps
+its inequality and threshold, never zero or a plain number. No surveyed resource mandates field names for fit
+domains or censored values, so the core would set them. Curated literature databases lose conditions as well:
+BRENDA holds pH for 50% of its K_M records and temperature for 46%. A second question (how repositories
+classify performance across sciences and extend a process vocabulary) failed: the Edison account returned 402.
+
 **Open question for step 7:** the independent key reads "room temperature" as no number; the contract stores
 298.15 K with basis `room_temperature`. All three geochemistry sets followed the contract.
+
+**Candidates from the review of change 09** (no stored record would flag them today): a warning for
+`not_available_literature_source` on an asset that is no paper.
