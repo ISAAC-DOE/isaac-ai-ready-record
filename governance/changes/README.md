@@ -11,6 +11,9 @@ The process is in [`../README.md`](../README.md).
 | [2026-10-06-03](2026-10-06-03-remove-ten-records.md) | 2026-10-06 | Remove 10 of our records that hold no result | data | 0, 1, 4 | data edit, 2026-10-06 | done: 10 records removed, archived |
 | [2026-10-06-04](2026-10-06-04-our-other-same-sample-links.md) | 2026-10-06 | Our other 313 unsupported same_sample_as links: labels into sample_id, then parts b and c | data | 0, 1, 2 (rule), 4 | data edit, 2026-10-06 | done: 37 + 164 records; our unsupported same_sample_id bases 7,731 to 0 |
 | [2026-10-06-05](2026-10-06-05-same-sample-identity-without-identifier.md) | 2026-10-06 | same_sample_as for an identity the source establishes without naming the specimen | wiki | 0, 1, 2 | wiki, 2026-10-06 | shipped |
+| [2026-10-06-06](2026-10-06-06-lab-and-technique-out-of-a-descriptor-name.md) | 2026-10-06 | A lab and a technique out of a descriptor name (97 of our records) | data | 0, 1, 4 | data edit, 2026-10-06 | done |
+
+Drafts not yet started: [PROPOSED.md](PROPOSED.md).
 
 ## Before the ledger (2026-09-27 to 2026-10-04)
 
