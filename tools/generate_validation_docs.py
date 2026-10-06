@@ -39,6 +39,9 @@ REGISTRY = {
     "CONDITION_ONLY_IN_PROSE": ("warning", "A descriptor's definition states the temperature, pressure or potential (vs RHE) its value was read at ('at 400 C'), and no structured field carries that quantity. Put it in the descriptor's `at` or in context. A reference value ('relative to the value at 0 V'), a fit range, a rate ('10 K/min'), a C-rate, a preparation step ('calcined at 500 C') and the descriptor's own quantity do not match."),
     "SOURCE_LOOKS_LIKE_A_REVIEW": ("warning", "The source citation looks like a review: the journal publishes reviews (Chem. Rev., Chem. Soc. Rev., Nature Reviews, Annual Review of, Current Opinion in, Acc. Chem. Res., Rev. Mod. Phys., Phys. Rep.), or the title names one ('review', 'recent advances', 'progress and perspectives', 'meta-analysis', 'a roadmap'). A value a review quotes belongs to the paper that measured it; keep the review as the source only when it first reported the value."),
     "FUNCTIONAL_NOT_REPORTED": ("warning", "A DFT, DFT+U, hybrid-DFT or AIMD result gives no exchange-correlation functional (missing or 'not_reported'), and the message also notes a missing code. A DFT value is comparable only at the same functional, and papers state it in their methods."),
+    "CHECKSUM_NOT_SHA256": ("warning", "An asset's sha256 is not 64 hexadecimal characters, or it is one character repeated, such as all zeros. The checksum is the SHA-256 of the bytes at the asset's URI. A cited paper whose file you do not hold takes not_available_literature_source. A file or resource you do not hold, or cannot hash, takes not_available."),
+    "SAME_SAMPLE_ON_A_SHARED_BASIS": ("warning", "A same_sample_as link gives as its basis something different specimens can share: a material batch, a replicate preparation, an analysis or computational method, a workflow version, a pipeline output, an absorber edge, operating conditions or a reference state, or, for a measured specimen, an identical geometry. same_sample_as asserts one physical specimen, or one identical model for a calculation. If the source gives the specimen an identifier both records can store, write it in sample_id and remove the link; if it establishes one specimen without an identifier, keep the link with basis unspecified and the establishing passage in notes; otherwise remove the link."),
+    "SAME_SAMPLE_WITHOUT_PASSAGE": ("warning", "A same_sample_as link with basis unspecified has empty notes. Its notes carry the shortest passage or locator in the source that establishes one physical specimen (one identical model for a calculation). Add the passage, or remove the link if the source does not establish the identity."),
     "LINK_TARGET_NOT_FOUND": ("warning", "A link's target is no record the repository knows: not published, and not held by the uploader. Checked by the API at validate and upload time. Within a batch, upload the target first or link from the later record."),
     "SECOND_HAND_SOURCE": ("hold", "A curator-written field labels a value as quoted from a review ('SECOND-HAND (review table)', 'quoted in a review article', 'taken from a review table'). A value a review quotes is the result of the paper that measured it: the record is built from that paper with relation 'source', and the review is cited with relation 'reference'. 'A second-hand potentiostat' is equipment and does not match."),
     "CONDITIONS_IN_SAMPLE_NAME": ("hold", "The sample name carries a measurement condition: a number with a temperature, pressure, potential or time unit ('300 C at 50 bar', 'at 1.2 V'). Conditions of the measurement go in context or in a descriptor's `at`; a condition of how the material was made ('calcined at 500 C') is left alone."),
@@ -104,7 +107,7 @@ END = "<!-- END GENERATED:validation-codes -->"
 
 
 def emitted_codes():
-    return sorted(set(re.findall(r'"code":\s*"([A-Z_]+)"', VALIDATION)))
+    return sorted(set(re.findall(r'"code":\s*"([A-Z][A-Z0-9_]*)"', VALIDATION)))
 
 
 def render():
@@ -143,9 +146,15 @@ def apply(page: Path):
 
 
 def embedded_record_failures(wiki: Path) -> list:
-    """Complete records shown in wiki pages that the validator rejects."""
+    """Complete records shown in wiki pages that a reader would copy wrongly: rejected, carrying a warning, or
+    different from the file in examples/ with the same record_id."""
     sys.path.insert(0, str(REPO / "portal"))
     import validation
+    examples = {}
+    for path in sorted((REPO / "examples").glob("*.json")):
+        data = json.loads(path.read_text())
+        if isinstance(data, dict) and data.get("record_id"):
+            examples[data["record_id"]] = (path.name, data)
     bad = []
     for page in sorted(wiki.glob("*.md")):
         for block in re.findall(r"```json\n(.*?)```", page.read_text(), re.S):
@@ -156,9 +165,15 @@ def embedded_record_failures(wiki: Path) -> list:
             except ValueError:
                 continue  # an elided fragment illustrates a block; it is not a record
             result = validation.validate_record_full(record)
+            rid = record.get("record_id")
             if not result["valid"]:
                 codes = sorted({e.get("code") or "schema" for e in result["errors"]})
-                bad.append(f"{page.name}: record {record.get('record_id')} is rejected {codes}")
+                bad.append(f"{page.name}: record {rid} is rejected {codes}")
+            elif result.get("warnings"):
+                codes = sorted({w.get("code") for w in result["warnings"]})
+                bad.append(f"{page.name}: record {rid} carries warnings {codes}; an example is copied as shown")
+            if rid in examples and examples[rid][1] != record:
+                bad.append(f"{page.name}: record {rid} differs from examples/{examples[rid][0]}")
     return bad
 
 
