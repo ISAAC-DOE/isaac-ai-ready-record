@@ -813,9 +813,10 @@ def _resolve_path(data, path_parts):
 
 def _propose_hint(section: str, category: str) -> str:
     """How to ask for a missing term: every unknown-term error names the honest path."""
-    return (f"If the right term is missing, propose it (POST /portal/api/vocabulary/proposals with "
-            f"section '{section}', category '{category}', the term and what it means) and store the record once "
-            f"it is added. Never substitute a nearby term.")
+    return (f"If the right term is missing and this field is optional, leave it out and name the gap in the "
+            f"notes. If it is required, the record waits for the term: propose it (POST "
+            f"/portal/api/vocabulary/proposals with section '{section}', category '{category}', the term and what "
+            f"it means) and store the record once it is added. Never substitute a nearby term.")
 
 
 def validate_record_vocabulary(record):
