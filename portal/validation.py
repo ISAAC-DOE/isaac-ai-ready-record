@@ -663,8 +663,9 @@ def _one_result_warnings(record: dict) -> list:
                 "code": "VOCABULARY_SUBSTITUTION", "path": path,
                 "message": (f"This field says a vocabulary term was substituted ('...{excerpt}...'). A substituted "
                             f"term is a wrong term, and every query on that field returns this record by mistake. "
-                            f"Use the exact term. If the vocabulary lacks it, propose it (POST "
-                            f"/portal/api/vocabulary/proposals) and store the record once it exists. If no measurement or "
+                            f"Use the exact term. If the vocabulary lacks it, leave an optional field out; for a "
+                            f"required field, propose the term (POST /portal/api/vocabulary/proposals) and store the "
+                            f"record once it exists. If no measurement or "
                             f"calculation stands behind the value (a literature survey, a model's conclusion), it is "
                             f"not an ISAAC record. {_ONE_RESULT}")})
             break
@@ -1283,9 +1284,9 @@ def _checksum_and_link_basis_warnings(record: dict) -> list:
                 f"repeated (the first is '{first}').")
         warnings.append({
             "code": "CHECKSUM_NOT_SHA256", "path": f"assets/{bad[0]}/sha256",
-            "message": (lead + " Write the SHA-256 of the bytes at the asset's URI. A cited paper whose file you do "
-                        "not hold takes not_available_literature_source. A file or resource you do not hold, or "
-                        "cannot hash, takes not_available.")})
+            "message": (lead + " Write the SHA-256 of the bytes the asset's URI returns. A paper cited by its DOI "
+                        "takes not_available_literature_source, even when you hold a PDF or a text extract of it. "
+                        "Any other resource you do not hold, or cannot hash, takes not_available.")})
     calculation = ((record.get("system") or {}).get("domain") == "computational"
                    or (record.get("context") or {}).get("environment") == "in_silico")
     for i, link in enumerate(record.get("links") if isinstance(record.get("links"), list) else []):

@@ -24,9 +24,10 @@ What it produced (live snapshot 2026-10-06T203510Z, 2,994 records):
 
 - 2,359 `intended_comparison_target` links; 2,274 are declared in both directions (changzhiai 2,224, ours 50)
   and 2,326 join records of one source.
-- Of changzhiai's comparison links, 1,018 notes read "A different sample in the same study. Linked per
-  contract step 5" and 690 echo the example's wording; the uploader's sample identifiers follow the
-  paper-slug/label shape of the example.
+- Of changzhiai's 2,225 comparison links, 1,708 notes cite contract step 5: 1,018 read "A different sample in
+  the same study. Linked per contract step 5", and 690 echo the example's wording ("measured or computed the
+  same way under the same conditions in the same study") before quoting the step. The uploader's sample
+  identifiers follow the paper-slug/label shape of the example.
 
 ## Change
 

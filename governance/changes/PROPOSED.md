@@ -76,3 +76,6 @@ classify performance across sciences and extend a process vocabulary) failed: th
 
 **Candidates from the review of change 09** (no stored record would flag them today): a warning for
 `not_available_literature_source` on an asset that is no paper.
+
+**From the review of change 12:** a pending path for a record whose required closed term is missing (held
+privately, published once the proposed term is added), so a result is stored while it waits.
