@@ -28,4 +28,9 @@ is archived in `record_history`, and a local copy is kept.
 
 ## Battery (gate 1)
 
-Recorded after the change is applied.
+Applied 2026-10-06 after change 02. The exact live content of the ten records was saved locally before
+deletion, and the server archived each one.
+- Records: 3,004 to 2,994.
+- Rejected records: 35 to 25; the 25 belong to two other uploaders.
+- Our failing records: 0.
+- Publish count unchanged at 2,969.

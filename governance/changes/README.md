@@ -6,9 +6,9 @@ The process is in [`../README.md`](../README.md).
 
 | Id | Date | Change | Kind | Gates | Shipped | Status |
 |---|---|---|---|---|---|---|
-| [2026-10-06-01](2026-10-06-01-links-are-stated-not-inferred.md) | 2026-10-06 | Links are stated, not inferred: NO_LINKS removed; all eight relations defined | validator, wiki | 0, 1, 2 (3 not applicable) | | in review |
-| [2026-10-06-02](2026-10-06-02-remove-auto-linker-links.md) | 2026-10-06 | Remove 7,418 auto-written same_sample_as links from 151 of our records | data | 0, 1, 2, 4 | | after 01 |
-| [2026-10-06-03](2026-10-06-03-remove-ten-records.md) | 2026-10-06 | Remove 10 of our records that hold no result | data | 0, 1, 4 | | after 02 |
+| [2026-10-06-01](2026-10-06-01-links-are-stated-not-inferred.md) | 2026-10-06 | Links are stated, not inferred: NO_LINKS removed; all eight relations defined | validator, wiki | 0, 1, 2 (3 not applicable) | #263, v0.0.345 | shipped |
+| [2026-10-06-02](2026-10-06-02-remove-auto-linker-links.md) | 2026-10-06 | Remove 7,418 auto-written same_sample_as links from 151 of our records | data | 0, 1, 2, 4 | data edit, 2026-10-06 | done: 143 records edited, 6,786 links removed |
+| [2026-10-06-03](2026-10-06-03-remove-ten-records.md) | 2026-10-06 | Remove 10 of our records that hold no result | data | 0, 1, 4 | data edit, 2026-10-06 | done: 10 records removed, archived |
 
 ## Before the ledger (2026-09-27 to 2026-10-04)
 
