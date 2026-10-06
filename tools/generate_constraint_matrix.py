@@ -103,7 +103,6 @@ CODE_SCOPE = {
     "UNCERTAINTY_BASIS_NOT_IN_VOCABULARY": "all records",
     "FE_ROLE_VIOLATION": "electrochemistry",
     "FE_SERIES_DUPLICATE": "electrochemistry",
-    "NO_LINKS": "all records",
     "NO_DATA_OWNER": "all records",
     "QC_COMPROMISED_NO_EVIDENCE": "all records",
     "SIGMA_ZERO_PLACEHOLDER": "all records",
