@@ -69,7 +69,8 @@ agents):
 | C | 13 to 25 | 18 to 5 | 86 to 75 |
 
 - Two agents did what step 8 says: each result whose required term is missing (a reaction for enzyme kinetics,
-  battery cycling or mineral dissolution) is reported as waiting for that term, 35 and 49 results, instead of
+  battery cycling or mineral dissolution) is reported as waiting for that term, about 36 and 51 results by the
+  notes, instead of
   being filed under the wrong kind. Their kind errors are gone, and those results are not stored until the
   vocabulary has the term.
 - The third agent barely reported waiting results. Its errors rose, from temperatures and an atmosphere
