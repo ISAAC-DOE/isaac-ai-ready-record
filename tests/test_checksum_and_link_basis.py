@@ -67,12 +67,12 @@ def test_same_sample_as_on_a_shared_basis_is_flagged(basis):
 
 
 def test_a_link_on_the_sample_id_adds_nothing():
-    """Identical sample_ids already make one specimen; one warning per record, counting its links."""
+    """Identical sample_ids already make one specimen; one warning per link, each with its own path."""
     assert _codes(_linked("same_sample_as", "same_sample_id")) == {"SAME_SAMPLE_LINK_ON_SAMPLE_ID"}
     two = {"links": [_linked("same_sample_as", "same_sample_id")["links"][0],
                      dict(_linked("same_sample_as", "same_sample_id")["links"][0], target="01JFH7K2W6P1D9A3R4ZQ2M8T5W")]}
     found = [w for w in validation._checksum_and_link_basis_warnings(two) if w["code"] == "SAME_SAMPLE_LINK_ON_SAMPLE_ID"]
-    assert len(found) == 1 and found[0]["message"].startswith("These 2 same_sample_as links use")
+    assert [w["path"] for w in found] == ["links/0/basis", "links/1/basis"]
     assert "paper slug is not a sample_id" in found[0]["message"]
 
 

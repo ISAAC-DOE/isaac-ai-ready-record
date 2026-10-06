@@ -16,7 +16,7 @@ would leave records of different specimens merged by one identifier.
 
 ## Change
 
-SAME_SAMPLE_LINK_ON_SAMPLE_ID (warning), once per record that carries such links, with their count. It reads only
+SAME_SAMPLE_LINK_ON_SAMPLE_ID (warning), one per such link, with its path. It reads only
 the record: the basis is on this record, and the rule rejects it without looking at the target. The message
 orders the outcomes: identical identifiers, remove the link; different or missing ones, write the identifier the
 source assigns on both and remove the link, or keep the link with basis `unspecified` and the establishing
@@ -28,7 +28,7 @@ material name, formula, cell line, strain, catalog number, batch code or paper s
 - Stored records: the warning gained on 952 (941, 6, 5); no outcome changes; no other code changes.
 - Must pass: `same_sample_as` on any other basis; `intended_comparison_target` with basis `same_sample_id` is not
   this warning's case.
-- Must catch: one link (singular message), two links (one warning, counted).
+- Must catch: one link; two links (two warnings, each with its path).
 
 ## Gate 1
 
@@ -45,7 +45,10 @@ Replay of 2026-10-06T220616Z: 0 outcome changes; SAME_SAMPLE_LINK_ON_SAMPLE_ID g
   false; the message must say what is never a sample_id and order the outcomes. **Codex:** say
   `sample.sample_id`, allow for a target the uploader cannot edit, and include removing the link when no passage
   establishes identity. All taken.
-- **Gemini:** pending; its account was at a usage quota.
+- **Gemini** (after its quota reset): record-local is right; one warning per link, each with its path, instead of
+  one per record (Codex also found the per-record message ambiguous for several links). Changed. Its wording
+  points (the calculation case, a target that cannot be edited, removing the link without evidence) were
+  already in the revised message.
 
 ## Ship and watch
 

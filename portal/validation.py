@@ -1311,21 +1311,20 @@ def _checksum_and_link_basis_warnings(record: dict) -> list:
                             "does not establish the identity.")})
     # Two records that state one sample_id are already one specimen, grouped by it; a same_sample_as link on that
     # basis adds nothing, or, when the identifiers differ, claims what the records do not state (2,105 stored
-    # links on 2,086 + 19 such pairs, 2026-10-06). One warning per record.
-    on_id = [i for i, link in enumerate(record.get("links") if isinstance(record.get("links"), list) else [])
-             if isinstance(link, dict) and link.get("rel") == "same_sample_as" and link.get("basis") == "same_sample_id"]
-    if on_id:
-        warnings.append({
-            "code": "SAME_SAMPLE_LINK_ON_SAMPLE_ID", "path": f"links/{on_id[0]}/basis",
-            "message": ((f"These {len(on_id)} same_sample_as links use" if len(on_id) > 1 else "This same_sample_as link uses")
-                        + " basis 'same_sample_id'. Compare sample.sample_id here and on each target. If they match, "
-                          "remove the link: the repository already groups the two records. If they differ or one is "
-                          "missing, the basis is false. If the source assigns one identifier both records can store, "
-                          "write it in sample.sample_id on both and remove the link. If the source establishes one "
-                          "physical specimen (one identical model for a calculation) and the records cannot share an "
-                          "identifier, keep the link with basis 'unspecified' and the shortest passage that establishes "
-                          "it in notes. Otherwise remove the link. Invent no identifier: a material name, formula, cell "
-                          "line, strain, catalog number, batch code or paper slug is not a sample_id.")})
+    # links, 2,086 and 19 of each, 2026-10-06). One warning per link, with its path.
+    for i, link in enumerate(record.get("links") if isinstance(record.get("links"), list) else []):
+        if isinstance(link, dict) and link.get("rel") == "same_sample_as" and link.get("basis") == "same_sample_id":
+            warnings.append({
+                "code": "SAME_SAMPLE_LINK_ON_SAMPLE_ID", "path": f"links/{i}/basis",
+                "message": ("This same_sample_as link uses basis 'same_sample_id'. Compare sample.sample_id here and "
+                            "on its target. If they match, remove the link: the repository already groups the two "
+                            "records. If they differ or one is missing, the basis is false. If the source assigns one "
+                            "identifier both records can store, write it in sample.sample_id on both and remove the "
+                            "link. If the source establishes one physical specimen (one identical model for a "
+                            "calculation) and the records cannot share an identifier, keep the link with basis "
+                            "'unspecified' and the shortest passage that establishes it in notes. Otherwise remove the "
+                            "link. Invent no identifier: a material name, formula, cell line, strain, catalog number, "
+                            "batch code or paper slug is not a sample_id.")})
     return warnings
 
 
