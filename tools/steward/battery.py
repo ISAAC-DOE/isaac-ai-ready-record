@@ -325,19 +325,34 @@ def summary_markdown(metrics, change, stamp):
     return "\n".join(lines) + "\n"
 
 
+def run_time(run):
+    """When a run was made, from its folder name (by second since 2026-10-06, by minute before)."""
+    for fmt in ("%Y-%m-%dT%H%M%SZ", "%Y-%m-%dT%H%MZ"):
+        try:
+            return dt.datetime.strptime(Path(run).name, fmt).replace(tzinfo=dt.timezone.utc)
+        except ValueError:
+            continue
+    raise ValueError(f"not a battery run: {Path(run).name}")
+
+
+def runs_in(out_dir):
+    """Completed runs in out_dir, oldest first."""
+    return sorted((p for p in Path(out_dir).glob("*Z") if p.is_dir() and (p / "metrics.json").exists()), key=run_time)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out-dir", required=True, type=Path)
     ap.add_argument("--env-file", type=Path, help="file with ISAAC_API_URL and ISAAC_API_TOKEN")
     ap.add_argument("--snapshot", type=Path, help="read records from this JSONL instead of the API")
     args = ap.parse_args(argv)
-    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H%MZ")
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")  # seconds: two runs in one minute must not collide
     if args.snapshot:
         records = [json.loads(line) for line in args.snapshot.open()]
     else:
         env = _env(args.env_file)
         records = fetch_snapshot(env.get("ISAAC_API_URL", "https://isaac.slac.stanford.edu/portal/api").rstrip("/"), env["ISAAC_API_TOKEN"])
-    runs = sorted(p for p in args.out_dir.glob("*Z") if p.is_dir()) if args.out_dir.exists() else []
+    runs = [r for r in runs_in(args.out_dir) if (r / "records.jsonl").exists()] if args.out_dir.exists() else []
     run = args.out_dir / stamp
     run.mkdir(parents=True, exist_ok=False)
     with (run / "records.jsonl").open("w") as f:

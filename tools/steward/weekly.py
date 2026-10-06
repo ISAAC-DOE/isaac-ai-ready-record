@@ -27,12 +27,8 @@ import battery  # noqa: E402
 PROMOTE_UPLOADERS, PROMOTE_RECORDS = 3, 30
 
 
-def _runs(out_dir):
-    return sorted(p for p in Path(out_dir).glob("*Z") if (p / "metrics.json").exists())
-
-
-def _when(run):
-    return dt.datetime.strptime(run.name, "%Y-%m-%dT%H%MZ").replace(tzinfo=dt.timezone.utc)
+_runs = battery.runs_in
+_when = battery.run_time
 
 
 def pick_runs(out_dir, days=6):
