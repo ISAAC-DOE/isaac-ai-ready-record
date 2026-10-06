@@ -1603,6 +1603,11 @@ def uncertainty_bases():
                                "method", "exact", "not_reported"]))
 
 
+# No check for a record without links (2026-10-06): most records relate to no other record in a way their
+# source states, and the former NO_LINKS warning told uploaders to group records with same_sample_as; 7,418
+# links asserting one physical specimen from a shared paper and material name followed. See the Links wiki page.
+
+
 def _warning_checks(record: dict):
     """Return (warnings, info) lists. Never raises; degrades to empty."""
     warnings, info = [], []
@@ -1643,9 +1648,6 @@ def _warning_checks(record: dict):
             warnings.append({"code": "NO_DATA_OWNER", "path": "attribution/contributors",
                              "message": "No data_owner declared. Evidence records should credit whose data this is "
                                         "(attribution.contributors, role=data_owner, ideally with ORCID)."})
-        if not record.get("links") and not record.get("tags"):
-            warnings.append({"code": "NO_LINKS", "path": "links",
-                             "message": "Record has no links[] and no tags[]. Group it via a typed link (same_sample_as / derived_from / intended_comparison_target) or a tag."})
 
         qc = ((record.get("measurement") or {}).get("qc") or {})
         if qc.get("status") == "compromised" and str(qc.get("evidence", "")).strip().upper() in ("", "N/A", "NA", "NONE"):
