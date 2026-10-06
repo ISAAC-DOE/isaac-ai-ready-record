@@ -24,7 +24,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import battery  # noqa: E402
 
-PROMOTE_UPLOADERS, PROMOTE_RECORDS = 3, 30
+PROMOTE_UPLOADERS, PROMOTE_RECORDS, PROMOTE_DAYS, PROMOTE_ONE_TYPE = 3, 30, 28, 0.95
+# Records with no uploader are our own early uploads: for independence they count as the PI's account.
+SAME_UPLOADER = {"(none)": "dsokaras"}
 
 
 _runs = battery.runs_in
@@ -61,14 +63,19 @@ def _flatten_keys(obj, prefix):
 
 def schema_candidates(records):
     """Keys and names that recur across uploaders without a structured home."""
-    keys = collections.defaultdict(lambda: [0, set()])
+    keys = collections.defaultdict(lambda: [0, set(), [], collections.Counter()])
     classes = collections.defaultdict(lambda: [0, set()])
     units = collections.defaultdict(lambda: [0, set()])
     for r in records.values():
-        owner = battery._owner(r)
+        owner = SAME_UPLOADER.get(battery._owner(r), battery._owner(r))
         cfg = (r.get("system") or {}).get("configuration")
         for k in set(_flatten_keys(cfg, "system.configuration")) if isinstance(cfg, dict) else ():
             keys[k][0] += 1; keys[k][1].add(owner)
+            keys[k][2].append((r.get("_meta") or {}).get("created_at") or "")
+            value = cfg
+            for part in k.split(".")[2:]:
+                value = value.get(part) if isinstance(value, dict) else None
+            keys[k][3][type(value).__name__] += 1
         for _, d in battery._descriptors(r):
             cls = str(d.get("name") or "").split(".")[0]
             if cls and cls not in battery.CANONICAL:
@@ -77,10 +84,21 @@ def schema_candidates(records):
                 units[d["unit"]][0] += 1; units[d["unit"]][1].add(owner)
 
     def rank(table):
-        rows = [{"name": k, "records": v[0], "uploaders": len(v[1])} for k, v in table.items()]
+        rows = []
+        for k, v in table.items():
+            row = {"name": k, "records": v[0], "uploaders": len(v[1])}
+            if len(v) > 2:
+                days = sorted(d[:10] for d in v[2] if d)
+                span = (dt.date.fromisoformat(days[-1]) - dt.date.fromisoformat(days[0])).days if days else 0
+                top_type, n_type = (v[3].most_common(1) or [("none", 0)])[0]
+                row.update({"span_days": span, "one_type_share": round(n_type / max(1, v[0]), 3), "type": top_type})
+            rows.append(row)
         rows.sort(key=lambda x: (-x["uploaders"], -x["records"], x["name"]))
-        return {"meets_promotion_rule": [x for x in rows if x["uploaders"] >= PROMOTE_UPLOADERS and x["records"] >= PROMOTE_RECORDS],
-                "top": rows[:25], "distinct": len(rows)}
+
+        def meets(x):
+            return (x["uploaders"] >= PROMOTE_UPLOADERS and x["records"] >= PROMOTE_RECORDS
+                    and x.get("span_days", PROMOTE_DAYS) >= PROMOTE_DAYS and x.get("one_type_share", 1.0) >= PROMOTE_ONE_TYPE)
+        return {"meets_promotion_rule": [x for x in rows if meets(x)], "top": rows[:25], "distinct": len(rows)}
 
     return {"configuration_keys": rank(keys), "descriptor_classes_outside_vocabulary": rank(classes),
             "units_outside_vocabulary": rank(units)}
@@ -100,7 +118,10 @@ def digest(then_run, now_run):
         ca, cb = _codes(ma, kind), _codes(mb, kind)
         codes[kind] = sorted(({"code": c, "then": ca.get(c, 0), "now": cb.get(c, 0)} for c in set(ca) | set(cb)),
                              key=lambda x: -abs(x["now"] - x["then"]))
-    return {"from": then_run.name, "to": now_run.name, "records": {"then": len(a), "now": len(b)},
+    def label(run, metrics):
+        info = metrics.get("run") or {}
+        return f"{run.name} ({info.get('kind', 'live')}, data as of {info.get('data_as_of', run.name)})"
+    return {"from": label(then_run, ma), "to": label(now_run, mb), "records": {"then": len(a), "now": len(b)},
             "activity": {"added": dict(added), "edited": dict(edited), "deleted": dict(deleted),
                          "outcome_changed": change["outcome_changed"]},
             "codes": codes, "links": {"then": ma.get("links"), "now": mb.get("links")},

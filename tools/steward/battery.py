@@ -66,6 +66,25 @@ def _request(base, token, method, path, body=None):
         return json.loads(r.read() or b"{}")
 
 
+def fetch_held(base, token):
+    """Held uploads (private drafts) as counts only: owner, domain and hold codes, never content. None when the
+    caller may not list every owner's held records."""
+    rows, offset = [], 0
+    while True:
+        try:
+            page = _request(base, token, "GET", f"/records/held?owner=all&limit=500&offset={offset}")
+        except urllib.error.HTTPError:
+            return None
+        batch = page.get("records") or []
+        rows += batch
+        offset += 500
+        if len(batch) < 500:
+            break
+    by_owner = collections.Counter(r.get("owner") or "(none)" for r in rows)
+    by_code = collections.Counter(c for r in rows for c in r.get("hold") or [])
+    return {"total": len(rows), "by_owner": dict(by_owner), "by_code": dict(by_code)}
+
+
 def fetch_snapshot(base, token):
     """Every record with its server metadata (owner, created_at, version, content_hash)."""
     rows, offset = [], 0
@@ -347,11 +366,18 @@ def main(argv=None):
     ap.add_argument("--snapshot", type=Path, help="read records from this JSONL instead of the API")
     args = ap.parse_args(argv)
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")  # seconds: two runs in one minute must not collide
+    held = None
     if args.snapshot:
         records = [json.loads(line) for line in args.snapshot.open()]
+        newest = max((r["_meta"].get("created_at") or "" for r in records), default="")
+        run_info = {"kind": "replay", "made_at": stamp, "snapshot": str(args.snapshot),
+                    "data_as_of": f"newest record created {newest}" if newest else "unknown"}
     else:
         env = _env(args.env_file)
-        records = fetch_snapshot(env.get("ISAAC_API_URL", "https://isaac.slac.stanford.edu/portal/api").rstrip("/"), env["ISAAC_API_TOKEN"])
+        base = env.get("ISAAC_API_URL", "https://isaac.slac.stanford.edu/portal/api").rstrip("/")
+        records = fetch_snapshot(base, env["ISAAC_API_TOKEN"])
+        held = fetch_held(base, env["ISAAC_API_TOKEN"])
+        run_info = {"kind": "live", "made_at": stamp, "data_as_of": stamp}
     runs = [r for r in runs_in(args.out_dir) if (r / "records.jsonl").exists()] if args.out_dir.exists() else []
     run = args.out_dir / stamp
     run.mkdir(parents=True, exist_ok=False)
@@ -359,6 +385,8 @@ def main(argv=None):
         for r in records:
             f.write(json.dumps(r) + "\n")
     metrics = measure(records)
+    metrics["run"] = run_info
+    metrics["held"] = held if held is not None else ("not measured: replay" if args.snapshot else "not available to this token")
     change = None
     if runs:
         prev = runs[-1]
