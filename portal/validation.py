@@ -1684,8 +1684,13 @@ def _warning_checks(record: dict):
             # only in an asset filename or free text reads to every consumer as a static
             # measurement. Detect the words rather than the technique, so it fires for any
             # domain that buries a drive in prose.
+            # A cited work's title describes that work, not this record's experiment ("Phosphate ions
+            # modulate enzyme activity", "Electronic modulation of metal-support interactions"), so the
+            # citations are not read: on 2026-10-06 they made 21 of 46 stored firings.
             import re as _re
-            _hay = " ".join([json.dumps(record.get("assets") or []),
+            _assets = [{k: v for k, v in a.items() if k != "citation"} if isinstance(a, dict) else a
+                       for a in (record.get("assets") or [])]
+            _hay = " ".join([json.dumps(_assets),
                              str((record.get("system") or {}).get("configuration") or ""),
                              str(((record.get("context") or {}).get("electrochemistry") or {}).get("notes") or ""),
                              str((record.get("sample") or {}).get("notes") or "")])
@@ -1693,13 +1698,14 @@ def _warning_checks(record: dict):
                 info.append({
                     "code": "MODULATION_EVIDENT_BUT_UNDECLARED", "path": "context",
                     "message": (
-                        "This record mentions a modulated/pulsed/chopped experiment in its "
-                        "assets or notes, but declares no context.modulation block — so every "
-                        "machine reading it will treat the measurement as static, and its "
-                        "setpoints as the condition of the whole run. Declare "
-                        "context.modulation (driven_variable, waveform, frequency, levels and "
-                        "descriptors_represent) so the drive is queryable rather than buried in "
-                        "a filename.")})
+                        "A word for periodic driving (modulated, pulsed, chopped, duty cycle, square "
+                        "wave) appears in this record's assets, configuration or notes, and it declares "
+                        "no context.modulation block, so every machine reading it treats the measurement "
+                        "as static and its setpoints as the condition of the whole run. If this record's "
+                        "measurement was driven periodically, declare context.modulation (driven_variable, "
+                        "waveform, frequency, levels and descriptors_represent). If the word describes a "
+                        "preparation step (pulsed laser deposition), an instrument part (an optical "
+                        "chopper) or another work, keep the record as it is.")})
 
         # Component-set closure, per output block.
         #

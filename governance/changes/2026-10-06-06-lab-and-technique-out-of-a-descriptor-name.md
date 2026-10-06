@@ -26,4 +26,4 @@ a later check.
 - fit parameters (background coefficients, instrument broadening, scale factor) out of the descriptors and
   into the processing step.
 
-This is proposed as change 07, with review.
+This is listed in [PROPOSED.md](PROPOSED.md), to go through review.

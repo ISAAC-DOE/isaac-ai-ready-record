@@ -63,6 +63,22 @@ def test_the_diff_reports_new_edited_and_deleted_records():
     assert (d["new"], d["deleted"], d["edited"]) == (1, 1, 1)
 
 
+def test_the_diff_reports_each_code_a_record_gained_or_lost_including_info():
+    """A flip list names codes on records; an info-tier change is invisible to an outcome-only diff."""
+    titled = _rec(A, assets=[{"uri": "https://doi.org/10.1000/x", "content_role": "citation",
+                              "sha256": "not_available_literature_source",
+                              "citation": {"relation": "source", "title": "Phosphate ions modulate activity"}}])
+    filed = _rec(A, assets=[{"uri": "s3://lab/run_modulation_1p3Hz.xlsx", "content_role": "raw_data",
+                             "sha256": "not_available"}])
+    before, after = battery.measure([filed]), battery.measure([titled])
+    assert "MODULATION_EVIDENT_BUT_UNDECLARED" in before["info_by_uploader"]["lab-a"]
+    d = battery.diff([filed], [titled], before, after)
+    assert d["outcome_changed"] == 0
+    assert d["codes_changed"]["MODULATION_EVIDENT_BUT_UNDECLARED"] == {"tier": "info", "gained": 0, "lost": 1}
+    before.pop("info_by_uploader")  # a run made before info codes were counted
+    assert "MODULATION_EVIDENT_BUT_UNDECLARED" not in battery.diff([filed], [titled], before, after)["codes_changed"]
+
+
 def test_runs_sort_by_time_across_both_name_formats(tmp_path):
     for name in ("2026-10-06T1833Z", "2026-10-06T183305Z", "2026-10-07T061700Z", "2026-10-06T1832Z"):
         (tmp_path / name).mkdir()

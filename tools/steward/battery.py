@@ -219,6 +219,7 @@ def measure(records):
     per = {o: collections.Counter() for o in owners}
     errors = {o: collections.Counter() for o in owners}
     warnings = {o: collections.Counter() for o in owners}
+    info = {o: collections.Counter() for o in owners}
     outcome_by_record = {}
     keys = {}
     ids = {r["record_id"] for r in records}
@@ -231,11 +232,13 @@ def measure(records):
         res = validation.validate_record_full(body)
         outcome = res.get("outcome") or ("publish" if res.get("valid") else "reject")
         outcome_by_record[r["record_id"]] = {"outcome": outcome, "warnings": sorted({w["code"] for w in res.get("warnings") or []}),
+                                             "info": sorted({i["code"] for i in res.get("info") or [] if isinstance(i, dict)}),
                                              "errors": sorted({e.get("code") or k for k in ("schema_errors", "vocabulary_errors", "semantic_errors")
                                                                for e in res.get(k) or []})}
         c["outcome_" + outcome] += 1
         errors[o].update(outcome_by_record[r["record_id"]]["errors"])
         warnings[o].update(outcome_by_record[r["record_id"]]["warnings"])
+        info[o].update(outcome_by_record[r["record_id"]]["info"])
         k = rg.derive_keys(body, VOCAB)
         keys[r["record_id"]] = k.get("sample_id")
         # naming and uncertainty
@@ -298,6 +301,7 @@ def measure(records):
         "per_uploader": {o: dict(per[o]) for o in sorted(owners, key=lambda x: -owners[x])},
         "errors_by_uploader": {o: dict(errors[o].most_common()) for o in owners if errors[o]},
         "warnings_by_uploader": {o: dict(warnings[o].most_common()) for o in owners if warnings[o]},
+        "info_by_uploader": {o: dict(info[o].most_common()) for o in owners if info[o]},
         "links": dict(links),
         "sample_groups": _sample_groups(records, keys),
         "_outcomes": outcome_by_record,
@@ -316,9 +320,23 @@ def diff(previous_records, records, previous_metrics, metrics):
     changed_outcome = sorted(rid for rid in set(now) & set(before)
                              if previous_metrics["_outcomes"].get(rid, {}).get("outcome") != metrics["_outcomes"].get(rid, {}).get("outcome"))
     new_by_uploader = collections.Counter(_owner({"_meta": now[rid]}) for rid in new)
+    # Records present in both runs whose codes changed, by code: what a flip list declares. Info codes are
+    # compared only when both runs counted them (runs before 2026-10-06 did not).
+    tiers = ("errors", "warnings") + (("info",) if "info_by_uploader" in previous_metrics and "info_by_uploader" in metrics else ())
+    codes_changed, code_examples = {}, {}
+    for rid in sorted(set(now) & set(before)):
+        a, b = previous_metrics["_outcomes"].get(rid, {}), metrics["_outcomes"].get(rid, {})
+        for tier in tiers:
+            for code, way in [(c, "lost") for c in set(a.get(tier) or []) - set(b.get(tier) or [])] + \
+                             [(c, "gained") for c in set(b.get(tier) or []) - set(a.get(tier) or [])]:
+                row = codes_changed.setdefault(code, {"tier": tier, "gained": 0, "lost": 0})
+                row[way] += 1
+                if len(code_examples.setdefault(code, [])) < 5:
+                    code_examples[code].append(rid)
     return {"new": len(new), "new_by_uploader": dict(new_by_uploader), "deleted": len(deleted), "edited": len(edited),
-            "outcome_changed": len(changed_outcome), "examples": {"new": new[:5], "deleted": deleted[:5], "edited": edited[:5],
-                                                                  "outcome_changed": changed_outcome[:5]}}
+            "outcome_changed": len(changed_outcome), "codes_changed": codes_changed,
+            "examples": {"new": new[:5], "deleted": deleted[:5], "edited": edited[:5],
+                         "outcome_changed": changed_outcome[:5], "codes_changed": code_examples}}
 
 
 def _share(n, d):
@@ -331,6 +349,8 @@ def summary_markdown(metrics, change, stamp):
     if change:
         lines += [f"Since the previous run: {change['new']} new {change['new_by_uploader']}, {change['edited']} edited, "
                   f"{change['deleted']} deleted, {change['outcome_changed']} changed outcome.", ""]
+        if change.get("codes_changed"):
+            lines += ["Codes that changed on records present in both runs: " + json.dumps(change["codes_changed"]), ""]
     lines += ["| uploader | records | publish | hold | reject | canonical names | units in vocab | sample_id | org resolved | numeric uncertainty | zero-sigma | unsupported same_sample_id links |",
               "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for o, c in metrics["per_uploader"].items():
@@ -340,7 +360,8 @@ def summary_markdown(metrics, change, stamp):
                      f"{_share(c.get('with_sample_id', 0), c['records'])} | {_share(c.get('organization_resolved', 0), c['records'])} | "
                      f"{_share(c.get('uncertainty_numeric', 0), v)} | {c.get('uncertainty_zero_placeholder', 0)} | {c.get('unsupported_same_sample_id_links', 0)} |")
     lines += ["", "Errors by uploader: " + json.dumps(metrics["errors_by_uploader"]),
-              "", "Warnings by uploader: " + json.dumps(metrics["warnings_by_uploader"])]
+              "", "Warnings by uploader: " + json.dumps(metrics["warnings_by_uploader"]),
+              "", "Info by uploader: " + json.dumps(metrics.get("info_by_uploader") or {})]
     return "\n".join(lines) + "\n"
 
 
