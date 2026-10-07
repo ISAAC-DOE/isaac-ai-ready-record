@@ -19,7 +19,7 @@ The process is in [`../README.md`](../README.md).
 | [2026-10-06-11](2026-10-06-11-contract-comparison-links.md) | 2026-10-06 | The contract stops teaching same-study comparison links (contract 2026-10-06.1); only same_sample_as is symmetric | contract, examples, API | 0, 1, 2 | #272, v0.0.354 | shipped |
 | [2026-10-06-12](2026-10-06-12-contract-release-1.md) | 2026-10-06 | Contract release 1: open and closed vocabularies; a checksum describes the bytes at the asset's URI (contract 2026-10-06.2) | contract, messages, wiki | 0, 1, 2, 3 | #273, v0.0.355 | shipped; gate 3: two agents better; the third within its spread except a quoted-baseline case, closed by change 14 |
 | [2026-10-06-13](2026-10-06-13-same-sample-link-on-sample-id.md) | 2026-10-06 | Warning: same_sample_as on basis same_sample_id (952 records) | validator | 0, 1, 2, 4 | #275, v0.0.357 | shipped |
-| [2026-10-06-14](2026-10-06-14-quoted-baseline.md) | 2026-10-06 | Step 5: a quoted baseline is not this work's result (contract 2026-10-06.3) | contract | 0, 1, 2 | pending | in review |
+| [2026-10-06-14](2026-10-06-14-quoted-baseline.md) | 2026-10-06 | Step 5: a quoted baseline is not this work's result (contract 2026-10-06.3) | contract | 0, 1, 2, 3 | #276, v0.0.358 | shipped; gate 3: quoted rows 2 of 2 runs to 0 of 2 |
 
 Drafts not yet started: [PROPOSED.md](PROPOSED.md).
 
