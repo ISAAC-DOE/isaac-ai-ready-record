@@ -33,5 +33,19 @@ sentence could move the whole baseline. The shipped wording answers each point.
 
 ## Gate 3
 
-Measured by the next runs of the enzyme kit: the quoted wild-type rows must not appear as this paper's results,
-the mutant records must stay, and the wild-type record measured in this paper keeps its links.
+Two independent runs of the agent that had taken the case, scored blind beside its baseline by one scorer:
+
+| Measure | Baseline | Run 5 | Run 6 |
+|---|---|---|---|
+| Quoted wild-type rows filed as this paper's results | 0 (2 of 2 runs just before this change) | 0 | 0 |
+| Core values covered (of 57) | 41 | 57 | 57 |
+| Outright errors | 13 | 0 | 2 |
+
+The mutant records stayed, and both runs also recorded the MIC table the baseline had left out. Run 6's two errors
+are a condition carried onto the empty-vector strain and one link to it. A second agent stayed clean. The third
+was stopped by its vendor's biological-risk filter, as in one earlier run of this paper; 2 of its 6 attempts on
+this paper were refused.
+
+## Ship and watch
+
+Shipped in #276 (portal v0.0.358, contract 2026-10-06.3).
