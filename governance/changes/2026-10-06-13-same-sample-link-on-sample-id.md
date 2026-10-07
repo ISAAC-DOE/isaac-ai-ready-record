@@ -52,4 +52,8 @@ Replay of 2026-10-06T220616Z: 0 outcome changes; SAME_SAMPLE_LINK_ON_SAMPLE_ID g
 
 ## Ship and watch
 
-Held until the running benchmark run finishes, so its agents read one version of the documentation.
+- Shipped in #275 (portal v0.0.357, 2026-10-06), after the benchmark run then in progress had finished.
+- Live: `/records/attention` shows the warning on 944 records of one uploader (it uploaded four more records
+  after the snapshot) and 5 of another; a third lab's 6 records are rejected for other errors, so the warning
+  appears in their quality reports.
+- Watch: whether that uploader's next batches stop writing these links.

@@ -17,8 +17,9 @@ The process is in [`../README.md`](../README.md).
 | [2026-10-06-09](2026-10-06-09-checksum-and-shared-basis-warnings.md) | 2026-10-06 | Warnings for a checksum that is none (842 records) and same_sample_as on a shared basis (45) or without its passage | validator, wiki check | 0, 1, 2, 4 | #271, v0.0.353 | shipped |
 | [2026-10-06-10](2026-10-06-10-our-checksums-and-batch-links.md) | 2026-10-06 | Our checksums (74 records), our shared-batch links (42) and our reciprocal comparison links (50) | data | 0, 1, 4 | data edits, 2026-10-06 | done: 74 checksums, 42 links removed, 118 comparison links decided (25 kept, 12 retyped) |
 | [2026-10-06-11](2026-10-06-11-contract-comparison-links.md) | 2026-10-06 | The contract stops teaching same-study comparison links (contract 2026-10-06.1); only same_sample_as is symmetric | contract, examples, API | 0, 1, 2 | #272, v0.0.354 | shipped |
-| [2026-10-06-12](2026-10-06-12-contract-release-1.md) | 2026-10-06 | Contract release 1: open and closed vocabularies; a checksum describes the bytes at the asset's URI (contract 2026-10-06.2) | contract, messages, wiki | 0, 1, 2 | #273, v0.0.355 | shipped; gate 3 by run 3 |
-| [2026-10-06-13](2026-10-06-13-same-sample-link-on-sample-id.md) | 2026-10-06 | Warning: same_sample_as on basis same_sample_id (952 records) | validator | 0, 1, 2, 4 | pending | in review |
+| [2026-10-06-12](2026-10-06-12-contract-release-1.md) | 2026-10-06 | Contract release 1: open and closed vocabularies; a checksum describes the bytes at the asset's URI (contract 2026-10-06.2) | contract, messages, wiki | 0, 1, 2, 3 | #273, v0.0.355 | shipped; gate 3: two agents better; the third within its spread except a quoted-baseline case, closed by change 14 |
+| [2026-10-06-13](2026-10-06-13-same-sample-link-on-sample-id.md) | 2026-10-06 | Warning: same_sample_as on basis same_sample_id (952 records) | validator | 0, 1, 2, 4 | #275, v0.0.357 | shipped |
+| [2026-10-06-14](2026-10-06-14-quoted-baseline.md) | 2026-10-06 | Step 5: a quoted baseline is not this work's result (contract 2026-10-06.3) | contract | 0, 1, 2 | pending | in review |
 
 Drafts not yet started: [PROPOSED.md](PROPOSED.md).
 
