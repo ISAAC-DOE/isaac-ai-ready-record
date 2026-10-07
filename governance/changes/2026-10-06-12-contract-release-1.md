@@ -76,5 +76,12 @@ agents):
 - The third agent barely reported waiting results. Its errors rose, from temperatures and an atmosphere
   written where the paper states none, a crystal temperature, and two rows quoted from an earlier paper. Release 1
   did not touch those rules; on the previous documentation the same agent's runs ranged from 2 to 13 errors.
-- By the gate-3 rule the worst agent got worse. A fourth run of that agent on the same documentation tests
-  whether the rise is the change or the agent's spread; the decision goes to the PI with it.
+- By the gate-3 rule the worst agent got worse, so its baseline, run 3 and a fourth run were scored together by
+  one scorer per paper. Battery: 11, 17 and 12 error instances; geochemistry: 5, 5 and 0. On those two papers its
+  errors on release 1 sit within its own spread. Enzyme kinetics: 1, 3 and 4. Both release-1 runs filed the two
+  wild-type rows that the paper quotes from the group's earlier paper as this paper's results, which none of its
+  three earlier runs did. Its notes say why: the mutant records needed a wild-type baseline to link to (step 5,
+  change 11). Change 14 closes that case in step 5.
+- The agent's first fourth run on enzyme kinetics replayed run 3 byte for byte (same record identifiers); the
+  benchmark runner now gives every run a unique prompt, and the run was repeated independently. No other pair of
+  runs was identical.
