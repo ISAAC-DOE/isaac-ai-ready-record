@@ -99,3 +99,8 @@ core either way.
 - **From the review of change 13:** resolve each `same_sample_as` target at the API and say per link which case
   applies (identifiers match: remove; they differ: the basis is false), next to the check for links declared in
   both directions.
+
+**From the review of change 15 (the record form):** the product analysis behind a Faradaic efficiency or a
+selectivity (GC, HPLC, NMR, per product); and a light-source block for photocatalysis (wavelength or spectrum,
+irradiance or photon flux, illuminated area), which the schema does not have.
+
