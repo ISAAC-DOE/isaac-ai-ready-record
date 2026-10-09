@@ -61,3 +61,13 @@ correctly. Their points, all taken:
   field; both listed in PROPOSED.md).
 
 Tests after review: 20 form tests (12 on the builder, 2 driving the real form), suite 956 passed.
+
+## Ship and watch
+
+- Shipped in #278 (portal v0.0.360, 2026-10-09).
+- The UI tests did not run in CI at first: the builder tests stubbed Streamlit before them, so they were skipped
+  (#279 fixed that). Once they ran, the stub database module of the app they drive leaked into the next tests and
+  main CI failed for one merge (seven test_record_graph failures, test-only); #280 restores the real modules. Main
+  CI now collects 972 tests and runs both UI tests.
+- Watch: records saved through the form, by uploader, in the daily battery; whether labs fill the conditions.
+
