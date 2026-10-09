@@ -166,7 +166,8 @@ def _dashboard_stats():
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _attention_report(identity):
-    """The identity's stored records that fail the current rules (validation.current_contract_report)."""
+    """The identity's stored records that fail the current rules, and those that pass with warnings
+    (validation.current_contract_report)."""
     return validation.current_contract_report(database.records_editable_by(identity))
 
 
@@ -1117,6 +1118,18 @@ elif page == "Saved Records":
                                  width='stretch', hide_index=True)
             elif att:
                 st.caption(f"All {att['checked']} of your records meet the current rules.")
+            if att and att.get("warnings_by_code"):
+                held_tier = att.get("stored_with_hold_warning") or 0
+                with st.expander(f"{len(att['warned'])} of your records pass but carry warnings"
+                                 + (f" ({held_tier} with a warning that would hold a new upload)" if held_tier else ""),
+                                 expanded=False):
+                    st.caption("Some warnings were added after these records were stored. A warning that "
+                               "stays is an accepted outcome. Change a value only when the source or your own "
+                               "data states it; never fill in a usual value to remove a warning. Agents get the "
+                               "same counts from GET /portal/api/records/attention.")
+                    st.dataframe(pd.DataFrame([{"Warning": c, "Tier": v["tier"], "Records": v["records"]}
+                                               for c, v in att["warnings_by_code"].items()]),
+                                 hide_index=True)
 
         # --- Filters ---
         with st.expander("Filters", expanded=False):

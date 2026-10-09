@@ -663,8 +663,9 @@ def _one_result_warnings(record: dict) -> list:
                 "code": "VOCABULARY_SUBSTITUTION", "path": path,
                 "message": (f"This field says a vocabulary term was substituted ('...{excerpt}...'). A substituted "
                             f"term is a wrong term, and every query on that field returns this record by mistake. "
-                            f"Use the exact term. If the vocabulary lacks it, propose it (POST "
-                            f"/portal/api/vocabulary/proposals) and store the record once it exists. If no measurement or "
+                            f"Use the exact term. If the vocabulary lacks it, leave an optional field out; for a "
+                            f"required field, propose the term (POST /portal/api/vocabulary/proposals) and store the "
+                            f"record once it exists. If no measurement or "
                             f"calculation stands behind the value (a literature survey, a model's conclusion), it is "
                             f"not an ISAAC record. {_ONE_RESULT}")})
             break
@@ -1062,8 +1063,284 @@ def _producer_warnings(record: dict) -> list:
             "message": (f"'{group}' names no producer. If the producer is known, name the group (the PI's "
                         f"name as printed, plus 'group') or the organization: two results from one producer are "
                         f"not independent evidence. If it cannot be named (anonymized or industrial data), keep "
-                        f"'not_reported'; the discovery engine treats it as absent, never as a shared producer.")}]
+                        f"'not_reported'; the discovery engine treats it as absent, never as a shared producer. A source that "
+                        f"names its authors or its lab can always be named.")}]
     return []
+
+
+# --- Conditions only in prose, and producers named as authors (2026-10-01) ------------------------
+# A rebuilt literature pipeline gave a turnover frequency's temperature only in its definition ("at 400 C")
+# while context.temperature_K said not_reported, and named every producer "<first author> et al.". Three
+# blind reviews: the prose rule warns, because C-rates, eV, ramp rates, reference values and fit ranges read
+# like conditions in some science; "et al." in a producer group holds, because no group is named that way.
+_PREP_WORDS = (r"(?:calcined|annealed|reduced|sputter-deposited|pretreated|pre-treated|dried|aged|quenched|refluxed"
+               r"|sintered|pyrolyzed|pyrolysed|impregnated|heat-treated|degassed|oxidized|oxidised|passivated|purged"
+               r"|sealed|stored|refrigerated|frozen|lyophilized|cultured|grown|fermented|synthesized|synthesised"
+               r"|prepared|deposited|activated)")
+_COND_NUM = r"(?:~|\u2248|ca\.\s*|approximately\s+)?(?P<num>[+\u2212-]?\d+(?:\.\d+)?)(?:\s*\u00b1\s*\d+(?:\.\d+)?)?"
+_COND_CUE = (r"(?:\bat\s+(?:a\s+)?(?:temperature|pressure|potential)\s+of\s+|\bat\s+|@\s*"
+             r"|\b(?:temperature|(?<![A-Za-z\u0394\u03b4])T)\s*[=:\u2248]\s*|\bunder\s+)")
+_COND_UNIT = (r"(?P<unit>\u00b0\s*C|\u2103|\u00baC|degrees?\s+C(?:elsius)?|Celsius|mbar|kPa|MPa|bara|barg|bar|atm"
+              r"|torr|Torr|(?<![A-Za-z])m?V|K|C)")
+_CONDITION = re.compile(
+    rf"(?P<cue>{_COND_CUE}){_COND_NUM}\s*{_COND_UNIT}(?![A-Za-z0-9])"
+    r"(?!\s*(?:/|\u00b7|\u22c5)|\s*(?:min|s|sec|h|hr|dec)\b|\s*\^)"
+    r"(?!\s*(?:-|\u2013|to)\s*[+\u2212-]?\d)"
+    r"(?P<ref>\s*(?:vs\.?|versus)\s*(?P<scale>[A-Za-z0-9/+]+))?")
+_COND_REFERENCE_BEFORE = re.compile(
+    r"(?:relative\s+to|compared\s+(?:with|to)|normali[sz]ed\s+to|referenced\s+to|with\s+respect\s+to)"
+    r"(?:\s+the\s+(?:value|rate|current|signal|response))?\s*$", re.I)
+_COND_PREP_BEFORE = re.compile(rf"\b{_PREP_WORDS}\b(?:\W+\w+){{0,7}}\W*$", re.I)
+_COND_BATTERY_BEFORE = re.compile(r"capacit|cycl|charg|discharg|capabilit", re.I)
+_TEMPERATURE_UNITS = {"k", "celsius", "degc", "c", "\u00b0c", "kelvin"}
+_PRESSURE_UNITS = {"bar", "mbar", "kpa", "mpa", "pa", "atm", "torr"}
+_POTENTIAL_UNITS = {"v", "mv", "v_rhe", "v vs rhe"}
+
+
+def _condition_dimension(m, before: str):
+    """'temperature', 'pressure', 'potential' or None for one match of _CONDITION."""
+    unit = re.sub(r"\s+", "", m.group("unit"))
+    cue = m.group("cue").strip().lower()
+    num = float(m.group("num").replace("\u2212", "-"))
+    if unit in ("mbar", "kPa", "MPa", "bara", "barg", "bar", "atm", "torr", "Torr"):
+        return "pressure"
+    if cue.startswith("under"):
+        return None
+    if unit in ("V", "mV"):
+        return "potential" if re.fullmatch(r"(?i)rhe", m.group("scale") or "") else None
+    if unit == "K":
+        return None if num == 0 else "temperature"
+    if unit == "C":
+        return "temperature" if num >= 50 and not _COND_BATTERY_BEFORE.search(before[-40:]) else None
+    return "temperature"
+
+
+def _structured(record: dict, at: dict, dimension: str) -> bool:
+    ctx = record.get("context") if isinstance(record.get("context"), dict) else {}
+    at = at if isinstance(at, dict) else {}
+    if dimension == "temperature":
+        return at.get("temperature_K") is not None or ctx.get("temperature_K") is not None
+    if dimension == "pressure":
+        feed = ((ctx.get("transport") or {}).get("feed") or {}) if isinstance(ctx.get("transport"), dict) else {}
+        thermo = ctx.get("thermodynamics") if isinstance(ctx.get("thermodynamics"), dict) else {}
+        return any(v is not None for v in (at.get("pressure_bar"), feed.get("pressure_bar"), thermo.get("pressure_Pa")))
+    ec = ctx.get("electrochemistry") if isinstance(ctx.get("electrochemistry"), dict) else {}
+    rhe = ec.get("potential_vs_RHE") if isinstance(ec.get("potential_vs_RHE"), dict) else {}
+    return any(v is not None for v in (at.get("potential_V_RHE"), rhe.get("value_V"), ec.get("potential_setpoint_V")))
+
+
+def _measures(unit: str, dimension: str) -> bool:
+    """The descriptor's own quantity is of this dimension, so the number is the measurand."""
+    u = str(unit or "").strip().lower().replace(" ", "")
+    return ((dimension == "temperature" and u in _TEMPERATURE_UNITS)
+            or (dimension == "pressure" and u in _PRESSURE_UNITS)
+            or (dimension == "potential" and u in _POTENTIAL_UNITS))
+
+
+def _prose_condition_warnings(record: dict) -> list:
+    """A descriptor definition that states the condition its value was read at, while no structured field
+    carries that quantity (warning)."""
+    if record.get("record_type") != "evidence":
+        return []
+    warnings = []
+    for oi, o in enumerate((record.get("descriptors") or {}).get("outputs") or []):
+        for di, d in enumerate(o.get("descriptors") or [] if isinstance(o, dict) else []):
+            if not isinstance(d, dict) or not isinstance(d.get("definition"), str):
+                continue
+            text = d["definition"]
+            for m in _CONDITION.finditer(text):
+                before = text[:m.start()]
+                if _COND_REFERENCE_BEFORE.search(before) or _COND_PREP_BEFORE.search(before):
+                    continue
+                dim = _condition_dimension(m, before)
+                if dim is None or _measures(d.get("unit"), dim) or _structured(record, d.get("at"), dim):
+                    continue
+                field = {"temperature": "`at.temperature_K` (or context.temperature_K with temperature_basis "
+                                        "'stated')",
+                         "pressure": "`at.pressure_bar` (or context.transport.feed.pressure_bar)",
+                         "potential": "`at.potential_V_RHE` (or context.electrochemistry.potential_vs_RHE)"}[dim]
+                warnings.append({
+                    "code": "CONDITION_ONLY_IN_PROSE", "path": f"descriptors/outputs/{oi}/descriptors/{di}/definition",
+                    "message": (f"The definition of '{d.get('name')}' states the {dim} it was read at "
+                                f"('{m.group(0).strip()}'), and no structured field carries it. Put it in {field}. "
+                                f"An agent filtering by {dim} finds only what the structured fields hold.")})
+                break
+    return warnings
+
+
+_AUTHOR_LIST_GROUP = re.compile(r"(?i)\bet\.?\s*al\b\.?|\band\s+co-?workers\b|\band\s+colleagues\b")
+_GROUP_WORDS = re.compile(r"(?i)\b(?:groups?|labs?|laborator(?:y|ies)|institutes?|cent(?:er|re)s?|consortium|team"
+                          r"|facilit(?:y|ies)|collaboration|initiative|program(?:me)?|project)\b")
+_SEMICOLON_AUTHORS = re.compile(r"[A-Z][A-Za-z'\u2019\-]+,\s*[A-Z][^;]{0,60};\s*[A-Z]")
+_AND_AUTHORS = re.compile(r"^\s*[A-Z][\w'\u2019.\- ]{0,40}?\s+(?:and|&)\s+[A-Z][\w'\u2019.\- ]{0,40}\s*$")
+
+
+def _producer_name_warnings(record: dict) -> list:
+    """A producer group written as a list of authors: 'Huihuang Fang et al.' holds; author-list shapes
+    without a group word ('Smith, J.; Lee, K.', 'Smith and Jones') warn."""
+    if record.get("record_type") != "evidence":
+        return []
+    pb = (record.get("attribution") or {}).get("produced_by") if isinstance(record.get("attribution"), dict) else None
+    group = str((pb or {}).get("group") or "").strip() if isinstance(pb, dict) else ""
+    if not group:
+        return []
+    fix = ("Name the group that produced the result by its principal investigator as the byline prints it, "
+           "'<PI name> group' (two PIs: 'A and B groups'), and add produced_by.organization. The discovery engine "
+           "matches this field exactly to judge whether two results are independent, so one group must be "
+           "written the same way in every record.")
+    if _AUTHOR_LIST_GROUP.search(group):
+        return [{"code": "PRODUCER_AS_AUTHOR_LIST", "path": "attribution/produced_by/group",
+                 "message": f"produced_by.group '{group}' is a list of authors. {fix}"}]
+    if not _GROUP_WORDS.search(group) and (_SEMICOLON_AUTHORS.search(group) or _AND_AUTHORS.match(group)):
+        return [{"code": "PRODUCER_NAME_FORMAT", "path": "attribution/produced_by/group",
+                 "message": f"produced_by.group '{group}' reads like author names. {fix}"}]
+    return []
+
+
+# A review cited as the record's source (2026-10-01): a value a review quotes is the result of the paper
+# that measured it. A review may also be the first to report a value of its own (a benchmark it ran, a
+# meta-analysis), so this warns and the message says when to dismiss it. Three blind reviews set the
+# lists: full names of review-only venues, and title phrases that name a review; "Progress in ..."
+# journals, a bare "perspective" and "reviewed" publish or describe research and are left out.
+_REVIEW_VENUE = re.compile(
+    r"^\s*(?:Chem(?:ical|\.)?\s+Rev(?:iews|\.)?|Chem(?:ical|\.)?\s+Soc(?:iety|\.)?\s+Rev(?:iews|\.)?"
+    r"|Nat(?:ure|\.)?\s+Rev(?:iews|\.)?\b.*|Annu(?:al|\.)?\s+Rev(?:iew|\.)?\b.*|Curr(?:ent|\.)?\s+Opin(?:ion|\.)?\b.*"
+    r"|Acc(?:ounts|\.)?\s+(?:of\s+)?Chem(?:ical|\.)?\s+Res(?:earch|\.)?"
+    r"|Rev(?:iews|\.)?\s+(?:of\s+)?Mod(?:ern|\.)?\s+Phys(?:ics|\.)?|Phys(?:ics|\.)?\s+Rep(?:orts|\.)?"
+    r"|Earth-Science\s+Reviews|ACM\s+Computing\s+Surveys)\s*$", re.I)
+_REVIEW_TITLE = re.compile(
+    r"\b(?:mini-?)?review\b|\ba\s+survey\s+of\b|\bmeta-analysis\b|\brecent\s+(?:advances|progress|developments)\b"
+    r"|\bprogress\s+and\s+(?:perspectives?|prospects?|prospective|challenges)\b|\ba\s+roadmap\b", re.I)
+_FUNCTIONAL_FAMILIES = {"DFT", "DFT_U", "hybrid_DFT", "AIMD"}
+_NOT_GIVEN = {"", "not_reported", "not reported", "unknown", "none", "n/a", "na", "not_specified_in_source"}
+
+
+def _source_and_method_warnings(record: dict) -> list:
+    """A review cited as the source, and a density-functional result without its functional (warnings)."""
+    if record.get("record_type") != "evidence":
+        return []
+    warnings = []
+    for i, a in enumerate(_assets(record)):
+        c = a.get("citation") if isinstance(a.get("citation"), dict) else None
+        if not c or c.get("relation") not in (None, "source"):
+            continue
+        journal, title = str(c.get("journal") or ""), str(c.get("title") or "")
+        why = ("its journal publishes reviews" if _REVIEW_VENUE.match(journal)
+               else "its title names a review" if _REVIEW_TITLE.search(title) else None)
+        if why:
+            warnings.append({
+                "code": "SOURCE_LOOKS_LIKE_A_REVIEW", "path": f"assets/{i}/citation",
+                "message": (f"The source '{title[:90]}' looks like a review: {why}. A value a review quotes is the "
+                            f"result of the paper that measured or computed it: cite that paper with relation "
+                            f"'source' and the review with relation 'reference'. If this paper first reported "
+                            f"the value (its own benchmark, calculation or meta-analysis), keep it as the "
+                            f"source. {_ONE_RESULT}")})
+            break
+    comp = record.get("computation") if isinstance(record.get("computation"), dict) else {}
+    method = comp.get("method") if isinstance(comp.get("method"), dict) else {}
+    if method.get("family") in _FUNCTIONAL_FAMILIES and str(method.get("functional_name") or "").strip().lower() in _NOT_GIVEN:
+        code_too = str(method.get("code") or "").strip().lower() in _NOT_GIVEN
+        warnings.append({
+            "code": "FUNCTIONAL_NOT_REPORTED", "path": "computation/method/functional_name",
+            "message": ("This density-functional result does not name its exchange-correlation functional"
+                        + (", nor the code that ran it" if code_too else "") + ". A DFT value is comparable to "
+                        "another only at the same functional, and a paper almost always states it in its methods "
+                        "or supporting information. Write the functional the source names, as it names it"
+                        + (", and the code" if code_too else "") + ". When the source does not name one, keep "
+                        "'not_reported': a usual functional written in its place makes the value look "
+                        "comparable when it is not.")})
+    return warnings
+
+
+# A checksum is the SHA-256 of the bytes at the asset's URI, or a placeholder that says why there is none. On
+# 2026-10-06, 842 stored records carried zeros or a word ("pending") in its place: zeros read as a real
+# checksum, and a word is none. One character repeated (all zeros) is a placeholder written as a hash.
+_SHA256 = re.compile(r"[0-9a-fA-F]{64}")
+_CHECKSUM_PLACEHOLDERS = {"not_available_literature_source", "not_available"}
+# Bases that name something different specimens or models can share. same_sample_as on one of them asserts one
+# specimen on evidence that never establishes it (45 stored links on 2026-10-06, 42 of them the team's own).
+# identical_geometry establishes an identical model for a calculation only: two measured objects can share a shape.
+_SHARED_NOT_IDENTITY = {"shared_material_batch", "replicate_preparation", "shared_analysis_method",
+                        "same_absorber_edge", "matched_operating_conditions", "shared_reference_state",
+                        "matched_computational_method", "same_workflow_version", "analysis_pipeline_output"}
+
+
+def _bad_checksum(value) -> bool:
+    return isinstance(value, str) and value not in _CHECKSUM_PLACEHOLDERS and (
+        not _SHA256.fullmatch(value) or len(set(value.lower())) == 1)
+
+
+def _checksum_and_link_basis_warnings(record: dict) -> list:
+    """A checksum that is no SHA-256 and no placeholder; same_sample_as on a basis that does not establish one
+    specimen, or with basis unspecified and no establishing passage."""
+    warnings = []
+    assets = _assets(record)
+    bad = [i for i, a in enumerate(assets) if _bad_checksum(a.get("sha256"))]
+    if bad:
+        first = assets[bad[0]]["sha256"][:24]
+        lead = (f"1 asset has a sha256 that is not 64 hexadecimal characters, or is one character repeated "
+                f"(the value is '{first}')." if len(bad) == 1 else
+                f"{len(bad)} assets have a sha256 that is not 64 hexadecimal characters, or is one character "
+                f"repeated (the first is '{first}').")
+        warnings.append({
+            "code": "CHECKSUM_NOT_SHA256", "path": f"assets/{bad[0]}/sha256",
+            "message": (lead + " Write the SHA-256 of the bytes the asset's URI returns. A paper cited by its DOI "
+                        "takes not_available_literature_source, even when you hold a PDF or a text extract of it. "
+                        "Any other resource you do not hold, or cannot hash, takes not_available.")})
+    calculation = ((record.get("system") or {}).get("domain") == "computational"
+                   or (record.get("context") or {}).get("environment") == "in_silico")
+    for i, link in enumerate(record.get("links") if isinstance(record.get("links"), list) else []):
+        if not isinstance(link, dict) or link.get("rel") != "same_sample_as":
+            continue
+        basis = link.get("basis")
+        if basis in _SHARED_NOT_IDENTITY or (basis == "identical_geometry" and not calculation):
+            warnings.append({
+                "code": "SAME_SAMPLE_ON_A_SHARED_BASIS", "path": f"links/{i}/basis",
+                "message": (f"same_sample_as says both records concern one physical specimen, or one identical model "
+                            f"for a calculation. The basis '{basis}' does not establish that: different specimens can "
+                            f"share it. If the source gives the specimen an identifier both records can store, write "
+                            f"it in sample_id on both and remove the link. If the source establishes one specimen "
+                            f"without an identifier, keep the link with basis 'unspecified' and the passage that "
+                            f"establishes it in notes. Otherwise remove the link.")})
+        elif basis == "unspecified" and not str(link.get("notes") or "").strip():
+            warnings.append({
+                "code": "SAME_SAMPLE_WITHOUT_PASSAGE", "path": f"links/{i}/notes",
+                "message": ("same_sample_as with basis 'unspecified' carries, in notes, the shortest passage or "
+                            "locator in the source that establishes one physical specimen (one identical model for a "
+                            "calculation). These notes are empty. Add the passage, or remove the link if the source "
+                            "does not establish the identity.")})
+    # Two records that state one sample_id are already one specimen, grouped by it; a same_sample_as link on that
+    # basis adds nothing, or, when the identifiers differ, claims what the records do not state (2,105 stored
+    # links, 2,086 and 19 of each, 2026-10-06). One warning per link, with its path.
+    for i, link in enumerate(record.get("links") if isinstance(record.get("links"), list) else []):
+        if isinstance(link, dict) and link.get("rel") == "same_sample_as" and link.get("basis") == "same_sample_id":
+            warnings.append({
+                "code": "SAME_SAMPLE_LINK_ON_SAMPLE_ID", "path": f"links/{i}/basis",
+                "message": ("This same_sample_as link uses basis 'same_sample_id'. Compare sample.sample_id here and "
+                            "on its target. If they match, remove the link: the repository already groups the two "
+                            "records. If they differ or one is missing, the basis is false. If the source assigns one "
+                            "identifier both records can store, write it in sample.sample_id on both and remove the "
+                            "link. If the source establishes one physical specimen (one identical model for a "
+                            "calculation) and the records cannot share an identifier, keep the link with basis "
+                            "'unspecified' and the shortest passage that establishes it in notes. Otherwise remove the "
+                            "link. Invent no identifier: a material name, formula, cell line, strain, catalog number, "
+                            "batch code or paper slug is not a sample_id.")})
+    return warnings
+
+
+def link_target_warnings(record: dict, known_ids) -> list:
+    """Links whose target is no record the repository knows: not published, and not held by this uploader.
+    The validator cannot see the repository; the API calls this with the ids it found."""
+    known = {str(k).strip() for k in known_ids or ()}
+    out = []
+    for i, link in enumerate(record.get("links") if isinstance(record.get("links"), list) else []):
+        target = str((link or {}).get("target") or "").strip() if isinstance(link, dict) else ""
+        if target and target not in known:
+            out.append({"code": "LINK_TARGET_NOT_FOUND", "path": f"links/{i}/target",
+                        "message": (f"No record {target} exists in the repository yet. A link names a record that "
+                                    f"exists; within a batch, upload the target first or link from the later "
+                                    f"record. Check the id.")})
+    return out
 
 
 def _computation_role_warnings(record: dict) -> list:
@@ -1308,26 +1585,45 @@ def _origin_errors(record: dict) -> list:
 # without anyone writing to them. The portal and GET /records/attention both use this.
 # ---------------------------------------------------------------------------
 def current_contract_report(records: list) -> dict:
-    """Which of these stored records fail the current rules, with each error."""
+    """Which of these stored records fail the current rules, with each error, and which pass but
+    carry warnings, with each warning and its tier: 'hold' when a new upload carrying it would be
+    held, else 'warning'. A record that fails lists its warnings with its errors, and only records
+    that pass are counted in warnings_by_code, so the two queues never overlap."""
     from collections import Counter
-    needing, by_code = [], Counter()
+    needing, warned, by_code, by_warning = [], [], Counter(), Counter()
     for record in records:
         if not isinstance(record, dict):
             continue
         res = validate_record_full(record)
-        if res.get("valid"):
-            continue
         errors = []
         for layer, fallback in (("schema_errors", "SCHEMA"), ("vocabulary_errors", "VOCABULARY"),
                                 ("semantic_errors", "SEMANTIC")):
             for e in res.get(layer) or []:
                 errors.append({"code": e.get("code") or fallback, "path": e.get("path"),
                                "message": e.get("message")})
-        by_code.update({e["code"] for e in errors})
-        needing.append({"record_id": str(record.get("record_id") or "").strip(),
-                        "record_domain": record.get("record_domain"), "errors": errors})
+        warnings = [{"code": w["code"], "tier": "hold" if w["code"] in HOLD_CODES else "warning",
+                     "path": w.get("path"), "message": w.get("message")}
+                    for w in res.get("warnings") or [] if isinstance(w, dict) and w.get("code")]
+        row = {"record_id": str(record.get("record_id") or "").strip(),
+               "record_domain": record.get("record_domain"), "errors": errors, "warnings": warnings}
+        if not res.get("valid"):
+            by_code.update({e["code"] for e in errors})
+            needing.append(row)
+        elif warnings:
+            by_warning.update({(w["code"], w["tier"]) for w in warnings})
+            warned.append(row)
+    ordered = sorted(by_warning.items(), key=lambda kv: (kv[0][1] != "hold", -kv[1], kv[0][0]))
+    examples = {}
+    for r in warned:
+        for code in {w["code"] for w in r["warnings"]}:
+            if len(examples.setdefault(code, [])) < 3:
+                examples[code].append(r["record_id"])
     return {"checked": len(records), "needing_update": len(needing),
-            "by_code": dict(by_code.most_common()), "records": needing}
+            "by_code": dict(by_code.most_common()), "records": needing,
+            "stored_with_hold_warning": sum(any(w["tier"] == "hold" for w in r["warnings"]) for r in warned),
+            "warnings_by_code": {code: {"records": n, "tier": tier, "examples": examples[code]}
+                                 for (code, tier), n in ordered},
+            "warned": warned}
 
 
 # ---------------------------------------------------------------------------
@@ -1384,6 +1680,11 @@ def uncertainty_bases():
                                "method", "exact", "not_reported"]))
 
 
+# No check for a record without links (2026-10-06): most records relate to no other record in a way their
+# source states, and the former NO_LINKS warning told uploaders to group records with same_sample_as; 7,418
+# links asserting one physical specimen from a shared paper and material name followed. See the Links wiki page.
+
+
 def _warning_checks(record: dict):
     """Return (warnings, info) lists. Never raises; degrades to empty."""
     warnings, info = [], []
@@ -1424,9 +1725,6 @@ def _warning_checks(record: dict):
             warnings.append({"code": "NO_DATA_OWNER", "path": "attribution/contributors",
                              "message": "No data_owner declared. Evidence records should credit whose data this is "
                                         "(attribution.contributors, role=data_owner, ideally with ORCID)."})
-        if not record.get("links") and not record.get("tags"):
-            warnings.append({"code": "NO_LINKS", "path": "links",
-                             "message": "Record has no links[] and no tags[]. Group it via a typed link (same_sample_as / derived_from / intended_comparison_target) or a tag."})
 
         qc = ((record.get("measurement") or {}).get("qc") or {})
         if qc.get("status") == "compromised" and str(qc.get("evidence", "")).strip().upper() in ("", "N/A", "NA", "NONE"):
@@ -1463,8 +1761,13 @@ def _warning_checks(record: dict):
             # only in an asset filename or free text reads to every consumer as a static
             # measurement. Detect the words rather than the technique, so it fires for any
             # domain that buries a drive in prose.
+            # A cited work's title describes that work, not this record's experiment ("Phosphate ions
+            # modulate enzyme activity", "Electronic modulation of metal-support interactions"), so the
+            # citations are not read: on 2026-10-06 they made 21 of 46 stored firings.
             import re as _re
-            _hay = " ".join([json.dumps(record.get("assets") or []),
+            _assets = [{k: v for k, v in a.items() if k != "citation"} if isinstance(a, dict) else a
+                       for a in (record.get("assets") or [])]
+            _hay = " ".join([json.dumps(_assets),
                              str((record.get("system") or {}).get("configuration") or ""),
                              str(((record.get("context") or {}).get("electrochemistry") or {}).get("notes") or ""),
                              str((record.get("sample") or {}).get("notes") or "")])
@@ -1472,13 +1775,14 @@ def _warning_checks(record: dict):
                 info.append({
                     "code": "MODULATION_EVIDENT_BUT_UNDECLARED", "path": "context",
                     "message": (
-                        "This record mentions a modulated/pulsed/chopped experiment in its "
-                        "assets or notes, but declares no context.modulation block — so every "
-                        "machine reading it will treat the measurement as static, and its "
-                        "setpoints as the condition of the whole run. Declare "
-                        "context.modulation (driven_variable, waveform, frequency, levels and "
-                        "descriptors_represent) so the drive is queryable rather than buried in "
-                        "a filename.")})
+                        "A word for periodic driving (modulated, pulsed, chopped, duty cycle, square "
+                        "wave) appears in this record's assets, configuration or notes, and it declares "
+                        "no context.modulation block, so every machine reading it treats the measurement "
+                        "as static and its setpoints as the condition of the whole run. If this record's "
+                        "measurement was driven periodically, declare context.modulation (driven_variable, "
+                        "waveform, frequency, levels and descriptors_represent). If the word describes a "
+                        "preparation step (pulsed laser deposition), an instrument part (an optical "
+                        "chopper) or another work, keep the record as it is.")})
 
         # Component-set closure, per output block.
         #
@@ -1726,11 +2030,13 @@ def _adr001_warnings(record):
 # problem, and published all of them: an agent reads a success response as success. Each code here has a
 # remedy by edit and, on the live repository, fired only on that pipeline's records. NUMBER_AS_TEXT and
 # COMPUTATION_ON_MEASUREMENT stay warnings: a value below a detection limit has no number form yet, and a
-# refinement may sit on a measurement legitimately.
+# refinement may sit on a measurement legitimately. PRODUCED_BY_UNNAMED stays a warning too (2026-10-02):
+# a producer that cannot be named is kept as not_reported, so no edit could ever release the record.
 HOLD_CODES = frozenset({
     "SAMPLE_NOT_ONE_MATERIAL", "SAMPLE_NAME_CITES_A_PAPER", "MULTIPLE_SOURCES", "QUALIFIER_NOT_A_PRODUCT",
-    "SENTENCE_AS_VALUE", "PERFORMANCE_EX_SITU", "VOCABULARY_SUBSTITUTION", "PRODUCED_BY_UNNAMED",
+    "SENTENCE_AS_VALUE", "PERFORMANCE_EX_SITU", "VOCABULARY_SUBSTITUTION",
     "COMPETING_HYPOTHESIS_LANGUAGE", "SECOND_HAND_SOURCE", "CONDITIONS_IN_SAMPLE_NAME",
+    "PRODUCER_AS_AUTHOR_LIST",
 })
 
 
@@ -1814,7 +2120,9 @@ def validate_record_full(record: dict) -> dict:
     warnings = (warnings + adr_warnings + rx_warnings + cell_warnings + _one_result_warnings(record)
                 + _computation_role_warnings(record) + _producer_warnings(record)
                 + _magnitude_warnings(record) + _competing_hypothesis_warnings(record)
-                + _second_hand_and_name_condition_warnings(record))
+                + _second_hand_and_name_condition_warnings(record) + _prose_condition_warnings(record)
+                + _producer_name_warnings(record) + _source_and_method_warnings(record)
+                + _checksum_and_link_basis_warnings(record))
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)

@@ -295,17 +295,12 @@ def test_warnings_tier():
     assert res["valid"], res["errors"][:3]
     assert not any(e["code"] == "GALVANOSTATIC_NO_POTENTIAL" for e in res.get("errors", []))
 
-    # No-links warning fires on linkless, untagged record
+    # A record without links is complete (2026-10-06): no code asks for links, at any tier
     r = json.loads(json.dumps(base))
     r["links"] = []
-    r.pop("tags", None)  # tags also satisfy the grouping nudge — clear to test NO_LINKS alone
+    r.pop("tags", None)
     res = validation.validate_record_full(r)
-    assert any(w["code"] == "NO_LINKS" for w in res.get("warnings", []))
-
-    # A tag alone suppresses NO_LINKS (a tagged record is grouped)
-    r["tags"] = ["some-campaign"]
-    res = validation.validate_record_full(r)
-    assert not any(w["code"] == "NO_LINKS" for w in res.get("warnings", []))
+    assert not any(x["code"] == "NO_LINKS" for x in res.get("info", []) + res.get("warnings", []))
 
 
 def test_wave2_locks_and_teaching_errors():
@@ -444,13 +439,13 @@ def test_electrolyzer_voltage_optional():
 
 
 def test_record_tags():
-    """Free-form grouping tags: a tagged record is valid and not NO_LINKS-nagged."""
+    """Free-form grouping tags: a tagged record is valid, and tags are never required."""
     base = json.loads((REPO / "examples" / "co2rr_performance_record.json").read_text())
     r = json.loads(json.dumps(base)); r["tags"] = ["jcap-hte", "nifecoce-oer-screen"]
     res = validation.validate_record_full(r)
     assert res["valid"]
-    assert not any(w["code"] == "NO_LINKS" for w in res.get("warnings", [])), \
-        "a tagged record is grouped (by tag) and must not trigger NO_LINKS"
+    assert not any(x["code"] == "NO_LINKS" for x in res.get("warnings", []) + res.get("info", [])), \
+        "no record is asked for links or tags"
     # hygiene: whitespace-padded and duplicate tags rejected
     r2 = json.loads(json.dumps(base)); r2["tags"] = ["  pad"]
     assert not validation.validate_record_full(r2)["valid"]
@@ -687,6 +682,21 @@ class TestContextModulation:
 
     def test_the_same_advisory_fires_for_a_NON_electrochemical_burial(self):
         rec = {"assets": [{"uri": "s3://lab/tpd_chopped_beam_5Hz.h5"}]}
+        assert "MODULATION_EVIDENT_BUT_UNDECLARED" in self._codes(rec)
+
+    def test_a_cited_TITLE_is_not_an_experiment(self):
+        """21 stored records and every enzyme record of the 2026-10-06 benchmark fired on a paper title."""
+        for title in ("Phosphate ions modulate enzyme activity",
+                      "Electronic modulation of metal-support interactions improves hydrogenolysis"):
+            rec = {"assets": [{"uri": "https://doi.org/10.1000/x", "content_role": "citation",
+                               "sha256": "not_available_literature_source",
+                               "citation": {"relation": "source", "title": title}}]}
+            assert "MODULATION_EVIDENT_BUT_UNDECLARED" not in self._codes(rec)
+
+    def test_a_cited_title_does_not_hide_a_buried_file(self):
+        rec = {"assets": [{"uri": "https://doi.org/10.1000/x",
+                           "citation": {"relation": "source", "title": "Electronic modulation of supports"}},
+                          {"uri": "s3://lab/Pure_Cu_record_50nm_modulation_1p3Hz.xlsx"}]}
         assert "MODULATION_EVIDENT_BUT_UNDECLARED" in self._codes(rec)
 
     def test_declaring_the_block_silences_the_buried_advisory(self):

@@ -27,6 +27,9 @@ except ImportError:
         return (timestamp + random_part)[:26]
 
 
+WIKI = "https://github.com/ISAAC-DOE/isaac-ai-ready-record/wiki"
+
+
 def get_vocab_values(section: str, category: str) -> list:
     """Get allowed values from vocabulary for dropdowns"""
     vocab = ontology.load_vocabulary()
@@ -92,6 +95,20 @@ def render_form():
                         st.info("Fill out the form and use 'Save as Template' after Preview to save current state.")
 
     st.divider()
+
+    st.info(
+        "**Before you enter a record**\n\n"
+        "- One record is one sample, one technique and one set of conditions. Each value is a row in Results: "
+        "H2, CO and C2H4 from one run are three rows of one record. A different sample, technique or condition "
+        "set is a new record.\n"
+        "- State each condition as measured or as the source states it, in the unit on the label. Leave out what "
+        "was not measured or stated; never fill in a usual value.\n"
+        "- Link two records only for a relation the source states (a reference sample, the same electrode, a "
+        "specimen made from another). A shared paper, material or batch is no link.\n"
+        "- In Produced by: group, name who measured or calculated the result: your group, or the authors' group "
+        "for a paper.\n\n"
+        f"Rules in full: [Write your first record]({WIKI}/Write-Your-First-Record) · "
+        f"[What a record is]({WIKI}/Record-Granularity) · [Links]({WIKI}/Links)")
 
     # Initialize extra vocab dicts (populated inside expanders, used at submission)
     extra_record_info = {}
@@ -212,6 +229,15 @@ def render_form():
 
                 sample_form_options = [""] + get_vocab_values("Sample", "sample.sample_form")
                 sample_form = st.selectbox("Sample Form", sample_form_options)
+                electrode_type = st.selectbox("Electrode type",
+                                              [""] + get_vocab_values("Sample", "sample.electrode_type"))
+            col1, col2 = st.columns(2)
+            with col1:
+                geometric_area_cm2 = st.number_input("Electrode geometric area (cm²)", value=None, min_value=0.0,
+                                                     format="%.4f")
+            with col2:
+                catalyst_loading_mg_cm2 = st.number_input("Catalyst loading (mg/cm²)", value=None, min_value=0.0,
+                                                          format="%.4f")
 
             composition_json = st.text_area(
                 "Composition (JSON)",
@@ -227,7 +253,8 @@ def render_form():
 
             extra_sample = render_extra_vocab_fields(
                 "Sample",
-                ["sample.sample_form", "sample.material.provenance", "sample.material.identifiers.scheme"],
+                ["sample.sample_form", "sample.material.provenance", "sample.material.identifiers.scheme",
+                 "sample.electrode_type"],
                 "samp"
             )
 
@@ -268,15 +295,21 @@ def render_form():
         # =====================================================================
         # SECTION 6: Context (Optional)
         # =====================================================================
-        with st.expander("6. Context (Optional)", expanded=False):
-            st.caption("Experimental or simulation conditions")
+        with st.expander("6. Conditions", expanded=False):
+            st.caption("The conditions of the measurement or calculation, as measured or as the source states them")
 
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 environment_options = [""] + get_vocab_values("Context", "context.environment")
                 environment = st.selectbox("Environment", environment_options)
             with col2:
-                temperature_k = st.number_input("Temperature (K)", min_value=0.0, value=None, format="%.2f")
+                temperature_k = st.number_input("Temperature", value=None, format="%.2f")
+                temperature_unit = st.radio("Temperature unit", ["°C", "K"], horizontal=True)
+            with col3:
+                temperature_basis = st.selectbox(
+                    "Temperature is", [""] + get_vocab_values("Context", "context.temperature_basis"),
+                    help="stated: a number was measured or given. room_temperature: only 'room temperature' is "
+                         "known (298.15 K is written). not_reported: no temperature is known (leave K empty).")
 
             # Reaction (any chemistry): the one home of the reaction is context.reaction
             st.write("**Reaction**")
@@ -294,16 +327,63 @@ def render_form():
                                                   help="heterogeneous (solid catalyst or electrode), homogeneous, enzymatic, uncatalyzed")
 
             # Electrochemistry context
-            st.write("**Electrochemistry**")
+            st.write("**Electrochemistry** (for electrochemically driven reactions)")
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.caption("Cell and scale (for electrochemically driven reactions)")
-            with col2:
                 cell_type_options = [""] + get_vocab_values("Context", "context.electrochemistry.cell_type")
                 echem_cell_type = st.selectbox("Cell Type", cell_type_options)
-            with col3:
+                control_mode = st.selectbox(
+                    "Control mode", [""] + get_vocab_values("Context", "context.electrochemistry.control_mode"),
+                    help="potentiostatic: held at a potential. galvanostatic: held at a current.")
+                current_mA_cm2 = st.number_input("Applied current density (mA/cm², galvanostatic runs only)",
+                                                 value=None, format="%.3f",
+                                                 help="The current a galvanostatic run was held at; reduction "
+                                                      "currents are negative. A measured current density goes "
+                                                      "in Results.")
+            with col2:
+                potential_V = st.number_input("Potential (V, as reported)", value=None, format="%.4f",
+                                              help="Potentiostatic: the applied potential. Galvanostatic: the "
+                                                   "measured operating potential. Stored on the scale below, never "
+                                                   "converted.")
                 potential_scale_options = [""] + get_vocab_values("Context", "context.electrochemistry.potential_scale")
                 echem_potential_scale = st.selectbox("Potential Scale", potential_scale_options)
+                reference_electrode = st.selectbox(
+                    "Reference electrode",
+                    [""] + get_vocab_values("Context", "context.electrochemistry.reference_electrode.type"),
+                    help="The physical reference electrode the potential was measured against.")
+            with col3:
+                electrolyte_name = st.text_input("Electrolyte at the working electrode",
+                                                 placeholder="e.g. KHCO3 (the catholyte in a divided cell)")
+                electrolyte_concentration_M = st.number_input("Electrolyte concentration (M)", value=None,
+                                                              min_value=0.0, format="%.4f")
+                anolyte_name = st.text_input("Anolyte, if different", placeholder="e.g. KOH")
+                anolyte_concentration_M = st.number_input("Anolyte concentration (M)", value=None,
+                                                          min_value=0.0, format="%.4f")
+                pH = st.number_input("pH", value=None, format="%.2f")
+                pH_basis = st.selectbox("pH is", [""] + get_vocab_values("Context", "context.electrochemistry.pH_basis"),
+                                        help="measured, nominal (from the recipe), or buffered_assumed")
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                ir_method = st.selectbox(
+                    "iR compensation",
+                    [""] + get_vocab_values("Context", "context.electrochemistry.ir_compensation.method"))
+            with col2:
+                ir_percent = st.number_input("iR compensation (%)", value=None, min_value=0.0, max_value=100.0,
+                                             format="%.1f")
+            with col3:
+                ir_corrected = st.selectbox("Reported potential is iR-corrected", ["", "yes", "no", "unknown"])
+
+            st.write("**Feed and pressure** (for thermal, photo- or flow catalysis)")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                feed_phase = st.selectbox("Feed phase", [""] + get_vocab_values("Context", "context.transport.feed.phase"))
+                pressure_bar = st.number_input("Pressure (bar)", value=None, min_value=0.0, format="%.4f")
+            with col2:
+                feed_composition = st.text_input("Feed composition", placeholder="e.g. 1% CO, 1% O2 in He")
+            with col3:
+                flow_rate = st.number_input("Flow rate", value=None, min_value=0.0, format="%.3f")
+                flow_rate_unit = st.text_input("Flow rate unit", placeholder="e.g. mL/min")
 
             context_additional_json = st.text_area(
                 "Additional Context (JSON)",
@@ -315,7 +395,10 @@ def render_form():
                 "Context",
                 ["context.environment", "context.electrochemistry.reaction", "context.reaction.name",
                  "context.reaction.drive", "context.reaction.catalysis",
-                 "context.electrochemistry.cell_type", "context.electrochemistry.potential_scale"],
+                 "context.electrochemistry.cell_type", "context.electrochemistry.potential_scale",
+                 "context.temperature_basis", "context.electrochemistry.control_mode",
+                 "context.electrochemistry.pH_basis", "context.electrochemistry.reference_electrode.type",
+                 "context.transport.feed.phase", "context.electrochemistry.ir_compensation.method"],
                 "ctx"
             )
 
@@ -367,12 +450,14 @@ def render_form():
                 link_rel = st.selectbox("Relationship", link_rel_options)
                 link_target = st.text_input("Target Record ID", placeholder="26-character ULID")
             with col2:
-                link_basis = st.text_input("Basis", placeholder="Reasoning for this link")
-                link_notes = st.text_input("Notes", placeholder="Additional notes")
+                link_basis = st.selectbox("Basis", [""] + get_vocab_values("Links", "links.basis"),
+                                          help="The kind of evidence for the link. If none fits, choose "
+                                               "unspecified and quote the source in Notes.")
+                link_notes = st.text_input("Notes", placeholder="The passage or locator in the source that states it")
 
             extra_links = render_extra_vocab_fields(
                 "Links",
-                ["links.rel"],
+                ["links.rel", "links.basis"],
                 "lnk"
             )
 
@@ -390,7 +475,10 @@ def render_form():
                 asset_role = st.selectbox("Content Role", asset_role_options)
             with col2:
                 asset_uri = st.text_input("URI", placeholder="https://...")
-                asset_sha256 = st.text_input("SHA256 Hash", placeholder="64-character hex string")
+                asset_sha256 = st.text_input(
+                    "SHA-256 of the file", placeholder="64 hexadecimal characters, or leave empty",
+                    help="The SHA-256 of the file's bytes (shasum -a 256 <file>). Leave empty if you do not hold "
+                         "the file: the form writes not_available. Never zeros.")
             asset_media_type = st.text_input("Media Type", placeholder="e.g., application/json")
 
             extra_assets = render_extra_vocab_fields(
@@ -402,28 +490,36 @@ def render_form():
         # =====================================================================
         # SECTION 10: Descriptors (Optional)
         # =====================================================================
-        with st.expander("10. Descriptors (Optional)", expanded=False):
-            st.caption("Scientific claims and extracted features")
+        with st.expander("10. Results", expanded=False):
+            st.caption("One row per value, with its unit. Write a Faradaic efficiency or a selectivity as a "
+                       "fraction (0.428, unit fraction) or with unit percent (42.8). Leave the uncertainty empty "
+                       "when none was measured or stated: the record then says it was not reported.")
 
-            st.write("**Output Set**")
-            output_label = st.text_input("Output Label", placeholder="e.g., automated_analysis_v1")
-            output_generated_by = st.text_input("Generated By", placeholder="e.g., ML model v2.1")
-
-            st.write("**Descriptor**")
             col1, col2 = st.columns(2)
             with col1:
-                desc_name = st.text_input("Descriptor Name", placeholder="e.g., band_gap")
-                desc_kind_options = [""] + get_vocab_values("Descriptors", "descriptors.outputs.descriptors.kind")
-                desc_kind = st.selectbox("Kind", desc_kind_options)
-                desc_source = st.text_input("Source", placeholder="e.g., DFT calculation")
+                output_label = st.text_input("Label for these values", placeholder="e.g. steady_state")
             with col2:
-                desc_value = st.text_input("Value", placeholder="e.g., 1.12")
-                desc_unit = st.text_input("Unit", placeholder="e.g., eV")
-                desc_uncertainty = st.text_input("Uncertainty", placeholder="e.g., 0.05")
+                output_generated_by = st.text_input(
+                    "Analysis or software that produced these values (optional)",
+                    placeholder="e.g. GC analysis script v2")
+
+            descriptor_rows = st.data_editor(
+                [{"name": "", "value": "", "unit": "", "uncertainty": ""}],
+                num_rows="dynamic", key="descriptor_rows",
+                column_config={
+                    "name": st.column_config.TextColumn(
+                        "Name", help="e.g. faradaic_efficiency.C2H4, steady_state_current_density, conversion.CO, "
+                                     "turnover_frequency (Descriptors wiki page)"),
+                    "value": st.column_config.TextColumn("Value"),
+                    "unit": st.column_config.TextColumn("Unit", help="e.g. fraction, mA/cm2, 1/s, eV"),
+                    "uncertainty": st.column_config.TextColumn("Uncertainty (one standard deviation, a number)"),
+                })
+            desc_name = desc_value = desc_unit = desc_uncertainty = desc_kind = desc_source = None
 
             extra_descriptors = render_extra_vocab_fields(
                 "Descriptors",
-                ["descriptors.outputs.descriptors.kind", "descriptors.theoretical_metric"],
+                ["descriptors.outputs.descriptors.kind", "descriptors.outputs.descriptors.source",
+                 "descriptors.theoretical_metric", "descriptors.uncertainty_basis"],
                 "desc"
             )
 
@@ -444,7 +540,7 @@ def render_form():
     # Process form submission
     if submitted or save_submitted or download_submitted:
         # Build the record
-        record = build_record(
+        entry = dict(
             record_id=record_id or st.session_state.record_id,
             record_type=record_type,
             record_domain=record_domain,
@@ -507,6 +603,31 @@ def render_form():
             desc_value=desc_value,
             desc_unit=desc_unit,
             desc_uncertainty=desc_uncertainty,
+            descriptor_rows=(descriptor_rows.to_dict("records") if hasattr(descriptor_rows, "to_dict")
+                             else list(descriptor_rows or [])),
+            temperature_basis=temperature_basis,
+            control_mode=control_mode,
+            potential_V=potential_V,
+            current_mA_cm2=current_mA_cm2,
+            reference_electrode=reference_electrode,
+            electrolyte_name=electrolyte_name,
+            electrolyte_concentration_M=electrolyte_concentration_M,
+            pH=pH,
+            pH_basis=pH_basis,
+            pressure_bar=pressure_bar,
+            feed_phase=feed_phase,
+            feed_composition=feed_composition,
+            flow_rate=flow_rate,
+            flow_rate_unit=flow_rate_unit,
+            temperature_unit=temperature_unit,
+            anolyte_name=anolyte_name,
+            anolyte_concentration_M=anolyte_concentration_M,
+            ir_method=ir_method,
+            ir_percent=ir_percent,
+            ir_corrected=ir_corrected,
+            electrode_type=electrode_type,
+            geometric_area_cm2=geometric_area_cm2,
+            catalyst_loading_mg_cm2=catalyst_loading_mg_cm2,
             extra_vocab={
                 "Record Info": extra_record_info,
                 "Sample": extra_sample,
@@ -518,15 +639,24 @@ def render_form():
                 "Descriptors": extra_descriptors,
             },
         )
+        record = build_record(**entry)
 
-        # Validate required fields
-        errors = validate_record(record)
+        # Validate with the portal's validator: errors block, warnings are shown too
+        import validation
+        full = validation.validate_record_full(record)
+        errors = entry_problems(entry) + validation.format_errors_flat(full)
+        notes = (full.get("warnings") or []) + (full.get("info") or [])
 
         if errors:
             st.error("Validation errors:")
             for err in errors:
                 st.write(f"- {err}")
-        else:
+        if notes:
+            with st.expander(f"{len(notes)} warning(s) and note(s). Fix what the source allows; a hold warning "
+                             f"keeps the record private until it is fixed", expanded=bool(save_submitted and not errors)):
+                for w in notes:
+                    st.write(f"- **{w.get('code')}** at `{w.get('path')}`: {w.get('message')}")
+        if not errors:
             if submitted:
                 st.subheader("Record Preview")
                 st.json(record)
@@ -600,6 +730,138 @@ def parse_values(text: str):
         return None
 
 
+def _number(value):
+    """A float from a form value, or None when the box is empty or not a number. A leading ± or +/- (as people
+    type an uncertainty) is dropped."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    if isinstance(value, str):
+        value = value.strip().lstrip('±').strip()
+        if value.startswith('+/-'):
+            value = value[3:].strip()
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def entry_problems(kwargs) -> list:
+    """What the form can say before the validator: entries it cannot turn into a faithful record."""
+    problems = []
+    if _number(kwargs.get('current_mA_cm2')) is not None and kwargs.get('control_mode') != 'galvanostatic':
+        problems.append("Applied current density is for galvanostatic runs. Put a measured current density in "
+                        "Results (for example steady_state_current_density, mA/cm2).")
+    for i, row in enumerate(kwargs.get('descriptor_rows') or [], 1):
+        if not (row.get('name') or '').strip():
+            continue
+        for column in ('value', 'uncertainty'):
+            text = row.get(column)
+            if column == 'uncertainty' and (text is None or not str(text).strip()):
+                continue
+            if column == 'value' and _number(text) is None and not str(text or '').strip():
+                problems.append(f"Results row {i} ({row['name']}): no value.")
+            elif column == 'uncertainty' and _number(text) is None:
+                problems.append(f"Results row {i} ({row['name']}): the uncertainty '{text}' is not a number.")
+    if (kwargs.get('feed_composition') or '').strip() and not kwargs.get('feed_phase'):
+        problems.append("Feed: choose the feed phase (gas or liquid).")
+    return problems
+
+
+def _electrochemistry(kwargs) -> dict:
+    """context.electrochemistry from the labelled fields. The potential is stored on the scale it was given;
+    it is projected to RHE only when it was given vs RHE: the form converts nothing."""
+    ec = {}
+    for key, field in (('cell_type', 'echem_cell_type'), ('control_mode', 'control_mode'),
+                       ('potential_scale', 'echem_potential_scale'), ('pH_basis', 'pH_basis')):
+        if kwargs.get(field):
+            ec[key] = kwargs[field]
+    potential = _number(kwargs.get('potential_V'))
+    scale = kwargs.get('echem_potential_scale')
+    galvanostatic = kwargs.get('control_mode') == 'galvanostatic'
+    corrected = kwargs.get('ir_corrected')
+    if potential is not None:
+        # A potentiostatic setpoint is the primary on its scale. A galvanostatic run's measured potential is
+        # context only when given vs RHE; on another scale it becomes a result row (see _potential_row).
+        if not galvanostatic:
+            ec['potential_setpoint_V'] = potential
+        if scale == 'RHE':
+            ec['potential_vs_RHE'] = {'value_V': potential, 'rhe_basis': 'reported_as_RHE'}
+            if corrected in ('yes', 'no', 'unknown'):
+                ec['potential_vs_RHE']['ir_corrected'] = corrected
+    current = _number(kwargs.get('current_mA_cm2'))
+    if current is not None and galvanostatic:
+        ec['current_setpoint_mA_cm2'] = current
+    ir = {}
+    if kwargs.get('ir_method'):
+        ir['method'] = kwargs['ir_method']
+    if _number(kwargs.get('ir_percent')) is not None:
+        ir['percent'] = _number(kwargs.get('ir_percent'))
+    if corrected in ('yes', 'no'):
+        ir['applied_to_reported_potential'] = corrected == 'yes'
+    if ir:
+        ec['ir_compensation'] = ir
+    if kwargs.get('reference_electrode'):
+        ec['reference_electrode'] = {'type': kwargs['reference_electrode']}
+    name = (kwargs.get('electrolyte_name') or '').strip()
+    concentration = _number(kwargs.get('electrolyte_concentration_M'))
+    if name and concentration is not None:
+        ec['electrolyte'] = {'name': name, 'concentration_M': concentration}
+    elif name:
+        ec['notes'] = f"Electrolyte: {name} (concentration not given)."
+    anolyte = (kwargs.get('anolyte_name') or '').strip()
+    anolyte_concentration = _number(kwargs.get('anolyte_concentration_M'))
+    if anolyte and anolyte_concentration is not None:
+        ec['anolyte'] = {'name': anolyte, 'concentration_M': anolyte_concentration}
+    pH = _number(kwargs.get('pH'))
+    if pH is not None:
+        ec['pH'] = pH
+    return ec
+
+
+def _potential_row(kwargs):
+    """The measured potential of a galvanostatic run on a scale other than RHE, kept as a result on its scale."""
+    potential = _number(kwargs.get('potential_V'))
+    scale = kwargs.get('echem_potential_scale')
+    if potential is None or kwargs.get('control_mode') != 'galvanostatic' or scale in (None, '', 'RHE'):
+        return None
+    return {'name': 'steady_state_potential', 'value': potential, 'unit': 'V_SHE' if scale == 'SHE' else 'V_ref',
+            'definition': f'Measured potential vs {scale} during the galvanostatic run, as reported, not converted.'}
+
+
+def _feed(kwargs) -> dict:
+    """context.transport.feed: what flows over or through the catalyst (gas or liquid)."""
+    composition = (kwargs.get('feed_composition') or '').strip()
+    if not composition:
+        return {}
+    feed = {'composition': composition}
+    if kwargs.get('feed_phase'):
+        feed['phase'] = kwargs['feed_phase']
+    flow = _number(kwargs.get('flow_rate'))
+    if flow is not None:
+        feed['flow_rate'] = flow
+        if (kwargs.get('flow_rate_unit') or '').strip():
+            feed['flow_rate_unit'] = kwargs['flow_rate_unit'].strip()
+    return feed
+
+
+def _descriptor(row: dict) -> dict:
+    """One value row of the form as a descriptor."""
+    desc = {'name': row['name'].strip(), 'kind': row.get('kind') or 'absolute',
+            'source': row.get('source') if row.get('source') in ('auto', 'manual', 'imported') else 'manual'}
+    value = row.get('value')
+    number = _number(value)
+    desc['value'] = number if number is not None else (value.strip() if isinstance(value, str) else value)
+    unit = (row.get('unit') or '').strip() if isinstance(row.get('unit'), str) else row.get('unit')
+    if unit:
+        desc['unit'] = unit
+    if row.get('definition'):
+        desc['definition'] = row['definition']
+    sigma = _number(row.get('uncertainty'))
+    desc['uncertainty'] = ({'sigma': sigma, **({'unit': unit} if unit else {}), 'basis': 'reported'}
+                           if sigma is not None else {'basis': 'not_reported'})
+    return desc
+
+
 def build_record(**kwargs) -> dict:
     """Build an ISAAC record from form inputs"""
 
@@ -650,6 +912,8 @@ def build_record(**kwargs) -> dict:
             sample['material']['provenance'] = kwargs['material_provenance']
     if kwargs['sample_form']:
         sample['sample_form'] = kwargs['sample_form']
+    if kwargs.get('electrode_type'):
+        sample['electrode_type'] = kwargs['electrode_type']
     if kwargs['composition_json']:
         comp = parse_json_safe(kwargs['composition_json'])
         if comp:
@@ -658,6 +922,10 @@ def build_record(**kwargs) -> dict:
         geom = parse_json_safe(kwargs['geometry_json'])
         if geom:
             sample['geometry'] = geom
+    if _number(kwargs.get('geometric_area_cm2')) is not None:
+        sample.setdefault('geometry', {})['geometric_area_cm2'] = _number(kwargs.get('geometric_area_cm2'))
+    if _number(kwargs.get('catalyst_loading_mg_cm2')) is not None:
+        sample.setdefault('composition', {})['catalyst_loading_mg_cm2'] = _number(kwargs.get('catalyst_loading_mg_cm2'))
     if sample:
         record['sample'] = sample
 
@@ -686,8 +954,11 @@ def build_record(**kwargs) -> dict:
     context = {}
     if kwargs['environment']:
         context['environment'] = kwargs['environment']
-    if kwargs['temperature_k'] is not None and kwargs['temperature_k'] > 0:
-        context['temperature_K'] = kwargs['temperature_k']
+    temperature = _number(kwargs.get('temperature_k'))
+    if temperature is not None and kwargs.get('temperature_unit') == '°C':
+        temperature = round(temperature + 273.15, 6)
+    if temperature is not None and temperature > 0:
+        context['temperature_K'] = temperature
     if kwargs['echem_reaction']:
         # context.reaction is the one home of the reaction (the electrochemistry field is deprecated).
         # Without an explicit drive, an electrochemistry section on the form implies an
@@ -699,12 +970,17 @@ def build_record(**kwargs) -> dict:
             context['reaction']['drive'] = drive
         if kwargs.get('reaction_catalysis'):
             context['reaction']['catalysis'] = kwargs['reaction_catalysis']
-    if kwargs['echem_cell_type'] or kwargs['echem_potential_scale']:
-        context['electrochemistry'] = {}
-        if kwargs['echem_cell_type']:
-            context['electrochemistry']['cell_type'] = kwargs['echem_cell_type']
-        if kwargs['echem_potential_scale']:
-            context['electrochemistry']['potential_scale'] = kwargs['echem_potential_scale']
+    if kwargs.get('temperature_basis'):
+        context['temperature_basis'] = kwargs['temperature_basis']
+    ec = _electrochemistry(kwargs)
+    if ec:
+        context['electrochemistry'] = ec
+    pressure_bar = kwargs.get('pressure_bar')
+    if pressure_bar is not None:
+        context.setdefault('thermodynamics', {})['pressure_Pa'] = round(float(pressure_bar) * 1e5, 6)
+    feed = _feed(kwargs)
+    if feed:
+        context.setdefault('transport', {})['feed'] = feed
     if kwargs['context_additional_json']:
         additional = parse_json_safe(kwargs['context_additional_json'])
         if additional:
@@ -766,12 +1042,13 @@ def build_record(**kwargs) -> dict:
         record['links'] = [link]
 
     # Assets
-    if kwargs['asset_id'] and kwargs['asset_role'] and kwargs['asset_uri'] and kwargs['asset_sha256']:
+    if kwargs['asset_id'] and kwargs['asset_role'] and kwargs['asset_uri']:
         asset = {
             'asset_id': kwargs['asset_id'],
             'content_role': kwargs['asset_role'],
             'uri': kwargs['asset_uri'],
-            'sha256': kwargs['asset_sha256']
+            # The SHA-256 of the file's bytes; a file the uploader does not hold says so (never zeros).
+            'sha256': (kwargs.get('asset_sha256') or '').strip() or 'not_available'
         }
         if kwargs['asset_media_type']:
             asset['media_type'] = kwargs['asset_media_type']
@@ -785,45 +1062,25 @@ def build_record(**kwargs) -> dict:
     if doi:
         record.setdefault('assets', []).append({
             'asset_id': 'source_paper', 'content_role': 'documentation', 'uri': f'https://doi.org/{doi}',
-            'sha256': '0' * 64, 'citation': {'doi': doi}})
+            'sha256': 'not_available_literature_source', 'citation': {'relation': 'source', 'doi': doi}})
 
-    # Descriptors
-    if kwargs['output_label'] or kwargs['desc_name']:
-        descriptors = {'outputs': []}
-
-        output = {}
-        if kwargs['output_label']:
-            output['label'] = kwargs['output_label']
-        output['generated_utc'] = datetime.utcnow().isoformat() + "Z"
-        if kwargs['output_generated_by']:
-            output['generated_by'] = {'agent': kwargs['output_generated_by']}
-
-        if kwargs['desc_name'] and kwargs['desc_kind'] and kwargs['desc_source']:
-            desc = {
-                'name': kwargs['desc_name'],
-                'kind': kwargs['desc_kind'],
-                'source': kwargs['desc_source']
-            }
-            # Parse value as number if possible
-            if kwargs['desc_value']:
-                try:
-                    desc['value'] = float(kwargs['desc_value'])
-                except ValueError:
-                    desc['value'] = kwargs['desc_value']
-            if kwargs['desc_unit']:
-                desc['unit'] = kwargs['desc_unit']
-            if kwargs['desc_uncertainty']:
-                try:
-                    desc['uncertainty'] = {'sigma': float(kwargs['desc_uncertainty'])}
-                except ValueError:
-                    pass
-            output['descriptors'] = [desc]
-
-        if output:
-            descriptors['outputs'].append(output)
-
-        if descriptors['outputs']:
-            record['descriptors'] = descriptors
+    # Descriptors: one row per value. A value with no stated uncertainty says so ({basis: not_reported});
+    # values typed into the form are 'manual'.
+    rows = [r for r in (kwargs.get('descriptor_rows') or []) if (r.get('name') or '').strip()]
+    potential_row = _potential_row(kwargs)
+    if potential_row:
+        rows = rows + [potential_row]
+    if not rows and kwargs.get('desc_name'):
+        rows = [{'name': kwargs['desc_name'], 'value': kwargs.get('desc_value'), 'unit': kwargs.get('desc_unit'),
+                 'uncertainty': kwargs.get('desc_uncertainty'), 'kind': kwargs.get('desc_kind'),
+                 'source': kwargs.get('desc_source')}]
+    if rows:
+        output = {'label': (kwargs.get('output_label') or '').strip() or 'results',
+                  'generated_utc': datetime.utcnow().isoformat() + "Z",
+                  'generated_by': {'agent': (kwargs.get('output_generated_by') or '').strip()
+                                   or 'entered in the ISAAC portal record form'},
+                  'descriptors': [_descriptor(r) for r in rows]}
+        record['descriptors'] = {'outputs': [output]}
 
     # Merge any extra vocabulary fields that were dynamically rendered
     extra_vocab = kwargs.get('extra_vocab', {})
@@ -836,6 +1093,9 @@ def build_record(**kwargs) -> dict:
     ctx = record.get('context')
     if isinstance(ctx, dict) and ctx.get('temperature_basis') == 'not_reported':
         ctx.setdefault('temperature_K', None)
+    # "Room temperature" without a number is 298.15 K, flagged by its basis (contract step 7).
+    if isinstance(ctx, dict) and ctx.get('temperature_basis') == 'room_temperature':
+        ctx.setdefault('temperature_K', 298.15)
 
     return record
 

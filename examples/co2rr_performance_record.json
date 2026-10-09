@@ -17,11 +17,12 @@
       "identifiers": [
         {
           "scheme": "internal",
-          "value": "GDE-CuNP-2025-042"
+          "value": "CuNP-batch-2025-07"
         }
       ],
       "notes": "7 nm Cu nanoparticles spray-coated on gas diffusion electrode (PTFE-treated carbon paper)."
     },
+    "sample_id": "GDE-CuNP-2025-042",
     "sample_form": "film",
     "electrode_type": "GDE",
     "composition": {
@@ -34,6 +35,7 @@
   "context": {
     "environment": "in_situ",
     "temperature_K": 298.15,
+    "temperature_basis": "room_temperature",
     "reaction": {
       "name": "CO2RR",
       "drive": "electrochemical",
@@ -227,7 +229,7 @@
       "content_role": "raw_data_pointer",
       "uri": "facility-archive://LBNL/2025/projects/CO2RR/run_042/raw_data.zip",
       "media_type": "application/zip",
-      "sha256": "f3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b123",
+      "sha256": "not_available",
       "notes": "Contains potentiostat logs (.mpt) and GC chromatography reports (.xls)."
     },
     {
@@ -235,7 +237,7 @@
       "content_role": "reduction_product",
       "uri": "facility-archive://LBNL/2025/projects/CO2RR/run_042/performance_summary.json",
       "media_type": "application/json",
-      "sha256": "g3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b234",
+      "sha256": "not_available",
       "notes": "Aggregated inputs and calculated FE values."
     },
     {
@@ -243,16 +245,8 @@
       "content_role": "processing_script",
       "uri": "workflow://co2rr_fe_calculator/v3.0",
       "media_type": "text/x-python",
-      "sha256": "h3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b345",
+      "sha256": "not_available",
       "notes": "Standard GC-to-FE conversion script."
-    }
-  ],
-  "links": [
-    {
-      "rel": "same_sample_as",
-      "target": "01JFH7K2W6P1D9A3R4ZQ2M8T5V",
-      "basis": "shared_material_batch",
-      "notes": "Characterization performed on identical GDE batch."
     }
   ],
   "descriptors": {

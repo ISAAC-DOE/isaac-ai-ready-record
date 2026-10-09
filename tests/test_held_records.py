@@ -266,3 +266,16 @@ def test_admin_migration_bypass_publishes_directly(monkeypatch):
     conn = _db(monkeypatch)
     database.save_record(copy.deepcopy(HELD), uploaded_by="admin", mode="insert", skip_validation=True)
     assert not any(s.startswith("INSERT INTO records_held") for s in conn.log)
+
+
+
+def test_a_producer_that_cannot_be_named_publishes_with_a_warning():
+    """An anonymized or industrial dataset keeps produced_by.group 'not_reported', as the warning itself
+    advises; no edit could release it, so PRODUCED_BY_UNNAMED warns and never holds (2026-10-02)."""
+    r = json.loads((REPO / "examples" / "co2rr_performance_record.json").read_text())
+    assert r["source_type"] != "literature"
+    r["attribution"]["produced_by"] = {"group": "not_reported", "organization": "not_reported"}
+    res = validation.validate_record_full(r)
+    assert res["valid"] and res["outcome"] == "publish", (res["outcome"], res.get("hold"))
+    assert "PRODUCED_BY_UNNAMED" in {w["code"] for w in res.get("warnings") or []}
+    assert "PRODUCED_BY_UNNAMED" not in validation.HOLD_CODES

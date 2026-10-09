@@ -154,7 +154,7 @@
       "content_role": "raw_data_pointer",
       "uri": "lab-storage://echem/2025/dec/15/Dev-005_ORR_run.mpr",
       "media_type": "application/octet-stream",
-      "sha256": "i3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b123",
+      "sha256": "not_available",
       "notes": "Binary BioLogic instrument file."
     },
     {
@@ -162,7 +162,7 @@
       "content_role": "reduction_product",
       "uri": "lab-storage://echem/2025/dec/15/Dev-005_ORR_reduced.csv",
       "media_type": "text/csv",
-      "sha256": "j3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b234",
+      "sha256": "not_available",
       "notes": "Full resolution steady-state polarization table."
     },
     {
@@ -170,7 +170,7 @@
       "content_role": "processing_script",
       "uri": "workflow://echem_orr_processing/v1.2",
       "media_type": "text/x-python",
-      "sha256": "k3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b345",
+      "sha256": "not_available",
       "notes": "Python script for iR correction and steady-state averaging."
     }
   ],

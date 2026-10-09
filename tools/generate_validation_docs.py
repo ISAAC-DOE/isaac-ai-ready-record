@@ -34,6 +34,16 @@ REGISTRY = {
     "CONDITION_IN_DESCRIPTOR_NAME": ("error", "A descriptor name contains an operating condition (a current density, potential, temperature, time or an _at_ point). Conditions go in the descriptor's `at` or in context; the name is the quantity class, e.g. overpotential with at.current_density_mA_cm2 = 10."),
     "DESCRIPTOR_CLASS_NOT_LOWERCASE": ("error", "The class part of a descriptor name (before the first dot) is not lowercase. Element, species or layer labels are qualifiers after the dot: layer_thickness.Cu, oxidation_state.Cu."),
     "CLASS_UNIT_MISMATCH": ("error", "A numeric descriptor of a canonical class is not in that class's canonical unit (descriptors.class_units). Convert the value; do not relabel the unit."),
+    "PRODUCER_AS_AUTHOR_LIST": ("hold", "produced_by.group is a list of authors ('Huihuang Fang et al.', 'Smith and co-workers'). Name the group by its principal investigator as the byline prints it, '<PI name> group', and add produced_by.organization: the discovery engine matches this field exactly to judge whether two results are independent."),
+    "PRODUCER_NAME_FORMAT": ("warning", "produced_by.group reads like author names ('Smith, J.; Lee, K.', 'Smith and Jones') and names no group, lab or institute. Write '<PI name> group' (two PIs: 'A and B groups'), the same way in every record."),
+    "CONDITION_ONLY_IN_PROSE": ("warning", "A descriptor's definition states the temperature, pressure or potential (vs RHE) its value was read at ('at 400 C'), and no structured field carries that quantity. Put it in the descriptor's `at` or in context. A reference value ('relative to the value at 0 V'), a fit range, a rate ('10 K/min'), a C-rate, a preparation step ('calcined at 500 C') and the descriptor's own quantity do not match."),
+    "SOURCE_LOOKS_LIKE_A_REVIEW": ("warning", "The source citation looks like a review: the journal publishes reviews (Chem. Rev., Chem. Soc. Rev., Nature Reviews, Annual Review of, Current Opinion in, Acc. Chem. Res., Rev. Mod. Phys., Phys. Rep.), or the title names one ('review', 'recent advances', 'progress and perspectives', 'meta-analysis', 'a roadmap'). A value a review quotes belongs to the paper that measured it; keep the review as the source only when it first reported the value."),
+    "FUNCTIONAL_NOT_REPORTED": ("warning", "A DFT, DFT+U, hybrid-DFT or AIMD result gives no exchange-correlation functional (missing or 'not_reported'), and the message also notes a missing code. A DFT value is comparable only at the same functional, and papers state it in their methods."),
+    "CHECKSUM_NOT_SHA256": ("warning", "An asset's sha256 is not 64 hexadecimal characters, or it is one character repeated, such as all zeros. The checksum is the SHA-256 of the bytes the asset's URI returns. A paper cited by its DOI takes not_available_literature_source, even when you hold a PDF or a text extract of it. Any other resource you do not hold, or cannot hash, takes not_available."),
+    "SAME_SAMPLE_ON_A_SHARED_BASIS": ("warning", "A same_sample_as link gives as its basis something different specimens can share: a material batch, a replicate preparation, an analysis or computational method, a workflow version, a pipeline output, an absorber edge, operating conditions or a reference state, or, for a measured specimen, an identical geometry. same_sample_as asserts one physical specimen, or one identical model for a calculation. If the source gives the specimen an identifier both records can store, write it in sample_id and remove the link; if it establishes one specimen without an identifier, keep the link with basis unspecified and the establishing passage in notes; otherwise remove the link."),
+    "SAME_SAMPLE_LINK_ON_SAMPLE_ID": ("warning", "A same_sample_as link uses basis same_sample_id. If both records state the same sample.sample_id, the repository already groups them: remove the link. If they differ or one is missing, the basis is false: write the identifier the source assigns in sample.sample_id on both and remove the link; or, when the source establishes one physical specimen and the records cannot share an identifier, keep the link with basis unspecified and the establishing passage in notes; otherwise remove the link. A material name, formula, cell line, strain, catalog number, batch code or paper slug is not a sample_id."),
+    "SAME_SAMPLE_WITHOUT_PASSAGE": ("warning", "A same_sample_as link with basis unspecified has empty notes. Its notes carry the shortest passage or locator in the source that establishes one physical specimen (one identical model for a calculation). Add the passage, or remove the link if the source does not establish the identity."),
+    "LINK_TARGET_NOT_FOUND": ("warning", "A link's target is no record the repository knows: not published, and not held by the uploader. Checked by the API at validate and upload time. Within a batch, upload the target first or link from the later record."),
     "SECOND_HAND_SOURCE": ("hold", "A curator-written field labels a value as quoted from a review ('SECOND-HAND (review table)', 'quoted in a review article', 'taken from a review table'). A value a review quotes is the result of the paper that measured it: the record is built from that paper with relation 'source', and the review is cited with relation 'reference'. 'A second-hand potentiostat' is equipment and does not match."),
     "CONDITIONS_IN_SAMPLE_NAME": ("hold", "The sample name carries a measurement condition: a number with a temperature, pressure, potential or time unit ('300 C at 50 bar', 'at 1.2 V'). Conditions of the measurement go in context or in a descriptor's `at`; a condition of how the material was made ('calcined at 500 C') is left alone."),
     "COMPETING_HYPOTHESIS_LANGUAGE": ("hold", "A curator-written field names a competing hypothesis, such as 'Supports the INTERFACE rival' or 'Metal-interface rival.': a verdict verb aimed at a named rival, or a rival named like a label (an all-capitals word of six or more letters, or a hyphenated compound that is not a material description). Which explanation the data supports belongs to the discovery platform; a conclusion the source itself draws goes in a source excerpt. 'Rival' for a competing material or technology ('activity rivaling Pt', 'a Pt-free rival to IrO2') does not match."),
@@ -71,18 +81,17 @@ REGISTRY = {
     "AT_READOUT_WITHOUT_SWEEP": ("error", "A read-out key (at.current_density_mA_cm2, at.current_density_ECSA_mA_cm2, at.potential_V_RHE) is used on a record that is not a sweep. Read-out keys locate a value on a potentiodynamic sweep; a record held at one potential or current states it in context.electrochemistry."),
     # --- warnings (accepted, but improvable) ---
     "COMPUTATION_ON_MEASUREMENT": ("warning", "A record whose fields say measurement declares computation.method. A method that analysed the measurement (an EXAFS fit, a Rietveld refinement) belongs in measurement.processing; a method that computed a result of its own makes that result a separate calculation record."),
-    "PRODUCED_BY_UNNAMED": ("hold", "A record that is not from the literature names a placeholder producer group ('not_reported', 'unknown'). Accepted: some producers cannot be named (anonymized or industrial data), and the discovery engine reads the placeholder as absent. Name the group or organization when it is known."),
+    "PRODUCED_BY_UNNAMED": ("warning", "A record that is not from the literature names a placeholder producer group ('not_reported', 'unknown'). Accepted: some producers cannot be named (anonymized or industrial data), and the discovery engine reads the placeholder as absent. Name the group or organization when it is known."),
     "NEGATIVE_MAGNITUDE": ("warning", "A descriptor of a class stored as a non-negative magnitude (descriptors.magnitude_classes: overpotential, Tafel slope, ECSA, roughness factor, turnover frequency, exchange current density) has a negative value. The direction is carried by the reaction and by the sign of the current density at which the value is read."),
     "MISSING_PH": ("warning", "Performance record has no pH/pH_basis — needed for RHE conversion and cross-record comparison."),
     "MISSING_ELECTRODE_TYPE": ("warning", "sample.electrode_type is unset (GDE, thin_film, MEA, ...)."),
     "IMPLAUSIBLE_CURRENT_DENSITY": ("warning", "A current density exceeds ~10 A/cm2 — almost always a unit/area-normalization bug."),
-    "NO_LINKS": ("warning", "Record has no links[] and no tags[]; group it via a typed link (same_sample_as / derived_from / intended_comparison_target) or a tag."),
     "NO_DATA_OWNER": ("warning", "Evidence record declares no attribution.contributors with role data_owner."),
     "QC_COMPROMISED_NO_EVIDENCE": ("warning", "qc.status='compromised' without a concrete evidence sentence."),
     "MODULATED_DESCRIPTORS_UNSPECIFIED": ("warning", "context.modulation is declared but descriptors_represent is unset. A cycle-averaged quantity and a steady-state quantity of the same name are DIFFERENT QUANTITIES; without this a consumer cannot tell them apart."),
     "MODULATION_DRIVEN_VARIABLE_MISSING": ("warning", "context.modulation is present but driven_variable is unset, so a consumer cannot tell which condition was being driven."),
     "MODULATION_RATE_OVERSPECIFIED": ("warning", "Both frequency_Hz and period_s are given and they can disagree. Declare one."),
-    "MODULATION_EVIDENT_BUT_UNDECLARED": ("info", "Assets or notes mention a modulated, pulsed, chopped or square-wave experiment but no context.modulation block is declared, so every machine reading the record treats the measurement as static and its setpoints as the condition of the whole run."),
+    "MODULATION_EVIDENT_BUT_UNDECLARED": ("info", "No context.modulation block is declared, and a word for periodic driving (modulat, pulsed, chopped, duty cycle, square wave) appears in an asset's URI, notes or figure text, in system.configuration, in sample.notes or in context.electrochemistry.notes. Titles of cited works are not searched. Declare context.modulation when this record's measurement was driven periodically: without it, every machine reading the record treats each setpoint as the condition of the whole run. If the word describes a preparation step (pulsed laser deposition), an instrument part (an optical chopper) or another work, keep the record as it is."),
     "COMPONENT_SET_EXCEEDS_TOTAL": ("warning", "Leaf members of a component family (a product distribution, selectivity slate, phase or composition breakdown) sum to more than 110% of the expected total in one output block. Aggregate descriptors are excluded from the sum by design. Unlike under-closure this has no benign reading — check for percent encoding or a component counted twice."),
     "COMPONENT_SET_INCOMPLETE_UNDECLARED": ("warning", "Leaf members sum to less than 90% of the expected total and the block does not say why. Usually fine — minor and hard-to-detect species routinely go unquantified — but an undeclared gap is indistinguishable from a measurement that failed to balance. Declare descriptors.outputs[].completeness and this goes silent. Raised as info when less than 20% is missing and as a warning above that."),
     "AGGREGATE_DISAGREES_WITH_ITS_MEMBERS": ("warning", "A descriptor declaring `aggregates` (or listed in descriptors.aggregate_descriptors) is present alongside its members, and their sum differs from its value by more than 0.02. One of the two was not read off the same data."),
@@ -99,7 +108,7 @@ END = "<!-- END GENERATED:validation-codes -->"
 
 
 def emitted_codes():
-    return sorted(set(re.findall(r'"code":\s*"([A-Z_]+)"', VALIDATION)))
+    return sorted(set(re.findall(r'"code":\s*"([A-Z][A-Z0-9_]*)"', VALIDATION)))
 
 
 def render():
@@ -138,9 +147,15 @@ def apply(page: Path):
 
 
 def embedded_record_failures(wiki: Path) -> list:
-    """Complete records shown in wiki pages that the validator rejects."""
+    """Complete records shown in wiki pages that a reader would copy wrongly: rejected, carrying a warning, or
+    different from the file in examples/ with the same record_id."""
     sys.path.insert(0, str(REPO / "portal"))
     import validation
+    examples = {}
+    for path in sorted((REPO / "examples").glob("*.json")):
+        data = json.loads(path.read_text())
+        if isinstance(data, dict) and data.get("record_id"):
+            examples[data["record_id"]] = (path.name, data)
     bad = []
     for page in sorted(wiki.glob("*.md")):
         for block in re.findall(r"```json\n(.*?)```", page.read_text(), re.S):
@@ -151,9 +166,15 @@ def embedded_record_failures(wiki: Path) -> list:
             except ValueError:
                 continue  # an elided fragment illustrates a block; it is not a record
             result = validation.validate_record_full(record)
+            rid = record.get("record_id")
             if not result["valid"]:
                 codes = sorted({e.get("code") or "schema" for e in result["errors"]})
-                bad.append(f"{page.name}: record {record.get('record_id')} is rejected {codes}")
+                bad.append(f"{page.name}: record {rid} is rejected {codes}")
+            elif result.get("warnings"):
+                codes = sorted({w.get("code") for w in result["warnings"]})
+                bad.append(f"{page.name}: record {rid} carries warnings {codes}; an example is copied as shown")
+            if rid in examples and examples[rid][1] != record:
+                bad.append(f"{page.name}: record {rid} differs from examples/{examples[rid][0]}")
     return bad
 
 

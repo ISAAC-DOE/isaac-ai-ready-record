@@ -45,15 +45,23 @@ def test_every_worked_example_is_a_clean_record():
         assert not {w["code"] for w in res.get("warnings") or []} & ONE_RESULT_CODES, f
 
 
-def test_the_paper_examples_are_linked_records_from_one_source():
+def test_the_paper_examples_link_only_what_the_source_states():
+    """A calculation that explains a measurement takes no link; a catalyst links to the baseline its source names,
+    once. Until 2026-10-06 the examples linked every record of the paper both ways, and an uploader's agent wrote
+    1,018 such same-study links citing contract step 5."""
     a, b, calc = (json.loads((REPO / "examples" / n).read_text()) for n in (
         "literature_paper_catalyst_a_record.json", "literature_paper_catalyst_b_record.json",
         "literature_paper_calculation_record.json"))
-    assert {l["target"] for l in a["links"]} == {b["record_id"]} and {l["target"] for l in b["links"]} == {a["record_id"]}
-    assert {l["target"] for l in calc["links"]} == {a["record_id"]}
+    assert not b.get("links") and not calc.get("links")
+    assert [(l["rel"], l["target"]) for l in a["links"]] == [("intended_comparison_target", b["record_id"])]
+    assert "baseline" in a["links"][0]["notes"]
+    assert not any(r["sample"].get("sample_id") for r in (a, b, calc))
     sources = {c["citation"]["doi"] for r in (a, b, calc) for c in r["assets"] if c["citation"]["relation"] == "source"}
     assert len(sources) == 1
     assert a["system"]["domain"] == "experimental" and calc["system"]["domain"] == "computational"
+    steps = " ".join(CONTRACT["procedure"][3:5])
+    assert "side by side take no link" in steps and "only explains a measurement takes no link" in steps
+    assert "DOI" not in steps
 
 
 def test_the_review_is_cited_as_a_reference_and_the_original_paper_as_the_source():

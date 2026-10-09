@@ -98,7 +98,7 @@
       "content_role": "input_structure",
       "uri": "nersc://isaac/simxas/cu111_co/relaxed_structure.xyz",
       "media_type": "chemical/x-xyz",
-      "sha256": "55f563605c31278152283734135544710156784381389",
+      "sha256": "not_available",
       "notes": "Relaxed geometry used for XAS simulation. Contains full atomic coordinates."
     },
     {
@@ -106,7 +106,7 @@
       "content_role": "workflow_recipe",
       "uri": "repo://isaac-workflows/qe_xspectra/cu111_co/v1.0",
       "media_type": "text/plain",
-      "sha256": "66f563605c31278152283734135544710156784381389",
+      "sha256": "not_available",
       "notes": "QE/XSpectra input decks and run script."
     },
     {
@@ -114,7 +114,7 @@
       "content_role": "reduction_product",
       "uri": "nersc://isaac/simxas/cu111_co/results/cu_kedge_simulated_fullres.xdi",
       "media_type": "text/plain",
-      "sha256": "77f563605c31278152283734135544710156784381389",
+      "sha256": "not_available",
       "notes": "Full-resolution simulated spectrum (energy grid + mu)."
     },
     {
@@ -122,7 +122,7 @@
       "content_role": "raw_data_pointer",
       "uri": "nersc://isaac/simxas/cu111_co/raw/job_outputs.tar.gz",
       "media_type": "application/gzip",
-      "sha256": "88f563605c31278152283734135544710156784381389",
+      "sha256": "not_available",
       "notes": "Full code outputs: SCF, XSpectra, logs, checkpoints."
     }
   ],
