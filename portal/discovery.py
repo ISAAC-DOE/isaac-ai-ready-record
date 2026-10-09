@@ -22,6 +22,7 @@ Discovery page and the /portal/api/* discovery endpoints call.
 import json
 import logging
 import math
+import os
 import re
 import secrets
 import time
@@ -152,7 +153,36 @@ def normalize_relation(r):
     return RELATION_SYNONYMS.get(k, k)
 
 
+MANIFEST_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "manifests")
+
+
 def get_manifest() -> dict:
+    """The manifest this deployment serves.
+
+    ISAAC_MANIFEST_FILE unset -> the built-in contract below (the default).
+    ISAAC_MANIFEST_FILE=<name> -> data/manifests/<name>.json, for testing a manifest.
+
+    A named file that does not exist raises rather than falling back, so a test never
+    silently runs against the default."""
+    name = os.environ.get("ISAAC_MANIFEST_FILE", "").strip()
+    if not name:
+        return _builtin_manifest()
+    if name.endswith(".json"):
+        name = name[:-5]
+    if os.path.basename(name) != name:
+        raise ValueError(f"ISAAC_MANIFEST_FILE must be a name in data/manifests/, got {name!r}")
+    with open(os.path.join(MANIFEST_DIR, name + ".json")) as f:
+        manifest = json.load(f)
+    # A file captured on another host names that host; serve this deployment's instead,
+    # or an agent would read the manifest here and write its work there.
+    here = re.match(r"https?://[^/]+", _builtin_manifest().get("base_path") or "")
+    there = re.match(r"https?://[^/]+", manifest.get("base_path") or "")
+    if here and there and here.group() != there.group():
+        manifest = json.loads(json.dumps(manifest).replace(there.group(), here.group()))
+    return manifest
+
+
+def _builtin_manifest() -> dict:
     """Self-describing contract: the bootstrap an agent fetches to learn how to
     operate on ISAAC discovery projects. PROVISIONAL (v0.1) — refined as the real
     reasoning loop is pinned down with the practitioners."""
