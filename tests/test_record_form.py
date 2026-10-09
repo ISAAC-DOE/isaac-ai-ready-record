@@ -13,7 +13,10 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "portal"))
-sys.modules.setdefault("streamlit", types.ModuleType("streamlit"))  # the builder needs no UI
+try:
+    import streamlit  # noqa: F401  the real one where it is installed, so the UI tests can still import it
+except ImportError:
+    sys.modules["streamlit"] = types.ModuleType("streamlit")  # the builder needs no UI
 
 import form  # noqa: E402
 import validation  # noqa: E402
