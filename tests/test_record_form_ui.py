@@ -26,6 +26,19 @@ form.render_form()
 '''
 
 
+@pytest.fixture(autouse=True)
+def _restore_modules():
+    """AppTest runs the app in this process, and the app stubs the database module: put the real modules back,
+    or every later test that imports database gets the stub."""
+    saved = {name: sys.modules.get(name) for name in ("database", "form")}
+    yield
+    for name, module in saved.items():
+        if module is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = module
+
+
 def _pick(at, kind, label):
     return next(el for el in getattr(at, kind) if el.label == label)
 
