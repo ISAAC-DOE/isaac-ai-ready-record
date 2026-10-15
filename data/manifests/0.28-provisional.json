@@ -1,0 +1,458 @@
+{
+ "auditability": "Record EVERY decision point in BOTH places (dual-write): (1) POST an `event` to the dashboard with a `detail` carrying the full reasoning \u2014 this is canonical and drives the briefing; (2) mirror the same step to MLflow (see integrations.experiment_tracking). Put the decision logic in each prediction's `rationale` (method-compat check + direction + magnitude-vs-falsification + replication). One-line summaries are not enough \u2014 if it isn't recorded in full, it can't be audited. Any verdict that leaned on COMPUTE or a fitted MODEL MUST carry an mlflow_run_url (the replay trace); the briefing flags compute/model verdicts that lack one.",
+ "auth": {
+  "header": "Authorization: Bearer <token>",
+  "obtain": "portal API Keys page; user must be in an allowed group",
+  "scheme": "Bearer"
+ },
+ "base_path": "https://isaac.slac.stanford.edu/portal/api",
+ "compute_loop": [
+  "FIRST query isaac_data_sources (+ literature) for an EXISTING value \u2014 don't recompute what's archived",
+  "submit the calc using YOUR environment's tools (MLIP e.g. FairChem UMA to screen; DFT e.g. VASP@NERSC to confirm) \u2014 see integrations.compute",
+  "PUT /predictions/{id}/status {work_status:'compute_submitted', mlflow_run_url}",
+  "PUT ... {work_status:'compute_running'} when it starts",
+  "PUT /predictions/{id}/evaluate with verdict + evidence + final mlflow_run_url"
+ ],
+ "endpoint_paths_note": "Every endpoint `path` below is relative to `base_path` (e.g. base_path + '/projects'), NOT to this manifest's own URL. Do not prepend '/discovery/' to them \u2014 the manifest just happens to live under /discovery/.",
+ "endpoints": [
+  {
+   "m": "GET",
+   "path": "/projects/{id}/briefing",
+   "purpose": "Curated ground-truth digest (incl. evidence-index summary, discrimination matrix) \u2014 READ THIS FIRST each turn."
+  },
+  {
+   "m": "GET",
+   "path": "/projects/{id}/context",
+   "purpose": "ONE-SHOT RESUME bundle: full state + the ENTIRE step-by-step reasoning history (every event, with detail) + the briefing. A fresh agent with no prior context calls this FIRST to fully reconstruct an existing project before continuing."
+  },
+  {
+   "m": "GET",
+   "path": "/projects/{id}/evidence",
+   "purpose": "Exhaustive descriptor-keyed evidence index (element-matched candidates, reaction annotated). ?descriptor=<name> to narrow. Query this by a prediction's descriptor before saying 'no data'."
+  },
+  {
+   "m": "PUT",
+   "path": "/projects/{id}/evidence_overrides",
+   "purpose": "Curate the auto candidates: {include:[record_id], exclude:[...]}."
+  },
+  {
+   "m": "POST",
+   "path": "/projects",
+   "purpose": "Create a project."
+  },
+  {
+   "m": "PUT",
+   "path": "/projects/{id}/dataset",
+   "purpose": "Declare the DATASET OF INTEREST {record_ids:[...], description} \u2014 the curated record set the human pointed you at. Anchors scope; coverage is checked against it (briefing flags unused records). Use ALL of it or justify exclusions; you may still query the wider DB for corroborating data, but don't silently drop a declared record \u2014 a different geometry/composition/end-member may hold a discriminating contrast a confound hides."
+  },
+  {
+   "m": "GET",
+   "path": "/projects",
+   "purpose": "List your projects."
+  },
+  {
+   "m": "GET",
+   "path": "/projects/{id}",
+   "purpose": "Full project view."
+  },
+  {
+   "m": "POST",
+   "path": "/projects/{id}/hypotheses",
+   "purpose": "Add a hypothesis (statement, label, origin, mechanism)."
+  },
+  {
+   "m": "PUT",
+   "path": "/hypotheses/{id}",
+   "purpose": "Update a hypothesis's STATUS only {status}. Confidence is NOT set here \u2014 it is COMPUTED from the prediction verdicts (see scoring_model). Any confidence sent is ignored."
+  },
+  {
+   "m": "PUT",
+   "path": "/hypotheses/{id}/refine",
+   "purpose": "REFINE a hypothesis in place as a new VERSION (same empirical content, sharpened): {statement?, mechanism?, change_note, change_type}. Keeps the node, its evidence and history. Confidence is computed, not refined. See epistemic_guardrails.hypothesis_individuation."
+  },
+  {
+   "m": "POST",
+   "path": "/projects/{id}/hypotheses",
+   "purpose": "Add a hypothesis {statement, label, hypothesis_type, mechanism, origin}. Set hypothesis_type='residual' for an explicit NONE-OF-THE-ABOVE / the-shared-premise-is-wrong alternative \u2014 carry one whenever you have an equivalence class so the common premise can fail (see epistemic_guardrails.shared_premise_audit)."
+  },
+  {
+   "m": "POST",
+   "path": "/hypotheses/{id}/predictions",
+   "purpose": "Add a FALSIFYING prediction \u2014 STRUCTURED, not one crammed string: {descriptor_name, direction (\u2191/\u2193/non-monotonic), reference_condition (vs what baseline), magnitude (qualitative ok), falsification_criterion (what observation rejects it), output_quantity, discriminates:[{hypothesis_label,expected}], origin}. Each hypothesis needs a SET (>=2, aim 3-4) spanning DIFFERENT descriptors \u2014 not one token prediction on one measurable. See field_shapes.prediction."
+  },
+  {
+   "m": "POST",
+   "path": "/hypotheses/{id}/relations",
+   "purpose": "Link hypotheses {to_hypothesis_id, relation_type, note}. For `supersedes` also pass {discriminating_observable, retained_vs_abandoned, change_type} \u2014 the observable on which the new hypothesis predicts differently is what makes it new rather than a refinement. UPSERT on (from,to,relation_type): re-posting UPDATES in place (e.g. to attach the observable to an earlier bare row), never duplicates."
+  },
+  {
+   "m": "DELETE",
+   "path": "/hypotheses/{id}/relations",
+   "purpose": "Remove a relation {to_hypothesis_id, relation_type} \u2014 e.g. a stray duplicate or one added in error."
+  },
+  {
+   "m": "PUT",
+   "path": "/predictions/{id}/status",
+   "purpose": "Advance the prediction work_status lane."
+  },
+  {
+   "m": "POST",
+   "path": "/predictions/{id}/runs",
+   "purpose": "Register a compute run {backend, engine, resource, slurm_job_id, mlflow_run_url, status, params, metrics}. IDEMPOTENT on (prediction_id, slurm_job_id): re-POSTing the same job updates it, never duplicates."
+  },
+  {
+   "m": "PUT",
+   "path": "/runs/{run_id}",
+   "purpose": "Update a compute run {status, metrics, mlflow_run_url, ...}."
+  },
+  {
+   "m": "DELETE",
+   "path": "/runs/{run_id}",
+   "purpose": "Delete a compute run (e.g. a stray duplicate)."
+  },
+  {
+   "m": "PUT",
+   "path": "/predictions/{id}/evaluate",
+   "purpose": "Terminal: set verdict (supports|contradicts|neutral|insufficient|blocked) + strength (weak|moderate|strong) + evidence + mlflow_run_url + evidence_independence. THIS is what moves the hypothesis's confidence \u2014 the platform recomputes & stores it from all the verdicts (scoring_model). Use verdict='blocked' when the evidence isn't validly comparable (schema gate). If the supporting model was fit to the data you're testing against, the honest verdict is 'neutral', not 'supports' (use-novelty)."
+  },
+  {
+   "m": "POST",
+   "path": "/projects/{id}/rigor/findings",
+   "purpose": "INDEPENDENT CRITIC records a rigor problem {summary, detail, category(use_novelty|individuation|falsifiability|evidence_compatibility|confirmation_bias|overreach), severity(critical|major|minor), target_type, target_id}. See rigor_review.critic_prompt."
+  },
+  {
+   "m": "GET",
+   "path": "/projects/{id}/rigor/findings",
+   "purpose": "List rigor findings (?status=open). Working agent reads these and resolves each."
+  },
+  {
+   "m": "PUT",
+   "path": "/rigor/findings/{finding_id}",
+   "purpose": "Close a finding {status: resolved|dismissed, resolution}. 'resolved' = fixed or justified; 'dismissed' = not a real issue. Never deletes \u2014 keeps the audit trail."
+  },
+  {
+   "m": "POST",
+   "path": "/projects/{id}/async",
+   "purpose": "Record RESUMABLE pending work you started but can't await this turn {kind: literature|compute|external, external_ref, summary, poll_hint, prediction_id?}. Makes the dashboard show the project has steps worth coming back for. (A literature search auto-records one if you pass project_id to /literature/search.)"
+  },
+  {
+   "m": "GET",
+   "path": "/projects/{id}/async",
+   "purpose": "List async tasks (?status=pending). Reconcile these on resume."
+  },
+  {
+   "m": "PUT",
+   "path": "/async/{task_id}",
+   "purpose": "Resolve a task {status: ready|done|failed} once you've polled/ingested it. 'done' = reconciled."
+  },
+  {
+   "m": "POST",
+   "path": "/projects/{id}/events",
+   "purpose": "Append a reasoning-transcript entry (one per step)."
+  },
+  {
+   "m": "PUT",
+   "path": "/projects/{id}/next_experiment",
+   "purpose": "Propose the discriminating next experiment."
+  },
+  {
+   "m": "POST",
+   "path": "/projects/{id}/share",
+   "purpose": "Owner shares the project (read) with another portal identity {identity, access}; it then appears in that user's tab."
+  },
+  {
+   "m": "DELETE",
+   "path": "/projects/{id}/share/{identity}",
+   "purpose": "Revoke a share."
+  }
+ ],
+ "epistemic_guardrails": {
+  "_what": "Two domain-agnostic rigor rules the platform tracks for you (surfaced in every briefing's `method_compliance`; advisory now, enforced later). They apply in ANY field \u2014 they are about the logic of evidence, not about any particular science.",
+  "hypothesis_individuation": {
+   "new_hypothesis": "Predicts DIFFERENTLY on some realizable observable (different sign, ordering, or scale \u2014 not just a tighter number) \u2192 create a NEW hypothesis, then add_relation('supersedes', discriminating_observable=<the observable where they diverge>, retained_vs_abandoned=<what carried over vs was dropped>). The superseded node and its refuted predictions stay queryable \u2014 never overwrite a falsification.",
+   "refine_in_place": "Same predictions, just sharper (tighter parameter, clearer wording, updated narrative) \u2192 PUT /hypotheses/{id}/refine (bumps `version`, keeps the node + its evidence + its history).",
+   "rule": "Distinguish refining a hypothesis from replacing it. A hypothesis is individuated by its EMPIRICAL CONTENT (what it predicts and forbids), not by its mechanism narrative.",
+   "test": "If you cannot name an observable on which the new and old predict differently, it is a refinement, not a new hypothesis."
+  },
+  "shared_premise_audit": {
+   "do": "State the shared premise explicitly. Decide: TESTED or ASSUMED? If assumed, frame it as its OWN falsifiable hypothesis with a discriminating test. And ALWAYS carry an explicit NONE-OF-THE-ABOVE residual hypothesis (hypothesis_type='residual') with nonzero confidence \u2014 without it, the shared premise can never lose, which is not falsifiable. Surfaced in briefing.shared_premise_audit.",
+   "rule": "Audit the COMMON FOUNDATION of your surviving hypotheses, not just each hypothesis. When \u22652 rivals are observationally identical, they usually share a mechanistic premise and only contest its sub-parameters \u2014 that shared premise is the most dangerous blind spot, because it is unaudited and hides inside their agreement. If it is wrong, the whole equivalence class collapses."
+  },
+  "use_novelty": {
+   "rule": "Evidence used to BUILD or fit a hypothesis/model cannot also CONFIRM it. A model tuned until it reproduces an observation you already had earns ~zero confirmatory weight from that observation \u2014 it was used twice. This is the no-double-counting / overfitting / Texas-sharpshooter rule.",
+   "you_may": "Build and tune models freely \u2014 that is how hypotheses and predictions are GENERATED. Label such a result a hypothesis generator; it earns no confidence by itself.",
+   "you_must": "When you render a verdict that leans on a model/computation, declare `evidence_independence`: what the model was fit to vs what you are testing it against. If they overlap, the honest verdict is 'neutral'/'consistent', not 'supports'. Real confirmation = the model's prediction on data it did NOT see (the discriminating experiment)."
+  }
+ },
+ "event_types": [
+  "agent_message",
+  "compute_running",
+  "compute_submitted",
+  "evidence_ingested",
+  "hypothesis_created",
+  "next_experiment_proposed",
+  "prediction_added",
+  "prediction_evaluated",
+  "project_created",
+  "ranking_updated",
+  "status_changed"
+ ],
+ "field_shapes": {
+  "event": {
+   "detail": "(optional, long)",
+   "event_type": "(required, from event_types)",
+   "evidence_record_ids": "optional",
+   "hypothesis_id": "optional",
+   "mlflow_run_url": "optional",
+   "summary": "(REQUIRED, one line)"
+  },
+  "evidence_independence": {
+   "_check": "if parameters_fit_to \u2229 tested_against \u2260 \u2205, the match is a consistency check, not confirmation \u2192 verdict should be 'neutral'.",
+   "_for": "USE-NOVELTY on a prediction verdict \u2014 declare what the supporting model was fit to vs tested against, so circular confirmation is visible.",
+   "model_was_fit": "bool",
+   "parameters_fit_to": "[evidence_id] (data the model was tuned on)",
+   "roles": "[{evidence: id, role: built_from|tested_against}]",
+   "tested_against": "[evidence_id] (data the verdict leans on)"
+  },
+  "next_experiment": {
+   "_semantics": "PUT REPLACES the whole object (not a merge); send the complete payload each time. ALL keys you send are stored \u2014 nothing is dropped.",
+   "descriptor": "str",
+   "facility": "str",
+   "method": "str",
+   "predicted_outcomes": "[{hypothesis_label, expected}]",
+   "rationale": "str"
+  },
+  "origin": {
+   "reasoning": "str",
+   "sources": "[{record_id|doi|hypothesis}]",
+   "summary": "str",
+   "type": "agent_reasoning|literature|prior_result|human"
+  },
+  "prediction": {
+   "_for": "a hypothesis carries a SET of these (>=2, aim 3-4), spanning DIFFERENT descriptors \u2014 each fully structured, never one crammed string.",
+   "descriptor_name": "the measurable (e.g. faradaic_efficiency.C2H4, adsorption_energy.CO, a partial current) \u2014 VARY it across the set",
+   "direction": "\u2191 / \u2193 / non-monotonic / flat",
+   "discriminates": "[{hypothesis_label, expected}]",
+   "falsification_criterion": "the observation that REJECTS the hypothesis",
+   "magnitude": "how much (qualitative ok, e.g. 'scales with X')",
+   "origin": "see prediction_origin",
+   "reference_condition": "vs WHAT baseline (e.g. 'vs pure-Cu')"
+  },
+  "prediction_origin": {
+   "_for": "how a FALSIFYING prediction was produced",
+   "reasoning": "str (why this measurable falsifies the hypothesis)",
+   "sources": "[{record_id|doi}]",
+   "summary": "str (one line: where it came from)",
+   "type": "derived_from_mechanism|discrimination_design|literature|prior_result|agent_reasoning"
+  },
+  "refine": {
+   "_for": "PUT /hypotheses/{id}/refine \u2014 a new VERSION of the SAME node (same empirical content, sharpened). Confidence is computed from verdicts, not refined.",
+   "change_note": "str",
+   "change_type": "refinement|reparameterization|rewording",
+   "mechanism": "obj?",
+   "statement": "str?"
+  },
+  "supersedes_relation": {
+   "_for": "individuation \u2014 why the new hypothesis is new, not a refinement.",
+   "change_type": "mechanism_change|scope_change (parameter_refinement \u2192 refine in place instead)",
+   "discriminating_observable": "str (the realizable observable on which new vs old predict DIFFERENTLY \u2014 sign/ordering/scale, not just a tighter number)",
+   "retained_vs_abandoned": "str (what carried over vs was dropped)"
+  }
+ },
+ "getting_started": {
+  "agent_prompt": "You are connecting to the ISAAC Discovery platform \u2014 a hypothesis-driven scientific-discovery workbench at SLAC. Bootstrap yourself:\n\n1. Read the self-describing operating manual (it defines everything: auth, all endpoints, the reasoning protocol, how to record decisions, and the literature/compute integrations):\n   GET https://isaac.slac.stanford.edu/portal/api/discovery/manifest\n   Read ALL of it and follow it exactly.\n\n2. Authenticate every request with:\n   Authorization: Bearer <PASTE_YOUR_PORTAL_API_TOKEN_HERE>\n\n3. Verify access and list projects:\n   GET https://isaac.slac.stanford.edu/portal/api/projects\n   (the projects you own or that are shared with you).\n\n4. To CONTINUE an existing project (recommended for a fresh agent): GET /projects/{id}/context \u2014 one call returns the FULL state + the ENTIRE step-by-step reasoning history (with detail) + the briefing, so you can reconstruct exactly where the project stands. To START a new one: POST /projects.\n\n5. Follow the `method` block of the manifest \u2014 it is the scientific contract, not a suggestion. Discovery here means: frame >=2 competing FALSIFIABLE hypotheses (each with a mechanism and an origin); for each, register the SET of predictions that would KILL it, every one carrying (a) a concrete falsification_criterion and (b) an `origin` recording HOW it was produced (mechanism / discrimination design / literature / prior result / reasoning, with sources); design predictions to DISCRIMINATE between hypotheses; gather method-compatible evidence; render verdicts with reasoning; propose the discriminating next experiment.\n\n6. Prime directive: the dashboard is the single source of truth. Each turn GET the project's /briefing and reconcile to it; write every hypothesis, prediction, verdict and reasoning step back via the API \u2014 if it isn't written to the dashboard, it didn't happen.\n\n7. The briefing is SELF-INSTRUCTING: its `recommended_actions` is your prioritized to-do and `method_compliance` + `rigor_review` are the live rigor audit. You do NOT need a human to spell out the next step \u2014 work the recommended_actions (declare evidence_independence, attach discriminating observables, commission an independent rigor review for high-confidence claims, resolve findings, \u2026) until they clear.\n\n8. Check your toolbox: read the manifest's `isaac_ecosystem` and, on this first turn, tell me which of those tools you can actually reach (FairChem/UMA, VASP via NERSC, mkmISAAC, Catalysis Hub, Materials Project, the records + literature APIs) \u2014 and ask me about any you're missing so I can wire them up. Use the ISAAC records API to look up existing computed/measured values before recomputing.\n\nThen tell me, in your own words, the current state and full history of the project (or the workflow for a new one), and what to do next.",
+  "minimal_human_prompt": "Reproducibility note: a human should NOT need to give task-specific scientific instructions. The whole protocol \u2014 the method, the guardrails, and the per-turn to-do \u2014 comes from this manifest + the briefing. A sufficient human prompt is just: 'Connect to ISAAC Discovery with this token, resume project <id> (or start one for <goal>), and follow the manifest and the briefing's recommended_actions.'",
+  "steps": [
+   "Generate a Bearer token from the portal's API Keys page.",
+   "Paste the `agent_prompt` below into your agent, with your token.",
+   "Your agent fetches this manifest, learns the whole protocol, and is ready to start a new discovery project or continue a shared one."
+  ],
+  "what": "Discovery is a hypothesis-driven scientific-discovery workbench. You drive it with an AI agent (any LLM/agent with web access) that reads this manifest and self-configures \u2014 you don't need to learn the API yourself."
+ },
+ "integrations": {
+  "compute": {
+   "persist_results_as_records": "CLOSE THE LOOP \u2014 when a calculation produces a reusable value (an adsorption energy, a barrier, a relaxed structure), PERSIST it into ISAAC so it never has to be recomputed: build a schema-valid computational record, dry-run it with POST /portal/api/validate, then POST /portal/api/records. Mark provenance clearly AGENT-COMPUTED (method/functional or MLIP model, params, the MLflow run, this project_id). Then cite the new record_id as evidence. This is how the repository compounds \u2014 your calc becomes everyone's data, and the next agent looks it up instead of recomputing.",
+   "purpose": "Run the calculations your hypotheses need. The platform does NOT run them \u2014 it RECORDS and replays them (compute_run + MLflow). Use whatever tools your ENVIRONMENT provides.",
+   "record_it": "Register each as a compute_run (POST /predictions/{id}/runs {backend, engine, resource, slurm_job_id, mlflow_run_url, params, metrics}); a compute/model-backed verdict MUST carry an mlflow_run_url. And query isaac_data_sources for an EXISTING result before spending a calculation.",
+   "tiers": "MLIP / ML-potentials (FAST screening \u2014 e.g. FairChem UMA) for adsorption energies / trends across many candidates; DFT (ACCURATE \u2014 e.g. VASP) via your HPC path (e.g. NERSC) for the key numbers a verdict rests on; microkinetics / reaction-diffusion / transport models for rates and length scales. Screen with MLIP, confirm the decisive ones with DFT.",
+   "your_specific_tools": "The EXACT binaries, HPC submission paths, API endpoints and credentials available to you depend on WHERE you run and WHO runs you (e.g. an S3DF session with FairChem + a NERSC/IRI submission API) \u2014 they are NOT in this generic manifest. Use the tools configured in your session; if your operator gave you a capabilities profile, follow it; always record what you used so the run is reproducible."
+  },
+  "experiment_tracking_mlflow": {
+   "compute": "Log params (functional, slab, \u2026), metrics (E_ads, scores), and the Slurm job IDs as tags; put the run URL on the dashboard compute_run.mlflow_run_url so the two cross-link.",
+   "convention": "One MLflow experiment per project, named `ISAAC-Discovery-<project_id>`; one run per hypothesis (or per project for the reasoning stream).",
+   "cross_link": "Tag every MLflow run with project_id + the dashboard URL; store mlflow_run_url back on the dashboard event/run.",
+   "log_every_thinking_step": "After you POST each dashboard event (canonical), MIRROR it to MLflow: mlflow.log_text(json.dumps(step), f'reasoning/{n:04d}.json') and increment a 'reasoning_step' metric, so the run holds the complete, ordered decision sequence \u2014 every hypothesis formed, every prediction, every verdict and why.",
+   "purpose": "MLflow is the unified experiment-replay trace \u2014 it logs the COMPUTE *and*, now, the full REASONING, so an MLflow run is a self-contained record of the whole discovery cycle.",
+   "source_of_truth": "The DASHBOARD is canonical (the briefing reads it). MLflow mirrors for replay \u2014 write the dashboard FIRST, then mirror, so they never diverge."
+  },
+  "isaac_data_sources": {
+   "external_reference_dbs": "If your environment can reach them, also consult external DBs for prior values \u2014 e.g. Catalysis Hub (adsorption energies, reaction energetics), Materials Project (formation/stability). Treat as analog evidence; check method compatibility (functional/output_quantity) before trusting.",
+   "how": "GET /portal/api/records?limit=N&offset=N (+ GET /records/{id} for full data). Filter by material/elements, context.electrochemistry.reaction, record_domain (performance|characterization|simulation), and descriptor names (adsorption_energy, activation_barrier, faradaic_efficiency.*, xanes.*, band_gap, ...). The full corpus is large \u2014 page or filter; don't assume the first 500 are all of it.",
+   "purpose": "ISAAC is itself a primary KNOWLEDGE SOURCE \u2014 query it BEFORE computing anything from scratch. It holds EXPERIMENTAL records (performance, characterization) AND COMPUTATIONAL records: DFT slabs with adsorbates (e.g. Cu(100) + CO/OH/CHO), adsorption energies, activation barriers, band gaps, XANES, ... Look up a value that's already archived instead of recomputing it, and cite the record as evidence."
+  },
+  "literature_search": {
+   "auth": "your existing portal Bearer token (no Edison key needed).",
+   "note": "The OLD api.edisonsci.com host is DECOMMISSIONED. Direct REST (only if the proxy is ever unavailable) is api.platform.edisonscientific.com with an api_key->JWT exchange at /auth/login. Prefer the proxy.",
+   "poll": "GET /literature/search/{task_id} -> {status, done, answer, sources}. Async: PaperQA3 takes ~2-5 min; poll until done.",
+   "provider": "Edison Scientific (FutureHouse PaperQA3)",
+   "purpose": "Cited literature search over the published corpus. The portal proxies Edison Scientific (FutureHouse PaperQA3) so you get agentic, reference-backed answers with sources \u2014 without ever handling the Edison API key. Use it to ground a hypothesis origin or cross-check a prediction against prior work.",
+   "submit": "POST /literature/search {query, job, project_id?} -> {task_id} (202). job \u2208 literature | literature_high | precedent | analysis. Pass project_id to auto-record it as resumable pending_work so the dashboard shows the query is in flight.",
+   "use_when": "forming a hypothesis `origin`, or cross-checking a prediction against published work.",
+   "via": "portal_proxy \u2014 the portal holds the Edison key server-side; you never see it."
+  }
+ },
+ "invariant": "If it is not on the dashboard, it did not happen.",
+ "isaac_ecosystem": {
+  "_what": "The ISAAC tooling you should try to use. NOTHING here is assumed to be wired up for you \u2014 access depends on WHERE you run and WHO runs you. The ISAAC records + this Discovery API are MANDATORY (you're already on them, with your portal token). For everything else: on your FIRST turn, check which you can actually reach and ASK YOUR OPERATOR ('your boss') what you have access to in this environment \u2014 then USE WHAT YOU HAVE. Don't fake a capability you lack; don't skip one you have.",
+  "ask_your_operator_if_available": [
+   {
+    "for": "fast ML-potential adsorption energies & trend screening across many candidates",
+    "name": "FairChem / UMA (MLIP)"
+   },
+   {
+    "for": "accurate DFT for the decisive numbers a verdict rests on",
+    "name": "VASP via NERSC IRI / Superfacility API"
+   },
+   {
+    "for": "microkinetic modeling \u2014 rates from energetics",
+    "name": "mkmISAAC",
+    "where": "https://github.com/ISAAC-DOE/mkmISAAC"
+   },
+   {
+    "for": "published adsorption energies & reaction energetics (analog evidence)",
+    "name": "Catalysis Hub",
+    "where": "https://www.catalysis-hub.org"
+   },
+   {
+    "for": "formation energies / stability / structures",
+    "name": "Materials Project",
+    "where": "https://materialsproject.org"
+   },
+   {
+    "for": "cited literature via the portal proxy \u2014 no key needed",
+    "name": "Edison literature (PaperQA3)",
+    "where": "/portal/api/literature/search"
+   },
+   {
+    "for": "experiment + reasoning replay trace",
+    "name": "MLflow"
+   }
+  ],
+  "first_turn": "Enumerate which of these you can reach, report it to your operator, and ask about anything missing you'd want \u2014 so they can wire it up. The point: every agent should reach all the ISAAC goodies it can.",
+  "mandatory": [
+   {
+    "for": "the standardized knowledge base \u2014 experimental AND computational records (adsorption energies, barriers, XANES, performance). Query it for evidence and BEFORE recomputing anything (see integrations.isaac_data_sources).",
+    "name": "ISAAC records API",
+    "where": "GET /portal/api/records"
+   },
+   {
+    "for": "this hypothesis workbench.",
+    "name": "ISAAC Discovery API",
+    "where": "/portal/api/discovery/manifest"
+   }
+  ]
+ },
+ "method": {
+  "_what": "The discovery epistemics this platform enforces. The dashboard, briefing, ranking and discrimination matrix are all built around these steps \u2014 follow them in order. This is the heart of the protocol; read it before any endpoint.",
+  "loop": [
+   "1. FRAME competing hypotheses (>=2) that explain the goal via DIFFERENT mechanisms. Each carries a statement, a mechanism, and an `origin` (how you arrived at it \u2014 reasoning + sources). A single unopposed hypothesis is not a discovery, it is an assumption.",
+   "2. ENUMERATE falsifiers: for EACH hypothesis, register the SET of predictions whose observed outcome would KILL it \u2014 not one token prediction, the full discriminating set. A hypothesis with no falsifier is inadmissible. Each prediction needs a concrete `falsification_criterion` (the threshold/direction that, if seen, refutes the hypothesis).",
+   "3. RECORD PROVENANCE: every prediction MUST carry an `origin` \u2014 HOW it was produced (derived_from_mechanism | discrimination_design | literature | prior_result | agent_reasoning) with reasoning and sources. Provenance is mandatory, not decorative: a prediction nobody can trace cannot be trusted or reproduced. See field_shapes.prediction_origin.",
+   "4. DESIGN TO DISCRIMINATE: prefer measurables where the competing hypotheses predict DIFFERENT outcomes; declare them in `discriminates` ([{hypothesis_label, expected}]). The server aggregates these into the cross-hypothesis discrimination matrix that drives the next experiment.",
+   "5. GATHER evidence per prediction (records corpus via /evidence, literature via the proxy, compute via NERSC/MLflow), GATING on methodological compatibility (output_quantity / functional / corrections) before a record is allowed to count.",
+   "6. RENDER a verdict per prediction (supports | contradicts | neutral | insufficient | blocked) with a strength and EXPLICIT reasoning via /evaluate. You do NOT set confidence \u2014 the platform COMPUTES it from your verdicts (see scoring_model) and the ranking moves automatically.",
+   "7. PROPOSE the single most discriminating next experiment via /next_experiment."
+  ],
+  "non_negotiables": [
+   "Every hypothesis is falsifiable and carries >=1 falsifying prediction.",
+   "Every prediction carries an `origin` (provenance) AND a `falsification_criterion`.",
+   "Evidence is methodological-compatibility-gated before it counts.",
+   "USE-NOVELTY: a model/computation fit to a datum cannot also COUNT as confirming that datum \u2014 accommodation is not prediction. Declare evidence_independence on evaluate; confirmation comes only from data the fit did not already see.",
+   "INDIVIDUATION: a hypothesis IS its predictions. Only sharpening a parameter or wording \u2192 refine in place (a new VERSION). A claim that predicts DIFFERENTLY on some observable \u2192 a new hypothesis that `supersedes` the old, and must name that discriminating observable.",
+   "INDEPENDENT REVIEW: a high-confidence conclusion must survive an independent rigor critic (a SEPARATE agent, not yourself) \u2014 see rigor_review. Resolve open critical findings before declaring 'supported'.",
+   "Every decision is dual-written: dashboard event (canonical) + MLflow mirror (replay)."
+  ]
+ },
+ "name": "ISAAC Discovery \u2014 Agent Operating Protocol",
+ "object_model": "project -> hypotheses -> predictions; append-only events journal; one next_experiment per project. evidence_record_ids are plain ISAAC record IDs (read-only cross-reference).",
+ "per_turn_loop": [
+  "GET /briefing",
+  "reason",
+  "write each move (hypotheses/predictions/evaluate/status)",
+  "POST /events per step",
+  "PUT /next_experiment"
+ ],
+ "prime_directive": [
+  "FOLLOW THE METHOD: see `method` below. Discovery here is not free-form \u2014 it is competing FALSIFIABLE hypotheses, each carrying a traceable SET of predictions that would kill it, every prediction with recorded provenance, resolved by discriminating evidence. This is the contract, not a suggestion.",
+  "READ before you act: GET /projects/{id}/briefing at the start of every turn; treat it as authoritative current state and reconcile to it. The briefing is SELF-INSTRUCTING \u2014 its `recommended_actions` is your prioritized to-do (derived from method_compliance + rigor_review), and `method_compliance` is the live audit. You do NOT need a human to tell you the next rigor step; the dashboard does. Work the actions until clear.",
+  "WRITE after you act: every hypothesis, prediction, verdict, status change and compute run is an API write. If it is not on the dashboard, it did not happen \u2014 never hold project state only in your context.",
+  "One project = one ground truth. Do not fork reality in your head."
+ ],
+ "progress_model": {
+  "_what": "How to read progress. Progress is NOT 'the leader stays high confidence' \u2014 it is DISTANCE TO A DECISION. Two rivals that are observationally identical on all current data are a SETTLED phenomenon with an open sub-mechanism, not 'everything is weak'.",
+  "convergence": "briefing.convergence reports contested clusters of surviving hypotheses and whether existing evidence can still separate them. A cluster is `blocked_on_experiment` (observationally identical, but a discriminating test is registered/unrun) or `no_discriminating_test` (identical and no test designed \u2014 worse). decision_distance summarizes it (0 = decided, 0.2 = one experiment away, 0.8 = no test designed).",
+  "do_not_re_audit_to_resolve": "When survivors are observationally identical, re-auditing the SAME data will not separate them \u2014 RUN the discriminating experiment instead. The platform redirects recommended_actions to the experiment. (Confidence isn't authored \u2014 it is computed from your verdicts \u2014 so re-auditing without new verdicts doesn't move it anyway.)",
+  "equivalence_classes": "When survivors are observationally identical on current data they are NON-IDENTIFIABLE \u2014 report them as ONE equivalence class (convergence.equivalence_classes), decided only by the experiment. Their computed confidences may differ if their own verdicts differ; that's grounded in evidence, not authored \u2014 there is no false-precision penalty to manage.",
+  "idempotence": "A rigor pass over UNCHANGED evidence should be a no-op \u2014 do not re-deduct confidence for a flaw already corrected. Confidence moves on new evidence / new hypotheses / corrected assumptions, not on how many times you looked.",
+  "register_the_decider_as_a_prediction": "The discriminating experiment must be a FIRST-CLASS unrun prediction (descriptor + discriminates naming each survivor's expected outcome) owned by a survivor \u2014 not only a next_experiment note. Then it is a tracked falsifier and convergence reads it directly. (briefing flags clusters whose decider lives only in next_experiment.)"
+ },
+ "reproducibility_mode": {
+  "_what": "Two ways to run, kept distinct so a RECALLED result is never mistaken for an independent reproduction.",
+  "continued": "A capability run that intentionally builds on a prior project's lessons. Fine \u2014 but its convergence is NOT independent evidence; report it as a continuation.",
+  "default": "If the human says 'from scratch' / 'fresh' / 'new project', treat it as INDEPENDENT.",
+  "independent": "A from-scratch / reproducibility run. Treat it as a genuinely BLANK agent: derive every hypothesis, number and conclusion ONLY from the ISAAC data and your own organic queries this run. Do NOT reuse, recall, or reference hypotheses/values/lessons from any prior project or session \u2014 if you find yourself 'remembering' an answer, re-derive it from the data or don't use it. For a true independent run the human should start a NEW agent session (not continue one that has seen prior runs)."
+ },
+ "resume_protocol": "To CONTINUE an existing project from a cold start (a fresh agent with no prior memory): GET /projects to find it, then GET /projects/{id}/context \u2014 a single call returning the full current state PLUS the entire step-by-step reasoning history (every hypothesis, prediction, verdict, compute run, with detail) PLUS the briefing. Read it all to reconstruct exactly how the project got here before you act. The briefing alone is a per-turn digest, not the full history \u2014 use /context to resume. FIRST thing on resume: check briefing.pending_work \u2014 async steps a prior turn started (a literature query, a submitted calc) but couldn't await. Poll & ingest each, then PUT /async/{id} done. That is usually the whole reason to resume.",
+ "rigor_review": {
+  "_what": "An INDEPENDENT adversarial critic \u2014 a SEPARATE agent/session, not the one that did the work \u2014 re-derives whether the conclusions survive scrutiny. It is the backstop for what the automated method_compliance cannot see: a declaration the working agent simply OMITTED (e.g. a model fit to the data it 'confirms', with evidence_independence left blank \u2014 the critic infers it from the rationale/mechanism prose).",
+  "critic_prompt": "You are an INDEPENDENT rigor critic for an ISAAC Discovery project. You did not do this work and you owe it no deference. Your job is to REFUTE, not agree. Bootstrap from the manifest (GET /portal/api/discovery/manifest), then GET /projects/{id}/context and read the whole thing \u2014 hypotheses, predictions, verdicts, evidence_independence declarations, relations, and the reasoning prose. Hunt specifically for:\n  \u2022 USE-NOVELTY: any 'supports' verdict whose model/computation was fit to the very data it is tested against \u2014 EVEN IF evidence_independence is blank; infer it from the rationale/mechanism. Accommodation is not prediction.\n  \u2022 INDIVIDUATION: a `supersedes` that is really a refinement (no genuine discriminating observable), or a 'new' hypothesis that only renames an old one.\n  \u2022 FALSIFIABILITY: hypotheses with no real falsifier; predictions whose criterion can't actually fail.\n  \u2022 EVIDENCE_COMPATIBILITY: verdicts trusting methodologically-incompatible records (wrong output_quantity / functional / conditions).\n  \u2022 CONFIRMATION_BIAS / OVERREACH: only confirming evidence sought; confidence higher than the evidence licenses.\n  \u2022 SHARED_PREMISE (the deepest one): a mechanistic assumption common to ALL surviving hypotheses that has never itself been tested. If every rival takes premise X for granted (and the contest is only over X's sub-parameters), then X is unaudited and the whole set collapses if X is wrong \u2014 this blind spot hides INSIDE agreement. Demand it be framed as its own falsifiable hypothesis with a discriminating test, and that an explicit NONE-OF-THE-ABOVE residual carries nonzero mass.\nFor each problem, POST /projects/{id}/rigor/findings {summary, detail, category, severity (critical|major|minor), target_type, target_id}. Where a high-confidence claim genuinely survives your attack, say so explicitly. Do not invent issues to look busy \u2014 but do not let a convenient conclusion pass.",
+  "loop": "Working agent: after a review, GET /projects/{id}/rigor/findings, then for each finding either FIX it (and PUT the finding to 'resolved' with how) or justify why it holds; 'dismissed' only for genuine non-issues. Surfaced live in briefing.rigor_review; later, open critical findings will block 'supported'.",
+  "when": "Trigger a review before trusting any high-confidence conclusion (e.g. moving a hypothesis to 'supported', or confidence > 0.7), and on request. Independence is the point: do NOT critique your own work in the same pass \u2014 spawn a fresh reviewer with the critic_prompt below."
+ },
+ "scoring_model": {
+  "_what": "THE single, canonical way a hypothesis is evaluated. Confidence is COMPUTED by the platform from the hypothesis's prediction VERDICTS \u2014 you NEVER author or set a confidence number. You move confidence by evaluating predictions (PUT /predictions/{id}/evaluate); the platform recomputes and stores it. The stored confidence (briefing.ranking[]) IS the computed score.",
+  "how": "Score evidence against each prediction \u2192 a verdict + strength, then aggregate in log-odds: SUPPORTS +strength \u00b7 CONTRADICTS \u2212strength\u00d71.25 (falsification is more decisive than confirmation) \u00b7 a STRONG contradiction of a falsifier ~ falsified (\u22640.15) \u00b7 NEUTRAL a small negative (a test that ran and found NO predicted effect is mild evidence against) \u00b7 INSUFFICIENT 0 (tested, didn't resolve) \u00b7 BLOCKED 0 and EXCLUDED (schema gate, below). strength = strong 1.0 / moderate 0.6 / weak 0.3. confidence = sigmoid(\u03a3). A new hypothesis starts at the 0.5 prior.",
+  "report": "The score ships with its decomposition \u2014 n_decisive, the supports/contradicts/neutral/insufficient/blocked breakdown, coverage, and a conflict measure \u2014 never a bare number.",
+  "schema_gate": "When evidence is NOT validly comparable to a prediction (different output_quantity, units without a declared transform, different functional / electrolyte / potential / reference state, a DFT energy vs an experimental selectivity, \u2026), verdict=BLOCKED \u2014 refuse the comparison rather than guess. Blocked evidence does NOT move belief; it only lowers COVERAGE (fewer valid tests). Convert-then-compare first if the mismatch is reconcilable. A block must cite the specific failing dimension and be SYMMETRIC (don't block contradicting evidence on a basis you'd accept supporting evidence).",
+  "why_a_single_prediction_fails": "With <2 DECISIVE (supports/contradicts) verdicts the score is UNRELIABLE \u2014 you cannot validate or falsify a hypothesis on one verdict, and a lone prediction barely moves off the 0.5 prior. This is WHY each hypothesis needs a SET of distinct, structured predictions (briefing flags unreliable_scores). Build the set; the score follows the evidence."
+ },
+ "state_machines": {
+  "compute_run_status": [
+   "completed",
+   "failed",
+   "queued",
+   "resubmitted",
+   "running"
+  ],
+  "hypothesis_relation_types": [
+   "co_operating",
+   "competes_with",
+   "derived_from",
+   "supersedes"
+  ],
+  "hypothesis_status": [
+   "proposed",
+   "supported",
+   "eliminated",
+   "needs_more_data",
+   "superseded"
+  ],
+  "note": "work_status = where in the pipeline; verdict = the scientific outcome (set at 'evaluated'). They are orthogonal. A prediction may have MANY compute_runs (failed + resubmit). Hypotheses form a graph via relations (supersedes/derived_from/competes_with/co_operating), not a flat list. A prediction's `discriminates` ([{hypothesis_label, expected}]) declares what each hypothesis predicts for that measurable; the server aggregates these into the cross-hypothesis discrimination matrix.",
+  "prediction_verdict": [
+   "supports",
+   "contradicts",
+   "neutral",
+   "insufficient",
+   "blocked"
+  ],
+  "prediction_work_status": [
+   "awaiting_evidence",
+   "more_work_pending",
+   "compute_submitted",
+   "compute_running",
+   "evaluated"
+  ]
+ },
+ "version": "0.28-provisional",
+ "vocabulary_is_normalized": "Verdicts and relation_types are accept-and-normalized: synonyms (e.g. 'refutes'->'contradicts', 'co_operates_with'->'co_operating', 'inconclusive'->'neutral') are mapped to canonical on write. Prefer the canonical terms above."
+}

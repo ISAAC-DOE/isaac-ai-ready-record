@@ -1638,8 +1638,19 @@ def discovery_manifest():
     """Public, no-auth bootstrap: how to operate on ISAAC discovery projects.
     An agent's FIRST call — it learns the protocol, state machines, endpoints and
     field shapes here, so the platform is self-describing rather than relying on a
-    human to paste a spec."""
-    return jsonify(discovery.get_manifest()), 200
+    human to paste a spec.
+
+    ?version=<name> serves data/manifests/<name>.json (or `builtin`) instead of the default,
+    for testing another manifest. Names only: this endpoint is public, so no file paths."""
+    version = request.args.get("version", "").strip()
+    if version and (os.path.basename(version) != version or version.startswith("~")):
+        return jsonify({"error": "version must be a manifest name, not a path"}), 400
+    try:
+        return jsonify(discovery.get_manifest(version)), 200
+    except FileNotFoundError:
+        return jsonify({"error": f"no manifest named {version!r} in data/manifests/"}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @app.route("/portal/api/projects", methods=["POST"])
