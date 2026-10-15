@@ -72,11 +72,3 @@ vocabulary. Digest `4b32b4278451`.
 gates. That understates the server in the mirror image of the warning above: an agent served this
 file is told nothing about rejections it will still receive. Serve it to reproduce a historical
 wave, not to describe the server as it stands.
-
-## Figure 5 of the bench paper
-
-Its six rungs are, left to right, `v1`-`v6` = 0.28-provisional, 0.75-the-contract-names-no-ones-case,
-0.76-THE-DIAGNOSIS-NAMES-THE-VERDICT, 0.77-DERIVABILITY-IS-ENFORCED, 0.78-declare-or-do-not-rule,
-0.79-the-origin-enforced. Only the first two are in this folder; v3-v6 are the bench's authored
-rungs. `v1` is NOT the origin contract — 0.1-provisional appears in that figure only as a
-reference line.
