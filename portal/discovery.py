@@ -156,22 +156,33 @@ def normalize_relation(r):
 MANIFEST_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "manifests")
 
 
-def get_manifest() -> dict:
-    """The manifest this deployment serves.
+BUILTIN_MANIFEST = "builtin"
 
-    ISAAC_MANIFEST_FILE unset -> the built-in contract below (the default).
-    ISAAC_MANIFEST_FILE=<name> -> data/manifests/<name>.json, for testing a manifest.
+
+def get_manifest(version: str = "") -> dict:
+    """The manifest to serve. `version` (or ISAAC_MANIFEST_FILE when `version` is empty):
+
+    ''                      -> the built-in contract below (the default).
+    'builtin'               -> the built-in, even when ISAAC_MANIFEST_FILE names another.
+    '<name>'                -> data/manifests/<name>.json (`.json` optional).
+    '/path/to/draft.json'   -> that local file, for testing a draft manifest. Only a path
+                               ending in .json is accepted; any other path is refused.
 
     A named file that does not exist raises rather than falling back, so a test never
     silently runs against the default."""
-    name = os.environ.get("ISAAC_MANIFEST_FILE", "").strip()
-    if not name:
+    name = (version or os.environ.get("ISAAC_MANIFEST_FILE", "")).strip()
+    if not name or name == BUILTIN_MANIFEST:
         return _builtin_manifest()
-    if name.endswith(".json"):
-        name = name[:-5]
-    if os.path.basename(name) != name:
-        raise ValueError(f"ISAAC_MANIFEST_FILE must be a name in data/manifests/, got {name!r}")
-    with open(os.path.join(MANIFEST_DIR, name + ".json")) as f:
+    if name.endswith(".json") and os.path.basename(name) != name:
+        path = os.path.expanduser(name)
+    else:
+        if name.endswith(".json"):
+            name = name[:-5]
+        if os.path.basename(name) != name:
+            raise ValueError(f"a manifest is a name in data/manifests/ or a path to a .json "
+                             f"file, got {name!r}")
+        path = os.path.join(MANIFEST_DIR, name + ".json")
+    with open(path) as f:
         manifest = json.load(f)
     # A file captured on another host names that host; serve this deployment's instead,
     # or an agent would read the manifest here and write its work there.

@@ -48,3 +48,32 @@ def test_another_hosts_origin_is_rewritten(manifests, monkeypatch):
     monkeypatch.setenv("ISAAC_MANIFEST_FILE", "x")
     m = discovery.get_manifest()
     assert m == {"base_path": here, "mlflow": f"{origin}/isaac-mlflow"}
+
+
+def test_version_overrides_the_env(manifests, monkeypatch):
+    (manifests / "arm-a.json").write_text(json.dumps({"version": "arm-a"}))
+    (manifests / "arm-b.json").write_text(json.dumps({"version": "arm-b"}))
+    monkeypatch.setenv("ISAAC_MANIFEST_FILE", "arm-a")
+    assert discovery.get_manifest("arm-b") == {"version": "arm-b"}
+    assert discovery.get_manifest() == {"version": "arm-a"}
+
+
+def test_builtin_is_selectable_over_the_env(manifests, monkeypatch):
+    (manifests / "arm-a.json").write_text(json.dumps({"version": "arm-a"}))
+    monkeypatch.setenv("ISAAC_MANIFEST_FILE", "arm-a")
+    assert discovery.get_manifest("builtin") == discovery._builtin_manifest()
+
+
+def test_a_local_json_file_is_served(tmp_path, monkeypatch):
+    monkeypatch.delenv("ISAAC_MANIFEST_FILE", raising=False)
+    draft = tmp_path / "elsewhere" / "draft.json"
+    draft.parent.mkdir()
+    draft.write_text(json.dumps({"version": "draft"}))
+    assert discovery.get_manifest(str(draft)) == {"version": "draft"}
+    monkeypatch.setenv("ISAAC_MANIFEST_FILE", str(draft))
+    assert discovery.get_manifest() == {"version": "draft"}
+
+
+def test_a_path_that_is_not_json_is_refused(manifests):
+    with pytest.raises(ValueError):
+        discovery.get_manifest("../secrets")
