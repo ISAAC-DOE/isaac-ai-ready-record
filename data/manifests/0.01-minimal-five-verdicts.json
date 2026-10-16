@@ -1,0 +1,84 @@
+{
+ "version": "0.01-minimal-five-verdicts",
+ "base_path": "https://isaac.slac.stanford.edu/portal/api",
+ "auth": {
+  "header": "Authorization: Bearer <token>",
+  "obtain": "portal API Keys page; user must be in an allowed group",
+  "scheme": "Bearer"
+ },
+ "endpoints": [
+  {
+   "m": "GET",
+   "path": "/projects/{id}/briefing",
+   "purpose": "Curated ground-truth digest — READ THIS FIRST each turn."
+  },
+  {
+   "m": "POST",
+   "path": "/projects",
+   "purpose": "Create a project."
+  },
+  {
+   "m": "GET",
+   "path": "/projects",
+   "purpose": "List your projects."
+  },
+  {
+   "m": "GET",
+   "path": "/projects/{id}",
+   "purpose": "Full project view."
+  },
+  {
+   "m": "POST",
+   "path": "/projects/{id}/hypotheses",
+   "purpose": "Add a hypothesis (statement, label, origin, mechanism)."
+  },
+  {
+   "m": "PUT",
+   "path": "/hypotheses/{id}",
+   "purpose": "Update status / confidence / confidence_basis."
+  },
+  {
+   "m": "POST",
+   "path": "/hypotheses/{id}/predictions",
+   "purpose": "Add a prediction (descriptor_name, direction, falsification)."
+  },
+  {
+   "m": "PUT",
+   "path": "/predictions/{id}/status",
+   "purpose": "Advance work_status (compute_submitted/running, ...)."
+  },
+  {
+   "m": "PUT",
+   "path": "/predictions/{id}/evaluate",
+   "purpose": "Terminal: set verdict + strength + evidence + mlflow_run_url."
+  },
+  {
+   "m": "POST",
+   "path": "/projects/{id}/events",
+   "purpose": "Append a reasoning-transcript entry (one per step)."
+  },
+  {
+   "m": "PUT",
+   "path": "/projects/{id}/next_experiment",
+   "purpose": "Propose the discriminating next experiment."
+  }
+ ],
+ "state_machines": {
+  "prediction_verdict": [
+   "supports",
+   "contradicts",
+   "neutral",
+   "insufficient",
+   "blocked"
+  ]
+ },
+ "event_types": [
+  "agent_message",
+  "compute_running",
+  "compute_submitted",
+  "evidence_ingested",
+  "project_created",
+  "ranking_updated",
+  "status_changed"
+ ]
+}
