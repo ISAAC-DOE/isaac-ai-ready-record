@@ -58,6 +58,33 @@ experiment and sharing nothing with the versions here but a number (the two 0.76
 their leaves). Compare by slug or digest. The bench's authored rungs are deliberately NOT kept in
 this folder; they live in `experiments/manifest_refine/manifests/` in the bench repo.
 
+### 0.01-mechanics-only (AUTHORED ablation — never shipped, and not early)
+
+`policy_version` 66, 20,197 bytes, digest `28d9b4521aa37176`. Numbered 0.01 to sit below every real
+version because it is a REFERENCE POINT, not a date: written 2026-10-16 from
+`0.76-a-specimen-is-its-sample-group` by removing clauses, never by adding any.
+
+- **Removed:** every section that tells an agent how to JUDGE — `scoring_model`, `method`,
+  `epistemic_guardrails`, `rigor_review`, `prime_directive`, `provenance`, `progress_model`,
+  `auditability`, `resume_protocol`, `compute_loop`, `per_turn_loop`, `reproducibility_mode`,
+  `integrations`, `getting_started`, `isaac_ecosystem` — plus the judgement prose inside the
+  `/predictions/{id}/evaluate` and `/projects/{id}/hypotheses` endpoint descriptions, which is where
+  the remaining ~2.4 KB of doctrine lived.
+- **Kept unchanged:** the five-verdict vocabulary, all 32 routes, `field_shapes`, `auth`,
+  `event_types`, and `enforcement` with the server's true `policy_version`. A seat can still form
+  valid requests; it is simply not told which verdict to choose.
+
+Why not `0.1-provisional` as the floor: it declares only FOUR verdicts, and `blocked` — absent there
+— accounts for 56% of all wrong verdicts in the bench's earlier waves on case 2. A four-verdict rung
+is scored on an easier task than any five-verdict rung, so its apparent superiority is partly that
+artefact. This file holds vocabulary, routes and gates constant so a difference against a richer
+contract is a difference in DOCTRINE alone.
+
+⚠ It is an ABLATION, not a clause written to move a number — the only defensible way to author a rung
+under `manifest_refine`'s standing rule that "a manifest clause chosen to move a metric has corrupted
+the measurement". It claims no rejection the server does not produce, and unlike `0.28-provisional`
+it does not understate the gates either.
+
 ### 0.75-the-contract-names-no-ones-case
 The contract production served before 0.76. `policy_version` **65** — an agent served this file is
 not told the specimen-based independence rule that 66 introduced. Digest `3414a167deed`, captured
