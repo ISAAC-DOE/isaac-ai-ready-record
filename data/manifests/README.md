@@ -23,6 +23,38 @@ changes.
 
 ## Versions
 
+### 0.83-the-enforcement-block-is-complete (AUTHORED — never shipped)
+
+92,723 bytes, digest `564a93c8b8db4758`, `policy_version` **66** (unchanged; nothing new is
+enforced). `0.77-a-computable-criterion-is-answered` with **2 of 306 contract leaves changed** —
+`enforcement.rejects_400` and `version` — verified by leaf diff.
+
+**`rejects_400` goes from 2 entries to 7.** The manifest claimed the server rejects two things; it
+also rejects five more. Each was read from the engine source, not inferred:
+
+- a decisive verdict (`supports`/`contradicts`) with no `basis` (policy 64,
+  `discovery._check_verdict_basis`). `insufficient` and `blocked` are **exempt** — they rest on the
+  absence of evidence and have nothing to cite, and the server skips the check for them.
+- a `basis` outside the five-value vocabulary (cited_record, derived, computed_run, literature,
+  prior_knowledge)
+- `basis: cited_record` with no `evidence_record_ids`, or whose `descriptor_name` appears in NONE of
+  the cited records
+- `basis: computed_run` with no compute run linked, or `basis: literature` with no citation attached
+- an `observed.scale` that is the prediction's own THRESHOLD, or that disagrees with the cited
+  records' declared uncertainty by more than 2x in either direction (`_check_observed_scale`)
+
+Nothing about enforcement changed — these gates already existed at policy 66. Only the document's
+account of them did, which is why `policy_version` is untouched. This is the inverse of the warning
+on `0.28-provisional`: that file understates the gates by omitting `enforcement` entirely, and 0.77
+understates them by listing two of seven.
+
+⚠ It adds no clause telling an agent which verdict to choose, names no error class and no case. It is
+therefore not a clause that could have been chosen to move a metric, under `manifest_refine`'s
+standing rule. Registered in that experiment's `PREREG.md` appendix A10, which also retracts an
+earlier and incorrect `0.83` (digest `9c6b476e3ffb14c4`, never served or run, file deleted) that had
+removed the working `reliability{basis}` feature and duplicated a sentence already present in
+`scoring_model`.
+
 ### 0.77-a-computable-criterion-is-answered
 Base: `0.76-a-specimen-is-its-sample-group`. `policy_version` 66 (unchanged; nothing new is
 enforced). Taken from the discovery bench's `0.77-derivability-is-enforced`, without that
