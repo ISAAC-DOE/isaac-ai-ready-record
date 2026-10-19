@@ -4268,6 +4268,13 @@ requestAnimationFrame(loop);
             # Live auto-refresh when the Streamlit build supports it; otherwise a
             # manual refresh button keeps it functional on older versions.
             if hasattr(st, "fragment"):
+                # Streamlit fades elements while they re-run, so the 5 s refresh made the whole
+                # view blink light/dark. Keep them at full opacity: the content swaps in place.
+                st.markdown(
+                    "<style>[data-stale='true'],[data-testid='stExpander'] summary,"
+                    "[data-testid='stExpanderDetails']{opacity:1!important;"
+                    "transition:none!important;}</style>",
+                    unsafe_allow_html=True)
                 st.caption("Live — auto-refreshing every 5s.")
                 st.fragment(run_every=5)(lambda: _discovery_detail(pid, _DISC_OWNER))()
             else:
