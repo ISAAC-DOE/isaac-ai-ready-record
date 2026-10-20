@@ -46,3 +46,32 @@ def test_our_unowned_records_are_not_an_independent_uploader_and_short_spans_fai
     meets = {x["name"] for x in weekly.schema_candidates(recs)["configuration_keys"]["meets_promotion_rule"]}
     assert "system.configuration.edge" not in meets          # dsokaras and its unowned uploads are one uploader
     assert "system.configuration.short_lived" not in meets   # three uploaders, but all on one day
+
+
+def _run(out_dir, name, owner="a"):
+    run = out_dir / name
+    run.mkdir(parents=True)
+    rec = _rec(1, owner)
+    (run / "records.jsonl").write_text(json.dumps(rec) + "\n")
+    (run / "metrics.json").write_text(json.dumps({"_outcomes": {rec["record_id"]: {"outcome": "publish"}}}))
+    return run
+
+
+def test_a_review_is_written_under_its_own_date_and_a_stopped_battery_is_stale(tmp_path):
+    import datetime as dt
+    _run(tmp_path, "2026-10-03T131700Z")
+    _run(tmp_path, "2026-10-10T131700Z")
+    earlier = tmp_path / "weekly" / "2026-10-10"
+    earlier.mkdir(parents=True)
+    (earlier / "report.md").write_text("the review of 10-12")
+
+    fresh = weekly.main(["--out-dir", str(tmp_path)], now=dt.datetime(2026, 10, 11, 7, 13, tzinfo=dt.timezone.utc))
+    assert fresh == 0
+    assert not (tmp_path / "weekly" / "2026-10-11" / "digest.md").read_text().startswith("**STALE")
+
+    stale = weekly.main(["--out-dir", str(tmp_path)], now=dt.datetime(2026, 10, 19, 7, 13, tzinfo=dt.timezone.utc))
+    assert stale == weekly.STALE_EXIT
+    digest = (tmp_path / "weekly" / "2026-10-19" / "digest.md").read_text()
+    assert digest.startswith("**STALE: the newest battery run, 2026-10-10T131700Z, is 8.7 days old")
+    assert json.loads((tmp_path / "weekly" / "2026-10-19" / "digest.json").read_text())["newest_run_age_hours"] == 209.9
+    assert (earlier / "report.md").read_text() == "the review of 10-12"   # an earlier review is never overwritten
