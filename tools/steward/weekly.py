@@ -1,7 +1,7 @@
 """The repository steward's weekly digest: what changed over a week, and what the schema could learn from it.
 
 Reads two runs of the daily battery (tools/steward/battery.py): the newest, and the newest one at least six
-days older (else the oldest kept). Writes <out-dir>/weekly/<date>/digest.json and digest.md with:
+days older (else the oldest kept). Writes <out-dir>/weekly/<today>/digest.json and digest.md with:
 
   activity     records added, edited and deleted per uploader, and records whose outcome changed
   codes        every error and warning code: records it fires on then and now, by uploader
@@ -10,7 +10,8 @@ days older (else the oldest kept). Writes <out-dir>/weekly/<date>/digest.json an
                (at least 3 independent uploaders and 30 records): open-namespace keys under
                system.configuration and context, descriptor classes outside the vocabulary, units outside it
 
-Deterministic and read-only. The weekly agent review reads this digest; it never needs the API token.
+Deterministic and read-only. Exits 3 when the newest run is more than 36 hours old (the daily battery has
+stopped); the digest is still written and says so first. The weekly agent review reads this digest; it never needs the API token.
 
 Usage:  python3 tools/steward/weekly.py --out-dir /private/dir/steward
 """
@@ -25,6 +26,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import battery  # noqa: E402
 
 PROMOTE_UPLOADERS, PROMOTE_RECORDS, PROMOTE_DAYS, PROMOTE_ONE_TYPE = 3, 30, 28, 0.95
+# The daily battery runs every 24 h; a newest run older than this means it has stopped.
+STALE_HOURS, STALE_EXIT = 36, 3
 # Records with no uploader are our own early uploads: for independence they count as the PI's account.
 SAME_UPLOADER = {"(none)": "dsokaras"}
 
@@ -148,18 +151,30 @@ def markdown(d):
     return "\n".join(lines) + "\n"
 
 
-def main(argv=None):
+def main(argv=None, now=None):
+    """Writes the digest into weekly/<today>/, so a review never overwrites an earlier one. When the newest
+    battery run is older than STALE_HOURS the daily battery has stopped: the digest says so in its first
+    line and main exits with STALE_EXIT, so the weekly script skips the agent review of a repeated window."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out-dir", required=True, type=Path)
     args = ap.parse_args(argv)
+    now = now or dt.datetime.now(dt.timezone.utc)
     then_run, now_run = pick_runs(args.out_dir)
     d = digest(then_run, now_run)
-    week = args.out_dir / "weekly" / now_run.name[:10]
+    age = (now - _when(now_run)).total_seconds() / 3600
+    d["newest_run_age_hours"] = round(age, 1)
+    stale = age > STALE_HOURS
+    text = markdown(d)
+    if stale:
+        text = (f"**STALE: the newest battery run, {now_run.name}, is {age / 24:.1f} days old. The daily battery "
+                f"has stopped (see launchd.log); this digest repeats an older window.**\n\n") + text
+    week = args.out_dir / "weekly" / now.date().isoformat()
     week.mkdir(parents=True, exist_ok=True)
     (week / "digest.json").write_text(json.dumps(d, indent=1))
-    (week / "digest.md").write_text(markdown(d))
-    print(f"{week}: {d['from']} to {d['to']}; activity {d['activity']}")
+    (week / "digest.md").write_text(text)
+    print(f"{week}: {d['from']} to {d['to']}; activity {d['activity']}" + (f"; STALE by {age / 24:.1f} days" if stale else ""))
+    return STALE_EXIT if stale else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
