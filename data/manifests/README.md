@@ -23,6 +23,30 @@ changes.
 
 ## Versions
 
+### 0.84-derived-values-and-full-observations (AUTHORED — never shipped)
+
+92,876 bytes (bench archive copy), digest `73b387d3ee561c01` (bench archive copy, sorted-key canonical
+JSON), `policy_version` **66** (unchanged; nothing new is enforced). Base:
+`0.77-a-computable-criterion-is-answered`, **not** 0.83. Four leaves change, verified by leaf diff:
+`version`, two new `scoring_model` entries, and one sentence appended to `PUT /predictions/{id}/evaluate`
+pointing to them.
+
+- **Added `scoring_model.derived_is_a_complete_basis`.** A value computed from the cited records is a
+  complete basis for a decisive verdict (`basis: derived`, arithmetic in the rationale); no compute run
+  or MLflow trace is needed for arithmetic on cited values. The briefing's
+  `decisive_verdict_without_descriptor_in_evidence` entry is advisory and neither rejects the verdict
+  nor lowers its score. Read from `_check_verdict_basis`, which places no requirement on `derived`.
+  Extends 0.77's `insufficient_means_the_quantity_is_unavailable` with the two facts it left out.
+- **Added `scoring_model.declare_the_observation_fully`.** Send `observed {value, unit, scale}` in the
+  threshold's unit on every decisive verdict: the server then computes the margin and keeps the
+  authored one only as a claim; with no scale or a unit mismatch it falls back to the authored margin.
+  Read from `_derived_margin` and its caller in `compute_hypothesis_score`.
+
+Why: in the bench's waves, one seat repeatedly returned `insufficient` for a value computable from the
+cited records, citing the need for a compute run, and one excursion came from an authored margin of 0
+on a falsifier sent without a scale. Neither clause names a case, an item or a verdict to prefer.
+Registered before deployment in the bench's `experiments/manifest_refine/PREREG.md` appendix A12.
+
 ### 0.83-the-enforcement-block-is-complete (AUTHORED — never shipped)
 
 92,723 bytes, digest `564a93c8b8db4758`, `policy_version` **66** (unchanged; nothing new is
