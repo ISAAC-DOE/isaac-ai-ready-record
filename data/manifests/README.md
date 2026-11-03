@@ -23,6 +23,55 @@ changes.
 
 ## Versions
 
+### 0.85-decidability-is-declared (AUTHORED — never shipped, NOT enforced)
+
+94,214 bytes (this folder's copy, built from the online 0.77 so the host strings are the served ones),
+digest `0ed193ec213954f9` (sorted-key canonical JSON), `policy_version` **66** (unchanged; nothing new
+is enforced). Base: `0.77-a-computable-criterion-is-answered`, **not** 0.83 or 0.84 — it does not
+contain `derived_is_a_complete_basis` or `declare_the_observation_fully`. Ten leaves change, verified
+by leaf diff: `version`, one new `scoring_model` entry, one sentence appended to
+`PUT /predictions/{id}/evaluate` pointing to it, and a seven-leaf `_authored_rung` provenance block.
+
+- **Added `scoring_model.decidability_is_declared`.** The three non-decisive verdicts are presented as
+  the outcomes of two questions asked in order rather than three labels to choose between. FIRST, is
+  the quantity the criterion names available from the cited records — reported, or derivable because
+  every component is reported? Read it out of `falsification_criterion`, not `descriptor_name`. If not
+  available: `insufficient`, and nothing further is asked. SECOND, only if available, can the
+  criterion's own arithmetic be carried out on those records as written? If not, because the available
+  quantity is the wrong KIND of thing: `blocked`, naming the failing dimension, applied symmetrically.
+  If it can: answer. The clause also places **`neutral` with `supports` and `contradicts`, not with
+  `insufficient` and `blocked`** — it is the outcome of a test that ran and found no predicted effect,
+  not a reason a test could not run — and notes that where the criterion's own falsification branch
+  treats the absence of the effect as refuting the claim, the answer is `contradicts`, a line set by
+  the item and not by this contract. Restates 0.77's `why_a_criterion_cannot_be_decided`,
+  `when_a_validity_objection_disqualifies` and `insufficient_means_the_quantity_is_unavailable` as one
+  ordered procedure, and supplies the only definition of `neutral` outside the parenthetical in
+  `scoring_model.how`.
+
+**Read from nothing — this rung is prose only.** No engine code reads `decidability_is_declared`.
+`enforcement.rejects_400` stays at 2 entries, no `method_compliance` entry is added and no wire field
+is introduced, so the file claims no rejection and no flag the server does not produce. That is
+deliberate: it is the CONTROL arm for a possible later version with identical wording that IS enforced
+(a `_check_decidability` alongside `_check_verdict_basis`, gated on `policy_version >= 67`). Isolating
+enforcement needs the words held constant; `0.76-the-diagnosis-names-the-verdict` and
+`0.77-derivability-is-enforced` in the bench ladder differ in wording and enforcement at once, so
+neither can attribute a difference to either.
+
+Why: in the bench's 50-case five-verdict re-seat, per-label recall was 97% and 95% on `supports` and
+`contradicts` but 63%, 58% and 43% on `insufficient`, `neutral` and `blocked`, with 53 of 612 items
+wrong under two independent seats. Reading all 53 rationales showed the seat executing the
+coverage-versus-validity test explicitly and still splitting from the key, and showed two patterns this
+clause addresses: holding the numbers and returning `insufficient` where they fall short of the bar,
+and returning `blocked` on a comparison whose arithmetic it had already carried out, which
+`when_a_validity_objection_disqualifies` forbids in as many words. The clause names no case, no item
+and no verdict to prefer.
+
+**Status: not yet registered, and not yet run.** A prior manipulation that put 0.77's existing clauses
+verbatim into the seat briefing was a null (2 of 612 items moved, exact McNemar p = 0.50, pooled
+accuracy down ~1 point), so prose alone is not expected to close this gap; the bench's own gate-versus
+-prose contrast stands at n=1 per arm and is uncallable under its registered decision rule. Register in
+`experiments/manifest_refine/PREREG.md` before any wave is run against this file.
+
 ### 0.84-derived-values-and-full-observations (AUTHORED — never shipped)
 
 92,876 bytes (bench archive copy), digest `73b387d3ee561c01` (bench archive copy, sorted-key canonical
