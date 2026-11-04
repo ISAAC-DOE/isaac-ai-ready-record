@@ -218,3 +218,11 @@ def test_the_detection_of_a_measured_spectrum_is_its_own_and_the_standard_keeps_
     ea = _axis(MEASURED)
     assert ea["detection"]["mode"] == "HERFD" and ea["calibration"]["standard_detection_mode"] == "transmission"
     assert "analyzer" not in ea["calibration"] and ea["calibration"]["standard_acquisition"] == "same_scan"
+
+
+def test_a_computed_calibration_states_a_choice_and_nothing_about_measuring_a_standard():
+    for name in ("ocean_xas_calibrated_record.json", "simulation_xas_record.json"):
+        cal = _axis(json.loads((REPO / "examples" / name).read_text()))["calibration"]
+        assert cal["standard"] == "Cu metal" and cal["reference_value_eV"] == 8979.0 and "shift_applied_eV" in cal
+        assert not {"standard_detection_mode", "standard_acquisition"} & set(cal)
+        assert "experimental_eV" not in (cal.get("uncertainty") or {})

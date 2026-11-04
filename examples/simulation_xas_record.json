@@ -69,15 +69,13 @@
     "energy_axis": {
       "status": "absolute_calibrated",
       "calibration": {
-        "standard": "Cu foil",
-        "standard_detection_mode": "transmission",
-        "standard_acquisition": "none",
+        "standard": "Cu metal",
         "feature": {
           "name": "first_inflection",
           "definition": "maximum of the first derivative of a Cu metal spectrum computed with the same settings, after the same broadening"
         },
         "reference_value_eV": 8979.0,
-        "reference_source": "this group sets the Cu foil first inflection to 8979.0 eV, a value taken from Bearden and Burr, Rev. Mod. Phys. 39, 125 (1967)",
+        "reference_source": "set to the value this group uses for the first inflection of its measured Cu foil",
         "shift_applied_eV": 8977.2,
         "notes": "One constant shift places the first inflection of a Cu metal spectrum computed with the same settings at the reference energy; the same shift is applied to this spectrum. E_before is the code's energy axis."
       }
