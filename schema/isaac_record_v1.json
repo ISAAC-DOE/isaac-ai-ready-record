@@ -1213,7 +1213,7 @@
           "required": [
             "status"
           ],
-          "description": "How this spectrum's energy axis was aligned and calibrated, for measured and computed spectra alike. A computed spectrum has no absolute energy of its own until it is calibrated.",
+          "description": "How this spectrum's energy axis was aligned and calibrated, for measured and computed spectra alike. A computed spectrum has no energy on the experimental scale of its own until it is calibrated.",
           "properties": {
             "status": {
               "type": "string",
@@ -1222,7 +1222,7 @@
                 "aligned",
                 "absolute_calibrated"
               ],
-              "description": "The state of the axis this record stores (the series energies and the energy descriptors). as_recorded: as the instrument or code wrote it, with no alignment or calibration stated. aligned: placed on an axis shared with other records (a computed series using one anchor's core offset; measured spectra aligned to a common reference), comparable within it but not on the absolute scale. absolute_calibrated: placed on the absolute scale by the calibration stated here."
+              "description": "The state of the axis this record stores (the series energies and the energy descriptors). as_recorded: as the instrument or code wrote it, with no alignment or calibration stated. aligned: placed on an axis shared with other records (a computed series using one anchor's core offset; measured spectra aligned to a common reference), comparable within it but not on the experimental energy scale. absolute_calibrated: placed on the experimental energy scale, in eV, by the calibration stated here and under the convention it states."
             },
             "detection": {
               "type": "object",
@@ -1345,7 +1345,7 @@
             "calibration": {
               "type": "object",
               "additionalProperties": false,
-              "description": "How the axis was placed on the absolute energy scale: one standard, one feature with its definition, one reference energy with its source, and the constant shift applied. A measured spectrum states the standard its monochromator was calibrated on; a computed series states the standard it was shifted onto.",
+              "description": "How the axis was placed on the experimental energy scale: the standard it was aligned to, the feature of that standard with its definition, the energy that feature was set to, and the constant shift applied. ISAAC records the convention used and privileges none: groups set the same edge to different energies. A spectrum A is expressed on the convention of a spectrum B, calibrated on the same standard, feature definition and standard detection mode, by E_B = E_A + (reference_value_eV of B - reference_value_eV of A); equivalently, E - reference_value_eV is the energy relative to the standard's feature, the same under any convention. For a computed series the feature is located, by its definition, on the standard computed with the same settings (the anchor). A measured spectrum states the standard its monochromator was calibrated on; a computed series states the standard it was shifted onto.",
               "properties": {
                 "standard": {
                   "type": "string",
@@ -1371,7 +1371,7 @@
                     "other_session",
                     "none"
                   ],
-                  "description": "When the standard was measured relative to this spectrum. same_scan: recorded with it (a reference channel). same_session: in the same beamtime. other_session: another time. none: no spectrum of the standard was recorded for this work; only its reference energy was used (a computed series calibrated on a tabulated value)."
+                  "description": "When the standard was measured relative to this spectrum. same_scan: recorded with it (a reference channel). same_session: in the same beamtime. other_session: another time. none: no spectrum of the standard was measured for this work (a computed series, whose feature is located on the standard computed with the same settings)."
                 },
                 "feature": {
                   "type": "object",
@@ -1390,15 +1390,15 @@
                 },
                 "reference_value_eV": {
                   "type": "number",
-                  "description": "The energy, in eV, assigned to the feature of the standard."
+                  "description": "The energy, in eV, the feature of the standard was set to: this record's convention (e.g. a Cu foil first inflection set to 8979.0 eV). Write the value the work used, even when other groups use another; never replace it with another convention's. Not a claim about the edge's true energy."
                 },
                 "reference_source": {
                   "type": "string",
-                  "description": "Where the reference energy comes from (a paper, a table, a beamline convention). Tabulated edge energies and measured foil inflection energies differ by more than 1 eV for Cu: name the one used."
+                  "description": "Where the set value comes from (a group or beamline convention, a table, a paper), when the work states it; left out when it does not. Never invented."
                 },
                 "shift_applied_eV": {
                   "type": "number",
-                  "description": "The constant shift, in eV, that places the axis on the absolute scale: E_absolute = E_before + shift_applied_eV. E_before is the axis before calibration: for a measured spectrum, the monochromator reading; for a computed spectrum, the code's energy with the gauge's core offset added back (OCEAN: the absspct energy plus C). The energies this record stores (series and descriptors) are after the shift."
+                  "description": "The constant shift, in eV, that places the axis on the stated convention: E_calibrated = E_before + shift_applied_eV, so that the standard's feature lies at reference_value_eV. E_before is the axis before calibration: for a measured spectrum, the monochromator reading; for a computed spectrum, the code's energy (for a BSE series, with the gauge's core offset added back; OCEAN: the absspct energy plus C). The energies this record stores (series and descriptors) are after the shift."
                 },
                 "uncertainty": {
                   "type": "object",

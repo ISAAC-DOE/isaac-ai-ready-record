@@ -119,13 +119,13 @@
           "definition": "maximum of the first derivative of the anchor's normalized spectrum, located once at the series' nominal broadening"
         },
         "reference_value_eV": 8979.0,
-        "reference_source": "Cu K absorption-edge energy tabulated by Bearden and Burr, Rev. Mod. Phys. 39, 125 (1967), by convention assigned to the Cu foil first inflection",
+        "reference_source": "this group sets the Cu foil first inflection to 8979.0 eV, a value taken from Bearden and Burr, Rev. Mod. Phys. 39, 125 (1967)",
         "shift_applied_eV": 8811.7,
         "uncertainty": {
           "experimental_eV": null,
           "broadening_sweep_eV": 0.1
         },
-        "notes": "One shift for the whole series: E_absolute = (E_OCEAN + C) + shift_applied_eV, with E_OCEAN the absspct energy and C the gauge's core offset."
+        "notes": "One shift for the whole series: E_calibrated = (E_OCEAN + C) + shift_applied_eV, with E_OCEAN the absspct energy and C the gauge's core offset."
       }
     },
     "series": [

@@ -1254,8 +1254,8 @@ def _source_and_method_warnings(record: dict) -> list:
 
 
 # How a spectrum's energy axis was aligned and calibrated (measurement.energy_axis, ledger change 17). A computed
-# spectrum has no absolute energy: its axis is relative to a reference the code chooses (in a Bethe-Salpeter code,
-# the core offset C of the series' anchor), and a series reaches the absolute scale only through a calibration on
+# spectrum has no energy on the experimental scale: its axis is relative to a reference the code chooses (in a
+# Bethe-Salpeter code, the core offset C of the series' anchor), and a series reaches that scale only through a calibration on
 # a standard. The checks apply to X-ray spectra; peak_position counts only in eV.
 _ABSOLUTE_ENERGY_CLASSES = {"edge_position", "white_line_energy", "inflection_point_energy", "peak_position"}
 _XRAY_SPECTRA = {"XAS", "XANES", "EXAFS", "HERFD-XAS", "XES", "RIXS"}
@@ -1275,7 +1275,7 @@ def _given(value) -> bool:
 
 
 def _energy_axis_warnings(record: dict) -> list:
-    """A computed absolute energy without a calibration, and an energy_axis block that cannot be reproduced
+    """A computed spectrum whose energy axis is not stated, and an energy_axis block that cannot be reproduced
     (warnings)."""
     if record.get("record_type") != "evidence":
         return []
@@ -1315,8 +1315,7 @@ def _energy_axis_warnings(record: dict) -> list:
             cal = axis.get("calibration") if isinstance(axis.get("calibration"), dict) else {}
             feature = cal.get("feature") if isinstance(cal.get("feature"), dict) else {}
             parts = [("standard", cal.get("standard")), ("feature.definition", feature.get("definition")),
-                     ("reference_value_eV", cal.get("reference_value_eV")),
-                     ("reference_source", cal.get("reference_source"))]
+                     ("reference_value_eV", cal.get("reference_value_eV"))]
             if _claims_calculation(record):
                 parts.append(("shift_applied_eV", cal.get("shift_applied_eV")))
             missing = [f for f, v in parts if not _given(v)]
@@ -1324,12 +1323,13 @@ def _energy_axis_warnings(record: dict) -> list:
                 warnings.append({
                     "code": "CALIBRATION_INCOMPLETE", "path": "measurement/energy_axis/calibration",
                     "message": ("energy_axis.status is absolute_calibrated, and the calibration does not state "
-                                f"{', '.join(missing)}. A calibration can be checked and reused only with the "
-                                "standard, the feature and the definition that locates it (two definitions of one "
-                                "peak can differ by more than 1 eV), the reference energy, and where that energy "
-                                "comes from (tabulated edge energies differ); a computed spectrum also needs the "
-                                "shift that placed it. Write what the source states. When it does not state one of "
-                                "them, say so in calibration.notes.")})
+                                f"{', '.join(missing)}. A calibration can be reused only when it says what the axis "
+                                "was aligned to: the standard, the feature and the definition that locates it (two "
+                                "definitions of one peak can differ by more than 1 eV), and the energy that feature "
+                                "was set to; a computed spectrum also needs the shift that placed it. Groups set the "
+                                "same edge to different energies, and the value used is what lets a reader compare "
+                                "this spectrum with one set to another value. Write what the source states. When it "
+                                "does not state one of them, say so in calibration.notes.")})
         for i, tie in enumerate(axis.get("ties") or []):
             if not isinstance(tie, dict):
                 continue
@@ -1358,11 +1358,12 @@ def _energy_axis_warnings(record: dict) -> list:
                 "code": "ENERGY_AXIS_NOT_STATED", "path": "measurement/energy_axis",
                 "message": (f"This computed spectrum reports energies ({', '.join(names[:4])}"
                             f"{', ...' if len(names) > 4 else ''}) and does not say how its energy axis was placed "
-                            "(no measurement.energy_axis). A computed spectrum has no absolute energy of its own: "
-                            "its axis is relative to a reference the code chooses, and an absolute value means a "
-                            "constant shift placed it on a standard. State the axis: absolute_calibrated with the "
-                            "calibration (the standard, the feature and its definition, reference_value_eV, "
-                            "reference_source, shift_applied_eV); aligned with the gauge it shares with its series; "
+                            "(no measurement.energy_axis). A computed spectrum has no energy on the experimental scale "
+                            "of its own: its axis is relative to a reference the code chooses, and a value in eV on "
+                            "that scale means a constant shift placed it on a standard. State the axis: "
+                            "absolute_calibrated with the "
+                            "calibration (the standard, the feature and its definition, the energy it was set to, "
+                            "shift_applied_eV); aligned with the gauge it shares with its series; "
                             "or, when the source does not say, as_recorded with the gap named in energy_axis.notes. "
                             "A source that aligned its spectra to its own measured spectrum names that compound as "
                             "the standard.")})

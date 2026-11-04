@@ -23,6 +23,7 @@ The process is in [`../README.md`](../README.md).
 | [2026-10-09-15](2026-10-09-15-record-form-for-catalysis-labs.md) | 2026-10-09 | The portal's record form can enter a catalysis lab's result | portal | 0, 1, 2 | #278, v0.0.360 | shipped |
 | [2026-11-05-16](2026-11-05-16-units-for-computed-spectra.md) | 2026-11-05 | Units for computed spectra (`ocean_intensity_au`, `e`) with definitions, and every unit rendered on the wiki | vocabulary, wiki generator | 0, 1, 2 | #290, v0.0.373 | shipped; live: both units accepted, definitions served by /ontology |
 | [2026-11-05-17](2026-11-05-17-energy-axis.md) | 2026-11-05 | Energy axis of spectra, phase 1: `measurement.energy_axis`, `computation.spectroscopy`, BSE / multiple_scattering / multiplet, six warnings, contract step 9 | schema (additive), validator, wiki, contract | 0, 1, 2, 3 | #291, v0.0.375 | shipped as warnings; live: examples clean, stored OCEAN spectra flagged until the skill fills the block |
+| [2026-11-05-18](2026-11-05-18-calibration-records-the-convention.md) | 2026-11-05 | A calibration records the convention used (standard, feature, set value) and privileges no edge energy; source optional | wording, one warning narrowed | 0, 1, 2 | | shipping |
 
 Drafts not yet started: [PROPOSED.md](PROPOSED.md).
 
