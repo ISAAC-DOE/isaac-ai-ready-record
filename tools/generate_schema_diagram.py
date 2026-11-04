@@ -26,6 +26,8 @@ DETAIL = {
     "context.transport": "Transport",
     "measurement.series": "Series",
     "computation.method": "Method",
+    "computation.spectroscopy": "Spectroscopy",
+    "measurement.energy_axis": "EnergyAxis",
     "computation.slab_model": "SlabModel",
     "sample.library": "Library",
 }
