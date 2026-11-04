@@ -1394,7 +1394,7 @@
                 },
                 "reference_source": {
                   "type": "string",
-                  "description": "Where the reference energy comes from (a paper, a table, a beamline convention). Tabulated values differ: name the one used."
+                  "description": "Where the reference energy comes from (a paper, a table, a beamline convention). Tabulated edge energies and measured foil inflection energies differ by more than 1 eV for Cu: name the one used."
                 },
                 "shift_applied_eV": {
                   "type": "number",
@@ -1443,7 +1443,7 @@
                   },
                   "offset_eV": {
                     "type": "number",
-                    "description": "E on the target's axis = E on this record's axis + offset_eV, for the feature in scope."
+                    "description": "The feature's energy on the target's axis minus its energy on this record's axis, for the feature in scope: E(target axis) = E(this axis) + offset_eV. The other direction is the negative."
                   },
                   "sigma_eV": {
                     "type": [
@@ -2243,7 +2243,7 @@
                 },
                 "lorentzian_hwhm_eV": {
                   "type": "number",
-                  "description": "Lorentzian half width at half maximum, in eV."
+                  "description": "Lorentzian half width at half maximum, in eV. Core-hole width tables list full widths: store half."
                 },
                 "lorentzian_source": {
                   "type": "string",

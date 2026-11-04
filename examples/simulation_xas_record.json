@@ -52,7 +52,7 @@
       "broadening": {
         "mode": "conventional",
         "lorentzian_hwhm_eV": 0.78,
-        "lorentzian_source": "Cu 1s core-hole width, Krause and Oliver, J. Phys. Chem. Ref. Data 8, 329 (1979)",
+        "lorentzian_source": "half of the Cu 1s core-hole width (1.55 eV FWHM), Krause and Oliver, J. Phys. Chem. Ref. Data 8, 329 (1979)",
         "gaussian_fwhm_eV": 1.0,
         "gaussian_source": "incident resolution of the experiment compared with"
       }
@@ -77,7 +77,7 @@
           "definition": "maximum of the first derivative of a Cu metal spectrum computed with the same settings, after the same broadening"
         },
         "reference_value_eV": 8979.0,
-        "reference_source": "Bearden and Burr, Rev. Mod. Phys. 39, 125 (1967), Cu K edge",
+        "reference_source": "Cu K absorption-edge energy tabulated by Bearden and Burr, Rev. Mod. Phys. 39, 125 (1967), by convention assigned to the Cu foil first inflection",
         "shift_applied_eV": 8977.2,
         "notes": "One constant shift places the first inflection of a Cu metal spectrum computed with the same settings at the reference energy; the same shift is applied to this spectrum. E_before is the code's energy axis."
       }
