@@ -57,5 +57,6 @@ codex, grok and gemini, blind, on the changed sentences against the PI's rule.
 
 ## Ship and watch
 
-Ship: this pull request, wiki first. Watch: new XAS records state the value their standard's feature was set to,
+Shipped in #294 (portal v0.0.377), wiki first. Live: `/schema` serves the new descriptions; the measured example
+with no `reference_source` publishes with no warning; contract step 9 says ISAAC privileges no value. Watch: new XAS records state the value their standard's feature was set to,
 and none draws `CALIBRATION_INCOMPLETE` for a missing source.
