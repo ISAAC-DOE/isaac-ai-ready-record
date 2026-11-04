@@ -45,5 +45,6 @@ additive and documentation-only otherwise.
 
 ## Ship and watch
 
-- Ship: this pull request, wiki first.
+- Shipped: #290 (wiki pushed first), live in v0.0.373. Verified live: `POST /validate` accepts both units
+  without a note, and `GET /portal/api/ontology` serves `units.definitions`.
 - Watch: the MnF records get versioned edits (PUT, same record IDs) to the new unit; new OCEAN records use it.
