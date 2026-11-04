@@ -44,4 +44,5 @@ picked it." The shipped OCEAN example named its standard "Cu foil", measured in 
 
 ## Ship and watch
 
-Ship: this pull request, wiki first. Watch: computed records carry no measured-only calibration fields.
+Shipped in #296 (portal v0.0.379), wiki first. Live: `standard_acquisition` is `same_scan`, `same_session`,
+`other_session`; the three spectrum examples publish (the XSpectra example keeps its older `LINK_TARGET_NOT_FOUND`). Watch: computed records carry no measured-only calibration fields.
