@@ -60,3 +60,13 @@ codex, grok and gemini, blind, on the changed sentences against the PI's rule.
 Shipped in #294 (portal v0.0.377), wiki first. Live: `/schema` serves the new descriptions; the measured example
 with no `reference_source` publishes with no warning; contract step 9 says ISAAC privileges no value. Watch: new XAS records state the value their standard's feature was set to,
 and none draws `CALIBRATION_INCOMPLETE` for a missing source.
+
+## Edison (PaperQA3), 2026-11-05, after shipping
+
+Asked about Cu foil reference energies, edge definitions, HERFD and computed-spectrum alignment. It found no
+universally enforced convention: published work sets the Cu foil first inflection to 8979.0, 8979.2 or 8980.5 eV
+(Kraft et al. measured 8980.476 eV), one paper changed its assignment from 8979 to 8980.5 eV and moved every
+reported energy by 1.5 eV, and the gap between tabulated and measured foil values depends on the element (Cu
+1.48, Fe 1.25, Ti 1.75 eV). Published "edge positions" of CuO range from about 8983.5 eV (rising edge) to 8990.9 eV
+(a principal derivative peak), so a value means something only with its feature definition. Both support this
+change: record the set value and the definition, and privilege no value.
