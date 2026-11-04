@@ -110,19 +110,16 @@
         "total_offset_added_to_axis": false
       },
       "calibration": {
-        "standard": "Cu foil",
-        "standard_record_id": null,
-        "standard_detection_mode": "transmission",
-        "standard_acquisition": "none",
+        "standard": "Cu metal",
+        "standard_record_id": "01JFH8SPECXAS0000000000001",
         "feature": {
           "name": "first_inflection",
           "definition": "maximum of the first derivative of the anchor's normalized spectrum, located once at the series' nominal broadening"
         },
         "reference_value_eV": 8979.0,
-        "reference_source": "this group sets the Cu foil first inflection to 8979.0 eV, a value taken from Bearden and Burr, Rev. Mod. Phys. 39, 125 (1967)",
+        "reference_source": "set to the value this group uses for the first inflection of its measured Cu foil",
         "shift_applied_eV": 8811.7,
         "uncertainty": {
-          "experimental_eV": null,
           "broadening_sweep_eV": 0.1
         },
         "notes": "One shift for the whole series: E_calibrated = (E_OCEAN + C) + shift_applied_eV, with E_OCEAN the absspct energy and C the gauge's core offset."

@@ -635,12 +635,11 @@
       ]
     },
     "measurement.energy_axis.calibration.standard_acquisition": {
-      "description": "When the standard of a calibration was measured relative to the spectrum. same_scan: recorded with it (a reference channel). same_session: in the same beamtime. other_session: another time. none: no spectrum of the standard was measured for this work (a computed series, whose feature is located on the standard computed with the same settings).",
+      "description": "Measured spectra only: when the standard of a calibration was measured relative to the spectrum. same_scan: recorded with it (a reference channel). same_session: in the same beamtime. other_session: another time.",
       "values": [
         "same_scan",
         "same_session",
-        "other_session",
-        "none"
+        "other_session"
       ]
     },
     "measurement.energy_axis.gauge.core_hole": {

@@ -1345,11 +1345,11 @@
             "calibration": {
               "type": "object",
               "additionalProperties": false,
-              "description": "How the axis was placed on the experimental energy scale: the standard it was aligned to, the feature of that standard with its definition, the energy that feature was set to, and the constant shift applied. ISAAC records the convention used and privileges none: groups set the same edge to different energies. A spectrum A is expressed on the convention of a spectrum B, calibrated on the same standard, feature definition and standard detection mode, by E_B = E_A + (reference_value_eV of B - reference_value_eV of A); equivalently, E - reference_value_eV is the energy relative to the standard's feature, the same under any convention. For a computed series the feature is located, by its definition, on the standard computed with the same settings (the anchor). A measured spectrum states the standard its monochromator was calibrated on; a computed series states the standard it was shifted onto.",
+              "description": "What the axis was aligned to and the value it was set to: the standard, the feature of that standard with its definition, the energy that feature was set to, and the constant shift applied. For a measured spectrum this is the calibration of the instrument, and the fields on the standard's measurement apply. For a computed series it is a choice, and the record still states the feature with its definition, the set value and the shift: which computed compound, which feature under which definition, set to which value, the shift that placed it there, and why when the work says; standard_detection_mode, standard_acquisition and uncertainty.experimental_eV do not apply. ISAAC records the convention used and privileges none: groups set the same edge to different energies. A spectrum A is expressed on the convention of a spectrum B, set on the same standard material and feature definition (and, between measured spectra, the same standard detection mode), by E_B = E_A + (reference_value_eV of B - reference_value_eV of A); equivalently, E - reference_value_eV is the energy relative to the standard's feature, the same under any convention.",
               "properties": {
                 "standard": {
                   "type": "string",
-                  "description": "The reference material, e.g. 'Cu foil', 'LiF'."
+                  "description": "The material whose feature was set: for a measured spectrum, the measured standard (e.g. 'Cu foil'); for a computed series, the computed compound (e.g. 'Cu metal', usually the gauge's anchor)."
                 },
                 "standard_record_id": {
                   "type": [
@@ -1357,21 +1357,20 @@
                     "null"
                   ],
                   "pattern": "^[0-9A-Z]{26}$",
-                  "description": "The ISAAC record of the measured standard, when it is in the repository; null otherwise."
+                  "description": "The ISAAC record of the standard's spectrum: a measured standard with its own record, or the computed standard (often the gauge's anchor). Null otherwise."
                 },
                 "standard_detection_mode": {
                   "type": "string",
-                  "description": "How the standard was measured: 'transmission', 'TFY', 'PFY', 'TEY', 'HERFD', 'XRS', ... It is often another mode than the sample's (detection.mode), and the mode changes the shape of the feature and so where its definition locates it."
+                  "description": "Measured spectra only: how the standard was measured ('transmission', 'TFY', 'PFY', 'TEY', 'HERFD', 'XRS', ...). It is often another mode than the sample's (detection.mode), and the mode changes the shape of the feature and so where its definition locates it."
                 },
                 "standard_acquisition": {
                   "type": "string",
                   "enum": [
                     "same_scan",
                     "same_session",
-                    "other_session",
-                    "none"
+                    "other_session"
                   ],
-                  "description": "When the standard was measured relative to this spectrum. same_scan: recorded with it (a reference channel). same_session: in the same beamtime. other_session: another time. none: no spectrum of the standard was measured for this work (a computed series, whose feature is located on the standard computed with the same settings)."
+                  "description": "Measured spectra only: when the standard was measured relative to this spectrum. same_scan: recorded with it (a reference channel). same_session: in the same beamtime. other_session: another time."
                 },
                 "feature": {
                   "type": "object",
@@ -1394,7 +1393,7 @@
                 },
                 "reference_source": {
                   "type": "string",
-                  "description": "Where the set value comes from (a group or beamline convention, a table, a paper), when the work states it; left out when it does not. Never invented."
+                  "description": "Where the set value comes from, when the work states it: a table, a paper, a group or beamline convention, or that the value was simply chosen. Left out when the work does not say. Never invented."
                 },
                 "shift_applied_eV": {
                   "type": "number",
@@ -1409,7 +1408,7 @@
                         "number",
                         "null"
                       ],
-                      "description": "The uncertainty of the reference energy as measured (null when not stated)."
+                      "description": "Measured spectra only: the uncertainty of placing the standard's feature at its set value (null when not stated)."
                     },
                     "broadening_sweep_eV": {
                       "type": [
