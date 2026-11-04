@@ -76,11 +76,21 @@ def test_the_screening_grid_extends_more_than_two_bohr_beyond_the_shells(rmax, f
     assert ("SCREENING_GRID_TOO_SMALL" in _codes(r)) is fires
 
 
-@pytest.mark.parametrize("field", ["standard", "reference_value_eV", "reference_source"])
+@pytest.mark.parametrize("field", ["standard", "reference_value_eV"])
 def test_a_calibration_without_its_parts_is_caught(field):
     r = copy.deepcopy(MEASURED)
     del _axis(r)["calibration"][field]
     assert "CALIBRATION_INCOMPLETE" in _codes(r)
+
+
+def test_the_source_of_a_convention_is_optional():
+    """ISAAC records the energy a feature was set to and privileges no value; where the convention comes from is
+    context, so a calibration without it is complete."""
+    assert "reference_source" not in _axis(MEASURED)["calibration"]
+    assert "CALIBRATION_INCOMPLETE" not in _codes(MEASURED)
+    r = copy.deepcopy(OCEAN)
+    del _axis(r)["calibration"]["reference_source"]
+    assert "CALIBRATION_INCOMPLETE" not in _codes(r)
 
 
 @pytest.mark.parametrize("definition", [None, "not_reported", "  "])

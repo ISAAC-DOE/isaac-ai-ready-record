@@ -83,7 +83,6 @@
           "definition": "maximum of the first derivative of the Cu foil's normalized absorption"
         },
         "reference_value_eV": 8979.0,
-        "reference_source": "Cu K absorption-edge energy tabulated by Bearden and Burr, Rev. Mod. Phys. 39, 125 (1967), by convention assigned to the Cu foil first inflection",
         "shift_applied_eV": -0.6,
         "uncertainty": {
           "experimental_eV": 0.1

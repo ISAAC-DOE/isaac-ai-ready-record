@@ -627,7 +627,7 @@
       ]
     },
     "measurement.energy_axis.status": {
-      "description": "The state of the axis this record stores (the series energies and the energy descriptors). as_recorded: as the instrument or code wrote it, with no alignment or calibration stated. aligned: placed on an axis shared with other records (a computed series using one anchor's core offset; measured spectra aligned to a common reference), comparable within it but not on the absolute scale. absolute_calibrated: placed on the absolute scale by the calibration stated here.",
+      "description": "How a spectrum's energy axis stands, for the axis the record stores (the series energies and the energy descriptors). as_recorded: as the instrument or code wrote it, with no alignment or calibration stated. aligned: placed on an axis shared with other records (a computed series using one anchor's core offset; measured spectra aligned to a common reference), comparable within it but not on the experimental energy scale. absolute_calibrated: placed on the experimental energy scale, in eV, by the calibration stated here and under the convention it states.",
       "values": [
         "as_recorded",
         "aligned",
@@ -635,7 +635,7 @@
       ]
     },
     "measurement.energy_axis.calibration.standard_acquisition": {
-      "description": "When the standard of a calibration was measured relative to the spectrum. same_scan: recorded with it (a reference channel). same_session: in the same beamtime. other_session: another time. none: no spectrum of the standard was recorded for this work; only its reference energy was used.",
+      "description": "When the standard of a calibration was measured relative to the spectrum. same_scan: recorded with it (a reference channel). same_session: in the same beamtime. other_session: another time. none: no spectrum of the standard was measured for this work (a computed series, whose feature is located on the standard computed with the same settings).",
       "values": [
         "same_scan",
         "same_session",
