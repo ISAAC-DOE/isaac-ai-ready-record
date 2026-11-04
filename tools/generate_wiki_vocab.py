@@ -32,6 +32,7 @@ PAGE_SECTIONS = {
     "Computation.md": ["Computation"],
     "Assets.md": ["Assets"],
     "Links.md": ["Links"],
+    "Controlled-Vocabulary.md": ["Units"],
 }
 
 BEGIN = "<!-- BEGIN GENERATED:vocab -->"
@@ -66,8 +67,10 @@ def render_section(section_names):
                 left, right = (e.get("map_columns") or ["rejected alias", "canonical"])[:2]
                 lines.append(f"| {left} | {right} |")
                 lines.append("|---|---|")
+                prose = right == "meaning"   # a definition is a sentence, not a token to copy
                 for a, c in sorted(mp.items()):
-                    rhs = ", ".join(f"`{x}`" for x in c) if isinstance(c, list) else f"`{c}`"
+                    rhs = (", ".join(f"`{x}`" for x in c) if isinstance(c, list)
+                           else (str(c) if prose else f"`{c}`"))
                     lines.append(f"| `{a}` | {rhs} |")
             lines.append("")
     lines.append(END)
@@ -81,7 +84,9 @@ def apply(page_path, section_names):
         text = re.sub(re.escape(BEGIN) + r".*?" + re.escape(END), new_block, text, flags=re.S)
     else:
         # Replace a legacy hand-written appendix if present, else append
-        m = re.search(r"\n#+\s*(?:\d+\.\s*)?(?:Appendix:?\s*)?Controlled Vocabular.*?(?=\n## |\Z)", text, flags=re.S | re.I)
+        # Only a section heading (## or deeper) is replaced: a page whose TITLE says "Controlled Vocabulary"
+        # must keep its title and intro (Controlled-Vocabulary.md lost both to the old `#+` pattern).
+        m = re.search(r"\n##+\s*(?:\d+\.\s*)?(?:Appendix:?\s*)?Controlled Vocabular.*?(?=\n## |\Z)", text, flags=re.S | re.I)
         if m:
             text = text[:m.start()] + "\n" + new_block + "\n" + text[m.end():]
         else:
