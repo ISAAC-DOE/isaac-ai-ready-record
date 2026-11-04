@@ -1207,6 +1207,290 @@
             }
           }
         },
+        "energy_axis": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ],
+          "description": "How this spectrum's energy axis was aligned and calibrated, for measured and computed spectra alike. A computed spectrum has no absolute energy of its own until it is calibrated.",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "as_recorded",
+                "aligned",
+                "absolute_calibrated"
+              ],
+              "description": "The state of the axis this record stores (the series energies and the energy descriptors). as_recorded: as the instrument or code wrote it, with no alignment or calibration stated. aligned: placed on an axis shared with other records (a computed series using one anchor's core offset; measured spectra aligned to a common reference), comparable within it but not on the absolute scale. absolute_calibrated: placed on the absolute scale by the calibration stated here."
+            },
+            "detection": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "For a measured spectrum: how this spectrum was detected, as far as it sets the spectrum's energy resolution and the shape of its features. The effective core-hole broadening of a HERFD spectrum depends on the final-state width of the selected line, so its features are sharper than in conventional XAS. Other instrument settings stay in system.",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "description": "'transmission', 'TFY', 'PFY', 'TEY', 'HERFD', 'XRS', ..."
+                },
+                "emission_line": {
+                  "type": "string",
+                  "description": "HERFD: the emission line the analyzer selects, e.g. 'Ka1', 'Kb1,3', 'La1'."
+                },
+                "emission_energy_eV": {
+                  "type": "number",
+                  "description": "HERFD: the emission energy, in eV, the analyzer was set to. A setting off the line's maximum moves the spectrum's features."
+                },
+                "analyzer": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "HERFD: the analyzer crystal and reflection.",
+                  "properties": {
+                    "crystal": {
+                      "type": "string"
+                    },
+                    "reflection": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "incident_resolution_eV": {
+                  "type": "number",
+                  "description": "The incident-beam energy resolution, in eV."
+                },
+                "analyzer_resolution_eV": {
+                  "type": "number",
+                  "description": "HERFD: the analyzer energy resolution, in eV."
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            },
+            "gauge": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "For a computed spectrum (method family BSE): the anchor and core offset this record shares with its series, and this record's own run settings. Every field except anchor_record_id, core_offset_eV and core_offset_source describes this record's run. Spectra share a gauge when they use one anchor and core offset, one base functional, the same U on any species they share, and the same pseudopotential and core-level projectors of the absorber, core-hole treatment, screening model and scale factor, and code major version; screening radii need not be equal once both are at least 9 Bohr. Spectra in different gauges compare only through calibrations or ties.",
+              "properties": {
+                "anchor_record_id": {
+                  "type": "string",
+                  "pattern": "^[0-9A-Z]{26}$",
+                  "description": "The record of the anchor calculation whose core offset this series uses. The anchor is a record, never a number alone: two anchors of one compound can differ (two 64-atom LiF anchors: 137.059 and 137.129 eV)."
+                },
+                "core_offset_eV": {
+                  "type": "number",
+                  "description": "The core offset C this run used, frozen from the anchor. OCEAN's absspct energy is E - C; adding C back gives the axis the calibration shifts."
+                },
+                "core_offset_source": {
+                  "type": "string",
+                  "description": "Where C came from, e.g. 'computed on the LiF anchor (64-atom cell) at r = 9.5 Bohr, then frozen for the series'."
+                },
+                "functional": {
+                  "type": "string",
+                  "description": "This run's exchange-correlation functional with its Hubbard U, e.g. 'PBE+U (Mn 1.5 eV)', 'r2SCAN'. U can select a different electronic basin."
+                },
+                "magnetic_state": {
+                  "type": "string",
+                  "description": "This run's magnetic state: 'non-spin-polarized', 'FM', or which AFM ordering. With the functional and U it selects the electronic basin; two records of one compound in different magnetic states are two models."
+                },
+                "absorber_pseudopotential": {
+                  "type": "string",
+                  "description": "The pseudopotential of the absorbing element (e.g. its database name and version)."
+                },
+                "core_level_projectors": {
+                  "type": "string",
+                  "description": "The source of the absorber's core-level projectors (OCEAN: the OPF projectors that set the core-hole potential)."
+                },
+                "screening_radius_bohr": {
+                  "type": "number",
+                  "description": "The radius, in Bohr, of the screening shells used for the core-hole screening. Absolute core offsets need at least 9 Bohr."
+                },
+                "screening_grid_rmax_bohr": {
+                  "type": "number",
+                  "description": "The extent, in Bohr, of the radial grid of the screening calculation. It must exceed the screening radius by more than 2 Bohr (SCREENING_GRID_TOO_SMALL)."
+                },
+                "core_hole": {
+                  "type": "string",
+                  "enum": [
+                    "full",
+                    "half"
+                  ],
+                  "description": "Core-hole treatment of the final state: a full or a half core hole."
+                },
+                "screening_model": {
+                  "type": "string",
+                  "description": "The screening model, e.g. 'RPA'."
+                },
+                "screening_scale_factor": {
+                  "type": "number",
+                  "description": "The scale factor applied to the screening (OCEAN: scfac), e.g. 0.8."
+                },
+                "code_major_version": {
+                  "type": "string",
+                  "description": "The code and its major version, e.g. 'OCEAN 3'. Spectra are comparable across minor versions of one major version."
+                },
+                "total_offset_added_to_axis": {
+                  "type": "boolean",
+                  "description": "Must be false. OCEAN's core_shift.log total_offset is diagnostic: the spectrum already contains it, and adding it to the axis shifts every energy (TOTAL_OFFSET_ADDED_TO_AXIS)."
+                },
+                "transfer_residual_eV": {
+                  "type": "number",
+                  "description": "The uncertainty, in eV, that each comparison between different cells in this gauge adds: another compound, or the same compound in another supercell. Default 0.3 eV when absent."
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            },
+            "calibration": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "How the axis was placed on the absolute energy scale: one standard, one feature with its definition, one reference energy with its source, and the constant shift applied. A measured spectrum states the standard its monochromator was calibrated on; a computed series states the standard it was shifted onto.",
+              "properties": {
+                "standard": {
+                  "type": "string",
+                  "description": "The reference material, e.g. 'Cu foil', 'LiF'."
+                },
+                "standard_record_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[0-9A-Z]{26}$",
+                  "description": "The ISAAC record of the measured standard, when it is in the repository; null otherwise."
+                },
+                "standard_detection_mode": {
+                  "type": "string",
+                  "description": "How the standard was measured: 'transmission', 'TFY', 'PFY', 'TEY', 'HERFD', 'XRS', ... It is often another mode than the sample's (detection.mode), and the mode changes the shape of the feature and so where its definition locates it."
+                },
+                "standard_acquisition": {
+                  "type": "string",
+                  "enum": [
+                    "same_scan",
+                    "same_session",
+                    "other_session",
+                    "none"
+                  ],
+                  "description": "When the standard was measured relative to this spectrum. same_scan: recorded with it (a reference channel). same_session: in the same beamtime. other_session: another time. none: no spectrum of the standard was recorded for this work; only its reference energy was used (a computed series calibrated on a tabulated value)."
+                },
+                "feature": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "The spectral feature whose energy is matched, with the definition that locates it. Always give the definition (CALIBRATION_INCOMPLETE, TIE_WITHOUT_SCOPE): on MnF2/MnF3 F K, two definitions of the first peak move the computed shift by 1.5 eV.",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Short name of the feature (e.g. 'first_inflection', 'first_peak', 'onset_10pct', 'centre_of_mass')."
+                    },
+                    "definition": {
+                      "type": "string",
+                      "description": "How the feature is located, precise enough to reproduce: e.g. 'maximum of the first derivative of the normalized spectrum', 'first resolved peak at least 0.6 x maximum, at the experiment-matched broadening', 'centre of mass over 536-542 eV'."
+                    }
+                  }
+                },
+                "reference_value_eV": {
+                  "type": "number",
+                  "description": "The energy, in eV, assigned to the feature of the standard."
+                },
+                "reference_source": {
+                  "type": "string",
+                  "description": "Where the reference energy comes from (a paper, a table, a beamline convention). Tabulated edge energies and measured foil inflection energies differ by more than 1 eV for Cu: name the one used."
+                },
+                "shift_applied_eV": {
+                  "type": "number",
+                  "description": "The constant shift, in eV, that places the axis on the absolute scale: E_absolute = E_before + shift_applied_eV. E_before is the axis before calibration: for a measured spectrum, the monochromator reading; for a computed spectrum, the code's energy with the gauge's core offset added back (OCEAN: the absspct energy plus C). The energies this record stores (series and descriptors) are after the shift."
+                },
+                "uncertainty": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "experimental_eV": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "description": "The uncertainty of the reference energy as measured (null when not stated)."
+                    },
+                    "broadening_sweep_eV": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "description": "For a computed spectrum: half the range of the feature's position over the broadening sweep."
+                    }
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            },
+            "ties": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "to_record_id",
+                  "offset_eV"
+                ],
+                "description": "A measured offset between this record's axis and another gauge's, valid for the compound, edge and feature it was measured on.",
+                "properties": {
+                  "to_record_id": {
+                    "type": "string",
+                    "pattern": "^[0-9A-Z]{26}$",
+                    "description": "A record in the other gauge (usually its anchor)."
+                  },
+                  "offset_eV": {
+                    "type": "number",
+                    "description": "The feature's energy on the target's axis minus its energy on this record's axis, for the feature in scope: E(target axis) = E(this axis) + offset_eV. The other direction is the negative."
+                  },
+                  "sigma_eV": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Uncertainty of the offset; null until measured."
+                  },
+                  "scope": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Where the tie was measured. Used elsewhere, it adds the transfer residual (TIE_WITHOUT_SCOPE when incomplete).",
+                    "properties": {
+                      "compound": {
+                        "type": "string"
+                      },
+                      "edge": {
+                        "type": "string"
+                      },
+                      "feature": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "description": "The spectral feature whose energy is matched, with the definition that locates it. Always give the definition (CALIBRATION_INCOMPLETE, TIE_WITHOUT_SCOPE): on MnF2/MnF3 F K, two definitions of the first peak move the computed shift by 1.5 eV.",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Short name of the feature (e.g. 'first_inflection', 'first_peak', 'onset_10pct', 'centre_of_mass')."
+                          },
+                          "definition": {
+                            "type": "string",
+                            "description": "How the feature is located, precise enough to reproduce: e.g. 'maximum of the first derivative of the normalized spectrum', 'first resolved peak at least 0.6 x maximum, at the experiment-matched broadening', 'centre of mass over 536-542 eV'."
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        },
         "series": {
           "type": "array",
           "items": {
@@ -1791,7 +2075,10 @@
                 "CHE",
                 "microkinetic",
                 "machine_learning",
-                "semi_empirical"
+                "semi_empirical",
+                "BSE",
+                "multiple_scattering",
+                "multiplet"
               ],
               "description": "Method family."
             },
@@ -1918,6 +2205,98 @@
             }
           },
           "additionalProperties": false
+        },
+        "spectroscopy": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "For a computed spectrum: the edge, the broadening and the site average. How its energy axis was aligned and calibrated is in measurement.energy_axis.",
+          "properties": {
+            "edge": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "element": {
+                  "type": "string",
+                  "description": "Absorbing element, e.g. 'Cu'."
+                },
+                "shell": {
+                  "type": "string",
+                  "description": "Core level, e.g. '1s', '2p3/2'."
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Edge label, e.g. 'Cu K', 'Mn L3'."
+                }
+              }
+            },
+            "broadening": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "conventional",
+                    "HERFD"
+                  ],
+                  "description": "conventional: the core-hole lifetime sets the Lorentzian. HERFD: the final-state width of the selected emission line sets it, and features are sharper."
+                },
+                "lorentzian_hwhm_eV": {
+                  "type": "number",
+                  "description": "Lorentzian half width at half maximum, in eV. Core-hole width tables list full widths: store half."
+                },
+                "lorentzian_source": {
+                  "type": "string",
+                  "description": "Where the Lorentzian width comes from (a core-level width table, a final-state width)."
+                },
+                "gaussian_fwhm_eV": {
+                  "type": "number",
+                  "description": "Gaussian full width at half maximum, in eV (usually the incident resolution)."
+                },
+                "gaussian_source": {
+                  "type": "string",
+                  "description": "Where the Gaussian width comes from."
+                },
+                "sweep": {
+                  "type": "array",
+                  "description": "The broadening pairs the feature positions were also computed at; their half range is calibration.uncertainty.broadening_sweep_eV.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "lorentzian_hwhm_eV",
+                      "gaussian_fwhm_eV"
+                    ],
+                    "properties": {
+                      "lorentzian_hwhm_eV": {
+                        "type": "number"
+                      },
+                      "gaussian_fwhm_eV": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "site_average": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "absorber_sites": {
+                  "type": "integer",
+                  "description": "Number of absorber sites averaged."
+                },
+                "polarization": {
+                  "type": "string",
+                  "description": "How polarizations were averaged, e.g. 'isotropic average of x, y, z'."
+                }
+              }
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
         },
         "slab_model": {
           "type": "object",

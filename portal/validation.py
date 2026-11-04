@@ -1252,6 +1252,122 @@ def _source_and_method_warnings(record: dict) -> list:
     return warnings
 
 
+
+# How a spectrum's energy axis was aligned and calibrated (measurement.energy_axis, ledger change 17). A computed
+# spectrum has no absolute energy: its axis is relative to a reference the code chooses (in a Bethe-Salpeter code,
+# the core offset C of the series' anchor), and a series reaches the absolute scale only through a calibration on
+# a standard. The checks apply to X-ray spectra; peak_position counts only in eV.
+_ABSOLUTE_ENERGY_CLASSES = {"edge_position", "white_line_energy", "inflection_point_energy", "peak_position"}
+_XRAY_SPECTRA = {"XAS", "XANES", "EXAFS", "HERFD-XAS", "XES", "RIXS"}
+_SCREENING_GRID_MARGIN_BOHR = 2.0
+_GAUGED_FAMILIES = {"BSE"}
+
+
+def _is_xray_spectrum(record: dict) -> bool:
+    comp = record.get("computation") if isinstance(record.get("computation"), dict) else {}
+    meas = record.get("measurement") if isinstance(record.get("measurement"), dict) else {}
+    return bool(meas.get("energy_axis") or comp.get("spectroscopy")
+                or str((record.get("system") or {}).get("technique") or "") in _XRAY_SPECTRA)
+
+
+def _given(value) -> bool:
+    return value is not None and str(value).strip().lower() not in _NOT_GIVEN
+
+
+def _energy_axis_warnings(record: dict) -> list:
+    """A computed absolute energy without a calibration, and an energy_axis block that cannot be reproduced
+    (warnings)."""
+    if record.get("record_type") != "evidence":
+        return []
+    meas = record.get("measurement") if isinstance(record.get("measurement"), dict) else {}
+    axis = meas.get("energy_axis") if isinstance(meas.get("energy_axis"), dict) else None
+    warnings = []
+    if axis:
+        gauge = axis.get("gauge") if isinstance(axis.get("gauge"), dict) else {}
+        if gauge.get("total_offset_added_to_axis") is True:
+            warnings.append({
+                "code": "TOTAL_OFFSET_ADDED_TO_AXIS", "path": "measurement/energy_axis/gauge/total_offset_added_to_axis",
+                "message": ("The total core-level offset the code reports as a diagnostic was added to this energy "
+                            "axis. The spectrum already contains it, so every energy of the record is shifted by "
+                            "that amount. Rebuild the axis without it (the code's energy, plus the anchor's core "
+                            "offset, plus the calibration shift) and set total_offset_added_to_axis to false.")})
+        radius, rmax = gauge.get("screening_radius_bohr"), gauge.get("screening_grid_rmax_bohr")
+        if (isinstance(radius, (int, float)) and isinstance(rmax, (int, float))
+                and rmax <= radius + _SCREENING_GRID_MARGIN_BOHR):
+            warnings.append({
+                "code": "SCREENING_GRID_TOO_SMALL", "path": "measurement/energy_axis/gauge/screening_grid_rmax_bohr",
+                "message": (f"The screening grid extends to {rmax} Bohr with screening shells at {radius} Bohr. "
+                            f"The radial grid of the screening calculation must extend more than "
+                            f"{_SCREENING_GRID_MARGIN_BOHR:g} Bohr beyond the shells. Check the run's input; if "
+                            f"the grid was larger, correct the value.")})
+        comp = record.get("computation") if isinstance(record.get("computation"), dict) else {}
+        method = comp.get("method") if isinstance(comp.get("method"), dict) else {}
+        if method.get("family") in _GAUGED_FAMILIES and axis.get("status") in ("aligned", "absolute_calibrated"):
+            missing = [f for f in ("anchor_record_id", "core_offset_eV", "functional") if not _given(gauge.get(f))]
+            if missing:
+                warnings.append({
+                    "code": "GAUGE_INCOMPLETE", "path": "measurement/energy_axis/gauge",
+                    "message": (f"This {method.get('family')} spectrum is '{axis.get('status')}' and its gauge does "
+                                f"not state {', '.join(missing)}. Its axis is shared with a series through one "
+                                "anchor's core offset: name the anchor record, the core offset this run used and "
+                                "the functional with its U, or a reader cannot tell which spectra share its axis.")})
+        if axis.get("status") == "absolute_calibrated":
+            cal = axis.get("calibration") if isinstance(axis.get("calibration"), dict) else {}
+            feature = cal.get("feature") if isinstance(cal.get("feature"), dict) else {}
+            parts = [("standard", cal.get("standard")), ("feature.definition", feature.get("definition")),
+                     ("reference_value_eV", cal.get("reference_value_eV")),
+                     ("reference_source", cal.get("reference_source"))]
+            if _claims_calculation(record):
+                parts.append(("shift_applied_eV", cal.get("shift_applied_eV")))
+            missing = [f for f, v in parts if not _given(v)]
+            if missing:
+                warnings.append({
+                    "code": "CALIBRATION_INCOMPLETE", "path": "measurement/energy_axis/calibration",
+                    "message": ("energy_axis.status is absolute_calibrated, and the calibration does not state "
+                                f"{', '.join(missing)}. A calibration can be checked and reused only with the "
+                                "standard, the feature and the definition that locates it (two definitions of one "
+                                "peak can differ by more than 1 eV), the reference energy, and where that energy "
+                                "comes from (tabulated edge energies differ); a computed spectrum also needs the "
+                                "shift that placed it. Write what the source states. When it does not state one of "
+                                "them, say so in calibration.notes.")})
+        for i, tie in enumerate(axis.get("ties") or []):
+            if not isinstance(tie, dict):
+                continue
+            scope = tie.get("scope") if isinstance(tie.get("scope"), dict) else {}
+            feature = scope.get("feature") if isinstance(scope.get("feature"), dict) else {}
+            missing = [f for f, v in (("compound", scope.get("compound")), ("edge", scope.get("edge")),
+                                      ("feature.definition", feature.get("definition"))) if not _given(v)]
+            if missing:
+                warnings.append({
+                    "code": "TIE_WITHOUT_SCOPE", "path": f"measurement/energy_axis/ties/{i}/scope",
+                    "message": (f"The tie to {tie.get('to_record_id')} does not state its scope: "
+                                f"{', '.join(missing)}. A tie between two gauges holds for the compound, edge "
+                                "and feature it was measured on; used anywhere else it adds the transfer "
+                                "residual, so a reader needs the scope to know what the tie is worth.")})
+    if not axis and _claims_calculation(record) and _is_xray_spectrum(record):
+        names = []
+        for o in (record.get("descriptors") or {}).get("outputs") or []:
+            for d in (o.get("descriptors") or []) if isinstance(o, dict) else []:
+                name = str(d.get("name") or "")
+                cls = name.split(".")[0]
+                if (cls in _ABSOLUTE_ENERGY_CLASSES and d.get("kind") == "absolute"
+                        and (cls != "peak_position" or d.get("unit") == "eV") and name not in names):
+                    names.append(name)
+        if names:
+            warnings.append({
+                "code": "ENERGY_AXIS_NOT_STATED", "path": "measurement/energy_axis",
+                "message": (f"This computed spectrum reports energies ({', '.join(names[:4])}"
+                            f"{', ...' if len(names) > 4 else ''}) and does not say how its energy axis was placed "
+                            "(no measurement.energy_axis). A computed spectrum has no absolute energy of its own: "
+                            "its axis is relative to a reference the code chooses, and an absolute value means a "
+                            "constant shift placed it on a standard. State the axis: absolute_calibrated with the "
+                            "calibration (the standard, the feature and its definition, reference_value_eV, "
+                            "reference_source, shift_applied_eV); aligned with the gauge it shares with its series; "
+                            "or, when the source does not say, as_recorded with the gap named in energy_axis.notes. "
+                            "A source that aligned its spectra to its own measured spectrum names that compound as "
+                            "the standard.")})
+    return warnings
+
 # A checksum is the SHA-256 of the bytes at the asset's URI, or a placeholder that says why there is none. On
 # 2026-10-06, 842 stored records carried zeros or a word ("pending") in its place: zeros read as a real
 # checksum, and a word is none. One character repeated (all zeros) is a placeholder written as a hash.
@@ -2122,7 +2238,7 @@ def validate_record_full(record: dict) -> dict:
                 + _magnitude_warnings(record) + _competing_hypothesis_warnings(record)
                 + _second_hand_and_name_condition_warnings(record) + _prose_condition_warnings(record)
                 + _producer_name_warnings(record) + _source_and_method_warnings(record)
-                + _checksum_and_link_basis_warnings(record))
+                + _checksum_and_link_basis_warnings(record) + _energy_axis_warnings(record))
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)

@@ -1,0 +1,256 @@
+{
+  "isaac_record_version": "1.05",
+  "record_id": "01JFH8SPECXAS0000000000002",
+  "record_type": "evidence",
+  "record_domain": "simulation",
+  "source_type": "computation",
+  "timestamps": {
+    "created_utc": "2026-11-05T12:00:00Z"
+  },
+  "sample": {
+    "material": {
+      "name": "CuO tenorite, 2x2x2 supercell",
+      "formula": "CuO",
+      "provenance": "theoretical",
+      "notes": "Illustrative example. Relaxed geometry in asset input_structure."
+    },
+    "sample_form": "unit_cell",
+    "sample_id": "example_cu_k_series/CuO"
+  },
+  "context": {
+    "environment": "in_silico",
+    "temperature_K": 0,
+    "temperature_basis": "stated"
+  },
+  "system": {
+    "domain": "computational",
+    "technique": "XAS",
+    "facility": {
+      "facility_name": "NERSC",
+      "organization": "LBNL",
+      "cluster": "Perlmutter"
+    }
+  },
+  "computation": {
+    "method": {
+      "family": "BSE",
+      "code": "Quantum ESPRESSO + OCEAN",
+      "code_version": "OCEAN 3.2.0.1; Quantum ESPRESSO 7.4",
+      "functional_class": "GGA",
+      "functional_name": "PBE",
+      "basis_type": "planewave",
+      "pseudopotential": "ONCVPSP norm-conserving",
+      "spin_treatment": "collinear",
+      "core_hole_treatment": "BSE (OCEAN), Cu 1s full core hole, RPA-screened"
+    },
+    "spectroscopy": {
+      "edge": {
+        "element": "Cu",
+        "shell": "1s",
+        "label": "Cu K"
+      },
+      "broadening": {
+        "mode": "conventional",
+        "lorentzian_hwhm_eV": 0.78,
+        "lorentzian_source": "half of the Cu 1s core-hole width (1.55 eV FWHM), Krause and Oliver, J. Phys. Chem. Ref. Data 8, 329 (1979)",
+        "gaussian_fwhm_eV": 1.0,
+        "gaussian_source": "incident resolution of the experiment compared with",
+        "sweep": [
+          {
+            "lorentzian_hwhm_eV": 0.6,
+            "gaussian_fwhm_eV": 0.8
+          },
+          {
+            "lorentzian_hwhm_eV": 0.78,
+            "gaussian_fwhm_eV": 1.0
+          },
+          {
+            "lorentzian_hwhm_eV": 1.0,
+            "gaussian_fwhm_eV": 1.2
+          }
+        ]
+      },
+      "site_average": {
+        "absorber_sites": 16,
+        "polarization": "isotropic average of x, y and z"
+      }
+    },
+    "energy_reference": "Absolute axis: the series' relative axis (core offset from the Cu metal anchor) plus one constant shift that places the anchor's first inflection at the Cu-foil reference energy.",
+    "output_quantity": "simulated_spectrum"
+  },
+  "measurement": {
+    "processing": {
+      "steps": [
+        "averaging",
+        "broadening",
+        "energy_alignment",
+        "calibration"
+      ],
+      "recipe_link": {
+        "rel": "processing_recipe",
+        "target": "repo://example-ocean-workflow/cu_k_series/v1"
+      }
+    },
+    "energy_axis": {
+      "status": "absolute_calibrated",
+      "gauge": {
+        "anchor_record_id": "01JFH8SPECXAS0000000000001",
+        "core_offset_eV": 151.7,
+        "core_offset_source": "computed on the Cu metal anchor at r = 9.5 Bohr, then frozen for the series",
+        "functional": "PBE",
+        "magnetic_state": "AFM (tenorite ground-state ordering)",
+        "absorber_pseudopotential": "ONCVPSP Cu, norm-conserving",
+        "core_level_projectors": "OPF projectors generated for the Cu 1s core hole",
+        "screening_radius_bohr": 9.5,
+        "screening_grid_rmax_bohr": 12.0,
+        "core_hole": "full",
+        "screening_model": "RPA",
+        "screening_scale_factor": 0.8,
+        "code_major_version": "OCEAN 3",
+        "total_offset_added_to_axis": false
+      },
+      "calibration": {
+        "standard": "Cu foil",
+        "standard_record_id": null,
+        "standard_detection_mode": "transmission",
+        "standard_acquisition": "none",
+        "feature": {
+          "name": "first_inflection",
+          "definition": "maximum of the first derivative of the anchor's normalized spectrum, located once at the series' nominal broadening"
+        },
+        "reference_value_eV": 8979.0,
+        "reference_source": "Cu K absorption-edge energy tabulated by Bearden and Burr, Rev. Mod. Phys. 39, 125 (1967), by convention assigned to the Cu foil first inflection",
+        "shift_applied_eV": 8811.7,
+        "uncertainty": {
+          "experimental_eV": null,
+          "broadening_sweep_eV": 0.1
+        },
+        "notes": "One shift for the whole series: E_absolute = (E_OCEAN + C) + shift_applied_eV, with E_OCEAN the absspct energy and C the gauge's core offset."
+      }
+    },
+    "series": [
+      {
+        "series_id": "CuO_CuK_site_avg",
+        "independent_variables": [
+          {
+            "name": "energy",
+            "unit": "eV",
+            "values": [
+              8975.0,
+              8977.0,
+              8979.0,
+              8981.0,
+              8983.0,
+              8985.0,
+              8987.0,
+              8989.0,
+              8991.0,
+              8993.0,
+              8995.0
+            ]
+          }
+        ],
+        "channels": [
+          {
+            "name": "absorption",
+            "unit": "ocean_intensity_au",
+            "role": "simulated_observable",
+            "values": [
+              0.01,
+              0.03,
+              0.08,
+              0.21,
+              0.35,
+              0.52,
+              0.88,
+              1.21,
+              1.1,
+              0.98,
+              1.02
+            ]
+          }
+        ]
+      }
+    ],
+    "qc": {
+      "status": "valid",
+      "assumptions": [
+        "Illustrative values: this record shows the form, not a result."
+      ]
+    }
+  },
+  "attribution": {
+    "contributors": [
+      {
+        "name": "Example PI",
+        "role": "data_owner",
+        "affiliation": "Example National Laboratory"
+      }
+    ],
+    "produced_by": {
+      "group": "Example PI group",
+      "organization": "Example National Laboratory"
+    }
+  },
+  "assets": [
+    {
+      "asset_id": "input_structure",
+      "content_role": "input_structure",
+      "uri": "repo://example-ocean-workflow/cu_k_series/CuO/structure.xyz",
+      "media_type": "chemical/x-xyz",
+      "sha256": "not_available",
+      "notes": "Geometry fed to OCEAN."
+    },
+    {
+      "asset_id": "ocean_input",
+      "content_role": "workflow_recipe",
+      "uri": "repo://example-ocean-workflow/cu_k_series/CuO/ocean.in",
+      "media_type": "text/plain",
+      "sha256": "not_available",
+      "notes": "OCEAN input as run."
+    }
+  ],
+  "links": [],
+  "descriptors": {
+    "outputs": [
+      {
+        "label": "spectral_features",
+        "generated_utc": "2026-11-05T12:00:00Z",
+        "generated_by": {
+          "agent": "example_feature_extraction",
+          "version": "1.0"
+        },
+        "descriptors": [
+          {
+            "name": "edge_position.Cu_K",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 8983.4,
+            "unit": "eV",
+            "definition": "maximum of the first derivative of the normalized site-averaged spectrum, on the calibrated axis",
+            "uncertainty": {
+              "sigma": 0.1,
+              "unit": "eV",
+              "basis": "broadening_sweep",
+              "notes": "half range over the broadening sweep"
+            }
+          },
+          {
+            "name": "white_line_energy.Cu_K",
+            "kind": "absolute",
+            "source": "auto",
+            "value": 8989.0,
+            "unit": "eV",
+            "definition": "energy of the maximum of the normalized site-averaged spectrum, on the calibrated axis",
+            "uncertainty": {
+              "sigma": 0.2,
+              "unit": "eV",
+              "basis": "broadening_sweep",
+              "notes": "half range over the broadening sweep"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

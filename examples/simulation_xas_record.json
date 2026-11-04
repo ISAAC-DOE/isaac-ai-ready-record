@@ -42,6 +42,20 @@
       "core_hole_treatment": "final_state_rule",
       "notes": "XAS computed with the XSpectra module of Quantum ESPRESSO on the relaxed geometry in asset structure_relaxed.",
       "code": "Quantum ESPRESSO"
+    },
+    "spectroscopy": {
+      "edge": {
+        "element": "Cu",
+        "shell": "1s",
+        "label": "Cu K"
+      },
+      "broadening": {
+        "mode": "conventional",
+        "lorentzian_hwhm_eV": 0.78,
+        "lorentzian_source": "half of the Cu 1s core-hole width (1.55 eV FWHM), Krause and Oliver, J. Phys. Chem. Ref. Data 8, 329 (1979)",
+        "gaussian_fwhm_eV": 1.0,
+        "gaussian_source": "incident resolution of the experiment compared with"
+      }
     }
   },
   "measurement": {
@@ -50,6 +64,22 @@
       "recipe_link": {
         "rel": "processing_recipe",
         "target": "repo://isaac-workflows/qe_xspectra/cu111_co/v1.0"
+      }
+    },
+    "energy_axis": {
+      "status": "absolute_calibrated",
+      "calibration": {
+        "standard": "Cu foil",
+        "standard_detection_mode": "transmission",
+        "standard_acquisition": "none",
+        "feature": {
+          "name": "first_inflection",
+          "definition": "maximum of the first derivative of a Cu metal spectrum computed with the same settings, after the same broadening"
+        },
+        "reference_value_eV": 8979.0,
+        "reference_source": "Cu K absorption-edge energy tabulated by Bearden and Burr, Rev. Mod. Phys. 39, 125 (1967), by convention assigned to the Cu foil first inflection",
+        "shift_applied_eV": 8977.2,
+        "notes": "One constant shift places the first inflection of a Cu metal spectrum computed with the same settings at the reference energy; the same shift is applied to this spectrum. E_before is the code's energy axis."
       }
     },
     "series": [
@@ -185,6 +215,13 @@
     ]
   },
   "attribution": {
+    "contributors": [
+      {
+        "name": "Example PI",
+        "role": "data_owner",
+        "affiliation": "SLAC National Accelerator Laboratory"
+      }
+    ],
     "produced_by": {
       "group": "ISAAC",
       "organization": "SLAC National Accelerator Laboratory"

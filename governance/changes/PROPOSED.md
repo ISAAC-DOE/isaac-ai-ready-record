@@ -1,5 +1,8 @@
 # Proposed changes (gate 0 drafts)
 
+- **Energy axis, phase 2:** `GET /records/{a}/alignment?to={b}` and the API checks `DIFFERENTIAL_NOT_ALIGNED` and
+  `SCREENING_RADII_NOT_COMPARABLE` ([2026-11-05-17](2026-11-05-17-energy-axis.md), section 4 and the review notes).
+
 Each becomes a numbered entry when it starts through the gates.
 
 - **Rietveld results of our XRD records** (4 records). Lattice parameters take the canonical class with the

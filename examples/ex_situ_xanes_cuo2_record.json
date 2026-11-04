@@ -61,6 +61,36 @@
         "target": "workflow://xanes_reduction/v2"
       }
     },
+    "energy_axis": {
+      "status": "absolute_calibrated",
+      "detection": {
+        "mode": "HERFD",
+        "emission_line": "Ka1",
+        "emission_energy_eV": 8047.8,
+        "analyzer": {
+          "crystal": "Si",
+          "reflection": "(444)"
+        },
+        "incident_resolution_eV": 0.3,
+        "analyzer_resolution_eV": 0.6
+      },
+      "calibration": {
+        "standard": "Cu foil",
+        "standard_detection_mode": "transmission",
+        "standard_acquisition": "same_scan",
+        "feature": {
+          "name": "first_inflection",
+          "definition": "maximum of the first derivative of the Cu foil's normalized absorption"
+        },
+        "reference_value_eV": 8979.0,
+        "reference_source": "Cu K absorption-edge energy tabulated by Bearden and Burr, Rev. Mod. Phys. 39, 125 (1967), by convention assigned to the Cu foil first inflection",
+        "shift_applied_eV": -0.6,
+        "uncertainty": {
+          "experimental_eV": 0.1
+        },
+        "notes": "Cu foil measured in transmission downstream of the sample in every scan; each scan shifted so the foil's first inflection is at 8979.0 eV before averaging (mean shift -0.6 eV)."
+      }
+    },
     "series": [
       {
         "series_id": "averaged_spectrum",
@@ -171,6 +201,13 @@
     ]
   },
   "attribution": {
+    "contributors": [
+      {
+        "name": "Example PI",
+        "role": "data_owner",
+        "affiliation": "SLAC National Accelerator Laboratory"
+      }
+    ],
     "produced_by": {
       "group": "SSRL beamline 15-2",
       "organization": "SLAC National Accelerator Laboratory"

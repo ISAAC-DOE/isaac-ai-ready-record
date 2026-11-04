@@ -21,7 +21,7 @@ Declares the core electronic structure settings.
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `family` | enum | No | `DFT`, `DFT_U`, `hybrid_DFT`, `AIMD`, `classical_MD`, `CHE`, `microkinetic`, `machine_learning`, `semi_empirical` |
+| `family` | enum | No | `DFT`, `DFT_U`, `hybrid_DFT`, `AIMD`, `classical_MD`, `CHE`, `microkinetic`, `machine_learning`, `semi_empirical`, `BSE`, `multiple_scattering`, `multiplet` (the wiki's Computation page is current) |
 | `functional_class` | enum | No | `LDA`, `GGA`, `meta_GGA`, `hybrid`, `double_hybrid`, `RPA` |
 | `functional_name` | string | No | Specific functional: `PBE`, `RPBE`, `BEEF-vdW`, `HSE06`, `SCAN`, etc. |
 | `basis_type` | enum | No | `planewave`, `LCAO`, `real_space`, `mixed` |
