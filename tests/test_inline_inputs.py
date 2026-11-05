@@ -88,3 +88,16 @@ def test_inline_content_above_the_limit_is_caught():
     a = _asset(r, "ocean_input")
     a["content"], a["sha256"] = text, hashlib.sha256(text.encode()).hexdigest()
     assert "INLINE_CONTENT_TOO_LARGE" in _codes(r)
+
+
+def test_a_restricted_input_is_named_not_asked_for_and_never_inlined():
+    r = copy.deepcopy(OCEAN)
+    r["assets"].append({"asset_id": "potcar", "content_role": "workflow_recipe", "redistribution": "restricted",
+                        "uri": "file:///global/cfs/cdirs/m0000/run/POTCAR", "sha256": "a" * 63 + "b",
+                        "notes": "PAW_PBE Cu_pv 06Sep2000; licensed, named only."})
+    assert "INPUT_NOT_REACHABLE" not in _codes(r)
+    r["assets"][-1]["content"] = "PAW_PBE Cu_pv 06Sep2000\n..."
+    assert "RESTRICTED_FILE_INLINED" in _codes(r)
+    r["assets"][-1].pop("content")
+    r["assets"][-1].pop("redistribution")
+    assert "INPUT_NOT_REACHABLE" in _codes(r)

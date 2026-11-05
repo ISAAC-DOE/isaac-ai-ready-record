@@ -9,7 +9,7 @@
   },
   "sample": {
     "material": {
-      "name": "CuO tenorite, 2x2x2 supercell",
+      "name": "CuO tenorite, conventional cell (8 atoms)",
       "formula": "CuO",
       "provenance": "theoretical",
       "notes": "Illustrative example. Relaxed geometry in asset input_structure."
@@ -70,9 +70,52 @@
           }
         ]
       },
+      "transition": {
+        "operator": "dipole_quadrupole",
+        "vectors": [
+          {
+            "e": [
+              1,
+              0,
+              0
+            ],
+            "k": [
+              0,
+              1,
+              0
+            ]
+          },
+          {
+            "e": [
+              0,
+              1,
+              0
+            ],
+            "k": [
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "e": [
+              0,
+              0,
+              1
+            ],
+            "k": [
+              1,
+              0,
+              0
+            ]
+          }
+        ],
+        "average": "mean over the three (e, k) pairs",
+        "energy_eV": 8979.0,
+        "notes": "OCEAN keyword: quad"
+      },
       "site_average": {
-        "absorber_sites": 16,
-        "polarization": "isotropic average of x, y and z"
+        "absorber_sites": 16
       }
     },
     "energy_reference": "Absolute axis: the series' relative axis (core offset from the Cu metal anchor) plus one constant shift that places the anchor's first inflection at the Cu-foil reference energy.",

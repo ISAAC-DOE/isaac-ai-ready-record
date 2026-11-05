@@ -1259,7 +1259,7 @@ def _source_and_method_warnings(record: dict) -> list:
 # Bethe-Salpeter code, the core offset C of the series' anchor), and a series reaches that scale only through a calibration on
 # a standard. The checks apply to X-ray spectra; peak_position counts only in eV.
 _ABSOLUTE_ENERGY_CLASSES = {"edge_position", "white_line_energy", "inflection_point_energy", "peak_position"}
-_XRAY_SPECTRA = {"XAS", "XANES", "EXAFS", "HERFD-XAS", "XES", "RIXS"}
+_XRAY_SPECTRA = {"XAS", "XANES", "EXAFS", "HERFD-XAS", "XES", "RIXS", "XRS"}
 _SCREENING_GRID_MARGIN_BOHR = 2.0
 _GAUGED_FAMILIES = {"BSE"}
 
@@ -1447,6 +1447,100 @@ def _checksum_and_link_basis_warnings(record: dict) -> list:
 
 
 
+
+# The transition operator sets what a spectrum is (ledger change 21): XAS in the dipole or dipole-plus-quadrupole
+# approximation, or X-ray Raman scattering (XRS) with the full momentum-transfer operator. XRS needs its |q|, kept in
+# one unit (inverse angstrom) beside the value as written, so a unit slip shows.
+_ABSORPTION_TECHNIQUES = {"XAS", "XANES", "EXAFS", "HERFD-XAS"}
+_TO_INVERSE_ANGSTROM = {"inverse_angstrom": 1.0, "inverse_bohr": 1 / 0.529177210903, "inverse_nm": 0.1}
+
+
+def _q_conversion_warning(block: dict, path: str):
+    q, written = block.get("q_inverse_angstrom"), block.get("q_as_written")
+    if not (isinstance(q, (int, float)) and isinstance(written, dict)):
+        return None
+    value, factor = written.get("value"), _TO_INVERSE_ANGSTROM.get(written.get("unit"))
+    if not isinstance(value, (int, float)) or factor is None:
+        return None
+    expected = value * factor
+    if abs(expected - q) <= 0.01 * max(abs(expected), 1.0):
+        return None
+    return {"code": "Q_CONVERSION_MISMATCH", "path": f"{path}/q_inverse_angstrom",
+            "message": (f"q_as_written is {value} {written.get('unit')}, which is {expected:.3f} inverse angstrom, but "
+                        f"q_inverse_angstrom is {q}. One of the two carries a unit slip (a value in inverse bohr read as "
+                        "inverse angstrom, or the reverse). Check the input the code read and correct the wrong one.")}
+
+
+def _vec3(x) -> bool:
+    return isinstance(x, list) and len(x) == 3 and all(isinstance(c, (int, float)) for c in x) and any(x)
+
+
+def _norm(x) -> float:
+    return sum(c * c for c in x) ** 0.5
+
+
+def _transition_warnings(record: dict) -> list:
+    """A technique the operator or the detection contradicts, XRS without its momentum transfer, a quadrupole term
+    without its vectors, and a q whose two statements disagree (warnings)."""
+    if record.get("record_type") != "evidence":
+        return []
+    technique = str((record.get("system") or {}).get("technique") or "")
+    comp = record.get("computation") if isinstance(record.get("computation"), dict) else {}
+    spec = comp.get("spectroscopy") if isinstance(comp.get("spectroscopy"), dict) else {}
+    tr = spec.get("transition") if isinstance(spec.get("transition"), dict) else {}
+    meas = record.get("measurement") if isinstance(record.get("measurement"), dict) else {}
+    axis = meas.get("energy_axis") if isinstance(meas.get("energy_axis"), dict) else {}
+    det = axis.get("detection") if isinstance(axis.get("detection"), dict) else {}
+    warnings = []
+    op = tr.get("operator")
+    measured_q = det.get("q_inverse_angstrom") is not None or det.get("scattering_angle_deg") is not None
+    if op and technique == "XRS" and op != "momentum_transfer":
+        why = f"technique XRS but the operator is {op}"
+    elif op == "momentum_transfer" and technique and technique != "XRS":
+        why = f"technique {technique} but the operator is momentum_transfer"
+    elif not op and technique in _ABSORPTION_TECHNIQUES and measured_q:
+        why = f"technique {technique} with a momentum transfer or scattering angle in the detection"
+    else:
+        why = None
+    if why:
+        warnings.append({
+            "code": "XRS_TECHNIQUE_MISMATCH", "path": "system/technique",
+            "message": (f"This record states {why}. X-ray Raman scattering (XRS) is computed with the full "
+                        "momentum-transfer operator and measured at a momentum transfer; absorption (XAS, XANES, EXAFS, "
+                        "HERFD-XAS) with the dipole or dipole-plus-quadrupole operator. A source may call XRS 'XAS by "
+                        "inelastic scattering': the technique is XRS. For a calculation the operator the code read "
+                        "decides, whatever its run label says.")})
+    if technique == "XRS" or op == "momentum_transfer":
+        calc = _claims_calculation(record)
+        block, path = (tr, "computation/spectroscopy/transition") if calc else (det, "measurement/energy_axis/detection")
+        if not isinstance(block.get("q_inverse_angstrom"), (int, float)):
+            warnings.append({
+                "code": "XRS_WITHOUT_Q", "path": f"{path}/q_inverse_angstrom",
+                "message": ("An X-ray Raman (XRS) spectrum depends on its momentum transfer: at low q it takes the "
+                            "dipole shape with an intensity that grows as q^2, at higher q further multipoles contribute. "
+                            f"State |q| in {path.replace('/', '.')}.q_inverse_angstrom; put the value the "
+                            + ("input" if calc else "source") + " writes in q_as_written only when it writes one, and "
+                            "when only the scattering angle and energies are given, compute |q| from them and say so in "
+                            "notes.")})
+    if op == "dipole_quadrupole":
+        vectors = tr.get("vectors") if isinstance(tr.get("vectors"), list) else []
+        pairs = [x for x in vectors if isinstance(x, dict) and _vec3(x.get("e")) and _vec3(x.get("k"))]
+        gap = ("no (e, k) pair for every vector" if not vectors or len(pairs) < len(vectors)
+               else "e not perpendicular to k" if any(abs(sum(a * b for a, b in zip(x["e"], x["k"]))) > 0.01
+                                                    * _norm(x["e"]) * _norm(x["k"]) for x in pairs)
+               else "no energy_eV, which sets |k|" if not isinstance(tr.get("energy_eV"), (int, float)) else None)
+        if gap:
+            warnings.append({
+                "code": "QUADRUPOLE_WITHOUT_WAVE_VECTOR", "path": "computation/spectroscopy/transition/vectors",
+                "message": (f"The quadrupole term depends on the polarization e and the photon wave-vector k together, "
+                            f"with e perpendicular to k and |k| set by the photon energy; this record has {gap}. State "
+                            "each (e, k) pair and energy_eV as the source gives them; never invent a direction.")})
+    for block, path in ((tr, "computation/spectroscopy/transition"), (det, "measurement/energy_axis/detection")):
+        w = _q_conversion_warning(block, path)
+        if w:
+            warnings.append(w)
+    return warnings
+
 # A calculation can be rerun and checked only from inputs its readers can open (ledger change 20). A file at a path
 # only its producer can reach (file://, a cluster path, a private scheme) is provenance, not a copy: the record holds
 # the file's text in content, or points to a public copy. Literature records cite their paper instead.
@@ -1464,8 +1558,14 @@ def _asset_input_warnings(record: dict) -> list:
     for i, a in enumerate(_assets(record)):
         content = a.get("content")
         is_input = a.get("content_role") in _INPUT_ROLES
+        restricted = a.get("redistribution") == "restricted"
         inputs += is_input
-        if isinstance(content, str) and content:
+        if restricted and isinstance(content, str) and content:
+            warnings.append({
+                "code": "RESTRICTED_FILE_INLINED", "path": f"assets/{i}/content",
+                "message": (f"Asset '{a.get('asset_id')}' is marked redistribution: restricted and carries its text inline. A "
+                            "file whose license forbids copying it is named and checksummed, never copied: remove content.")})
+        elif isinstance(content, str) and content:
             data = content.encode("utf-8")
             if len(data) > _INLINE_LIMIT_BYTES:
                 warnings.append({
@@ -1481,7 +1581,8 @@ def _asset_input_warnings(record: dict) -> list:
                                 "content, sha256 is the hash of that text as UTF-8 bytes, so a reader can tell the copy "
                                 "is the file the calculation read. Copy the file unchanged (never retyped, completed "
                                 "or cut) and hash that.")})
-        elif record.get("source_type") == "computation" and is_input and not _PUBLIC_URI.match(str(a.get("uri") or "")):
+        elif (record.get("source_type") == "computation" and is_input and not restricted
+              and not _PUBLIC_URI.match(str(a.get("uri") or ""))):
             private.append((i, a))
     if record.get("source_type") == "computation" and (private or not inputs):
         if private:
@@ -1495,7 +1596,8 @@ def _asset_input_warnings(record: dict) -> list:
             "message": (f"This calculation {what}. A reader cannot rerun it or check how it was done. Carry the small "
                         "text files the code read (structure, input deck, k-points) as the assets' content, copied "
                         "unchanged with sha256 the hash of that text, or point uri to a public copy (https, or a DOI). "
-                        "Name a file whose license forbids copying it (some pseudopotential libraries) instead of copying it.")})
+                        "A file whose license forbids copying it (some pseudopotential libraries) stays named and "
+                        "checksummed with redistribution: restricted.")})
     return warnings
 
 def link_target_warnings(record: dict, known_ids) -> list:
@@ -2293,7 +2395,7 @@ def validate_record_full(record: dict) -> dict:
                 + _second_hand_and_name_condition_warnings(record) + _prose_condition_warnings(record)
                 + _producer_name_warnings(record) + _source_and_method_warnings(record)
                 + _checksum_and_link_basis_warnings(record) + _energy_axis_warnings(record)
-                + _asset_input_warnings(record))
+                + _asset_input_warnings(record) + _transition_warnings(record))
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)
