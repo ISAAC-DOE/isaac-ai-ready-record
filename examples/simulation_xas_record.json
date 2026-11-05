@@ -126,16 +126,18 @@
       "content_role": "input_structure",
       "uri": "nersc://isaac/simxas/cu111_co/relaxed_structure.xyz",
       "media_type": "chemical/x-xyz",
-      "sha256": "not_available",
-      "notes": "Relaxed geometry used for XAS simulation. Contains full atomic coordinates."
+      "sha256": "97b57eb67b5a4d1181a9a47b618234793b7a315a1b7c7b459bc29a9d9b5ba145",
+      "notes": "Relaxed geometry used for the XAS simulation (extended XYZ), inline (example record).",
+      "content": "18\nLattice=\"5.1124 0.0000 0.0000 2.5562 4.4275 0.0000 0.0000 0.0000 22.0000\" Properties=species:S:1:pos:R:3 pbc=\"T T T\"\nCu     0.0000     0.0000     0.0000\nCu     1.2781     2.2137     0.0000\nCu     2.5562     0.0000     0.0000\nCu     3.8343     2.2137     0.0000\nCu     1.2781     0.7379     2.0871\nCu     2.5562     2.9516     2.0871\nCu     3.8343     0.7379     2.0871\nCu     5.1124     2.9516     2.0871\nCu     2.5562     1.4758     4.1742\nCu     3.8343     3.6895     4.1742\nCu     5.1124     1.4758     4.1742\nCu     6.3905     3.6895     4.1742\nCu     0.0000     0.0000     6.2614\nCu     1.2781     2.2137     6.2614\nCu     2.5562     0.0000     6.2614\nCu     3.8343     2.2137     6.2614\nC      0.0000     0.0000     8.1014\nO      0.0000     0.0000     9.2514\n"
     },
     {
       "asset_id": "qe_inputs",
       "content_role": "workflow_recipe",
       "uri": "repo://isaac-workflows/qe_xspectra/cu111_co/v1.0",
       "media_type": "text/plain",
-      "sha256": "not_available",
-      "notes": "QE/XSpectra input decks and run script."
+      "sha256": "895c861e75730bb493e86e1ea63b745506bb7d0ae24721fb3d49c071b4dfaf07",
+      "notes": "Quantum ESPRESSO pw.x ground-state input, inline (example record); pseudopotentials from pslibrary 1.0.0.",
+      "content": "&control\n  calculation = 'scf', prefix = 'cu111_co', pseudo_dir = './pseudo', outdir = './tmp'\n/\n&system\n  ibrav = 0, nat = 18, ntyp = 3, ecutwfc = 50, ecutrho = 400,\n  occupations = 'smearing', smearing = 'mv', degauss = 0.01\n/\n&electrons\n  conv_thr = 1.0d-8, mixing_beta = 0.3\n/\nATOMIC_SPECIES\n  Cu 63.546 Cu.pbe-dn-kjpaw_psl.1.0.0.UPF\n  C  12.011 C.pbe-n-kjpaw_psl.1.0.0.UPF\n  O  15.999 O.pbe-n-kjpaw_psl.1.0.0.UPF\nCELL_PARAMETERS angstrom\n  5.1124 0.0000 0.0000\n  2.5562 4.4275 0.0000\n  0.0000 0.0000 22.0000\nATOMIC_POSITIONS angstrom\n  Cu     0.0000     0.0000     0.0000\n  Cu     1.2781     2.2137     0.0000\n  Cu     2.5562     0.0000     0.0000\n  Cu     3.8343     2.2137     0.0000\n  Cu     1.2781     0.7379     2.0871\n  Cu     2.5562     2.9516     2.0871\n  Cu     3.8343     0.7379     2.0871\n  Cu     5.1124     2.9516     2.0871\n  Cu     2.5562     1.4758     4.1742\n  Cu     3.8343     3.6895     4.1742\n  Cu     5.1124     1.4758     4.1742\n  Cu     6.3905     3.6895     4.1742\n  Cu     0.0000     0.0000     6.2614\n  Cu     1.2781     2.2137     6.2614\n  Cu     2.5562     0.0000     6.2614\n  Cu     3.8343     2.2137     6.2614\n  C      0.0000     0.0000     8.1014\n  O      0.0000     0.0000     9.2514\nK_POINTS automatic\n  6 6 1 0 0 0\n"
     },
     {
       "asset_id": "xas_fullres",

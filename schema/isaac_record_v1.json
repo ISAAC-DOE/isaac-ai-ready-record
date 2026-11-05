@@ -1730,7 +1730,12 @@
             "type": "string"
           },
           "sha256": {
-            "type": "string"
+            "type": "string",
+            "description": "SHA-256 of the bytes at uri, or of content when the asset carries its text inline; 'not_available_literature_source' or 'not_available' when there is none to compute."
+          },
+          "content": {
+            "type": "string",
+            "description": "The file's text, inline, so that a reader holds the file itself: the small text files a calculation read (structure, input deck, k-points) or any other small text file. Copy a file you hold unchanged; never retype, complete or cut it. Up to 100 kB of UTF-8 text (INLINE_CONTENT_TOO_LARGE); sha256 is the hash of these UTF-8 bytes and is required with content (INLINE_CONTENT_CHECKSUM_MISMATCH); uri keeps the original location. Binary files and bulk outputs stay at their uri. Never inline a file whose license forbids redistribution (a VASP POTCAR: name it in computation.method.pseudopotential) or one holding credentials."
           },
           "media_type": {
             "type": "string"
