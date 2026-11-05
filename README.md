@@ -24,7 +24,8 @@ The **[Wiki](https://github.com/ISAAC-DOE/isaac-ai-ready-record/wiki)** is the n
 *   `examples/`: **Golden Records** demonstrating 100% compliant usage across domains:
     *   `operando_xanes_co2rr_record.json`: Operando characterization.
     *   `simulation_xas_record.json`: Computational simulation.
-    *   `ocean_xas_calibrated_record.json`: A computed spectrum on the absolute energy scale (`measurement.energy_axis`).
+    *   `ocean_xas_calibrated_record.json`: A computed spectrum calibrated through its series' anchor (`measurement.energy_axis`), with its transition operator.
+    *   `ocean_xrs_record.json`: A computed X-ray Raman (XRS) spectrum: momentum-transfer operator and q, inputs inline.
     *   `ex_situ_xanes_cuo2_record.json`: Basic experimental characterization.
     *   `co2rr_performance_record.json`: Flow cell performance.
     *   `echem_performance_record.json`: RDE electrochemistry.

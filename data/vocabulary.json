@@ -380,6 +380,7 @@
         "HERFD-XAS",
         "XES",
         "RIXS",
+        "XRS",
         "XPS",
         "XRF",
         "XRD",
@@ -648,6 +649,14 @@
         "full",
         "half"
       ]
+    },
+    "measurement.energy_axis.detection.q_as_written.unit": {
+      "description": "Unit of a measured momentum transfer as the source states it.",
+      "values": [
+        "inverse_angstrom",
+        "inverse_bohr",
+        "inverse_nm"
+      ]
     }
   },
   "Assets": {
@@ -674,6 +683,13 @@
         "source",
         "reports_this_work",
         "reference"
+      ]
+    },
+    "assets.redistribution": {
+      "description": "Whether an attached file may be copied. restricted: its license forbids copying it (a VASP POTCAR): named and checksummed, never copied into content. open: may be copied (the default when absent).",
+      "values": [
+        "open",
+        "restricted"
       ]
     }
   },
@@ -1246,6 +1262,22 @@
         "HERFD"
       ]
     },
+    "computation.spectroscopy.transition.operator": {
+      "description": "The transition operator of a computed spectrum. dipole: e.r (E1). dipole_quadrupole: e.r plus the quadrupole term, added coherently (E1+E2). momentum_transfer: the full exp(iq.r), for X-ray Raman scattering (XRS).",
+      "values": [
+        "dipole",
+        "dipole_quadrupole",
+        "momentum_transfer"
+      ]
+    },
+    "computation.spectroscopy.transition.q_as_written.unit": {
+      "description": "Unit of a momentum transfer as the input states it.",
+      "values": [
+        "inverse_angstrom",
+        "inverse_bohr",
+        "inverse_nm"
+      ]
+    },
     "computation.method.functional_class": {
       "description": "Density functional class.",
       "values": [
@@ -1362,6 +1394,13 @@
       "map_columns": [
         "family",
         "also required"
+      ]
+    },
+    "computation.spectroscopy.transition.vectors_frame": {
+      "description": "The frame of a computed spectrum's transition vectors.",
+      "values": [
+        "cartesian",
+        "crystal"
       ]
     }
   },

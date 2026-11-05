@@ -331,6 +331,7 @@
             "HERFD-XAS",
             "XES",
             "RIXS",
+            "XRS",
             "XPS",
             "XRF",
             "XRD",
@@ -1227,7 +1228,7 @@
             "detection": {
               "type": "object",
               "additionalProperties": false,
-              "description": "For a measured spectrum: how this spectrum was detected, as far as it sets the spectrum's energy resolution and the shape of its features. The effective core-hole broadening of a HERFD spectrum depends on the final-state width of the selected line, so its features are sharper than in conventional XAS. Other instrument settings stay in system.",
+              "description": "For a measured spectrum: how this spectrum was detected, as far as it sets the spectrum's energy resolution, the shape of its features and, for XRS, the momentum transfer. The effective core-hole broadening of a HERFD spectrum depends on the final-state width of the selected line, so its features are sharper than in conventional XAS. Other instrument settings stay in system.",
               "properties": {
                 "mode": {
                   "type": "string",
@@ -1261,6 +1262,45 @@
                 "analyzer_resolution_eV": {
                   "type": "number",
                   "description": "HERFD: the analyzer energy resolution, in eV."
+                },
+                "q_inverse_angstrom": {
+                  "type": "number",
+                  "description": "XRS: the momentum transfer |q| of the measurement at the edge, in inverse angstrom (it changes slightly as the incident energy is scanned). When the source gives only the scattering angle 2theta and the energies, compute |q| = sqrt(E_in^2 + E_out^2 - 2 E_in E_out cos 2theta) / 1973.27 eV angstrom and say so in notes (XRS_WITHOUT_Q). Not the crystallographic s = |q|/(2 pi)."
+                },
+                "q_as_written": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "The momentum transfer as the source writes it, when it does, with its unit in ISAAC's spelling.",
+                  "properties": {
+                    "value": {
+                      "type": "number"
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "inverse_angstrom",
+                        "inverse_bohr",
+                        "inverse_nm"
+                      ]
+                    }
+                  }
+                },
+                "scattering_angle_deg": {
+                  "type": "number",
+                  "description": "XRS: the scattering angle 2theta, in degrees."
+                },
+                "q_direction_hkl": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "description": "XRS on a single crystal: the direction of q in the crystal's [h, k, l] frame, when the source gives it. A powder is matched on |q| alone; a crystal on |q| and direction."
+                },
+                "analyzer_energy_eV": {
+                  "type": "number",
+                  "description": "XRS: the energy the analyzer selects (the outgoing energy E_out, in eV). The spectrum's axis is the energy loss E_in - E_out."
                 },
                 "notes": {
                   "type": "string"
@@ -1736,6 +1776,14 @@
           "content": {
             "type": "string",
             "description": "The file's text, inline, so that a reader holds the file itself: the small text files a calculation read (structure, input deck, k-points) or any other small text file. Copy a file you hold unchanged; never retype, complete or cut it. Up to 100 kB of UTF-8 text (INLINE_CONTENT_TOO_LARGE); sha256 is the hash of these UTF-8 bytes and is required with content (INLINE_CONTENT_CHECKSUM_MISMATCH); uri keeps the original location. Binary files and bulk outputs stay at their uri. Never inline a file whose license forbids redistribution (a VASP POTCAR: name it in computation.method.pseudopotential) or one holding credentials."
+          },
+          "redistribution": {
+            "type": "string",
+            "enum": [
+              "open",
+              "restricted"
+            ],
+            "description": "restricted: the file's license forbids copying it (a VASP POTCAR). The record names it and keeps its sha256, and a reader obtains it under that license; it is never copied into content (RESTRICTED_FILE_INLINED) and is not asked for as an input (INPUT_NOT_REACHABLE). open (the default when absent): the file may be copied."
           },
           "media_type": {
             "type": "string"
@@ -2283,6 +2331,100 @@
                 }
               }
             },
+            "transition": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "The transition operator the calculation used, which sets what the spectrum is: absorption in the dipole (E1) or dipole-plus-quadrupole (E1+E2) approximation, or X-ray Raman scattering (XRS, non-resonant inelastic scattering at a core edge) with the full momentum-transfer operator exp(iq.r), which keeps every multipole. Intensities computed with different operators, or at different q, are not comparable.",
+              "properties": {
+                "operator": {
+                  "type": "string",
+                  "enum": [
+                    "dipole",
+                    "dipole_quadrupole",
+                    "momentum_transfer"
+                  ],
+                  "description": "dipole: e.r (E1). dipole_quadrupole: e.r plus the quadrupole term (i/2)(e.r)(k.r), added coherently (E1+E2 only, no higher terms). momentum_transfer: the full exp(iq.r), for XRS. Name the code's own keyword in notes."
+                },
+                "q_inverse_angstrom": {
+                  "type": "number",
+                  "description": "XRS: the momentum transfer |q| = |k_in - k_out|, in inverse angstrom (not the crystallographic s = |q|/(2 pi)); XRS_WITHOUT_Q. One fixed unit, so a unit slip shows (Q_CONVERSION_MISMATCH). At low q the XRS spectrum takes the dipole shape with an intensity that grows as q^2; at higher q the monopole (s to s at a K edge) and higher multipoles contribute."
+                },
+                "q_as_written": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "The momentum transfer as the input writes it, when it does: its value, and its unit in ISAAC's spelling (e.g. OCEAN's 'inversebohr' is inverse_bohr).",
+                  "properties": {
+                    "value": {
+                      "type": "number"
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "inverse_angstrom",
+                        "inverse_bohr",
+                        "inverse_nm"
+                      ]
+                    }
+                  }
+                },
+                "vectors": {
+                  "type": "array",
+                  "description": "The directions used, as unit vectors [x, y, z] in the frame vectors_frame names: for XAS the polarization e and, for the quadrupole term, the wave-vector k ({\"e\": [1, 0, 0], \"k\": [0, 1, 0]}); for XRS the direction of q ({\"q\": [0, 0, 1]}). Optional weight. List only directions the source states. Never invent a direction: when the source gives none, leave vectors out.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "e": {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                      },
+                      "k": {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                      },
+                      "q": {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                      },
+                      "weight": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                },
+                "vectors_frame": {
+                  "type": "string",
+                  "enum": [
+                    "cartesian",
+                    "crystal"
+                  ],
+                  "description": "The frame of the vectors: cartesian (the Cartesian frame of the cell, the default) or crystal (along the crystal axes, which differ from Cartesian in a non-orthogonal cell)."
+                },
+                "average": {
+                  "type": "string",
+                  "description": "How the spectra for the listed vectors were combined, e.g. 'mean over x, y, z (isotropic)', 'single direction'."
+                },
+                "energy_eV": {
+                  "type": "number",
+                  "description": "XAS: the photon energy that sets |k| = E/(hbar c) for the quadrupole term. XRS: the incident energy, which sets the scattering kinematics; the operator itself depends only on q."
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            },
             "site_average": {
               "type": "object",
               "additionalProperties": false,
@@ -2293,7 +2435,7 @@
                 },
                 "polarization": {
                   "type": "string",
-                  "description": "How polarizations were averaged, e.g. 'isotropic average of x, y, z'."
+                  "description": "Superseded by transition.average (change 21) for how polarizations or q directions were combined; kept for records written before it."
                 }
               }
             },

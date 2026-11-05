@@ -1,0 +1,254 @@
+{
+  "isaac_record_version": "1.05",
+  "record_id": "01JFH8SPECXRS0000000000001",
+  "record_type": "evidence",
+  "record_domain": "simulation",
+  "source_type": "computation",
+  "timestamps": {
+    "created_utc": "2026-11-05T12:00:00Z"
+  },
+  "sample": {
+    "material": {
+      "name": "CuO tenorite, conventional cell (8 atoms)",
+      "formula": "CuO",
+      "provenance": "theoretical",
+      "notes": "Illustrative example. Geometry in the OCEAN input (acell, rprim, xred)."
+    },
+    "sample_form": "unit_cell",
+    "sample_id": "example_o_k_xrs_series/CuO"
+  },
+  "context": {
+    "environment": "in_silico",
+    "temperature_K": 0,
+    "temperature_basis": "stated"
+  },
+  "system": {
+    "domain": "computational",
+    "technique": "XRS",
+    "facility": {
+      "facility_name": "NERSC",
+      "organization": "LBNL",
+      "cluster": "Perlmutter"
+    }
+  },
+  "computation": {
+    "method": {
+      "family": "BSE",
+      "code": "Quantum ESPRESSO + OCEAN",
+      "code_version": "OCEAN 3.2.0.1; Quantum ESPRESSO 7.4",
+      "functional_class": "GGA",
+      "functional_name": "PBE",
+      "basis_type": "planewave",
+      "pseudopotential": "ONCVPSP norm-conserving",
+      "spin_treatment": "collinear",
+      "core_hole_treatment": "BSE (OCEAN), O 1s full core hole, RPA-screened"
+    },
+    "spectroscopy": {
+      "edge": {
+        "element": "O",
+        "shell": "1s",
+        "label": "O K"
+      },
+      "broadening": {
+        "mode": "conventional",
+        "lorentzian_hwhm_eV": 0.08,
+        "lorentzian_source": "half of the O 1s core-hole width (0.16 eV FWHM), Krause and Oliver, J. Phys. Chem. Ref. Data 8, 329 (1979)",
+        "gaussian_fwhm_eV": 0.8,
+        "gaussian_source": "total energy resolution of the XRS spectrometer compared with"
+      },
+      "transition": {
+        "operator": "momentum_transfer",
+        "q_inverse_angstrom": 3.496,
+        "q_as_written": {
+          "value": 1.85,
+          "unit": "inverse_bohr"
+        },
+        "vectors": [
+          {
+            "q": [
+              1,
+              0,
+              0
+            ]
+          },
+          {
+            "q": [
+              0,
+              1,
+              0
+            ]
+          },
+          {
+            "q": [
+              0,
+              0,
+              1
+            ]
+          }
+        ],
+        "average": "mean over x, y, z",
+        "energy_eV": 10230.0,
+        "notes": "OCEAN keyword: qRaman"
+      },
+      "site_average": {
+        "absorber_sites": 4
+      }
+    },
+    "energy_reference": "Energy-loss axis of the series' gauge (core offset from the CuO O K anchor); not calibrated to a measurement.",
+    "output_quantity": "simulated_spectrum"
+  },
+  "measurement": {
+    "processing": {
+      "steps": [
+        "averaging",
+        "broadening",
+        "energy_alignment"
+      ],
+      "recipe_link": {
+        "rel": "processing_recipe",
+        "target": "repo://example-ocean-workflow/o_k_xrs/v1"
+      }
+    },
+    "energy_axis": {
+      "status": "aligned",
+      "gauge": {
+        "anchor_record_id": "01JFH8SPECXRS0000000000002",
+        "core_offset_eV": 522.3,
+        "core_offset_source": "computed on the CuO O K anchor at r = 9.5 Bohr, then frozen for the series",
+        "functional": "PBE+U (Cu 3d 3 eV)",
+        "magnetic_state": "AFM (tenorite ground-state ordering)",
+        "absorber_pseudopotential": "ONCVPSP O, norm-conserving",
+        "core_level_projectors": "OPF projectors generated for the O 1s core hole",
+        "screening_radius_bohr": 9.5,
+        "screening_grid_rmax_bohr": 12.0,
+        "core_hole": "full",
+        "screening_model": "RPA",
+        "screening_scale_factor": 0.8,
+        "code_major_version": "OCEAN 3",
+        "total_offset_added_to_axis": false
+      },
+      "notes": "Not calibrated to a measurement: the axis is the series' gauge, comparable within it."
+    },
+    "series": [
+      {
+        "series_id": "CuO_OK_XRS_site_avg",
+        "independent_variables": [
+          {
+            "name": "energy_loss",
+            "unit": "eV",
+            "values": [
+              528.0,
+              530.0,
+              532.0,
+              534.0,
+              536.0,
+              538.0,
+              540.0,
+              542.0
+            ]
+          }
+        ],
+        "channels": [
+          {
+            "name": "dynamic_structure_factor",
+            "unit": "ocean_intensity_au",
+            "role": "simulated_observable",
+            "values": [
+              0.01,
+              0.12,
+              0.55,
+              0.31,
+              0.42,
+              0.6,
+              0.48,
+              0.44
+            ]
+          }
+        ]
+      }
+    ],
+    "qc": {
+      "status": "valid",
+      "assumptions": [
+        "Illustrative values: this record shows the form, not a result."
+      ]
+    }
+  },
+  "attribution": {
+    "contributors": [
+      {
+        "name": "Example PI",
+        "role": "data_owner",
+        "affiliation": "Example National Laboratory"
+      }
+    ],
+    "produced_by": {
+      "group": "Example PI group",
+      "organization": "Example National Laboratory"
+    }
+  },
+  "assets": [
+    {
+      "asset_id": "ocean_input",
+      "content_role": "workflow_recipe",
+      "uri": "file:///scratch/example/cuo_o_k_xrs/OK.in",
+      "sha256": "1768d3edbba4da3a6dc23cad8d818866a65a54830f238a7a5c928f9139060dad",
+      "content": "dft qe\npp_database ONCVPSP-PBE-PDv0.4-stringent\nacell { 8.8508 6.4678 9.6921 }\nrprim {\n 1.0000 0.0000 0.0000\n 0.0000 1.0000 0.0000\n -0.1657 0.0000 0.9862\n}\nznucl { 29 8 }\ntypat { 1 1 1 1 2 2 2 2 }\nxred {\n 0.2500 0.2500 0.0000\n 0.7500 0.7500 0.0000\n 0.7500 0.2500 0.5000\n 0.2500 0.7500 0.5000\n 0.0000 0.4184 0.2500\n 0.0000 0.5816 0.7500\n 0.5000 0.9184 0.2500\n 0.5000 0.0816 0.7500\n}\necut -1\necut.quality high\nnspin 2\nnkpt { 6 8 6 }\nscreen.nkpt { 2 2 2 }\nnbands -400\nscreen.nbands -200\nedges { 8 1 0 }\nscreen.shells { 9.5 }\ncnbse.rad { 9.5 }\nscreen.grid.rmax 12.0\nscfac 0.8\ndiemac 12.78\ncore_offset .true.\n",
+      "media_type": "text/plain",
+      "notes": "OCEAN input, inline (example record); holds the geometry (acell, rprim, xred)."
+    },
+    {
+      "asset_id": "photon1",
+      "content_role": "workflow_recipe",
+      "uri": "file:///scratch/example/cuo_o_k_xrs/CNBSE/photon1",
+      "sha256": "0c22a34fe2dfa0d024fcf31776641549341c6c8651f44f3fac95a2d72300ec91",
+      "content": "qRaman\ncartesian 1 0 0\nend\ncartesian 1 0 0\nlength 1.85 inversebohr\nend\n10230\n",
+      "media_type": "text/plain",
+      "notes": "OCEAN photon file the BSE read, inline (example record)."
+    },
+    {
+      "asset_id": "photon2",
+      "content_role": "workflow_recipe",
+      "uri": "file:///scratch/example/cuo_o_k_xrs/CNBSE/photon2",
+      "sha256": "7a7edaf14dba621728e31106f095221e3b60b1f1d894a0c2f81eeab2f3078661",
+      "content": "qRaman\ncartesian 0 1 0\nend\ncartesian 0 1 0\nlength 1.85 inversebohr\nend\n10230\n",
+      "media_type": "text/plain",
+      "notes": "OCEAN photon file the BSE read, inline (example record)."
+    },
+    {
+      "asset_id": "photon3",
+      "content_role": "workflow_recipe",
+      "uri": "file:///scratch/example/cuo_o_k_xrs/CNBSE/photon3",
+      "sha256": "d474249170b06db5085b0411a93bc17875d4c076ebda3fb3a67fd41a00278678",
+      "content": "qRaman\ncartesian 0 0 1\nend\ncartesian 0 0 1\nlength 1.85 inversebohr\nend\n10230\n",
+      "media_type": "text/plain",
+      "notes": "OCEAN photon file the BSE read, inline (example record)."
+    }
+  ],
+  "links": [],
+  "descriptors": {
+    "outputs": [
+      {
+        "label": "spectral_features",
+        "generated_utc": "2026-11-05T12:00:00Z",
+        "generated_by": {
+          "agent": "example_feature_extraction",
+          "version": "1.0"
+        },
+        "descriptors": [
+          {
+            "name": "peak_count.O_K",
+            "kind": "theoretical_metric",
+            "source": "auto",
+            "value": 3,
+            "unit": "count",
+            "definition": "resolved peaks from the onset to 15 eV above it, at the nominal broadening",
+            "uncertainty": {
+              "basis": "method"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
