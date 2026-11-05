@@ -21,6 +21,7 @@ Layers:
 
 import json
 import logging
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -1445,6 +1446,58 @@ def _checksum_and_link_basis_warnings(record: dict) -> list:
     return warnings
 
 
+
+# A calculation can be rerun and checked only from inputs its readers can open (ledger change 20). A file at a path
+# only its producer can reach (file://, a cluster path, a private scheme) is provenance, not a copy: the record holds
+# the file's text in content, or points to a public copy. Literature records cite their paper instead.
+_PUBLIC_URI = re.compile(r"^(https?://|doi:)", re.I)
+_INPUT_ROLES = {"input_structure", "workflow_recipe"}
+_INLINE_LIMIT_BYTES = 100_000
+
+
+def _asset_input_warnings(record: dict) -> list:
+    """A calculation whose inputs no reader can open, and inline content that is too large or carries no matching
+    sha256 (warnings)."""
+    if record.get("record_type") != "evidence":
+        return []
+    warnings, private, inputs = [], [], 0
+    for i, a in enumerate(_assets(record)):
+        content = a.get("content")
+        is_input = a.get("content_role") in _INPUT_ROLES
+        inputs += is_input
+        if isinstance(content, str) and content:
+            data = content.encode("utf-8")
+            if len(data) > _INLINE_LIMIT_BYTES:
+                warnings.append({
+                    "code": "INLINE_CONTENT_TOO_LARGE", "path": f"assets/{i}/content",
+                    "message": (f"Asset '{a.get('asset_id')}' carries {len(data) // 1000} kB inline. Inline content is for "
+                                f"small text files (up to {_INLINE_LIMIT_BYTES // 1000} kB): a structure, an input file. "
+                                "Put a larger file at a public location (https, or a DOI) and point uri to it.")})
+            sha = str(a.get("sha256") or "")
+            if not _SHA256.fullmatch(sha) or hashlib.sha256(data).hexdigest() != sha.lower():
+                warnings.append({
+                    "code": "INLINE_CONTENT_CHECKSUM_MISMATCH", "path": f"assets/{i}/sha256",
+                    "message": (f"Asset '{a.get('asset_id')}': sha256 is not the SHA-256 of its inline content. With "
+                                "content, sha256 is the hash of that text as UTF-8 bytes, so a reader can tell the copy "
+                                "is the file the calculation read. Copy the file unchanged (never retyped, completed "
+                                "or cut) and hash that.")})
+        elif record.get("source_type") == "computation" and is_input and not _PUBLIC_URI.match(str(a.get("uri") or "")):
+            private.append((i, a))
+    if record.get("source_type") == "computation" and (private or not inputs):
+        if private:
+            names = ", ".join(f"{a.get('asset_id')} ({str(a.get('uri') or '')[:60]})" for _, a in private[:4])
+            what = (f"names inputs at locations only their producer can open: {names}"
+                    f"{', ...' if len(private) > 4 else ''}")
+        else:
+            what = "names no input files (no asset with content_role input_structure or workflow_recipe)"
+        warnings.append({
+            "code": "INPUT_NOT_REACHABLE", "path": f"assets/{private[0][0]}" if private else "assets",
+            "message": (f"This calculation {what}. A reader cannot rerun it or check how it was done. Carry the small "
+                        "text files the code read (structure, input deck, k-points) as the assets' content, copied "
+                        "unchanged with sha256 the hash of that text, or point uri to a public copy (https, or a DOI). "
+                        "Name a file whose license forbids copying it (some pseudopotential libraries) instead of copying it.")})
+    return warnings
+
 def link_target_warnings(record: dict, known_ids) -> list:
     """Links whose target is no record the repository knows: not published, and not held by this uploader.
     The validator cannot see the repository; the API calls this with the ids it found."""
@@ -2239,7 +2292,8 @@ def validate_record_full(record: dict) -> dict:
                 + _magnitude_warnings(record) + _competing_hypothesis_warnings(record)
                 + _second_hand_and_name_condition_warnings(record) + _prose_condition_warnings(record)
                 + _producer_name_warnings(record) + _source_and_method_warnings(record)
-                + _checksum_and_link_basis_warnings(record) + _energy_axis_warnings(record))
+                + _checksum_and_link_basis_warnings(record) + _energy_axis_warnings(record)
+                + _asset_input_warnings(record))
     if adr_errors:
         result["valid"] = False
         result.setdefault("vocabulary_errors", []).extend(adr_errors)

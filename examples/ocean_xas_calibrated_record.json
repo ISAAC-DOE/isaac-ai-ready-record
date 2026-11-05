@@ -194,17 +194,19 @@
       "asset_id": "input_structure",
       "content_role": "input_structure",
       "uri": "repo://example-ocean-workflow/cu_k_series/CuO/structure.xyz",
-      "media_type": "chemical/x-xyz",
-      "sha256": "not_available",
-      "notes": "Geometry fed to OCEAN."
+      "media_type": "text/plain",
+      "sha256": "35da4867b772c2aab5dd53cdb5ddf9726754e86d861e7af1b86c54646158d1de",
+      "notes": "Geometry fed to OCEAN (VASP POSCAR format), inline (example record).",
+      "content": "CuO tenorite, C2/c, conventional cell (illustrative example)\n1.0\n   4.6837   0.0000   0.0000\n   0.0000   3.4226   0.0000\n  -0.8500   0.0000   5.0579\nCu O\n4 4\nDirect\n  0.2500  0.2500  0.0000\n  0.7500  0.7500  0.0000\n  0.7500  0.2500  0.5000\n  0.2500  0.7500  0.5000\n  0.0000  0.4184  0.2500\n  0.0000  0.5816  0.7500\n  0.5000  0.9184  0.2500\n  0.5000  0.0816  0.7500\n"
     },
     {
       "asset_id": "ocean_input",
       "content_role": "workflow_recipe",
       "uri": "repo://example-ocean-workflow/cu_k_series/CuO/ocean.in",
       "media_type": "text/plain",
-      "sha256": "not_available",
-      "notes": "OCEAN input as run."
+      "sha256": "bbf480607c3fd38922c575f104177f058c62f9ab0660f71abd220ffbd4b768bd",
+      "notes": "OCEAN input, inline (example record).",
+      "content": "# Illustrative OCEAN input for the example record (Cu K edge of CuO)\ndft qe\npp_database ONCVPSP-PBE-PDv0.4-stringent\necut -1\necut.quality high\nnspin 2\nnkpt { 6 8 6 }\nscreen.nkpt { 2 2 2 }\nnbands -400\nscreen.nbands -200\nedges { -1 1 0 }\nscreen.shells { 9.5 }\ncnbse.rad { 9.5 }\nscreen.grid.rmax 12.0\nscfac 0.8\ndiemac 12.78\ncore_offset 151.7\ncnbse.broaden { 0.78 }\n"
     }
   ],
   "links": [],

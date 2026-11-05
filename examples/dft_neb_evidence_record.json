@@ -82,7 +82,7 @@
     "transition_state": {
       "method": "CI-NEB",
       "images": 5,
-      "reaction": "CO* + CO* \u2192 OCCO*",
+      "reaction": "CO* + CO* → OCCO*",
       "n_electrons_transferred": 0
     },
     "corrections_applied": {
@@ -112,8 +112,10 @@
       "asset_id": "vasp_incar",
       "content_role": "workflow_recipe",
       "uri": "repo://isaac-workflows/vasp_neb/cuag111_occo/INCAR",
-      "sha256": "not_available",
-      "media_type": "text/plain"
+      "sha256": "73daf0c24990c9bc7961bd4cf6914a3009cab46b47269b023ab49204a97999a9",
+      "media_type": "text/plain",
+      "content": "SYSTEM = CuAg(111) CO2 activation NEB (illustrative example)\nENCUT = 450\nGGA = PE\nIBRION = 3\nPOTIM = 0\nICHAIN = 0\nIMAGES = 5\nSPRING = -5\nLCLIMB = .TRUE.\nEDIFF = 1E-6\nEDIFFG = -0.03\n",
+      "notes": "VASP INCAR, inline (example record)."
     }
   ],
   "links": [
