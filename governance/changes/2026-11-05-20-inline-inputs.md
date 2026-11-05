@@ -60,5 +60,7 @@ so instead of asking uploaders to edit files (which would break the hash).
 
 ## Ship and watch
 
-SHIP_PENDING. Then: the co-designer's skill inlines structures and input files and updates its records; our 19
+Shipped in #298 (portal v0.0.381, contract 2026-11-05.2), wiki first. Live: the computed examples publish with no
+input warning; a stored OCEAN record of the co-designer draws `INPUT_NOT_REACHABLE` (its energy axis is already
+filled, from the skill's PR 6). Then: the co-designer's skill inlines structures and input files and updates its records; our 19
 records and the CatHub-derived ones need their inputs inline or a public link (owners told through the warning).
