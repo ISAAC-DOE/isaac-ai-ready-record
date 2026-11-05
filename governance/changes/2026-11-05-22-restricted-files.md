@@ -29,4 +29,5 @@ cleared. Found while checking the advice to that uploader (2026-11-05).
 
 ## Ship and watch
 
-With change 21.
+Shipped in #300 with change 21 (portal v0.0.383). Live dry run: one of the uploader's VASP records, with its inputs
+inlined and its POTCAR marked `restricted`, publishes with no warning.

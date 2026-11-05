@@ -26,8 +26,8 @@ The process is in [`../README.md`](../README.md).
 | [2026-11-05-18](2026-11-05-18-calibration-records-the-convention.md) | 2026-11-05 | A calibration records the convention used (standard, feature, set value) and privileges no edge energy; source optional | wording, one warning narrowed | 0, 1, 2 | #294, v0.0.377 | shipped; live: a calibration without a source publishes clean |
 | [2026-11-05-19](2026-11-05-19-computed-calibration-is-a-choice.md) | 2026-11-05 | A computed spectrum's calibration is a choice (computed standard, feature, set value, shift, why); measured-only fields marked; `standard_acquisition` loses `none` | wording, enum narrowed | 0, 1, 2 | #296, v0.0.379 | shipped; live: measured-only fields, no `none` |
 | [2026-11-05-20](2026-11-05-20-inline-inputs.md) | 2026-11-05 | A calculation carries what it takes to rerun it: `assets[].content` (inline file text), three warnings, contract step 10 | schema (additive), validator, wiki, contract | 0, 1, 2 | #298, v0.0.381 | shipped as warnings; skill PR 7 inlines OCEAN and VASP inputs |
-| [2026-11-05-21](2026-11-05-21-transition-operator.md) | 2026-11-05 | The transition operator of a computed spectrum; XRS as a technique; q on measured XRS; four warnings | schema (additive), validator, wiki, contract | 0, 1, 2, 3 | | shipping |
-| [2026-11-05-22](2026-11-05-22-restricted-files.md) | 2026-11-05 | A licensed input is named and checksummed, never copied (`assets[].redistribution`) | schema (additive), validator, wiki | 0, 1, 2 | | shipping |
+| [2026-11-05-21](2026-11-05-21-transition-operator.md) | 2026-11-05 | The transition operator of a computed spectrum; XRS as a technique; q on measured XRS; four warnings | schema (additive), validator, wiki, contract | 0, 1, 2, 3 | #300, v0.0.383 | shipped as warnings; three vendors matched the key |
+| [2026-11-05-22](2026-11-05-22-restricted-files.md) | 2026-11-05 | A licensed input is named and checksummed, never copied (`assets[].redistribution`) | schema (additive), validator, wiki | 0, 1, 2 | #300, v0.0.383 | shipped; a restricted POTCAR clears the input warning |
 
 Drafts not yet started: [PROPOSED.md](PROPOSED.md).
 

@@ -86,5 +86,6 @@ Changed after the run: the transition table lists `notes`, and the vectors row s
 
 ## Ship and watch
 
-SHIP_PENDING (with change 22). Then the co-designer's skill writes the transition block (his work), and the measured XRS records
+Shipped in #300 with change 22 (portal v0.0.383, contract 2026-11-05.3), wiki first. Live: the XAS and XRS examples
+publish with no warning. Then the co-designer's skill writes the transition block (his work), and the measured XRS records
 state q.
